@@ -16,6 +16,25 @@ class CopilotPlusServiceImpl: public CopilotPlusService {
   CopilotPlusServer *svr_;
  public:
   CopilotPlusServiceImpl(TxLogServer *svr);
+
+  void Submit(const MarshallDeputy& cmd,
+              slotid_t* i,
+              slotid_t* j,
+              ballot_t* ballot,
+              rrr::DeferredReply* defer) override;
+  
+  void FrontRecover(const MarshallDeputy& cmd,
+                    const slotid_t& i,
+                    const slotid_t& j,
+                    const ballot_t& ballot,
+                    bool_t* accept_recover,
+                    rrr::DeferredReply* defer) override;
+
+  void FrontCommit(const MarshallDeputy& cmd,
+                    const slotid_t& i,
+                    const slotid_t& j,
+                    const ballot_t& ballot,
+                    rrr::DeferredReply* defer) override;
 };
 
 }

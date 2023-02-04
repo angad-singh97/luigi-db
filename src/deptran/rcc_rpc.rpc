@@ -77,7 +77,19 @@ abstract service FpgaRaft {
 }
 
 abstract service CopilotPlus {
-
+  defer Submit(MarshallDeputy cmd |
+                uint64_t i,
+                uint64_t j,
+                int64_t ballot);
+  defer FrontRecover(MarshallDeputy cmd,
+                      uint64_t i,
+                      uint64_t j,
+                      int64_t ballot |
+                      bool_t accept_recover);
+  defer FrontCommit(MarshallDeputy cmd,
+                      uint64_t i,
+                      uint64_t j,
+                      int64_t ballot);
 }
 
 abstract service Copilot {
