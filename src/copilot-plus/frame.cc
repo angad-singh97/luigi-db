@@ -23,7 +23,7 @@ Coordinator* CopilotPlusFrame::CreateCoordinator(cooid_t coo_id,
   CopilotPlusCoordinator *coord = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
   return coord;
 };
-  
+
 TxLogServer* CopilotPlusFrame::CreateScheduler() {
   // TODO: where to call?
   verify(svr_ == nullptr);

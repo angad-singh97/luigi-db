@@ -22,11 +22,11 @@ class CopilotPlusFrame: public Frame {
                                  ClientControlServiceImpl *ccsi,
                                  uint32_t thread_id,
                                  shared_ptr<TxnRegistry> txn_reg) override;
-  
+
   TxLogServer *CreateScheduler() override;
-  
+
   Communicator *CreateCommo(PollMgr *poll = nullptr) override;
-  
+
   vector<rrr::Service *> CreateRpcServices(uint32_t site_id,
                                            TxLogServer *rep_svr,
                                            rrr::PollMgr *poll_mgr,
