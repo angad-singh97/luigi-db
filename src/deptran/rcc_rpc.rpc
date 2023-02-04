@@ -76,6 +76,9 @@ abstract service FpgaRaft {
                MarshallDeputy cmd);
 }
 
+abstract service CopilotPlus {
+
+}
 
 abstract service Copilot {
   defer Forward(MarshallDeputy cmd);
