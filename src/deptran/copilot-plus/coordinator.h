@@ -4,15 +4,20 @@
 #include "../coordinator.h"
 #include "server.h"
 #include "commo.h"
+#include "tx.h"
 
 namespace janus {
 
 class CopilotPlusCoordinator: public Coordinator {
  public:
-  enum Phase {INIT_END};
+  enum Phase {INIT_END, FRONT_RECOVERY, FRONT_COMMIT};
  private:
   Phase current_phase_ = INIT_END;
-  bool fast_path_ = false;
+  bool fast_path_success_ = false;
+  shared_ptr<Marshallable> accept_cmd_ = nullptr;
+  CopilotPlusSubmitQuorumEvent::ResponsePack max_response_;
+  NoOpCommand no_op_command_;
+  shared_ptr<Marshallable> empty_cmd_ = static_cast<shared_ptr<Marshallable>>(&no_op_command_);
  public:
   CopilotPlusCoordinator(uint32_t coo_id,
               int benchmark,
@@ -26,7 +31,9 @@ class CopilotPlusCoordinator: public Coordinator {
               const std::function<void()> &func = []() {},
               const std::function<void()> &exe_callback = []() {}) override;
   
+  void FrontRecover();
 
+  void FrontCommit();
 
   void Restart() override;
  private:

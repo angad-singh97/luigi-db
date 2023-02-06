@@ -17,6 +17,7 @@
 #include "occ/coordinator.h"
 #include "none_copilot/commo.h"
 #include "none_copilot/scheduler.h"
+#include "copilot-plus/coordinator.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
 #include "bench/tpcc/workload.h"
@@ -172,6 +173,7 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
                                       uint32_t id,
                                       shared_ptr<TxnRegistry> txn_reg) {
   // TODO: clean this up; make Coordinator subclasses assign txn_reg_
+  Log_info("enter deptran/frame.cc CreateCoordinator");
   Coordinator *coo;
   auto attr = this;
 //  auto mode = Config::GetConfig()->cc_mode_;
@@ -209,6 +211,11 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
     case MODE_MDCC:
 //      coo = (Coordinator*)new mdcc::MdccCoordinator(coo_id, id, config, ccsi);
       break;
+    case MODE_COPILOT_PLUS:
+      coo = new CopilotPlusCoordinator(coo_id,
+                                        benchmark,
+                                        ccsi,
+                                        id);
     case MODE_NONE:
     case MODE_NONE_COPILOT:
     default:
@@ -219,6 +226,7 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
       ((Coordinator*)coo)->txn_reg_ = txn_reg;
       break;
   }
+  Log_info("deptran/frame.cc CreateCoordinator %p created in frame %p", (void*)coo, (void*)this);
   coo->frame_ = this;
   return coo;
 }
@@ -291,9 +299,13 @@ TxData* Frame::CreateTxnCommand(TxRequest& req, shared_ptr<TxnRegistry> reg) {
 //}
 
 Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
+  Log_info("enter CreateCommo");
   switch (mode_) {
     case MODE_NONE_COPILOT:
       commo_ = new CommunicatorNoneCopilot(pollmgr);
+      break;
+    case MODE_COPILOT_PLUS:
+      commo_ = new CopilotPlusCommo(pollmgr);
       break;
     default:
       commo_ = new Communicator(pollmgr);
@@ -330,6 +342,7 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
       break;
     case MODE_NONE:
     case MODE_NOTX:
+    case MODE_COPILOT_PLUS:
     default:
       sp_tx.reset(new TxClassic(epoch, tid, mgr));
       break;
@@ -358,6 +371,7 @@ Executor* Frame::CreateExecutor(cmdid_t cmd_id, TxLogServer* sched) {
 }
 
 TxLogServer* Frame::CreateScheduler() {
+  Log_info("enter CreateScheduler, mode=%d", Config::GetConfig()->tx_proto_);
   auto mode = Config::GetConfig()->tx_proto_;
   TxLogServer *sch = nullptr;
   switch(mode) {
@@ -459,7 +473,8 @@ map<string, int> &Frame::FrameNameToMode() {
       {"multi_paxos",   MODE_MULTI_PAXOS},
       {"fpga_raft",     MODE_FPGA_RAFT},
       {"epaxos",        MODE_NOT_READY},
-      {"rep_commit",    MODE_NOT_READY}
+      {"rep_commit",    MODE_NOT_READY},
+      {"copilot_plus",  MODE_COPILOT_PLUS}
   };
   return frame_name_mode_s;
 }

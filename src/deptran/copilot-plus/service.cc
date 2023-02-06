@@ -7,15 +7,15 @@ CopilotPlusServiceImpl::CopilotPlusServiceImpl(TxLogServer *svr): svr_((CopilotP
 }
 
 void CopilotPlusServiceImpl::Submit(const MarshallDeputy& cmd,
+              bool_t* accepted,
               slotid_t* i,
               slotid_t* j,
-              ballot_t* ballot,
               rrr::DeferredReply* defer) {
   verify(svr_);
-  svr_->OnSubmit(cmd,
+  svr_->OnSubmit(const_cast<MarshallDeputy&>(cmd).sp_data_,
+                  accepted,
                   i,
                   j,
-                  ballot,
                   bind(&rrr::DeferredReply::reply, defer));
 }
 
@@ -26,7 +26,7 @@ void CopilotPlusServiceImpl::FrontRecover(const MarshallDeputy& cmd,
                                           bool_t* accept_recover,
                                           rrr::DeferredReply* defer) {
   verify(svr_);
-  svr_->OnFrontRecover(cmd,
+  svr_->OnFrontRecover(const_cast<MarshallDeputy&>(cmd).sp_data_,
                         i,
                         j,
                         ballot,
@@ -40,7 +40,7 @@ void CopilotPlusServiceImpl::FrontCommit(const MarshallDeputy& cmd,
                                           const ballot_t& ballot,
                                           rrr::DeferredReply* defer) {
   verify(svr_);
-  svr_->OnFrontCommit(cmd,
+  svr_->OnFrontCommit(const_cast<MarshallDeputy&>(cmd).sp_data_,
                       i,
                       j,
                       ballot,

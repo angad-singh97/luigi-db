@@ -893,6 +893,7 @@ Config::SitesByLocaleId(uint32_t locale_id, SiteInfoType type) {
 
 vector<Config::SiteInfo>
 Config::SitesByProcessName(string proc_name, Config::SiteInfoType type) {
+  //Log_info("SitesByProcessName proc_name=%s type=%d", proc_name.c_str(), type==SERVER);
   std::vector<SiteInfo> result;
   std::vector<SiteInfo>* searching;
   if (type==SERVER) {

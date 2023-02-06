@@ -209,6 +209,7 @@ Coordinator *TxLogServer::CreateRepCoord(const i64& dep_id) {
                                         nullptr,
                                         id++,
                                         txn_reg_);
+  coord->frame_ = rep_frame_;
   coord->dep_id_ = dep_id;
   coord->par_id_ = partition_id_;
   //Log_info("Partition id set: %d", partition_id_);

@@ -21,20 +21,20 @@ Coordinator* CopilotPlusFrame::CreateCoordinator(cooid_t coo_id,
                                  uint32_t thread_id,
                                  shared_ptr<TxnRegistry> txn_reg) {
   CopilotPlusCoordinator *coord = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
+  Log_info("CopilotPlusCoordinator %p created", (void*)this);
   return coord;
 };
   
 TxLogServer* CopilotPlusFrame::CreateScheduler() {
-  // TODO: where to call?
   verify(svr_ == nullptr);
   svr_ = new CopilotPlusServer(this);
   return svr_;
 }
 
 Communicator* CopilotPlusFrame::CreateCommo(PollMgr *poll) {
-  // TODO: where to call?
-  verify(commo_ == nullptr);
-  commo_ = new CopilotPlusCommo(poll);
+  if (commo_ == nullptr) {
+    commo_ = new CopilotPlusCommo(poll);
+  }
   return commo_;
 }
 

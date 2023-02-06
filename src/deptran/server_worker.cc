@@ -35,13 +35,12 @@ void ServerWorker::SetupHeartbeat() {
 
 void ServerWorker::SetupBase() {
   auto config = Config::GetConfig();
+  Log_info("tx_proto_=%d replica_proto_=%d", config->tx_proto_, config->replica_proto_);
   tx_frame_ = Frame::GetFrame(config->tx_proto_);
   tx_frame_->site_info_ = site_info_;
-
   // this needs to be done before poping table
   sharding_ = tx_frame_->CreateSharding(Config::GetConfig()->sharding_);
   sharding_->BuildTableInfoPtr();
-
   verify(tx_reg_ == nullptr);
   tx_reg_ = std::make_shared<TxnRegistry>();
   tx_sched_ = tx_frame_->CreateScheduler();
@@ -51,7 +50,6 @@ void ServerWorker::SetupBase() {
   tx_sched_->site_id_ = site_info_->id;
 //  Log_info("initialize site id: %d", (int) site_info_->id);
   sharding_->tx_sched_ = tx_sched_;
-
 	Log_info("Is it replicated: %d", config->IsReplicated());
   if (config->IsReplicated() &&
       config->replica_proto_ != config->tx_proto_) {

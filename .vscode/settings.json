@@ -61,6 +61,16 @@
     "memory_resource": "cpp",
     "random": "cpp",
     "set": "cpp",
-    "string": "cpp"
+    "string": "cpp",
+    "strstream": "cpp",
+    "bit": "cpp",
+    "codecvt": "cpp",
+    "compare": "cpp",
+    "concepts": "cpp",
+    "ranges": "cpp",
+    "stop_token": "cpp",
+    "cfenv": "cpp",
+    "valarray": "cpp",
+    "variant": "cpp"
   }
 }

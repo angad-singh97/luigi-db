@@ -18,9 +18,9 @@ class CopilotPlusServiceImpl: public CopilotPlusService {
   CopilotPlusServiceImpl(TxLogServer *svr);
 
   void Submit(const MarshallDeputy& cmd,
+              bool_t* accepted,
               slotid_t* i,
               slotid_t* j,
-              ballot_t* ballot,
               rrr::DeferredReply* defer) override;
   
   void FrontRecover(const MarshallDeputy& cmd,

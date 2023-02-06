@@ -132,6 +132,7 @@ Coordinator* ClientWorker::CreateFailCtrlCoordinator() {
                                        ccsi,
                                        id,
                                        txn_reg_);
+  coo->frame_ = frame_;
   coo->loc_id_ = my_site_.locale_id;
   coo->commo_ = commo_;
   coo->forward_status_ = forward_requests_to_leader_ ? FORWARD_TO_LEADER : NONE;
@@ -154,6 +155,7 @@ Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
                                        ccsi,
                                        id,
                                        txn_reg_);
+  coo->frame_ = frame_;
   coo->loc_id_ = my_site_.locale_id;
   coo->commo_ = commo_;
   coo->forward_status_ = forward_requests_to_leader_ ? FORWARD_TO_LEADER : NONE;

@@ -13,5 +13,12 @@ Marshal& KeyValueCommand::FromMarshal(Marshal& m) {
   return m;
 }
 
+Marshal& NoOpCommand::ToMarshal(Marshal& m) const {
+  return m;
+}
+
+Marshal& NoOpCommand::FromMarshal(Marshal& m) {
+  return m;
+}
 
 }

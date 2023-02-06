@@ -203,6 +203,7 @@ inline void PaxosWorker::_Submit(shared_ptr<Marshallable> sp_m) {
                                                      nullptr,
                                                      id++,
                                                      nullptr);
+  coord->frame_ = rep_frame_;
   coord->par_id_ = site_info_->partition_id_;
   coord->loc_id_ = site_info_->locale_id;
   created_coordinators_.push_back(coord);

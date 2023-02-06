@@ -83,8 +83,10 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
                site_info.GetBindAddress().c_str());
       auto& worker = svr_workers_g[i++];
       worker.site_info_ = const_cast<Config::SiteInfo*>(&config->SiteById(site_info.id));
+      Log_info("start SetupBase");
       worker.SetupBase();
       // register txn piece logic
+      Log_info("start RegisterWorkload");
       worker.RegisterWorkload();
       // populate table according to benchmarks
       worker.PopTable();
