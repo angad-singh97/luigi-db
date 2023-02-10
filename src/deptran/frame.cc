@@ -338,6 +338,7 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
       sp_tx.reset(new TxSnow(tid, mgr, ro));
       break;
     case MODE_MULTI_PAXOS:
+    case MODE_MENCIUS:
     case MODE_FPGA_RAFT:
       break;
     case MODE_NONE:
@@ -471,6 +472,7 @@ map<string, int> &Frame::FrameNameToMode() {
       {"extern_c",      MODE_EXTERNC},
       {"mdcc",          MODE_MDCC},
       {"multi_paxos",   MODE_MULTI_PAXOS},
+      {"mencius",   MODE_MENCIUS},
       {"fpga_raft",     MODE_FPGA_RAFT},
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},

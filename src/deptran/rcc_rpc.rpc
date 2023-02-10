@@ -24,6 +24,26 @@ abstract service MultiPaxos {
 	       
 }
 
+abstract service Mencius {
+
+  defer Prepare(uint64_t slot,
+                ballot_t ballot |
+                ballot_t max_ballot,
+                uint64_t coro_id);
+
+  defer Accept(uint64_t slot,
+               uint64_t time,
+               ballot_t ballot,
+               MarshallDeputy cmd |
+               ballot_t max_ballot,
+               uint64_t coro_id);
+
+  defer Decide(uint64_t slot,
+               ballot_t ballot,
+               MarshallDeputy cmd);
+	       
+}
+
 abstract service FpgaRaft {
 	defer Heartbeat(uint64_t leaderPrevLogIndex,
 									DepId dep_id |
