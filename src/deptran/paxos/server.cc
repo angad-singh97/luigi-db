@@ -124,4 +124,9 @@ void PaxosServer::OnCommit(const slotid_t slot_id,
   in_applying_logs_ = false;
 }
 
+void PaxosServer::Setup() {
+  Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
+        (void*)this, this->loc_id_, (void*)this->commo_);
+}
+
 } // namespace janus
