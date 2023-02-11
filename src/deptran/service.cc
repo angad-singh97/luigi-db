@@ -54,6 +54,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   TxnOutput* output,
                                   uint64_t* coro_id,
                                   rrr::DeferredReply* defer) {
+Log_debug("The server side receives a message from the client worker");
 #ifdef PIECE_COUNT
   piece_count_key_t piece_count_key =
       (piece_count_key_t){header.t_type, header.p_type};

@@ -550,7 +550,7 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
       coo->sp_ev_done_->Set(1);
       delete req;
     };
-    coo->DoTxAsync(*req);
+    coo->DoTxAsync(*req); // coo -> CoordinatorNone
   };
   task();
 //  dispatch_pool_->run_async(task); // this causes bug

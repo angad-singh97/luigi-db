@@ -84,6 +84,7 @@ void CoordinatorClassic::DoTxAsync(TxRequest& req) {
     ForwardTxnRequest(req);
   } else {
     Log_debug("start txn!!! : %d", forward_status_);
+    // this GotoNextPhase is in none/coordinator.cc, coz this is CoordinatorNone instance
     Coroutine::CreateRun([this]() { GotoNextPhase(); }, __FILE__, __LINE__);
   }
 }
@@ -205,6 +206,7 @@ void CoordinatorClassic::Restart() {
 }
 
 void CoordinatorClassic::DispatchAsync() {
+  Log_debug("commo Broadcast to the server on client worker");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
 

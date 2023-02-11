@@ -173,7 +173,6 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
                                       uint32_t id,
                                       shared_ptr<TxnRegistry> txn_reg) {
   // TODO: clean this up; make Coordinator subclasses assign txn_reg_
-  Log_info("enter deptran/frame.cc CreateCoordinator");
   Coordinator *coo;
   auto attr = this;
 //  auto mode = Config::GetConfig()->cc_mode_;
@@ -226,7 +225,6 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
       ((Coordinator*)coo)->txn_reg_ = txn_reg;
       break;
   }
-  Log_info("deptran/frame.cc CreateCoordinator %p created in frame %p", (void*)coo, (void*)this);
   coo->frame_ = this;
   return coo;
 }

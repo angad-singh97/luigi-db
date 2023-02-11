@@ -218,6 +218,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
+  Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
   // TODO maybe change inuse to an event?
 //  verify(!sp_tx->inuse);

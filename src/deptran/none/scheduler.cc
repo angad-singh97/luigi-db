@@ -8,6 +8,7 @@
 namespace janus {
 bool SchedulerNone::Dispatch(cmdid_t cmd_id, shared_ptr<Marshallable> cmd,
                              TxnOutput& ret_output) {
+	Log_debug("Dispatch the request to the correct protocol on the server side");
 	auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(cmd_id));
 	DepId di;
 	di.str = "dep";
