@@ -470,7 +470,7 @@ map<string, int> &Frame::FrameNameToMode() {
       {"extern_c",      MODE_EXTERNC},
       {"mdcc",          MODE_MDCC},
       {"multi_paxos",   MODE_MULTI_PAXOS},
-      {"mencius",   MODE_MENCIUS},
+      {"mencius",       MODE_MENCIUS},
       {"fpga_raft",     MODE_FPGA_RAFT},
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},

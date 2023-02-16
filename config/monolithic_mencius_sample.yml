@@ -34,12 +34,32 @@ mode:
 # config/concurrent_100.yml 
 n_concurrent: 100
 
+# config/1c1s3r3p.yml
+# site:
+#   server: # each line is a partition, the first is the master site_name:port
+#     - ["s101:8000", "s201:8001", "s301:8002"]
+#   client: # each line is a partition
+#     - ["c101"]
+
+# # site_name - process_name map
+# process:
+#   s101: p1
+#   s201: p2
+#   s301: p3
+#   c101: localhost
+
+# host:
+#   localhost: 127.0.0.1
+#   p1: 127.0.0.1
+#   p2: 127.0.0.1
+#   p3: 127.0.0.1
+
 # config/1c1s3r1p.yml
 site:
   server: # each line is a partition, the first is the master site_name:port
     - ["s101:18000", "s201:18001", "s301:18002"]
   client: # each line is a partition
-    - ["c01"]
+    - ["c01", "c02", "c03"]
 
 # site_name - process_name map
 process:
@@ -47,6 +67,8 @@ process:
   s201: localhost 
   s301: localhost 
   c01: localhost 
+  c02: localhost 
+  c03: localhost 
 
 host:
   localhost: 127.0.0.1

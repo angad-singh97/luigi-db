@@ -63,7 +63,7 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
                            const ballot_t ballot,
                            shared_ptr<Marshallable> &cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("mencius scheduler decide for slot: %lx", slot_id);
+  //Log_info("mencius scheduler decide for slot: %d on loc_id_:%d", slot_id, this->loc_id_);
   auto instance = GetInstance(slot_id);
   instance->committed_cmd_ = cmd;
   if (slot_id > max_committed_slot_) {

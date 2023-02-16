@@ -39,6 +39,10 @@ class MenciusServer : public TxLogServer {
   shared_ptr<MenciusData> GetInstance(slotid_t id) {
     verify(id >= min_active_slot_);
     auto& sp_instance = logs_[id];
+    // for (auto const& x : logs_) {
+    //   Log_info("GetInstance slot_id: %llu on loc_id_:%d [logs]", x.first, this->loc_id_);
+    // }
+
     if(!sp_instance)
       sp_instance = std::make_shared<MenciusData>();
     return sp_instance;

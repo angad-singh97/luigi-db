@@ -16,10 +16,11 @@ CoordinatorMencius::CoordinatorMencius(uint32_t coo_id,
 void CoordinatorMencius::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
-  if (!IsLeader()) {
+  if (!IsLeader(slot_id_)) {
     //change back to fatal
-    Log_info("i am not the leader; site %d; locale %d",
-              frame_->site_info_->id, loc_id_);
+    Log_info("i am not the leader; site %d; locale %d, slot_id:%d",
+              frame_->site_info_->id, loc_id_, slot_id_);
+    verify(0);
   }
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -116,7 +117,7 @@ void CoordinatorMencius::Accept() {
   auto sp_quorum = commo()->BroadcastAccept(par_id_, slot_id_, curr_ballot_, cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
-  //Log_info("Accept(): %d", dep_id_);
+  //Log_info("Accept(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);
 
   sp_quorum->Wait();
   auto end = chrono::system_clock::now();
@@ -185,7 +186,7 @@ void CoordinatorMencius::GotoNextPhase() {
   phase_++;
   switch (current_phase) {
     case Phase::INIT_END:
-      if (IsLeader()) {
+      if (IsLeader(slot_id_)) {
         phase_++; // skip prepare phase for "leader"
         verify(phase_ % n_phase == Phase::ACCEPT);
         Accept();

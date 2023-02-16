@@ -247,7 +247,8 @@ void ClientWorker::Work() {
           }
         }
         num_txn++;
-        auto coo = FindOrCreateCoordinator();
+        auto coo = FindOrCreateCoordinator(); // CoordinatorNone instance
+        coo->cli_id_ = cli_id_;
         verify(!coo->sp_ev_commit_);
         verify(!coo->sp_ev_done_);
         coo->sp_ev_commit_ = Reactor::CreateSpEvent<IntEvent>();
@@ -327,9 +328,9 @@ void ClientWorker::Work() {
 
   while (all_done_ == 0) {
     Log_info("wait for finish... n_ceased_cleints: %d,  "
-              "n_issued: %d, n_done: %d, n_created_coordinator: %d",
+              "n_issued: %d, n_done: %d, n_created_coordinator: %d, client_id: %d",
               (int) n_ceased_client_.value_, (int) n_tx_issued_,
-              (int) sp_n_tx_done_.value_, (int) created_coordinators_.size());
+              (int) sp_n_tx_done_.value_, (int) created_coordinators_.size(), cli_id_);
     sleep(5);
   }
 
@@ -337,12 +338,13 @@ void ClientWorker::Work() {
     *failover_server_quit_ = true;
   }
 
-  Log_info("Finish:\nTotal: %u, Commit: %u, Attempts: %u, Running for %u, Throughput: %.2f\n",
+  Log_info("Finish:\nTotal: %u, Commit: %u, Attempts: %u, Running for %u, Throughput: %.2f, Client_id: %d\n",
            num_txn.load(),
            success.load(),
            num_try.load(),
            Config::GetConfig()->get_duration(),
-           static_cast<float>(num_txn.load()) / Config::GetConfig()->get_duration());
+           static_cast<float>(num_txn.load()) / Config::GetConfig()->get_duration(),
+           cli_id_);
   fflush(stderr);
   fflush(stdout);
 

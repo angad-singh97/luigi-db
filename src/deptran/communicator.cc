@@ -103,8 +103,19 @@ Communicator::RandomProxyForPartition(parid_t par_id) const {
   return par_proxies[index];
 }
 
+// for most protocol, e.g., Paxos or Raft, the client always 
+//      tries to issue the request to the fixed leader (the first one) (idx is -1 by default)
+// but, for Mencius, it uses round robin to rotate the leader (idx > -1)
+// @param idx: get the index of servers as the leader
 std::pair<siteid_t, ClassicProxy*>
-Communicator::LeaderProxyForPartition(parid_t par_id) const {
+Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
+  if (idx > -1) { // Mencius
+    auto it = rpc_par_proxies_.find(par_id);
+    auto& partition_proxies = it->second;
+    verify(partition_proxies.size()>idx);
+    return it->second.at(idx);
+  }
+
   auto leader_cache =
       const_cast<map<parid_t, SiteProxyPair>&>(this->leader_cache_);
   auto leader_it = leader_cache.find(par_id);
@@ -259,7 +270,15 @@ void Communicator::BroadcastDispatch(
         fu->get_reply() >> ret >> outputs;
         callback(ret, outputs);
       };
-  auto pair_leader_proxy = LeaderProxyForPartition(par_id);
+  
+  std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
+  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS) {
+    int n = rpc_par_proxies_.find(par_id)->second.size();
+    pair_leader_proxy = LeaderProxyForPartition(par_id, coo->cli_id_% n);
+  } else {
+    pair_leader_proxy = LeaderProxyForPartition(par_id);
+  }
+  
   SetLeaderCache(par_id, pair_leader_proxy) ;
   Log_debug("send dispatch to site %ld, par %d",
             pair_leader_proxy.first, par_id);

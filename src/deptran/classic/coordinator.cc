@@ -85,6 +85,7 @@ void CoordinatorClassic::DoTxAsync(TxRequest& req) {
   } else {
     Log_debug("start txn!!! : %d", forward_status_);
     // this GotoNextPhase is in none/coordinator.cc, coz this is CoordinatorNone instance
+    // class CoordinatorNone : public CoordinatorClassic { }
     Coroutine::CreateRun([this]() { GotoNextPhase(); }, __FILE__, __LINE__);
   }
 }

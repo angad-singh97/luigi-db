@@ -124,7 +124,8 @@ class Communicator {
   virtual ~Communicator();
 
   SiteProxyPair RandomProxyForPartition(parid_t partition_id) const;
-  SiteProxyPair LeaderProxyForPartition(parid_t) const;
+  SiteProxyPair LeaderProxyForPartition(parid_t, int idx=-1) const;
+
   SiteProxyPair NearestProxyForPartition(parid_t) const;
   void SetLeaderCache(parid_t par_id, SiteProxyPair& proxy) {
     leader_cache_[par_id] = proxy;
