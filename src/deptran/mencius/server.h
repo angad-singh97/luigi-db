@@ -15,7 +15,7 @@ class CmdData;
 
 struct MenciusData {
   ballot_t max_ballot_seen_ = 0;
-  ballot_t max_ballot_accepted_ = 0;
+  ballot_t max_ballot_suggested_ = 0;
   shared_ptr<Marshallable> accepted_cmd_{nullptr};
   shared_ptr<Marshallable> committed_cmd_{nullptr};
 };
@@ -28,12 +28,12 @@ class MenciusServer : public TxLogServer {
   slotid_t max_committed_slot_ = 0;
   map<slotid_t, shared_ptr<MenciusData>> logs_{};
   int n_prepare_ = 0;
-  int n_accept_ = 0;
+  int n_suggest_ = 0;
   int n_commit_ = 0;
   bool in_applying_logs_{false};
 
   ~MenciusServer() {
-    Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
+    Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_suggest_, n_commit_);
   }
 
   shared_ptr<MenciusData> GetInstance(slotid_t id) {
@@ -54,7 +54,7 @@ class MenciusServer : public TxLogServer {
                  uint64_t* coro_id,
                  const function<void()> &cb);
 
-  void OnAccept(const slotid_t slot_id,
+  void OnSuggest(const slotid_t slot_id,
 		const uint64_t time,
                 const ballot_t ballot,
                 shared_ptr<Marshallable> &cmd,

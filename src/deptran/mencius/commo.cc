@@ -60,15 +60,15 @@ MenciusCommo::BroadcastPrepare(parid_t par_id,
   return e;
 }
 
-shared_ptr<MenciusAcceptQuorumEvent>
-MenciusCommo::BroadcastAccept(parid_t par_id,
+shared_ptr<MenciusSuggestQuorumEvent>
+MenciusCommo::BroadcastSuggest(parid_t par_id,
                                  slotid_t slot_id,
                                  ballot_t ballot,
                                  shared_ptr<Marshallable> cmd) {
-  //Log_info("invoke BroadcastAccept, slot_id:%d", slot_id);
+  Log_info("invoke BroadcastSuggest, slot_id:%d", slot_id);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<MenciusAcceptQuorumEvent>(n, n/2+1);
-//  auto e = Reactor::CreateSpEvent<MenciusAcceptQuorumEvent>(n, n);
+  auto e = Reactor::CreateSpEvent<MenciusSuggestQuorumEvent>(n, n/2+1);
+//  auto e = Reactor::CreateSpEvent<MenciusSuggestQuorumEvent>(n, n);
 
   auto src_coroid = e->GetCoroId();
   auto proxies = rpc_par_proxies_[par_id];
@@ -102,22 +102,22 @@ MenciusCommo::BroadcastAccept(parid_t par_id,
       e->FeedResponse(b==ballot);
       auto end = chrono::system_clock::now();
       auto duration = chrono::duration_cast<chrono::microseconds>(end-start).count();
-      //Log_info("The duration of Accept() for %d is: %d", follower_id, duration);
+      //Log_info("The duration of Suggest() for %d is: %d", follower_id, duration);
       // e->deps[leader_id][src_coroid][follower_id].erase(-1);
       // e->deps[leader_id][src_coroid][follower_id].insert(coro_id);
     };
     MarshallDeputy md(cmd);
     auto start1 = chrono::system_clock::now();
-    auto f = proxy->async_Accept(slot_id, start_, ballot, md, fuattr);
+    auto f = proxy->async_Suggest(slot_id, start_, ballot, md, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();
-    //Log_info("Time for Async_Accept() for %d is: %d", follower_id, duration);
+    //Log_info("Time for async_Suggest() for %d is: %d", follower_id, duration);
     Future::safe_release(f);
   }
   return e;
 }
 
-void MenciusCommo::BroadcastAccept(parid_t par_id,
+void MenciusCommo::BroadcastSuggest(parid_t par_id,
                                       slotid_t slot_id,
                                       ballot_t ballot,
                                       shared_ptr<Marshallable> cmd,
@@ -132,7 +132,7 @@ void MenciusCommo::BroadcastAccept(parid_t par_id,
     fuattr.callback = cb;
     MarshallDeputy md(cmd);
     uint64_t time = 0; // compiles the code
-    auto f = proxy->async_Accept(slot_id, time,ballot, md, fuattr);
+    auto f = proxy->async_Suggest(slot_id, time,ballot, md, fuattr);
     Future::safe_release(f);
   }
 //  verify(0);
@@ -142,7 +142,7 @@ void MenciusCommo::BroadcastDecide(const parid_t par_id,
                                       const slotid_t slot_id,
                                       const ballot_t ballot,
                                       const shared_ptr<Marshallable> cmd) {
-  //Log_info("invoke BroadcastDecide, slot_id:%d", slot_id);
+  Log_info("invoke BroadcastDecide, slot_id:%d", slot_id);
   auto proxies = rpc_par_proxies_[par_id];
   int n = proxies.size();
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;

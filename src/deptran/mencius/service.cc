@@ -22,7 +22,7 @@ void MenciusServiceImpl::Prepare(const uint64_t& slot,
                     std::bind(&rrr::DeferredReply::reply, defer));
 }
 
-void MenciusServiceImpl::Accept(const uint64_t& slot,
+void MenciusServiceImpl::Suggest(const uint64_t& slot,
 		                   const uint64_t& time,
                                    const ballot_t& ballot,
                                    const MarshallDeputy& md_cmd,
@@ -47,7 +47,7 @@ void MenciusServiceImpl::Accept(const uint64_t& slot,
   //Log_info("Duration of RPC is: %d", start_-time);
 
   auto coro = Coroutine::CreateRun([&] () {
-    sched_->OnAccept(slot,
+    sched_->OnSuggest(slot,
 		     time,
                      ballot,
                      const_cast<MarshallDeputy&>(md_cmd).sp_data_,
@@ -59,7 +59,7 @@ void MenciusServiceImpl::Accept(const uint64_t& slot,
 
   auto end = chrono::system_clock::now();
   auto duration = chrono::duration_cast<chrono::microseconds>(end-start);
-  //Log_info("Duration of Accept() at Follower's side is: %d", duration.count());
+  //Log_info("Duration of Suggest() at Follower's side is: %d", duration.count());
   //Log_info("coro id on service side: %d", coro->id);
 }
 

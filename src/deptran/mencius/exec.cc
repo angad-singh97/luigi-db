@@ -8,7 +8,7 @@ ballot_t MenciusExecutor::Prepare(const ballot_t ballot) {
   return 0;
 }
 
-ballot_t MenciusExecutor::Accept(const ballot_t ballot,
+ballot_t MenciusExecutor::Suggest(const ballot_t ballot,
                                     shared_ptr<Marshallable> cmd) {
   verify(0);
   return 0;

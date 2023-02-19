@@ -26,7 +26,7 @@ class MenciusServiceImpl : public MenciusService {
                uint64_t* coro_id,
                rrr::DeferredReply* defer) override;
 
-  void Accept(const uint64_t& slot,
+  void Suggest(const uint64_t& slot,
 	      const uint64_t& time,
               const ballot_t& ballot,
               const MarshallDeputy& cmd,

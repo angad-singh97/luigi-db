@@ -30,7 +30,7 @@ void MenciusServer::OnPrepare(slotid_t slot_id,
 }
 
 
-void MenciusServer::OnAccept(const slotid_t slot_id,
+void MenciusServer::OnSuggest(const slotid_t slot_id,
 		           const uint64_t time,
                            const ballot_t ballot,
                            shared_ptr<Marshallable> &cmd,
@@ -38,16 +38,16 @@ void MenciusServer::OnAccept(const slotid_t slot_id,
                            uint64_t* coro_id,
                            const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("mencius scheduler accept for slot_id: %llx", slot_id);
+  Log_debug("mencius scheduler suggest for slot_id: %llx", slot_id);
 
   auto instance = GetInstance(slot_id);
   
   //TODO: might need to optimize this. we can vote yes on duplicates at least for now
-  //verify(instance->max_ballot_accepted_ < ballot);
+  //verify(instance->max_ballot_suggested_ < ballot);
   
   if (instance->max_ballot_seen_ <= ballot) {
     instance->max_ballot_seen_ = ballot;
-    instance->max_ballot_accepted_ = ballot;
+    instance->max_ballot_suggested_ = ballot;
   } else {
     // TODO
     verify(0);
@@ -55,7 +55,7 @@ void MenciusServer::OnAccept(const slotid_t slot_id,
 
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
-  n_accept_++;
+  n_suggest_++;
   cb();
 }
 

@@ -63,8 +63,8 @@ void CoordinatorMencius::Prepare() {
   Log_info("Duration of Wait() in Prepare() is: %d", duration.count());
   sp_quorum->log();
   if (sp_quorum->Yes()) {
-    verify(!sp_quorum->HasAcceptedValue());
-    // TODO use the previously accepted value.
+    verify(!sp_quorum->HasSuggestedValue());
+    // TODO use the previously suggested value.
 
   } else if (sp_quorum->No()) {
     // TODO restart prepare?
@@ -106,24 +106,24 @@ void CoordinatorMencius::Prepare() {
 //  }
 }
 
-void CoordinatorMencius::Accept() {
+void CoordinatorMencius::Suggest() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  verify(!in_accept);
-  in_accept = true;
-  Log_debug("mencius coordinator broadcasts accept, "
+  verify(!in_suggest);
+  in_suggest = true;
+  Log_debug("mencius coordinator broadcasts Suggest, "
                 "par_id_: %lx, slot_id: %llx",
             par_id_, slot_id_);
   auto start = chrono::system_clock::now();
-  auto sp_quorum = commo()->BroadcastAccept(par_id_, slot_id_, curr_ballot_, cmd_);
+  auto sp_quorum = commo()->BroadcastSuggest(par_id_, slot_id_, curr_ballot_, cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
-  //Log_info("Accept(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);
+  //Log_info("Suggest(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);
 
   sp_quorum->Wait();
   auto end = chrono::system_clock::now();
   auto duration = chrono::duration_cast<chrono::microseconds>(end-start);
   //auto duration_ready = chrono::duration_cast<chrono::microseconds>(end-sp_quorum->ready_time);
-  //Log_info("Duration of Wait() in Accept() is: %d", duration.count());
+  //Log_info("Duration of Wait() in Suggest() is: %d", duration.count());
   //Log_info("Duration after Ready to end of Wait() is: %d", duration_ready.count());
   sp_quorum->log();
   if (sp_quorum->Yes()) {
@@ -135,17 +135,17 @@ void CoordinatorMencius::Accept() {
     // TODO process timeout.
     verify(0);
   }
-//  commo()->BroadcastAccept(par_id_,
+//  commo()->BroadcastSuggest(par_id_,
 //                           slot_id_,
 //                           curr_ballot_,
 //                           cmd_,
-//                           std::bind(&CoordinatorMencius::AcceptAck,
+//                           std::bind(&CoordinatorMencius::SuggestAck,
 //                                     this,
 //                                     phase_,
 //                                     std::placeholders::_1));
 //}
 //
-//void CoordinatorMencius::AcceptAck(phase_t phase, Future* fu) {
+//void CoordinatorMencius::SuggestAck(phase_t phase, Future* fu) {
 //  std::lock_guard<std::recursive_mutex> lock(mtx_);
 //  if (phase_ > phase) return;
 //  ballot_t max_ballot;
@@ -188,8 +188,8 @@ void CoordinatorMencius::GotoNextPhase() {
     case Phase::INIT_END:
       if (IsLeader(slot_id_)) {
         phase_++; // skip prepare phase for "leader"
-        verify(phase_ % n_phase == Phase::ACCEPT);
-        Accept();
+        verify(phase_ % n_phase == Phase::SUGGEST);
+        Suggest();
         phase_++;
         verify(phase_ % n_phase == Phase::COMMIT);
       } else {
@@ -198,7 +198,7 @@ void CoordinatorMencius::GotoNextPhase() {
         Log_info("The local id is %d", this->loc_id_);
         //Next steps: Find the leader, call submit, wait for the reply
       }
-    case Phase::ACCEPT:
+    case Phase::SUGGEST:
       verify(phase_ % n_phase == Phase::COMMIT);
       if (committed_) {
         Commit();
@@ -208,8 +208,8 @@ void CoordinatorMencius::GotoNextPhase() {
       }
       break;
     case Phase::PREPARE:
-      verify(phase_ % n_phase == Phase::ACCEPT);
-      Accept();
+      verify(phase_ % n_phase == Phase::SUGGEST);
+      Suggest();
       break;
     case Phase::COMMIT:
       // do nothing.

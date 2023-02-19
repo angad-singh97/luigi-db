@@ -14,7 +14,7 @@ class MenciusPrepareQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
 //  ballot_t max_ballot_{0};
-  bool HasAcceptedValue() {
+  bool HasSuggestedValue() {
     // TODO implement this
     return false;
   }
@@ -29,7 +29,7 @@ class MenciusPrepareQuorumEvent: public QuorumEvent {
 
 };
 
-class MenciusAcceptQuorumEvent: public QuorumEvent {
+class MenciusSuggestQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
   void FeedResponse(bool y) {
@@ -54,12 +54,12 @@ class MenciusCommo : public Communicator {
                         slotid_t slot_id,
                         ballot_t ballot,
                         const function<void(Future *fu)> &callback);
-  shared_ptr<MenciusAcceptQuorumEvent>
-  BroadcastAccept(parid_t par_id,
+  shared_ptr<MenciusSuggestQuorumEvent>
+  BroadcastSuggest(parid_t par_id,
                   slotid_t slot_id,
                   ballot_t ballot,
                   shared_ptr<Marshallable> cmd);
-  void BroadcastAccept(parid_t par_id,
+  void BroadcastSuggest(parid_t par_id,
                        slotid_t slot_id,
                        ballot_t ballot,
                        shared_ptr<Marshallable> cmd,

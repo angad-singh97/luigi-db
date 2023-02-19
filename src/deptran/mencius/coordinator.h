@@ -11,7 +11,7 @@ namespace janus {
 class MenciusCommo;
 class CoordinatorMencius : public Coordinator {
  public:
-  enum Phase { INIT_END = 0, PREPARE = 1, ACCEPT = 2, COMMIT = 3 };
+  enum Phase { INIT_END = 0, PREPARE = 1, SUGGEST = 2, COMMIT = 3 };
   const int32_t n_phase_ = 4;
 
   MenciusCommo *commo() {
@@ -21,7 +21,7 @@ class CoordinatorMencius : public Coordinator {
   }
   bool in_submission_ = false; // debug;
   bool in_prepare_ = false; // debug
-  bool in_accept = false; // debug
+  bool in_suggest = false; // debug
   bool in_forward = false; //debug
   shared_ptr<Marshallable> cmd_{nullptr};
   CoordinatorMencius(uint32_t coo_id,
@@ -66,7 +66,7 @@ class CoordinatorMencius : public Coordinator {
   void Submit();
 
   void Prepare();
-  void Accept();
+  void Suggest();
   void Commit();
 
   void Reset() override {}
