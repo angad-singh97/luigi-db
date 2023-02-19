@@ -31,17 +31,20 @@ void MenciusServer::OnPrepare(slotid_t slot_id,
 
 
 void MenciusServer::OnSuggest(const slotid_t slot_id,
-		           const uint64_t time,
+		                       const uint64_t time,
                            const ballot_t ballot,
+                           const uint64_t sender,
+                           const std::vector<uint64_t>& skip_commits, 
+                           const std::vector<uint64_t>& skip_potentials,
                            shared_ptr<Marshallable> &cmd,
                            ballot_t *max_ballot,
                            uint64_t* coro_id,
                            const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("mencius scheduler suggest for slot_id: %llx", slot_id);
-
+  // TODO: update skip_potentials_recd to keep track of potential SKIP entries
   auto instance = GetInstance(slot_id);
-  
+
   //TODO: might need to optimize this. we can vote yes on duplicates at least for now
   //verify(instance->max_ballot_suggested_ < ballot);
   

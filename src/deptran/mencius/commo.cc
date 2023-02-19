@@ -108,10 +108,16 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     };
     MarshallDeputy md(cmd);
     auto start1 = chrono::system_clock::now();
-    auto f = proxy->async_Suggest(slot_id, start_, ballot, md, fuattr);
+    uint64_t sender = loc_id_;
+    std::vector<uint64_t> skip_commits;
+    std::vector<uint64_t> skip_potentials;
+    // TODO:
+    //  1. from skip_potentials_recd (in server.h) to compute the committed SKIP entries (as well alpha)  => skip_commits
+    //  2. from logs_ to compute potential SKIP entries => skip_potentials
+    
+    auto f = proxy->async_Suggest(slot_id, start_, ballot, sender, skip_commits, skip_potentials, md, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();
-    //Log_info("Time for async_Suggest() for %d is: %d", follower_id, duration);
     Future::safe_release(f);
   }
   return e;
@@ -123,19 +129,22 @@ void MenciusCommo::BroadcastSuggest(parid_t par_id,
                                       shared_ptr<Marshallable> cmd,
                                       const function<void(Future*)>& cb) {
   verify(0); // deprecated function
-  auto proxies = rpc_par_proxies_[par_id];
-  auto leader_id = LeaderProxyForPartition(par_id).first;
-  vector<Future*> fus;
-  for (auto& p : proxies) {
-    auto proxy = (MenciusProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = cb;
-    MarshallDeputy md(cmd);
-    uint64_t time = 0; // compiles the code
-    auto f = proxy->async_Suggest(slot_id, time,ballot, md, fuattr);
-    Future::safe_release(f);
-  }
-//  verify(0);
+  // auto proxies = rpc_par_proxies_[par_id];
+  // auto leader_id = LeaderProxyForPartition(par_id).first;
+  // vector<Future*> fus;
+  // for (auto& p : proxies) {
+  //   auto proxy = (MenciusProxy*) p.second;
+  //   FutureAttr fuattr;
+  //   fuattr.callback = cb;
+  //   MarshallDeputy md(cmd);
+  //   uint64_t time = 0; // compiles the code
+  //   std::vector<uint64_t> skip_commits(1);
+  //   skip_commits.push_back(100);
+  //   std::vector<uint64_t> skip_potentials(1);
+  //   skip_potentials.push_back(200);
+  //   auto f = proxy->async_Suggest(slot_id, time,ballot, skip_commits, skip_potentials, md, fuattr);
+  //   Future::safe_release(f);
+  // }
 }
 
 void MenciusCommo::BroadcastDecide(const parid_t par_id,

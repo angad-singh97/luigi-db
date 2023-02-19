@@ -34,6 +34,9 @@ abstract service Mencius {
   defer Suggest(uint64_t slot,
                uint64_t time,
                ballot_t ballot,
+               uint64_t sender,
+               vector<uint64_t> skip_commits,
+               vector<uint64_t> skip_potentials,
                MarshallDeputy cmd |
                ballot_t max_ballot,
                uint64_t coro_id);
