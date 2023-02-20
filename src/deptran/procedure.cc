@@ -4,6 +4,14 @@
 #include "procedure.h"
 #include "benchmark_control_rpc.h"
 
+#ifdef COPILOTP_KV_DEBUG
+  /****************** copilot+ kv debug begin **********************/ 
+// copilot+ debug
+#include "../bench/rw/procedure.h"
+#include "../bench/rw/workload.h"
+  /****************** copilot+ kv debug end **********************/
+#endif
+
 namespace janus {
 
 static int volatile x1 =
@@ -173,6 +181,20 @@ ReadyPiecesData TxData::GetReadyPiecesData(int32_t max) {
       verify(type_ == type());
       verify(piece_data->root_type_ == type());
       verify(piece_data->root_type_ > 0);
+
+#ifdef COPILOTP_KV_DEBUG
+  /****************** copilot+ kv debug begin **********************/
+      TxPieceData *cmd_cast = (TxPieceData*)(piece_data.get());
+      verify(cmd_cast);
+      Log_info("[copilot+] input.values.size()=%d", (*cmd_cast->input.values_).size());
+      if (cmd_cast->type_ == RW_BENCHMARK_R_TXN)
+        Log_info("[copilot+] READ key=%d", (*cmd_cast->input.values_)[0].get_i32());
+      else
+        Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast->input.values_)[0].get_i32(), (*cmd_cast->input.values_)[1].get_i32());
+      Log_info("[copilot+] kv.first=piece_data->inn_id_=pi=%d id_=root_id_=%d", inn_id_, id_);
+  /****************** copilot+ kv debug end **********************/
+#endif
+
       n_pieces_dispatched_++;
       max--;
       if (max == 0) break;

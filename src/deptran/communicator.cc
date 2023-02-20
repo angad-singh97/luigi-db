@@ -10,6 +10,8 @@
 #include "rcc_rpc.h"
 #include <typeinfo>
 
+#include "../bench/rw/workload.h" //<copilot+ debug>
+
 namespace janus {
 
 uint64_t Communicator::global_id = 0;
@@ -287,11 +289,56 @@ void Communicator::BroadcastDispatch(
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
   MarshallDeputy md(sp_vpd); // ????
 
+#ifdef COPILOTP_KV_DEBUG
+  /****************** copilot+ kv debug begin **********************/ 
+	for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++) {
+    SimpleCommand* cmd_cast_ = (SimpleCommand*)it->get();
+    auto cmd_input = (*it)->input.values_;
+    for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
+      Log_info("[copilot+] key=%d value=%d", it2->first, it2->second.get_i32());
+    }
+
+    Log_info("[copilot+] input.values->size()=%d", cmd_cast_->input.values_->size());
+    if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
+      Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
+    else
+      Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
+	}
+  shared_ptr<vector<shared_ptr<TxPieceData>>> t1 = sp_vec_piece;
+  auto t2 = (*(t1->begin()))->input.values_;
+  Log_info("[copilot+] map size=%d", t2->size());
+
+  VecPieceData *tmp = (VecPieceData*)(md.sp_data_.get());
+  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece_dcp = tmp -> sp_vec_piece_data_;
+  shared_ptr<vector<shared_ptr<TxPieceData>>> tt1 = sp_vec_piece_dcp;
+
+  auto tt2 = (*(tt1->begin()))->input.values_;
+  Log_info("[copilot+] map size=%d", tt2->size());
+
+  for (auto it = sp_vec_piece_dcp->begin(); it != sp_vec_piece_dcp->end(); it++) {
+
+    SimpleCommand* cmd_cast_ = (SimpleCommand*)it->get();
+    auto cmd_input = (*it)->input.values_;
+    for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
+      Log_info("[copilot+] key=%d value=%d", it2->first, it2->second.get_i32());
+    }
+
+    Log_info("[copilot+] input.values->size()=%d", cmd_cast_->input.values_->size());
+    if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
+      Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
+    else
+      Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
+	}
+  /****************** copilot+ kv debug end **********************/
+#endif
+
 	DepId di;
 	di.str = "dep";
 	di.id = Communicator::global_id++;
   
+  Log_debug("[copilot+] before proxy->async_Dispatch");
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
+  Log_debug("[copilot+] after proxy->async_Dispatch");
   Future::safe_release(future);
   if (false) {
     Log_info("multicast");

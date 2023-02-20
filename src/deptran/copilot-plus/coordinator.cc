@@ -2,6 +2,9 @@
 #include "coordinator.h"
 #include "frame.h"
 #include "commo.h"
+#include "../bench/rw/procedure.h"
+#include "../bench/rw/workload.h"
+#include "../classic/tpc_command.h"
 
 namespace janus {
 
@@ -10,20 +13,49 @@ CopilotPlusCoordinator::CopilotPlusCoordinator(uint32_t coo_id,
               ClientControlServiceImpl *ccsi = NULL,
               uint32_t thread_id = 0) 
   :Coordinator(coo_id, benchmark, ccsi, thread_id){
-  Log_info("CopilotPlusCoordinator created: this=%p, thread_id=%d", (void*)this, thread_id);
+  Log_info("[copilot+] CopilotPlusCoordinator created: this=%p, thread_id=%d", (void*)this, thread_id);
 }
 
 CopilotPlusCoordinator::~CopilotPlusCoordinator() {
 }
 
 void CopilotPlusCoordinator::DoTxAsync(TxRequest &) {
-
+  Log_info("[copilot+] CopilotPlusCoordinator DoTxAsync");
 }
 
 void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func,
               const std::function<void()> &exe_callback) {
-  Log_info("enter CopilotPlus Submit");
+  
+  Log_info("[copilot+] enter Coordinator Submit");
+  
+  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+	shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
+  TxWorkspace tx_ws = vector0->input;
+  std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
+  key_t key = kv_map[0].get_i32();
+  // int32_t value = kv_map[1].get_i32();
+  
+  // key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();
+  Log_info("[copilot+] key=%d", key);
+
+	// for (auto it = t1->begin(); it != t1->end(); it++){
+	// 	SimpleCommand* cmd_cast_ = (SimpleCommand*)it->get();
+	// 	auto cmd_input = (*it)->input.values_;
+	// 	for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
+	// 		Log_info("[copilot+] key=%d value=%d", it2->first, it2->second.get_i32());
+	// 	}
+
+	// 	Log_info("[copilot+] input.values->size()=%d", cmd_cast_->input.values_->size());
+	// 	if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
+	// 		Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
+	// 	else
+	// 		Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
+	// }
+
+
   auto sq_quorum = commo()->BroadcastSubmit(par_id_, cmd);
   return;
   // TODO: set time?
@@ -45,12 +77,14 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
 }
 
 void CopilotPlusCoordinator::FrontRecover() {
+  Log_info("[copilot+] enter Coordinator FrontRecover");
   auto sq_quorum = commo()->BroadcastFrontRecover(par_id_, accept_cmd_, max_response_.i, max_response_.j, max_response_.ballot);
   sq_quorum -> Wait();
   GotoNextPhase();
 }
 
 void CopilotPlusCoordinator::FrontCommit() {
+  Log_info("[copilot+] enter Coordinator FrontRecover");
   auto sq_quorum = commo()->BroadcastFrontCommit(par_id_, accept_cmd_, max_response_.i, max_response_.j, max_response_.ballot);
   sq_quorum -> Wait();
   GotoNextPhase();

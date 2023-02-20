@@ -1,7 +1,8 @@
 #include "../__dep__.h"
 #include "server.h"
 #include "frame.h"
-#include "tx.h"
+//#include "tx.h"
+#include "../classic/tpc_command.h"
 
 namespace janus {
 
@@ -21,10 +22,9 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
                                   slotid_t* i,
                                   slotid_t* j,
                                   const function<void()> &cb) {
-  Log_info("enter OnSubmit");
+  Log_info("[copilot+] server enter OnSubmit, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  KeyValueCommand& md = dynamic_cast<KeyValueCommand&>(*cmd);
-  key_t key = md.key_;
+  key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();
   auto lastest_slot = lastest_slot_map_.find(key);
   if (lastest_slot == lastest_slot_map_.end()) {
     Log_info("On Commit Branch 1");
@@ -52,6 +52,7 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
       *j = -1;
     }
   }
+  cb();
   Log_info("exit OnSubmit");
 }
 
@@ -61,6 +62,7 @@ void CopilotPlusServer::OnFrontRecover(shared_ptr<Marshallable>& cmd,
                                         const ballot_t& ballot,
                                         bool_t* up_to_date,
                                         const function<void()> &cb) {
+  Log_info("[copilot+] server enter OnFrontRecover, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   while (logs_[i].log_col_.size() > j + 1)
     logs_[i].log_col_.pop_back();
@@ -70,6 +72,7 @@ void CopilotPlusServer::OnFrontRecover(shared_ptr<Marshallable>& cmd,
   log->ballot_ = ballot;
   log->status_ = CopilotPlusLogEle::Status_type::OVER_WRITTEN;
   *up_to_date = true;
+  cb();
 }
 
 void CopilotPlusServer::OnFrontCommit(shared_ptr<Marshallable>& cmd,
@@ -77,6 +80,7 @@ void CopilotPlusServer::OnFrontCommit(shared_ptr<Marshallable>& cmd,
                     const slotid_t& j,
                     const ballot_t& ballot,
                     const function<void()> &cb) {
+  Log_info("[copilot+] server enter OnFrontCommit, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   while (logs_[i].log_col_.size() > j + 1)
     logs_[i].log_col_.pop_back();
@@ -85,6 +89,7 @@ void CopilotPlusServer::OnFrontCommit(shared_ptr<Marshallable>& cmd,
   log->cmd_ = cmd;
   log->ballot_ = ballot;
   log->status_ = CopilotPlusLogEle::Status_type::COMMITTED;
+  cb();
 }
 
 void CopilotPlusServer::Setup() {

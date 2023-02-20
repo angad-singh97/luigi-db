@@ -76,6 +76,7 @@ void RwWorkload::GenerateWriteRequest(
       {0, Value((i32) id)},
       {1, Value((i32) RandomGenerator::rand(0, 10000))}
   };
+  Log_debug("[copilot+] WriteRequest Generated, id=%d value=%d", id, (*req->input_.values_)[1].get_i32());
 }
 
 void RwWorkload::GenerateReadRequest(
@@ -85,6 +86,7 @@ void RwWorkload::GenerateReadRequest(
   req->input_ = {
       {0, Value((i32) id)}
   };
+  Log_debug("[copilot+] ReadRequest Generated, id=%d", id);
 }
 
 int32_t RwWorkload::GetId(uint32_t cid) {

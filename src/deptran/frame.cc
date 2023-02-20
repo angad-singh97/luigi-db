@@ -321,7 +321,7 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
   shared_ptr<Tx> sp_tx;
 	/*struct timespec begin, end;
 	clock_gettime(CLOCK_MONOTONIC, &begin);*/
-  
+  Log_debug("enter CreateTx");
 	switch (mode_) {
     case MODE_2PL:
       sp_tx.reset(new Tx2pl(epoch, tid, mgr));
@@ -342,12 +342,14 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
     case MODE_NONE:
     case MODE_NOTX:
     case MODE_COPILOT_PLUS:
+      //sp_tx.reset(new xxx());//TODO
     default:
       sp_tx.reset(new TxClassic(epoch, tid, mgr));
       break;
   }
 	/*clock_gettime(CLOCK_MONOTONIC, &end);
 	Log_info("time of CreateTx on server: %d", end.tv_nsec-begin.tv_nsec);*/
+  Log_debug("exit CreateTx, Tx address=%p", sp_tx);
   return sp_tx;
 }
 

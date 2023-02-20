@@ -41,7 +41,7 @@ GPATH
 /_3rdParty
 /.clang-format
 *.so
-.vscode/
+/.vscode
 cpu*
 profile-results/
 *.json
