@@ -57,33 +57,6 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   rrr::DeferredReply* defer) {
   Log_debug("The server side receives a message from the client worker");
 
-#ifdef COPILOTP_KV_DEBUG
-  /****************** copilot+ kv debug begin **********************/ 
-  Log_info("[copilot+] The server side receives a message from the client worker");
-
-  VecPieceData *tmp = (VecPieceData*)(md.sp_data_.get());
-  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece_dcp = tmp -> sp_vec_piece_data_;
-  shared_ptr<vector<shared_ptr<TxPieceData>>> t1 = sp_vec_piece_dcp;
-
-  auto t2 = (*(t1->begin()))->input.values_;
-  Log_info("[copilot+] map size=%d", t2->size());
-
-  for (auto it = t1->begin(); it != t1->end(); it++){
-    SimpleCommand* cmd_cast_ = (SimpleCommand*)it->get();
-    auto cmd_input = (*it)->input.values_;
-    for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
-      Log_info("[copilot+] key=%d value=%d", it2->first, it2->second.get_i32());
-    }
-
-    Log_info("[copilot+] input.values->size()=%d", cmd_cast_->input.values_->size());
-    // if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
-    //   Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
-    // else
-    //   Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
-  }
-  /****************** copilot+ kv debug end **********************/
-#endif
-
 #ifdef PIECE_COUNT
   piece_count_key_t piece_count_key =
       (piece_count_key_t){header.t_type, header.p_type};
@@ -119,7 +92,6 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   // auto sched = (SchedulerClassic*) dtxn_sched_;
   // auto tx = dynamic_pointer_cast<TxClassic>(sched->GetOrCreateTx(cmd_id));
 	// func();
-  Log_debug("[copilot+] exit ClassicServiceImpl::Dispatch");
 }
 
 

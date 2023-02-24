@@ -61,15 +61,8 @@ void CoordinatorClassic::ForwardTxRequestAck(const TxReply& txn_reply) {
 }
 
 void CoordinatorClassic::DoTxAsync(TxRequest& req) {
-  Log_debug("[copilot+] enter CoordinatorClassic DoTxAsync");
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
   TxData* cmd = frame_->CreateTxnCommand(req, txn_reg_);
-  RWChopper *cmd_cast = dynamic_cast<RWChopper*>(cmd);
-  verify(cmd_cast);
-  if (cmd_cast->type_ == RW_BENCHMARK_R_TXN)
-    Log_info("[copilot+] READ key=%d", (*cmd_cast->ws_.values_)[0].get_i32());
-  else
-    Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast->ws_.values_)[0].get_i32(), (*cmd_cast->ws_.values_)[1].get_i32());
   verify(txn_reg_ != nullptr);
   cmd->root_id_ = this->next_txn_id();
   cmd->id_ = cmd->root_id_;
@@ -99,7 +92,6 @@ void CoordinatorClassic::DoTxAsync(TxRequest& req) {
     // class CoordinatorNone : public CoordinatorClassic { }
     Coroutine::CreateRun([this]() { GotoNextPhase(); }, __FILE__, __LINE__);
   }
-  Log_debug("[copilot+] exit CoordinatorClassic DoTxAsync");
 }
 
 
@@ -219,21 +211,9 @@ void CoordinatorClassic::Restart() {
 }
 
 void CoordinatorClassic::DispatchAsync() {
-  Log_debug("[copilot+] enter DispatchAsync");
   Log_debug("commo Broadcast to the server on client worker");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
-
-#ifdef COPILOTP_KV_DEBUG
-  /****************** copilot+ kv debug begin **********************/ 
-  RWChopper *cmd_cast = dynamic_cast<RWChopper*>(txn);
-  verify(cmd_cast);
-  if (cmd_cast->type_ == RW_BENCHMARK_R_TXN)
-    Log_info("[copilot+] READ key=%d", (*cmd_cast->ws_.values_)[0].get_i32());
-  else
-    Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast->ws_.values_)[0].get_i32(), (*cmd_cast->ws_.values_)[1].get_i32());
-  /****************** copilot+ kv debug end **********************/
-#endif
 
   int cnt = 0;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
@@ -250,20 +230,6 @@ void CoordinatorClassic::DispatchAsync() {
       c->id_ = next_pie_id();
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
-
-#ifdef COPILOTP_KV_DEBUG
-  /****************** copilot+ kv debug begin **********************/ 
-      TxPieceData *cmd_cast = (TxPieceData*)(c.get());
-      verify(cmd_cast);
-      Log_info("[copilot+] input.values.size()=%d", (*cmd_cast->input.values_).size());
-      if (cmd_cast->type_ == RW_BENCHMARK_R_TXN)
-        Log_info("[copilot+] READ key=%d", (*cmd_cast->input.values_)[0].get_i32());
-      else
-        Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast->input.values_)[0].get_i32(), (*cmd_cast->input.values_)[1].get_i32());
-      Log_info("[copilot+] kv.first=piece_data->inn_id_=pi=%d", cmd_cast->inn_id_);
-    
-  /****************** copilot+ kv debug end **********************/
-#endif
     }
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
@@ -274,7 +240,6 @@ void CoordinatorClassic::DispatchAsync() {
                                          std::placeholders::_2));
   }
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
-  Log_debug("[copilot+] exit DispatchAsync");
 }
 
 // not used

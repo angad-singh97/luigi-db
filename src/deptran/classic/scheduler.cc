@@ -89,7 +89,6 @@ bool SchedulerClassic::Dispatch(cmdid_t cmd_id,
                                 struct DepId dep_id,
                                 shared_ptr<Marshallable> cmd,
                                 TxnOutput& ret_output) {
-  Log_info("[copilot+] enter Dispatch");
   auto sp_vec_piece =
       dynamic_pointer_cast<VecPieceData>(cmd)->sp_vec_piece_data_;
   verify(sp_vec_piece);
@@ -138,7 +137,6 @@ bool SchedulerClassic::Dispatch(cmdid_t cmd_id,
   if (tx->fully_dispatched_->value_ == 0) {
     tx->fully_dispatched_->Set(1);
   }
-  Log_info("[copilot+] exit Dispatch");
   return ret;
 }
 
@@ -222,55 +220,10 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 															 struct DepId dep_id,
 															 int commit_or_abort) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("[copilot+] enter OnCommit tx_id=%d dep_id=%d commit_or_abort=%d", tx_id, dep_id, commit_or_abort);
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
-
-#ifdef COPILOTP_KV_DEBUG
-  /****************** copilot+ kv debug begin **********************/ 
-  Log_info("tx cmd=%s address:%p", typeid(sp_tx->cmd_.get()).name(), sp_tx->cmd_.get());
-
-  // SimpleCommand *cmd_cast = dynamic_cast<SimpleCommand*>(sp_tx->cmd_.get());
-  // CmdData *cmd_cast1 = dynamic_cast<CmdData*>(sp_tx->cmd_.get());
-  // TxData *cmd_cast2 = dynamic_cast<TxData*>(sp_tx->cmd_.get());
-  // RWChopper *cmd_cast3 = dynamic_cast<RWChopper*>(sp_tx->cmd_.get());
-
-  SimpleCommand *cmd_cast_ = (SimpleCommand*)(sp_tx->cmd_.get());
-  CmdData *cmd_cast1_ = (CmdData*)(sp_tx->cmd_.get());
-  TxData *cmd_cast2_ = (TxData*)(sp_tx->cmd_.get());
-  RWChopper *cmd_cast3_ = (RWChopper*)(sp_tx->cmd_.get());
-
-  VecPieceData *cmd_cast_test = (VecPieceData*)(sp_tx->cmd_.get());
-  shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece = cmd_cast_test->sp_vec_piece_data_;
-
-  for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++){
-    SimpleCommand* cmd_cast_ = (SimpleCommand*)it->get();
-    auto cmd_input = (*it)->input.values_;
-    for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
-      Log_info("[copilot+] key=%d value=%d", it2->first, it2->second.get_i32());
-    }
-
-    Log_info("[copilot+] input.values->size()=%d", cmd_cast_->input.values_->size());
-    Log_info("[copilot+] key=%d", (*cmd_cast_->input.values_)[0].get_i32());
-    // if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
-    //   Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
-    // else
-    //   Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
-  }
-
-  // Log_info("%p %p %p %p", /*cmd_cast, cmd_cast1, cmd_cast2, cmd_cast3, */cmd_cast_, cmd_cast1_, cmd_cast2_, cmd_cast3_);
-
-  // Log_info("[copilot+] %d", cmd_cast1_->inn_id_);
-
-  // Log_info("[copilot+] input.values.size()=%d", *cmd_cast_->input.values_);
-  // if (cmd_cast_->type_ == RW_BENCHMARK_R_TXN)
-  //   Log_info("[copilot+] READ key=%d", (*cmd_cast_->input.values_)[0].get_i32());
-  // else
-  //   Log_info("[copilot+] WRITE key=%d value=%d", (*cmd_cast_->input.values_)[0].get_i32(), (*cmd_cast_->input.values_)[1].get_i32());
-    /****************** copilot+ kv debug end **********************/
-#endif
 
   // TODO maybe change inuse to an event?
 //  verify(!sp_tx->inuse);

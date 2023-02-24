@@ -36,7 +36,7 @@ void RwWorkload::RegisterPrecedures() {
        PROC {
          mdb::MultiBlob buf(1);
          Value result(0);
-         verify(cmd.input.size() == 1);
+         verify(cmd.input.size() == 2);
          auto id = cmd.input[0].get_i64();
          buf[0] = cmd.input[0].get_blob();
          auto tbl = tx.GetTable(RW_BENCHMARK_TABLE);
@@ -76,7 +76,6 @@ void RwWorkload::GenerateWriteRequest(
       {0, Value((i32) id)},
       {1, Value((i32) RandomGenerator::rand(0, 10000))}
   };
-  Log_debug("[copilot+] WriteRequest Generated, id=%d value=%d", id, (*req->input_.values_)[1].get_i32());
 }
 
 void RwWorkload::GenerateReadRequest(
@@ -86,7 +85,6 @@ void RwWorkload::GenerateReadRequest(
   req->input_ = {
       {0, Value((i32) id)}
   };
-  Log_debug("[copilot+] ReadRequest Generated, id=%d", id);
 }
 
 int32_t RwWorkload::GetId(uint32_t cid) {

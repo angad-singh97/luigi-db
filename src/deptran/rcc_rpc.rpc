@@ -103,7 +103,8 @@ abstract service CopilotPlus {
   defer Submit(MarshallDeputy cmd |
                 bool_t accepted,
                 uint64_t i,
-                uint64_t j);
+                uint64_t j,
+                int64_t ballot);
   defer FrontRecover(MarshallDeputy cmd,
                       uint64_t i,
                       uint64_t j,

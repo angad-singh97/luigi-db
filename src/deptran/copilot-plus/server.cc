@@ -21,6 +21,7 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
                                   bool_t* accepted,
                                   slotid_t* i,
                                   slotid_t* j,
+                                  ballot_t* ballot,
                                   const function<void()> &cb) {
   Log_info("[copilot+] server enter OnSubmit, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -33,6 +34,7 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
     *accepted = true;
     *i = (slotid_t)(logs_.size() - 1);
     *j = (slotid_t)(logs_.back().log_col_.size() - 1);
+    *ballot = 0;
     // TODO: run command
     logs_[*i].log_col_[*j].status_ = CopilotPlusLogEle::Status_type::EXECUTED;
   } else {
@@ -44,12 +46,14 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
       *accepted = true;
       *i = (slotid_t)(logs_.size() - 1);
       *j = (slotid_t)(logs_.back().log_col_.size() - 1);
+      *ballot = 0;
       // TODO: run command
       logs_[*i].log_col_[*j].status_ = CopilotPlusLogEle::Status_type::EXECUTED;
     } else {
       *accepted = false;
       *i = -1;
       *j = -1;
+      *ballot = 0;
     }
   }
   cb();

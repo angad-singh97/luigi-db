@@ -34,6 +34,7 @@ class CopilotPlusServer : public TxLogServer {
                 bool_t* accepted,
                 slotid_t* i,
                 slotid_t* j,
+                ballot_t* ballot,
                 const function<void()> &cb);
   void OnFrontRecover(shared_ptr<Marshallable>& cmd,
                       const slotid_t& i,

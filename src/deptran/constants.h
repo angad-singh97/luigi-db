@@ -130,7 +130,5 @@ namespace janus {
 #define NO  (0)
 
 
-//#define COPILOTP_KV_DEBUG
-
 
 } // namespace janus

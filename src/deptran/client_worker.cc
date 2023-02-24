@@ -272,11 +272,8 @@ void ClientWorker::Work() {
 					auto t = Reactor::CreateSpEvent<TimeoutEvent>(0.1*1000*1000);
 					t->Wait();
 				}
-        Log_debug("[copilot+] before DispatchRequest");
 				this->DispatchRequest(coo);
-        Log_debug("[copilot+] after DispatchRequest");
         if (config_->client_type_ == Config::Closed) {
-          Log_debug("[copilot+] branch 1");
           auto ev = coo->sp_ev_commit_;
 #if 1
           char txid[20];
@@ -287,13 +284,10 @@ void ClientWorker::Work() {
           this->outbound--;
           verify(ev->status_ != Event::TIMEOUT);
         } else {
-          Log_debug("[copilot+] branch 2");
           auto sp_event = Reactor::CreateSpEvent<NeverEvent>();
           Wait_recordplace(sp_event, Wait(pow(10, 6)));
         }
-        Log_debug("[copilot+] before Coroutine::CreateRun");
         Coroutine::CreateRun([this, coo](){
-          Log_debug("[copilot+] beginning of CreateRun");
           verify(coo->_inuse_);
           auto ev = coo->sp_ev_done_;
           Wait_recordplace(ev, Wait());
@@ -312,7 +306,6 @@ void ClientWorker::Work() {
           free_coordinators_.push_back(coo);
           coo->_inuse_ = false;
           n_pause_concurrent_[coo->coo_id_] = true;
-          Log_debug("[copilot+] ending of CreateRun");
         }, __FILE__, __LINE__);
       }
       n_ceased_client_.Set(n_ceased_client_.value_+1);
@@ -537,7 +530,6 @@ void ClientWorker::FailoverPreprocess(Coordinator* coo) {
 
 void ClientWorker::DispatchRequest(Coordinator* coo) {
 //  FailoverPreprocess(coo);
-  Log_debug("[copilot+] enter DispatchRequest");
   const char* f = __FUNCTION__;
   std::function<void()> task = [=]() {
     Log_debug("%s: %d", f, cli_id_);
@@ -545,7 +537,6 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
     TxRequest *req = new TxRequest;
     {
       std::lock_guard<std::mutex> lock(this->request_gen_mutex);
-      Log_debug("[copilot+] Before GetTxRequest");
       tx_generator_->GetTxRequest(req, coo->coo_id_);
     }
 //     req.callback_ = std::bind(&ClientWorker::RequestDone,
