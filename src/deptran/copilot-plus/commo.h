@@ -32,6 +32,7 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
   bool FastYes();
   bool RecoverWithOpYes();
   bool RecoverWithoutOpYes();
+  bool IsReady() override;
   //TODO: put in .cc file
   ResponsePack GetMax() {
     return max_response_;

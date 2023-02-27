@@ -25,7 +25,7 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
                                   const function<void()> &cb) {
   Log_info("[copilot+] server enter OnSubmit, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();
+  key_t key = dynamic_pointer_cast<SimpleRWCommand>(cmd)->key_;
   auto lastest_slot = lastest_slot_map_.find(key);
   if (lastest_slot == lastest_slot_map_.end()) {
     Log_info("On Commit Branch 1");
@@ -57,7 +57,7 @@ void CopilotPlusServer::OnSubmit(shared_ptr<Marshallable>& cmd,
     }
   }
   cb();
-  Log_info("exit OnSubmit");
+  Log_info("[copilot+] exit OnSubmit");
 }
 
 void CopilotPlusServer::OnFrontRecover(shared_ptr<Marshallable>& cmd,

@@ -2,9 +2,6 @@
 #include "coordinator.h"
 #include "frame.h"
 #include "commo.h"
-#include "../bench/rw/procedure.h"
-#include "../bench/rw/workload.h"
-#include "../classic/tpc_command.h"
 
 namespace janus {
 
@@ -25,23 +22,11 @@ void CopilotPlusCoordinator::DoTxAsync(TxRequest &) {
 void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func,
               const std::function<void()> &exe_callback) {
-  
-  Log_info("[copilot+] enter Coordinator Submit");
-  
-  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-	shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
-  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
-  TxWorkspace tx_ws = vector0->input;
-  std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
-  key_t key = kv_map[0].get_i32();
-  int32_t value = kv_map[1].get_i32();
-  
-  // key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();
-  Log_info("[copilot+] key=%d value=%d", key, value);
+  received_cmd_ = make_shared<SimpleRWCommand>(cmd);
+  Log_info("[copilot+] enter Coordinator Submit %s", received_cmd_->cmd_to_string().c_str());
 
-
-  auto sq_quorum = commo()->BroadcastSubmit(par_id_, cmd);
+  auto sq_quorum = commo()->BroadcastSubmit(par_id_, dynamic_pointer_cast<Marshallable>(received_cmd_));
+  Log_info("[copilot+] received reply!!!!! %s", received_cmd_->cmd_to_string().c_str());
   return;
   // TODO: set time?
   sq_quorum -> Wait();
@@ -49,29 +34,32 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
   if (sq_quorum->FastYes()) {
     fast_path_success_ = true;
   } else if (sq_quorum->RecoverWithOpYes()) {
-    accept_cmd_ = cmd;
+    accept_cmd_ = make_shared<SimpleRWCommand>(received_cmd_); // TODO: parsed_cmd
   } else if (sq_quorum->RecoverWithoutOpYes()) {
-    accept_cmd_ = empty_cmd_;
+    accept_cmd_ = make_shared<SimpleRWCommand>();
   } else {
     // number of reply < quorum size
     verify(0);
   }
   commit_callback_ = func;
   max_response_ = sq_quorum->GetMax();
+  Log_info("[copilot+] exit Coordinator Submit %s", received_cmd_->cmd_to_string().c_str());
   GotoNextPhase();
 }
 
 void CopilotPlusCoordinator::FrontRecover() {
-  Log_info("[copilot+] enter Coordinator FrontRecover");
-  auto sq_quorum = commo()->BroadcastFrontRecover(par_id_, accept_cmd_, max_response_.i, max_response_.j, max_response_.ballot);
+  Log_info("[copilot+] enter Coordinator FrontRecover %s", accept_cmd_->cmd_to_string().c_str());
+  auto sq_quorum = commo()->BroadcastFrontRecover(par_id_, dynamic_pointer_cast<Marshallable>(accept_cmd_), max_response_.i, max_response_.j, max_response_.ballot);
   sq_quorum -> Wait();
+  Log_info("[copilot+] exit Coordinator FrontRecover %s", accept_cmd_->cmd_to_string().c_str());
   GotoNextPhase();
 }
 
 void CopilotPlusCoordinator::FrontCommit() {
-  Log_info("[copilot+] enter Coordinator FrontRecover");
-  auto sq_quorum = commo()->BroadcastFrontCommit(par_id_, accept_cmd_, max_response_.i, max_response_.j, max_response_.ballot);
+  Log_info("[copilot+] enter Coordinator FrontCommit %s", accept_cmd_->cmd_to_string().c_str());
+  auto sq_quorum = commo()->BroadcastFrontCommit(par_id_, dynamic_pointer_cast<Marshallable>(accept_cmd_), max_response_.i, max_response_.j, max_response_.ballot);
   sq_quorum -> Wait();
+  Log_info("[copilot+] exit Coordinator FrontCommit %s", accept_cmd_->cmd_to_string().c_str());
   GotoNextPhase();
 }
 
@@ -81,16 +69,17 @@ void CopilotPlusCoordinator::Restart() {
 
 CopilotPlusCommo* CopilotPlusCoordinator::commo() {
   if (commo_ == nullptr) {
-    Log_info("Coordinator=%p frame=%p", (void*)this, (void*)frame_);
+    Log_info("[copilot+] Coordinator=%p frame=%p", (void*)this, (void*)frame_);
     commo_ = frame_->CreateCommo(nullptr);
     commo_->loc_id_ = loc_id_;
   }
-  Log_info("commo this=%p, this->loc_id_=%d, this->commo_==%p", (void*)this, this->loc_id_, (void*)this->commo_);
+  Log_info("[copilot+] commo this=%p, this->loc_id_=%d, this->commo_==%p", (void*)this, this->loc_id_, (void*)this->commo_);
   verify(commo_);
   return (CopilotPlusCommo *)commo_;
 }
 
 void CopilotPlusCoordinator::GotoNextPhase() {
+  Log_info("[copilot+] enter GotoNextPhase");
   switch (current_phase_) {
     case Phase::INIT_END:
       if (fast_path_success_) {

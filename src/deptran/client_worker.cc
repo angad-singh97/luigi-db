@@ -228,6 +228,9 @@ void ClientWorker::Work() {
       Reactor::CreateSpEvent<NeverEvent>()->Wait(RandomGenerator::rand(0, 1000000));
       auto beg_time = Time::now() ;
       auto end_time = beg_time + duration * pow(10, 6);
+#ifdef COPILOT_DEBUG
+      end_time = beg_time + duration * 5 * pow(10, 2);
+#endif 
       while (true) {
         auto cur_time = Time::now(); // optimize: this call is not scalable.
         if (cur_time > end_time) {

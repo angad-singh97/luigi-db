@@ -22,6 +22,21 @@ bool CopilotPlusSubmitQuorumEvent::RecoverWithoutOpYes() {
   return (n_total_ >= quorum_) && (max_len < CopilotPlusCommo::smallQuorumSize(n_total_));
 }
 
+bool CopilotPlusSubmitQuorumEvent::IsReady() {
+  Log_info("[copilot+] enter IsReady");
+  if (timeouted_) {
+    return true;
+  }
+  if (FastYes()) {
+    return true;
+  } else if (RecoverWithOpYes()) {
+    return true;
+  } else if (RecoverWithoutOpYes()) {
+    return true;
+  }
+  return false;
+}
+
 CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll): Communicator(poll) {
 
 }
@@ -29,15 +44,15 @@ CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll): Communicator(poll) {
 shared_ptr<CopilotPlusSubmitQuorumEvent>
 CopilotPlusCommo::BroadcastSubmit(parid_t par_id,
                                   shared_ptr<Marshallable> cmd) {
-  Log_info("enter BroadcastSubmit");
+  Log_info("[copilot+] enter BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusSubmitQuorumEvent>(n, quorumSize(n));
-  Log_info("after CreateSpEvent");
+  Log_info("[copilot+] in BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
   auto proxies = rpc_par_proxies_[par_id];
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy*) p.second;
     auto site = p.first;
-    Log_info("site id = %d", site);
+    Log_info("[copilot+] site id = %d", site);
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
       slotid_t i, j;
@@ -45,7 +60,9 @@ CopilotPlusCommo::BroadcastSubmit(parid_t par_id,
       fu->get_reply() >> i >> j >> ballot;
       e->FeedResponse(i, j, ballot);
     };
+    Log_info("[copilot+] in BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
     MarshallDeputy md(cmd);
+    Log_info("[copilot+] in BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
     Future *f = proxy->async_Submit(md, fuattr);
     Future::safe_release(f);
   }

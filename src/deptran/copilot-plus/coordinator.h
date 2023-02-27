@@ -4,7 +4,7 @@
 #include "../coordinator.h"
 #include "server.h"
 #include "commo.h"
-#include "tx.h"
+#include "RW_command.h"
 
 namespace janus {
 
@@ -14,10 +14,9 @@ class CopilotPlusCoordinator: public Coordinator {
  private:
   Phase current_phase_ = INIT_END;
   bool fast_path_success_ = false;
-  shared_ptr<Marshallable> accept_cmd_ = nullptr;
+  shared_ptr<SimpleRWCommand> received_cmd_ = nullptr;
+  shared_ptr<SimpleRWCommand> accept_cmd_ = nullptr;
   CopilotPlusSubmitQuorumEvent::ResponsePack max_response_;
-  NoOpCommand no_op_command_;
-  shared_ptr<Marshallable> empty_cmd_ = static_cast<shared_ptr<Marshallable>>(&no_op_command_);
  public:
   CopilotPlusCoordinator(uint32_t coo_id,
               int benchmark,
