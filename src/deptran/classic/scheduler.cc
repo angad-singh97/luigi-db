@@ -10,6 +10,7 @@
 // RWChopper debug
 #include "../../bench/rw/procedure.h"
 #include "../../bench/rw/workload.h"
+#include "server_worker.h"
 
 namespace janus {
 
@@ -238,6 +239,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     sp_tx->is_leader_hint_ = true;
     auto sp_m = dynamic_pointer_cast<Marshallable>(cmd);
     shared_ptr<Coordinator> coo(CreateRepCoord(dep_id.id));
+    coo->svr_workers_g = svr_workers_g;
     coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
 		slow_ = coo->slow_;

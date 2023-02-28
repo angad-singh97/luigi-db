@@ -8,6 +8,9 @@
 #include "coordinator.h"
 #include <chrono>
 #include <ctime>
+#include <mutex>
+#include <set>
+#include <unordered_map>
 
 namespace janus {
 class Command;
@@ -16,18 +19,23 @@ class CmdData;
 struct MenciusData {
   ballot_t max_ballot_seen_ = 0;
   ballot_t max_ballot_suggested_ = 0;
+  bool is_skip = false;
   shared_ptr<Marshallable> accepted_cmd_{nullptr};
   shared_ptr<Marshallable> committed_cmd_{nullptr};
 };
 
 class MenciusServer : public TxLogServer {
  public:
+  std::mutex g_mutex{};
+  std::mutex c_mutex{}; // conflict mutex
   // ----min_active <= max_executed <= max_committed---
   slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
   slotid_t max_executed_slot_ = 0;
   slotid_t max_committed_slot_ = 0;
   map<slotid_t, shared_ptr<MenciusData>> logs_{};
-  map<uint32_t, vector<uint64_t>> skip_potentials_recd{};
+  unordered_map<uint32_t, set<uint64_t>> skip_potentials_recd{};
+  unordered_map<uint32_t, int> uncommitted_keys_{};  // [max_executed+1, ...]
+  unordered_map<uint32_t, int> executed_slots_{}; // used along with uncommitted_keys_
   int n_prepare_ = 0;
   int n_suggest_ = 0;
   int n_commit_ = 0;
@@ -38,6 +46,7 @@ class MenciusServer : public TxLogServer {
   }
 
   shared_ptr<MenciusData> GetInstance(slotid_t id) {
+    g_mutex.lock();
     verify(id >= min_active_slot_);
     auto& sp_instance = logs_[id];
     // for (auto const& x : logs_) {
@@ -46,6 +55,7 @@ class MenciusServer : public TxLogServer {
 
     if(!sp_instance)
       sp_instance = std::make_shared<MenciusData>();
+    g_mutex.unlock();
     return sp_instance;
   }
 
@@ -68,7 +78,8 @@ class MenciusServer : public TxLogServer {
 
   void OnCommit(const slotid_t slot_id,
                 const ballot_t ballot,
-                shared_ptr<Marshallable> &cmd);
+                shared_ptr<Marshallable> &cmd,
+                bool is_skip=false);
 
   void Setup();
 

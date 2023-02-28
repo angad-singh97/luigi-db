@@ -20,7 +20,7 @@ SimpleRWCommand::SimpleRWCommand(): Marshallable(MarshallDeputy::CMD_KV) {
 }
 
 SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(MarshallDeputy::CMD_KV) {
-  Log_info("[copilot+] SimpleRWCommand created");
+  //Log_info("[copilot+] SimpleRWCommand created");
   shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
   VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
   shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
@@ -37,7 +37,7 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
     key_ = kv_map[0].get_i32();
     value_ = kv_map[1].get_i32();
   } else {
-    Log_info("[copilot+][error] type read from cmd: %d", vector0->type_);
+    //Log_info("[copilot+][error] type read from cmd: %d", vector0->type_);
     verify(0);
   }
   // key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();

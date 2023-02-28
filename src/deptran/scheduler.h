@@ -17,6 +17,8 @@ class Frame;
 class Communicator;
 class TxLogServer {
  public:
+  void *svr_workers_g{nullptr};
+
   locid_t loc_id_ = -1;
   siteid_t site_id_ = -1;
   unordered_map<txid_t, shared_ptr<Tx>> dtxns_{};

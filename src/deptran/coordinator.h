@@ -27,6 +27,8 @@ enum ForwardRequestState { NONE=0, PROCESS_FORWARD_REQUEST, FORWARD_TO_LEADER };
 
 class Coordinator {
  public:
+  void *svr_workers_g{nullptr};
+
   static std::mutex _dbg_txid_lock_;
   static std::unordered_set<txid_t> _dbg_txid_set_;
   bool _inuse_{false};

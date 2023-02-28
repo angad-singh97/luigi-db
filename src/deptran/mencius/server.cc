@@ -3,6 +3,7 @@
 #include "server.h"
 // #include "paxos_worker.h"
 #include "exec.h"
+#include "../copilot-plus/RW_command.h"
 
 namespace janus {
 
@@ -41,8 +42,7 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
                            uint64_t* coro_id,
                            const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("mencius scheduler suggest for slot_id: %llx", slot_id);
-  // TODO: update skip_potentials_recd to keep track of potential SKIP entries
+  //Log_info("mencius scheduler suggest for slot_id: %llu", slot_id);
   auto instance = GetInstance(slot_id);
 
   //TODO: might need to optimize this. we can vote yes on duplicates at least for now
@@ -64,11 +64,16 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
 
 void MenciusServer::OnCommit(const slotid_t slot_id,
                            const ballot_t ballot,
-                           shared_ptr<Marshallable> &cmd) {
+                           shared_ptr<Marshallable> &cmd,
+                           bool is_skip) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   //Log_info("mencius scheduler decide for slot: %d on loc_id_:%d", slot_id, this->loc_id_);
   auto instance = GetInstance(slot_id);
   instance->committed_cmd_ = cmd;
+  instance->is_skip = true;
+  if (instance->is_skip){
+    instance->committed_cmd_->kind_ = MarshallDeputy::CMD_TPC_COMMIT;
+  }
   if (slot_id > max_committed_slot_) {
     max_committed_slot_ = slot_id;
   }
@@ -81,7 +86,11 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
-      app_next_(*next_instance->committed_cmd_);
+      if (executed_slots_[id]!=1){
+        app_next_(*next_instance->committed_cmd_);
+        executed_slots_.erase(id);
+      }
+        
       Log_debug("mencius par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
       n_commit_++;
@@ -90,12 +99,27 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     }
   }
 
+  // apply the entry out of order if there is no conflict
+  for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
+    auto next_instance = GetInstance(id);
+    if (next_instance->committed_cmd_) {
+      SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
+      if (uncommitted_keys_[parsed_cmd.key_]==0){
+        executed_slots_[id]=1;
+        app_next_(*next_instance->committed_cmd_);
+      }
+    }
+  }
+
   // TODO should support snapshot for freeing memory.
   // for now just free anything 1000 slots before.
   int i = min_active_slot_;
-  while (i + 1000 < max_executed_slot_) {
-    logs_.erase(i);
-    i++;
+  std::lock_guard<std::mutex> guard(g_mutex);
+  {
+    while (i + 1000 < max_executed_slot_) {
+      logs_.erase(i);
+      i++;
+    }
   }
   min_active_slot_ = i;
   in_applying_logs_ = false;

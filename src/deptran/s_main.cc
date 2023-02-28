@@ -95,6 +95,8 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       worker.DbChecksum();
 #endif
       // start server service
+      worker.tx_sched_->svr_workers_g = &svr_workers_g;
+      worker.rep_sched_->svr_workers_g = &svr_workers_g;
       worker.SetupService();
       Log_info("start communication for site %d", (int)worker.site_info_->id);
       worker.SetupCommo();

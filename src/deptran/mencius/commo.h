@@ -43,6 +43,8 @@ class MenciusSuggestQuorumEvent: public QuorumEvent {
 
 class MenciusCommo : public Communicator {
  public:
+  void *svr_workers_g{nullptr};
+  
   MenciusCommo() = delete;
   MenciusCommo(PollMgr*);
 

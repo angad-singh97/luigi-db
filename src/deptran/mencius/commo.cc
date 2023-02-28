@@ -6,6 +6,9 @@
 #include "../procedure.h"
 #include "../command_marshaler.h"
 #include "../rcc_rpc.h"
+#include "server_worker.h"
+#include "server.h"
+#include <mutex>
 
 namespace janus {
 
@@ -65,7 +68,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
                                  slotid_t slot_id,
                                  ballot_t ballot,
                                  shared_ptr<Marshallable> cmd) {
-  Log_info("invoke BroadcastSuggest, slot_id:%d", slot_id);
+  //Log_info("invoke BroadcastSuggest, slot_id:%d", slot_id);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<MenciusSuggestQuorumEvent>(n, n/2+1);
 //  auto e = Reactor::CreateSpEvent<MenciusSuggestQuorumEvent>(n, n);
@@ -88,6 +91,55 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
 
   auto start_ = chrono::duration_cast<chrono::microseconds>(start-midn-hours-minutes).count();
   WAN_WAIT;
+  
+  std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
+  auto ms = dynamic_cast<MenciusServer*>(svr_workers->at((slot_id-1)%n).rep_sched_);
+  auto skip_potentials_recd = ms->skip_potentials_recd;
+  auto logs_ = ms->logs_;
+
+  // from skip_potentials_recd (received by ServerWorker) to compute the committed SKIP entries (as well alpha)
+  std::vector<uint64_t> skip_commits;
+  ms->g_mutex.lock();
+  {
+    int id = ms->max_executed_slot_ + 1;
+    while (true) {
+      int cnt = 0;
+      if ((id-1)%n==(slot_id-1)%n){
+        for (int i=0;i<n;i++){
+          if(ms->skip_potentials_recd.find(i)!=ms->skip_potentials_recd.end() 
+              && ms->skip_potentials_recd.at(i).find(id)!=ms->skip_potentials_recd.at(i).end())
+            cnt++;
+        }
+        if (cnt>=(n/2+1)){
+          skip_commits.push_back(id);
+        }else{
+          break;
+        }
+      }else{
+        id+=1;
+      }
+    }
+  }
+  ms->g_mutex.unlock();
+  // the customized alpha
+  int alpha = 10;
+  if (skip_commits.size()<alpha){
+    skip_commits.clear();
+  }
+
+  // from logs_ to compute potential SKIP entries => skip_potentials
+  std::vector<uint64_t> skip_potentials;
+  ms->g_mutex.lock();
+  {
+    for (slotid_t id = ms->max_executed_slot_ + 1; id <= ms->max_committed_slot_; id++) {
+      auto& sp_instance = logs_[id];
+      if(!sp_instance){ // not committed yet
+        skip_potentials.push_back(id);
+      }
+    }
+  }
+  ms->g_mutex.unlock();
+
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     auto follower_id = p.first;
@@ -109,12 +161,6 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     MarshallDeputy md(cmd);
     auto start1 = chrono::system_clock::now();
     uint64_t sender = loc_id_;
-    std::vector<uint64_t> skip_commits;
-    std::vector<uint64_t> skip_potentials;
-    // TODO:
-    //  1. from skip_potentials_recd (in server.h) to compute the committed SKIP entries (as well alpha)  => skip_commits
-    //  2. from logs_ to compute potential SKIP entries => skip_potentials
-    
     auto f = proxy->async_Suggest(slot_id, start_, ballot, sender, skip_commits, skip_potentials, md, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();
@@ -151,7 +197,7 @@ void MenciusCommo::BroadcastDecide(const parid_t par_id,
                                       const slotid_t slot_id,
                                       const ballot_t ballot,
                                       const shared_ptr<Marshallable> cmd) {
-  Log_info("invoke BroadcastDecide, slot_id:%d", slot_id);
+  //Log_info("invoke BroadcastDecide, slot_id:%d", slot_id);
   auto proxies = rpc_par_proxies_[par_id];
   int n = proxies.size();
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;

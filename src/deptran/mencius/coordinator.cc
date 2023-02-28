@@ -3,6 +3,7 @@
 #include "../constants.h"
 #include "coordinator.h"
 #include "commo.h"
+#include "server_worker.h"
 
 namespace janus {
 
@@ -110,10 +111,11 @@ void CoordinatorMencius::Suggest() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(!in_suggest);
   in_suggest = true;
-  Log_debug("mencius coordinator broadcasts Suggest, "
-                "par_id_: %lx, slot_id: %llx",
-            par_id_, slot_id_);
+  // Log_info("mencius coordinator broadcasts Suggest, "
+  //               "par_id_: %lx, slot_id: %llx",
+  //           par_id_, slot_id_);
   auto start = chrono::system_clock::now();
+  commo()->svr_workers_g = svr_workers_g;
   auto sp_quorum = commo()->BroadcastSuggest(par_id_, slot_id_, curr_ballot_, cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
