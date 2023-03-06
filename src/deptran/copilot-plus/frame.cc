@@ -20,9 +20,12 @@ Coordinator* CopilotPlusFrame::CreateCoordinator(cooid_t coo_id,
                                  ClientControlServiceImpl *ccsi,
                                  uint32_t thread_id,
                                  shared_ptr<TxnRegistry> txn_reg) {
-  CopilotPlusCoordinator *coord = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
+  verify(config != nullptr);
+  CopilotPlusCoordinator *coo = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
   Log_info("CopilotPlusCoordinator %p created", (void*)this);
-  return coord;
+  coo->frame_ = this;
+  coo->commo_ = commo_;
+  return coo;
 };
   
 TxLogServer* CopilotPlusFrame::CreateScheduler() {

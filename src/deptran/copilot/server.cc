@@ -274,8 +274,9 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
                                  ballot_t* max_ballot,
                                  uint64_t* ret_dep,
                                  const function<void()> &cb) {
-  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-  Log_info("[copilot] enter OnFastAccept svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Log_info("[copilot] enter OnFastAccept svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
+  Log_info("[copilot] enter OnFastAccept svr=%d", id_);
   // TODO: deal with ballot
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
@@ -347,7 +348,8 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
     pingpong_ok_ = true;
     cb();
   }
-  Log_info("[copilot] exit OnFastAccept svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
+  // Log_info("[copilot] exit OnFastAccept svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
+  Log_info("[copilot] exit OnFastAccept svr=%d", id_);
 }
 
 void CopilotServer::OnAccept(const uint8_t& is_pilot,
@@ -391,8 +393,9 @@ void CopilotServer::OnCommit(const uint8_t& is_pilot,
                              const uint64_t& slot,
                              const uint64_t& dep,
                              shared_ptr<Marshallable>& cmd) {
-  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-  Log_info("[copilot] enter OnCommit svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
+  Log_info("[copilot] enter OnCommit svr=%d", id_);
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Log_info("[copilot] enter OnCommit svr=%d %s", id_, ((SimpleRWCommand *)cmd.get())->cmd_to_string().c_str());
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("server %d [COMMIT     ] %s : %ld -> %ld", id_, toString(is_pilot), slot, dep);
   auto ins = GetInstance(slot, is_pilot);

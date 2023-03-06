@@ -24,11 +24,12 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
  private:
   std::vector<ResponsePack> responses_;
   ResponsePack max_response_;
+  int response_received_ = 0;
  public:
   CopilotPlusSubmitQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
-  void FeedResponse(slotid_t i, slotid_t j, ballot_t ballot);
+  void FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot);
   bool FastYes();
   bool RecoverWithOpYes();
   bool RecoverWithoutOpYes();
@@ -40,6 +41,7 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
  private:
   //TODO: put in .cc file
   int FindMax(){
+    verify(responses_.size() > 0);
     std::sort(responses_.begin(), responses_.end());
     std::vector<ResponsePack>::iterator max_response, last_response;
     int max_len, cur_len;
@@ -58,6 +60,9 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
       last_response = it;
     }
     max_response_ = ResponsePack(*max_response);
+    if (max_len == 3) {
+      Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
+    }
     return max_len;
   }
   

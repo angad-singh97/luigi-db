@@ -9,6 +9,10 @@
 
 namespace janus {
 class CopilotPlusFrame: public Frame {
+private:
+  slotid_t slot_hint_ = 1;
+  slotid_t slot_id_ = 0;
+  
   CopilotPlusCommo *commo_ = nullptr;
   CopilotPlusServer *svr_ = nullptr;
 

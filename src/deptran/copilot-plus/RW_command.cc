@@ -13,7 +13,7 @@ static int volatile x =
                                      });
 
 SimpleRWCommand::SimpleRWCommand(): Marshallable(MarshallDeputy::CMD_KV) {
-  Log_info("[copilot+] SimpleRWCommand created");
+  //Log_info("[copilot+] SimpleRWCommand Empty created");
   type_ = CmdType::NoOp;
   key_ = 0;
   value_ = 0;
@@ -50,8 +50,9 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
 // }
 
 
-std::string SimpleRWCommand::cmd_to_string() {
-  Log_info("[copilot+] enter cmd_to_string");
+string SimpleRWCommand::cmd_to_string() {
+  //Log_info("[copilot+] enter cmd_to_string of %p", (void*)(this));
+  //Log_info("[copilot+] cmd_type=%d", type_);
   if (CmdType::NoOp == type_)
     return string("NoOp");
   else if (CmdType::Read == type_)

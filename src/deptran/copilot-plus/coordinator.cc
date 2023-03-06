@@ -26,16 +26,19 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
   Log_info("[copilot+] enter Coordinator Submit %s", received_cmd_->cmd_to_string().c_str());
 
   auto sq_quorum = commo()->BroadcastSubmit(par_id_, dynamic_pointer_cast<Marshallable>(received_cmd_));
-  Log_info("[copilot+] received reply!!!!! %s", received_cmd_->cmd_to_string().c_str());
-  return;
   // TODO: set time?
-  sq_quorum -> Wait();
+  sq_quorum -> Wait(100000);
+  Log_info("[copilot+] received reply %s", received_cmd_->cmd_to_string().c_str());
   fast_path_success_ = false;
   if (sq_quorum->FastYes()) {
     fast_path_success_ = true;
+    accept_cmd_ = make_shared<SimpleRWCommand>(cmd);
+    Log_info("[copilot+] accept_cmd_ is received_cmd_ %p", (void*)accept_cmd_.get());
   } else if (sq_quorum->RecoverWithOpYes()) {
-    accept_cmd_ = make_shared<SimpleRWCommand>(received_cmd_); // TODO: parsed_cmd
+    accept_cmd_ = make_shared<SimpleRWCommand>(cmd);
+    Log_info("[copilot+] accept_cmd_ is received_cmd_ %p", (void*)accept_cmd_.get());
   } else if (sq_quorum->RecoverWithoutOpYes()) {
+    Log_info("[copilot+] accept_cmd_ is empty_cmd_ %p", (void*)accept_cmd_.get());
     accept_cmd_ = make_shared<SimpleRWCommand>();
   } else {
     // number of reply < quorum size
@@ -57,6 +60,8 @@ void CopilotPlusCoordinator::FrontRecover() {
 
 void CopilotPlusCoordinator::FrontCommit() {
   Log_info("[copilot+] enter Coordinator FrontCommit %s", accept_cmd_->cmd_to_string().c_str());
+  commit_callback_();
+  Log_info("[copilot+] Copilot coordinator broadcast FrontCommit for partition: %d", (int) par_id_);
   auto sq_quorum = commo()->BroadcastFrontCommit(par_id_, dynamic_pointer_cast<Marshallable>(accept_cmd_), max_response_.i, max_response_.j, max_response_.ballot);
   sq_quorum -> Wait();
   Log_info("[copilot+] exit Coordinator FrontCommit %s", accept_cmd_->cmd_to_string().c_str());
@@ -83,13 +88,17 @@ void CopilotPlusCoordinator::GotoNextPhase() {
   switch (current_phase_) {
     case Phase::INIT_END:
       if (fast_path_success_) {
+        Log_info("[copilot+] FRONT_COMMIT");
         current_phase_ = Phase::FRONT_COMMIT;
+        FrontCommit();
       } else {
+        Log_info("[copilot+] FRONT_RECOVERY");
         current_phase_ = Phase::FRONT_RECOVERY;
         FrontRecover();
       }
       break;
     case Phase::FRONT_RECOVERY:
+      Log_info("[copilot+] FRONT_COMMIT");
       current_phase_ = Phase::FRONT_COMMIT;
       FrontCommit();
       break;
@@ -98,6 +107,7 @@ void CopilotPlusCoordinator::GotoNextPhase() {
     default:
       break;
   }
+  Log_info("[copilot+] exit GotoNextPhase");
 }
 
 

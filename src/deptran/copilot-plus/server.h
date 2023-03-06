@@ -2,6 +2,7 @@
 
 #include "../__dep__.h"
 #include "../scheduler.h"
+#include "RW_command.h"
 
 namespace janus {
 
@@ -12,6 +13,20 @@ struct CopilotPlusLogEle {
   Status_type status_ = Status_type::INIT;
   CopilotPlusLogEle(shared_ptr<Marshallable> cmd)
     : cmd_(cmd) {}
+  string status_str() {
+    switch (status_) {
+      case INIT:          return string("INIT");
+      case EXECUTED:      return string("EXECUTED");
+      case OVER_WRITTEN:  return string("OVER_WRITTEN");
+      case COMMITTED:     return string("COMMITTED");
+      default:
+        verify(0);
+    }
+  }
+  string cmd_str() {
+    shared_ptr<SimpleRWCommand> cast_cmd = dynamic_pointer_cast<SimpleRWCommand>(cmd_);
+    return cast_cmd->cmd_to_string();
+  }
 };
 
 struct CopilotPlusLogCol {
@@ -49,6 +64,7 @@ class CopilotPlusServer : public TxLogServer {
                       const function<void()> &cb);
  private:
   void Setup();
+  void PrintLog();
 };
 
 
