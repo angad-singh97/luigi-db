@@ -24,7 +24,12 @@ Coordinator* CopilotPlusFrame::CreateCoordinator(cooid_t coo_id,
   CopilotPlusCoordinator *coo = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
   Log_info("CopilotPlusCoordinator %p created", (void*)this);
   coo->frame_ = this;
+  verify(commo_ != nullptr);
   coo->commo_ = commo_;
+  coo->slot_hint_ = &slot_hint_;
+  coo->slot_id_ = slot_hint_++;
+  coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);
+  coo->loc_id_ = this->site_info_->locale_id;
   return coo;
 };
   

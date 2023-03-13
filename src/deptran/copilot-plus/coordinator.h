@@ -13,11 +13,15 @@ class CopilotPlusCoordinator: public Coordinator {
   enum Phase {INIT_END, FRONT_RECOVERY, FRONT_COMMIT};
  private:
   Phase current_phase_ = INIT_END;
-  bool fast_path_success_ = false;
-  shared_ptr<SimpleRWCommand> received_cmd_ = nullptr;
-  shared_ptr<SimpleRWCommand> accept_cmd_ = nullptr;
+  bool_t fast_path_success_ = false;
+  bool_t commit_no_op_ = false;
+  shared_ptr<Marshallable> received_cmd_ = nullptr;
+  shared_ptr<SimpleRWCommand> parsed_cmd_ = nullptr;
   CopilotPlusSubmitQuorumEvent::ResponsePack max_response_;
  public:
+  uint32_t n_replica_ = 0;
+  slotid_t slot_id_ = 0;
+  slotid_t *slot_hint_ = nullptr;
   CopilotPlusCoordinator(uint32_t coo_id,
               int benchmark,
               ClientControlServiceImpl *ccsi,

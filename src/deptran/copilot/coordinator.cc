@@ -46,8 +46,6 @@ inline ballot_t CoordinatorCopilot::pickGreaterBallot(ballot_t ballot) {
 void CoordinatorCopilot::Submit(shared_ptr<Marshallable> &cmd,
                                 const std::function<void()> &func,
                                 const std::function<void()> &exe_callback) {
-  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-  // Log_info("[copilot] enter Submit %s", parsed_cmd.cmd_to_string().c_str());
   verify(IsPilot() || IsCopilot());  // only pilot or copilot can initiate command submission
   done_ = false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);

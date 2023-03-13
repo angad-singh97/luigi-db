@@ -109,30 +109,36 @@ friend class CopilotPlusProxy;
   CopilotPlusCommo(PollMgr *poll);
 
   shared_ptr<CopilotPlusSubmitQuorumEvent>
-  BroadcastSubmit(parid_t par_id,
-                  shared_ptr<Marshallable> cmd);
+  BroadcastSubmit(const parid_t par_id,
+                  const slotid_t slot_id,
+                  const shared_ptr<Marshallable> cmd);
 
   void
-  ForwardReply(parid_t par_id,
-               siteid_t site_id,
-               slotid_t i,
-               slotid_t j,
-               ballot_t ballot,
-               bool_t accepted);
+  ForwardReply(const parid_t par_id,
+               const slotid_t slot_id,
+               const siteid_t site_id,
+               const slotid_t i,
+               const slotid_t j,
+               const ballot_t ballot,
+               const bool_t accepted);
 
   shared_ptr<CopilotPlusFrontRecoverQuorumEvent>
-  BroadcastFrontRecover(parid_t par_id,
-                        shared_ptr<Marshallable> cmd,
-                        slotid_t i,
-                        slotid_t j,
-                        ballot_t ballot);
+  BroadcastFrontRecover(const parid_t par_id,
+                        const slotid_t slot_id,
+                        const shared_ptr<Marshallable> cmd,
+                        const bool_t commit_no_op_,
+                        const slotid_t i,
+                        const slotid_t j,
+                        const ballot_t ballot);
 
   shared_ptr<CopilotPlusFrontCommitQuorumEvent>
-  BroadcastFrontCommit(parid_t par_id,
-                       shared_ptr<Marshallable> cmd,
-                       slotid_t i,
-                       slotid_t j,
-                       ballot_t ballot);
+  BroadcastFrontCommit(const parid_t par_id,
+                       const slotid_t slot_id,
+                       const shared_ptr<Marshallable> cmd,
+                       const bool_t commit_no_op_,
+                       const slotid_t i,
+                       const slotid_t j,
+                       const ballot_t ballot);
 
 };
 

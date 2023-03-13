@@ -54,8 +54,9 @@ CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll): Communicator(poll) {
 }
 
 shared_ptr<CopilotPlusSubmitQuorumEvent>
-CopilotPlusCommo::BroadcastSubmit(parid_t par_id,
-                                  shared_ptr<Marshallable> cmd) {
+CopilotPlusCommo::BroadcastSubmit(const parid_t par_id,
+                                  const slotid_t slot_id,
+                                  const shared_ptr<Marshallable> cmd) {
   Log_info("[copilot+] enter BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusSubmitQuorumEvent>(n, quorumSize(n));
@@ -75,7 +76,7 @@ CopilotPlusCommo::BroadcastSubmit(parid_t par_id,
     };
     MarshallDeputy md(cmd);
     //Log_info("[copilot+] in BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
-    Future *f = proxy->async_Submit(md, fuattr);
+    Future *f = proxy->async_Submit(slot_id, md, fuattr);
     //Log_info("[copilot+] in BroadcastSubmit in svr=%d, after async_Submit", svr_ == nullptr ? -1 : svr_->loc_id_);
     Future::safe_release(f);
   }
@@ -84,12 +85,13 @@ CopilotPlusCommo::BroadcastSubmit(parid_t par_id,
 }
 
 void
-CopilotPlusCommo::ForwardReply(parid_t par_id,
-                               siteid_t site_id,
-                               slotid_t i,
-                               slotid_t j,
-                               ballot_t ballot,
-                               bool_t accepted) {
+CopilotPlusCommo::ForwardReply(const parid_t par_id,
+                               const slotid_t slot_id,
+                               const siteid_t site_id,
+                               const slotid_t i,
+                               const slotid_t j,
+                               const ballot_t ballot,
+                               const bool_t accepted) {
   // int n = Config::GetConfig()->GetPartitionSize(par_id);
 
   // auto proxies = rpc_par_proxies_[par_id];
@@ -106,11 +108,13 @@ CopilotPlusCommo::ForwardReply(parid_t par_id,
 }
 
 shared_ptr<CopilotPlusFrontRecoverQuorumEvent>
-CopilotPlusCommo::BroadcastFrontRecover(parid_t par_id,
-                                        shared_ptr<Marshallable> cmd,
-                                        slotid_t i,
-                                        slotid_t j,
-                                        ballot_t ballot) {
+CopilotPlusCommo::BroadcastFrontRecover(const parid_t par_id,
+                                        const slotid_t slot_id,
+                                        const shared_ptr<Marshallable> cmd,
+                                        const bool_t commit_no_op_,
+                                        const slotid_t i,
+                                        const slotid_t j,
+                                        const ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusFrontRecoverQuorumEvent>(n, fastQuorumSize(n));
 
@@ -126,18 +130,20 @@ CopilotPlusCommo::BroadcastFrontRecover(parid_t par_id,
       e->FeedResponse(y);
     };
     MarshallDeputy md(cmd);
-    Future *f = proxy->async_FrontRecover(md, i, j, ballot, fuattr);
+    Future *f = proxy->async_FrontRecover(slot_id, md, commit_no_op_, i, j, ballot, fuattr);
     Future::safe_release(f);
   }
   return e;
 }
 
 shared_ptr<CopilotPlusFrontCommitQuorumEvent>
-CopilotPlusCommo::BroadcastFrontCommit(parid_t par_id,
-                                        shared_ptr<Marshallable> cmd,
-                                        slotid_t i,
-                                        slotid_t j,
-                                        ballot_t ballot) {
+CopilotPlusCommo::BroadcastFrontCommit(const parid_t par_id,
+                                        const slotid_t slot_id,
+                                        const shared_ptr<Marshallable> cmd,
+                                        const bool_t commit_no_op_,
+                                        const slotid_t i,
+                                        const slotid_t j,
+                                        const ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusFrontCommitQuorumEvent>(n, fastQuorumSize(n));
 
@@ -148,12 +154,10 @@ CopilotPlusCommo::BroadcastFrontCommit(parid_t par_id,
 
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
-      bool_t y;
-      fu->get_reply() >> y;
-      e->FeedResponse(y);
+      e->FeedResponse(1);
     };
     MarshallDeputy md(cmd);
-    Future *f = proxy->async_FrontCommit(md, i, j, ballot, fuattr);
+    Future *f = proxy->async_FrontCommit(slot_id, md, commit_no_op_, i, j, ballot, fuattr);
     Future::safe_release(f);
   }
   return e;

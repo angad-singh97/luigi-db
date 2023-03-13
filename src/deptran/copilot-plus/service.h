@@ -17,21 +17,26 @@ class CopilotPlusServiceImpl: public CopilotPlusService {
  public:
   CopilotPlusServiceImpl(TxLogServer *svr);
 
-  void Submit(const MarshallDeputy& cmd,
+  void Submit(const slotid_t& slot_id,
+              const MarshallDeputy& cmd,
               bool_t* accepted,
               slotid_t* i,
               slotid_t* j,
               ballot_t* ballot,
               rrr::DeferredReply* defer) override;
   
-  void FrontRecover(const MarshallDeputy& cmd,
+  void FrontRecover(const slotid_t& slot_id,
+                    const MarshallDeputy& cmd,
+                    const bool_t& commit_no_op_,
                     const slotid_t& i,
                     const slotid_t& j,
                     const ballot_t& ballot,
                     bool_t* accept_recover,
                     rrr::DeferredReply* defer) override;
 
-  void FrontCommit(const MarshallDeputy& cmd,
+  void FrontCommit(const slotid_t& slot_id,
+                    const MarshallDeputy& cmd,
+                    const bool_t& commit_no_op_,
                     const slotid_t& i,
                     const slotid_t& j,
                     const ballot_t& ballot,
