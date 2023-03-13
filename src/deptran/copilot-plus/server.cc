@@ -94,7 +94,7 @@ void CopilotPlusServer::OnFrontCommit(slotid_t slot_id,
                                       const slotid_t& j,
                                       const ballot_t& ballot,
                                       const function<void()> &cb) {
-  Log_info("[copilot+] server enter OnFrontCommit, this->loc_id_=%d, i=%d, j=%d, ballot=%d", this->loc_id_, i, j, ballot);
+  //Log_info("[copilot+] server enter OnFrontCommit, this->loc_id_=%d, i=%d, j=%d, ballot=%d", this->loc_id_, i, j, ballot);
   //PrintLog();
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   // TODO: abort recover
@@ -115,6 +115,7 @@ void CopilotPlusServer::OnFrontCommit(slotid_t slot_id,
   }
   in_applying_logs_ = true;
 
+  //Log_info("[copilot+] max_executed_slot_=%d max_committed_slot_=%d", max_executed_slot_, max_committed_slot_);
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->cmd_) {
@@ -130,7 +131,7 @@ void CopilotPlusServer::OnFrontCommit(slotid_t slot_id,
       break;
     }
   }
-
+  in_applying_logs_ = false;
   cb();
 }
 
