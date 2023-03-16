@@ -24,7 +24,7 @@ struct FrontLogEle {
   slotid_t slot_id_;
   std::shared_ptr<BackEndData> data_;
   FrontLogEle(slotid_t slot_id, std::shared_ptr<BackEndData> data):
-    slot_id_(slot_id), data_(data) {Log_info("[copilot+] FrontLogEle created with slot_id=%d", slot_id);}
+    slot_id_(slot_id), data_(data) {}
   string status_str() {
     switch (status_) {
       case INIT:          return string("INIT");

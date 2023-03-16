@@ -7,10 +7,6 @@
 #include "tpc_command.h"
 #include "tx.h"
 
-// RWChopper debug
-#include "../../bench/rw/procedure.h"
-#include "../../bench/rw/workload.h"
-#include "server_worker.h"
 
 namespace janus {
 

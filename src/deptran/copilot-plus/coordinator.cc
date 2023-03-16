@@ -73,31 +73,31 @@ void CopilotPlusCoordinator::Restart() {
 
 CopilotPlusCommo* CopilotPlusCoordinator::commo() {
   if (commo_ == nullptr) {
-    Log_info("[copilot+] Coordinator=%p frame=%p", (void*)this, (void*)frame_);
+    //Log_info("[copilot+] Coordinator=%p frame=%p", (void*)this, (void*)frame_);
     commo_ = frame_->CreateCommo(nullptr);
     commo_->loc_id_ = loc_id_;
   }
-  Log_info("[copilot+] commo this=%p, this->loc_id_=%d, this->commo_==%p", (void*)this, this->loc_id_, (void*)this->commo_);
+  //Log_info("[copilot+] commo this=%p, this->loc_id_=%d, this->commo_==%p", (void*)this, this->loc_id_, (void*)this->commo_);
   verify(commo_);
   return (CopilotPlusCommo *)commo_;
 }
 
 void CopilotPlusCoordinator::GotoNextPhase() {
-  Log_info("[copilot+] enter GotoNextPhase");
+  //Log_info("[copilot+] enter GotoNextPhase");
   switch (current_phase_) {
     case Phase::INIT_END:
       if (fast_path_success_) {
-        Log_info("[copilot+] FRONT_COMMIT");
+        //Log_info("[copilot+] FRONT_COMMIT");
         current_phase_ = Phase::FRONT_COMMIT;
         FrontCommit();
       } else {
-        Log_info("[copilot+] FRONT_RECOVERY");
+        //Log_info("[copilot+] FRONT_RECOVERY");
         current_phase_ = Phase::FRONT_RECOVERY;
         FrontRecover();
       }
       break;
     case Phase::FRONT_RECOVERY:
-      Log_info("[copilot+] FRONT_COMMIT");
+      //Log_info("[copilot+] FRONT_COMMIT");
       current_phase_ = Phase::FRONT_COMMIT;
       FrontCommit();
       break;
@@ -106,7 +106,7 @@ void CopilotPlusCoordinator::GotoNextPhase() {
     default:
       break;
   }
-  Log_info("[copilot+] exit GotoNextPhase");
+  //Log_info("[copilot+] exit GotoNextPhase");
 }
 
 

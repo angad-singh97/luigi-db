@@ -24,14 +24,14 @@ void CopilotPlusServer::OnSubmit(slotid_t slot_id,
                                   slotid_t* j,
                                   ballot_t* ballot,
                                   const function<void()> &cb) {
-  Log_info("[copilot+] server enter OnSubmit, this->loc_id_=%d", this->loc_id_);
+  //Log_debug("[copilot+] server enter OnSubmit, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
   auto lastest_slot = lastest_slot_map_.find(key);
   if (lastest_slot == lastest_slot_map_.end()) {
-    Log_info("[copilot+] On Commit Branch 1 key didn't appear before");
+    //Log_debug("[copilot+] On Commit Branch 1 key didn't appear before");
     *accepted = true;
     *i = front_next_slot_;
     *j = 0;
@@ -44,7 +44,7 @@ void CopilotPlusServer::OnSubmit(slotid_t slot_id,
     lastest_slot_map_[key] = front_next_slot_;
     front_next_slot_++;
   } else {
-    Log_info("[copilot+] On Commit Branch 2 key appear before");
+    //Log_debug("[copilot+] On Commit Branch 2 key appear before");
     slotid_t slot = lastest_slot->second;
     if (front_logs_[slot]->log_col_.back().status_ == FrontLogEle::FrontLogStatus::COMMITTED) {
       *accepted = true;
@@ -63,7 +63,7 @@ void CopilotPlusServer::OnSubmit(slotid_t slot_id,
       *ballot = 0;
     }
   }
-  Log_info("[copilot+] exit OnSubmit with i=%d j=%d ballot=%d accepted=%d", *i, *j, *ballot, *accepted);
+  //Log_debug("[copilot+] exit OnSubmit with i=%d j=%d ballot=%d accepted=%d", *i, *j, *ballot, *accepted);
   cb();
 }
 
@@ -75,7 +75,7 @@ void CopilotPlusServer::OnFrontRecover(slotid_t slot_id,
                                         const ballot_t& ballot,
                                         bool_t* up_to_date,
                                         const function<void()> &cb) {
-  Log_info("[copilot+] server enter OnFrontRecover, this->loc_id_=%d", this->loc_id_);
+  //Log_debug("[copilot+] server enter OnFrontRecover, this->loc_id_=%d", this->loc_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   // TODO: abort recover
   shared_ptr<BackEndData> log = GetInstance(slot_id);

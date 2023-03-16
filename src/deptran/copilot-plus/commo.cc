@@ -4,34 +4,33 @@
 namespace janus {
 
 void CopilotPlusSubmitQuorumEvent::FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot) {
-  Log_info("[copilot+] FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
+  //Log_debug("[copilot+] FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
   response_received_++;
   responses_.push_back(ResponsePack{i, j, ballot});
 }
 
 bool CopilotPlusSubmitQuorumEvent::FastYes() {
   if (response_received_ < CopilotPlusCommo::fastQuorumSize(n_total_)) return false;
-  Log_info("[copilot+] Quorum result: FastYes");
+  //Log_debug("[copilot+] Quorum result: FastYes");
   int max_len = FindMax();
   return max_len >= CopilotPlusCommo::fastQuorumSize(n_total_);
 }
 
 bool CopilotPlusSubmitQuorumEvent::RecoverWithOpYes() {
   if (response_received_ < quorum_) return false;
-  Log_info("[copilot+] Quorum result: RecoverWithOpYes");
+  //Log_debug("[copilot+] Quorum result: RecoverWithOpYes");
   int max_len = FindMax();
   return max_len >= CopilotPlusCommo::smallQuorumSize(n_total_);
 }
 
 bool CopilotPlusSubmitQuorumEvent::RecoverWithoutOpYes() {
   if (response_received_ < quorum_) return false;
-  Log_info("[copilot+] Quorum result: RecoverWithoutOpYes");
+  //Log_debug("[copilot+] Quorum result: RecoverWithoutOpYes");
   int max_len = FindMax();
   return max_len < CopilotPlusCommo::smallQuorumSize(n_total_);
 }
 
 bool CopilotPlusSubmitQuorumEvent::IsReady() {
-  Log_info("[copilot+] enter IsReady");
   if (timeouted_) {
     //Log_info("[copilot+] timeouted_ ready");
     return true;
@@ -57,7 +56,7 @@ shared_ptr<CopilotPlusSubmitQuorumEvent>
 CopilotPlusCommo::BroadcastSubmit(const parid_t par_id,
                                   const slotid_t slot_id,
                                   const shared_ptr<Marshallable> cmd) {
-  Log_info("[copilot+] enter BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
+  //Log_debug("[copilot+] enter BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusSubmitQuorumEvent>(n, quorumSize(n));
   //Log_info("[copilot+] in BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
@@ -71,7 +70,7 @@ CopilotPlusCommo::BroadcastSubmit(const parid_t par_id,
       slotid_t i, j;
       ballot_t ballot;
       fu->get_reply() >> accepted >> i >> j >> ballot;
-      Log_info("[copilot+] get reply accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
+      //Log_info("[copilot+] get reply accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
       e->FeedResponse(accepted, i, j, ballot);
     };
     MarshallDeputy md(cmd);
@@ -80,7 +79,7 @@ CopilotPlusCommo::BroadcastSubmit(const parid_t par_id,
     //Log_info("[copilot+] in BroadcastSubmit in svr=%d, after async_Submit", svr_ == nullptr ? -1 : svr_->loc_id_);
     Future::safe_release(f);
   }
-  Log_info("[copilot+] exit BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
+  //Log_debug("[copilot+] exit BroadcastSubmit in svr=%d", svr_ == nullptr ? -1 : svr_->loc_id_);
   return e;
 }
 

@@ -13,7 +13,6 @@ void CopilotPlusServiceImpl::Submit(const slotid_t& slot_id,
                                     slotid_t* j,
                                     ballot_t* ballot,
                                     rrr::DeferredReply* defer) {
-  Log_info("[copilot+] enter Submit");
   verify(svr_);
   svr_->OnSubmit(slot_id,
                   const_cast<MarshallDeputy&>(cmd).sp_data_,
@@ -22,7 +21,6 @@ void CopilotPlusServiceImpl::Submit(const slotid_t& slot_id,
                   j,
                   ballot,
                   bind(&rrr::DeferredReply::reply, defer));
-  Log_info("[copilot+] exit Submit");
 }
 
 void CopilotPlusServiceImpl::FrontRecover(const slotid_t& slot_id,

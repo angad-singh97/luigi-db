@@ -4,13 +4,6 @@
 #include "procedure.h"
 #include "benchmark_control_rpc.h"
 
-#ifdef COPILOTP_KV_DEBUG
-  /****************** copilot+ kv debug begin **********************/ 
-// copilot+ debug
-#include "../bench/rw/procedure.h"
-#include "../bench/rw/workload.h"
-  /****************** copilot+ kv debug end **********************/
-#endif
 
 namespace janus {
 

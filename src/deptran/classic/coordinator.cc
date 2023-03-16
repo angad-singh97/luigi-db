@@ -15,10 +15,6 @@
 #include "../frame.h"
 #include "../benchmark_control_rpc.h"
 
-// for rw debug test
-#include "../../bench/rw/procedure.h"
-#include "../../bench/rw/workload.h"
-
 namespace janus {
 
 CoordinatorClassic::CoordinatorClassic(uint32_t coo_id,

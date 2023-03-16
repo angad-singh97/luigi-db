@@ -22,7 +22,6 @@ Coordinator* CopilotPlusFrame::CreateCoordinator(cooid_t coo_id,
                                  shared_ptr<TxnRegistry> txn_reg) {
   verify(config != nullptr);
   CopilotPlusCoordinator *coo = new CopilotPlusCoordinator(coo_id, benchmark, ccsi, thread_id);
-  Log_info("CopilotPlusCoordinator %p created", (void*)this);
   coo->frame_ = this;
   verify(commo_ != nullptr);
   coo->commo_ = commo_;

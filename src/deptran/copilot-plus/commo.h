@@ -61,7 +61,7 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
     }
     max_response_ = ResponsePack(*max_response);
     if (max_len == 3) {
-      Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
+      //Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
     }
     return max_len;
   }
