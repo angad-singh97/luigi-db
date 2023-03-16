@@ -4,28 +4,29 @@
 namespace janus {
 
 void CopilotPlusSubmitQuorumEvent::FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot) {
-  //Log_debug("[copilot+] FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
+  // Log_info("[copilot+] FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
   response_received_++;
   responses_.push_back(ResponsePack{i, j, ballot});
+  if (accepted)
+    VoteYes();
+  else
+    VoteNo();
 }
 
 bool CopilotPlusSubmitQuorumEvent::FastYes() {
   if (response_received_ < CopilotPlusCommo::fastQuorumSize(n_total_)) return false;
-  //Log_debug("[copilot+] Quorum result: FastYes");
   int max_len = FindMax();
   return max_len >= CopilotPlusCommo::fastQuorumSize(n_total_);
 }
 
 bool CopilotPlusSubmitQuorumEvent::RecoverWithOpYes() {
   if (response_received_ < quorum_) return false;
-  //Log_debug("[copilot+] Quorum result: RecoverWithOpYes");
   int max_len = FindMax();
   return max_len >= CopilotPlusCommo::smallQuorumSize(n_total_);
 }
 
 bool CopilotPlusSubmitQuorumEvent::RecoverWithoutOpYes() {
   if (response_received_ < quorum_) return false;
-  //Log_debug("[copilot+] Quorum result: RecoverWithoutOpYes");
   int max_len = FindMax();
   return max_len < CopilotPlusCommo::smallQuorumSize(n_total_);
 }
@@ -36,13 +37,13 @@ bool CopilotPlusSubmitQuorumEvent::IsReady() {
     return true;
   }
   if (FastYes()) {
-    //Log_info("[copilot+] FastYes ready");
+    // Log_info("[copilot+] FastYes ready");
     return true;
   } else if (RecoverWithOpYes()) {
-    //Log_info("[copilot+] RecoverWithOpYes ready");
+    // Log_info("[copilot+] RecoverWithOpYes ready");
     return true;
   } else if (RecoverWithoutOpYes()) {
-    //Log_info("[copilot+] RecoverWithOpYes ready");
+    // Log_info("[copilot+] RecoverWithOpYes ready");
     return true;
   }
   return false;

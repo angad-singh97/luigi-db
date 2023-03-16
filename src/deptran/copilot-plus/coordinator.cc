@@ -28,7 +28,7 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
 
   auto sq_quorum = commo()->BroadcastSubmit(par_id_, slot_id_, dynamic_pointer_cast<Marshallable>(cmd));
   // TODO: set time?
-  sq_quorum -> Wait(2000);
+  sq_quorum -> Wait();
   //Log_info("[copilot+] received reply %s", parsed_cmd_->cmd_to_string().c_str());
   fast_path_success_ = false;
   if (sq_quorum->FastYes()) {
