@@ -1,7 +1,6 @@
 #include "server.h"
 #include "frame.h"
 #include "coordinator.h"
-#include "../copilot-plus/RW_command.h"
 
 // #define DEBUG
 #define WAIT_AT_UNCOMMIT
@@ -191,7 +190,6 @@ bool CopilotServer::WillWait(int &time_to_wait) const {
 
 void CopilotServer::OnForward(shared_ptr<Marshallable>& cmd,
                               const function<void()>& cb) {
-
   verify(isPilot_ || isCopilot_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_info("This Copilot server is: %d", id_);
@@ -205,7 +203,6 @@ void CopilotServer::OnForward(shared_ptr<Marshallable>& cmd,
   coord->Submit(cmd);
 
   cb();
-  Log_info("[copilot] exit OnForward svr=%d", id_);
 }
 
 void CopilotServer::OnPrepare(const uint8_t& is_pilot,
@@ -217,7 +214,6 @@ void CopilotServer::OnPrepare(const uint8_t& is_pilot,
                               uint64_t* dep,
                               status_t* status,
                               const function<void()>& cb) {
-  Log_info("[copilot] enter OnPrepare svr=%d", id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto ins = GetInstance(slot, is_pilot);
   log_infos_[is_pilot].current_slot = std::max(slot, log_infos_[is_pilot].current_slot);
@@ -261,7 +257,6 @@ finish:
       id_, toString(is_pilot), slot, *dep, *status, *max_ballot);
 
   cb();
-  Log_info("[copilot] exit OnPrepare svr=%d", id_);
 }
 
 void CopilotServer::OnFastAccept(const uint8_t& is_pilot,

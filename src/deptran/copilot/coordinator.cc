@@ -4,7 +4,6 @@
 #include "commo.h"
 #include "server.h"
 #include "frame.h"
-#include "../copilot-plus/RW_command.h"
 
 // #define DO_FINALIZE
 
@@ -66,7 +65,6 @@ void CoordinatorCopilot::Submit(shared_ptr<Marshallable> &cmd,
 }
 
 void CoordinatorCopilot::Prepare() {
-  Log_info("[copilot] enter Prepare");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 start_prepare:
   static_cast<CopilotFrame*>(frame_)->n_prepare_++;
@@ -161,7 +159,6 @@ start_prepare:
 }
 
 void CoordinatorCopilot::FastAccept() {
-  Log_info("[copilot] enter FastAccept");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotFrame*>(frame_)->n_fast_accept_++;
   if ((static_cast<CopilotFrame*>(frame_)->n_fast_accept_ & 0xfff) == 0)
@@ -226,7 +223,6 @@ void CoordinatorCopilot::FastAccept() {
 }
 
 void CoordinatorCopilot::Accept() {
-  Log_info("[copilot] enter Accept");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotFrame*>(frame_)->n_accept_++;
   verify(current_phase_ == Phase::ACCEPT);
@@ -270,7 +266,6 @@ void CoordinatorCopilot::Accept() {
 }
 
 void CoordinatorCopilot::Commit() {
-  Log_info("[copilot] enter Commit");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotFrame*>(frame_)->n_commit_++;
   verify(current_phase_ == Phase::COMMIT);
@@ -337,7 +332,6 @@ void CoordinatorCopilot::Commit() {
 }
 
 void CoordinatorCopilot::GotoNextPhase() {
-  Log_info("[copilot] enter GotoNextPhase");
   phase_++;
   switch (current_phase_) {
   case Phase::INIT_END:
