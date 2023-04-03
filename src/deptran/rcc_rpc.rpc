@@ -99,29 +99,42 @@ abstract service FpgaRaft {
                MarshallDeputy cmd);
 }
 
-abstract service CopilotPlus {
-  defer Submit(uint64_t slot_id,
-                MarshallDeputy cmd |
-                bool_t accepted,
-                uint64_t i,
-                uint64_t j,
-                int64_t ballot);
-  defer FrontRecover(uint64_t slot_id,
-                      MarshallDeputy cmd,
-                      bool_t commit_no_op_,
-                      uint64_t i,
-                      uint64_t j,
-                      int64_t ballot |
-                      bool_t up_to_date);
-  defer FrontCommit(uint64_t slot_id,
-                    MarshallDeputy cmd,
-                    bool_t commit_no_op_,
-                    uint64_t i,
-                    uint64_t j,
-                    int64_t ballot);
+abstract service Copilot {
+  defer Forward(MarshallDeputy cmd);
+
+  defer Prepare(uint8_t is_pilot,
+                uint64_t slot,
+                ballot_t ballot,
+                DepId dep_id |
+                MarshallDeputy ret_cmd,
+                ballot_t max_ballot,
+                uint64_t dep,
+                status_t status);
+
+  defer FastAccept(uint8_t is_pilot,
+                   uint64_t slot,
+                   ballot_t ballot,
+                   uint64_t dep,
+                   MarshallDeputy cmd,
+                   DepId dep_id |
+                   ballot_t max_ballot,
+                   uint64_t ret_dep);
+
+  defer Accept(uint8_t is_pilot,
+               uint64_t slot,
+               ballot_t ballot,
+               uint64_t dep,
+               MarshallDeputy cmd,
+               DepId dep_id |
+               ballot_t max_ballot);
+
+  defer Commit(uint8_t is_pilot,
+               uint64_t slot,
+               uint64_t dep,
+               MarshallDeputy cmd);
 }
 
-abstract service Copilot {
+abstract service CopilotPlus {
   defer Forward(MarshallDeputy cmd);
 
   defer Prepare(uint8_t is_pilot,
@@ -169,6 +182,17 @@ abstract service Classic {
 	defer ReElect(| bool_t success);
   defer Dispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
                  i32 res, TxnOutput output, uint64_t coro_id);
+  defer MultiDispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
+                      i32 res,
+                      TxnOutput output,
+                      uint64_t coro_id,
+                      bool_t accepted,
+                      uint64_t i,
+                      uint64_t j,
+                      int64_t ballot,
+                      uint16_t leader);
+  defer MulticastWait(i64 tid, DepId dep_id, MarshallDeputy cmd |
+                      i32 res, TxnOutput output, uint64_t coro_id);
 
   defer Prepare(i64 tid, 
                 vector<i32> sids,

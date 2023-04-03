@@ -22,12 +22,12 @@ void CopilotPlusCoordinator::DoTxAsync(TxRequest &) {
 void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func,
               const std::function<void()> &exe_callback) {
+  Log_info("[copilot+] coordinator submit loc_id_=%d", this->loc_id_);
   received_cmd_ = cmd;
   parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   //Log_info("[copilot+] enter Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());
 
   auto sq_quorum = commo()->BroadcastSubmit(par_id_, slot_id_, dynamic_pointer_cast<Marshallable>(cmd));
-  // TODO: set time?
   sq_quorum -> Wait();
   //Log_info("[copilot+] received reply %s", parsed_cmd_->cmd_to_string().c_str());
   fast_path_success_ = false;

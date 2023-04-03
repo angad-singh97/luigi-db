@@ -54,6 +54,8 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('-L', '--enable-leaksan', dest='leaksan',
                    default=False, action='store_true')
+    opt.add_option('', '--enable-client_multicast', dest='client_multicast',
+                   default=False, action='store_true')
     opt.parse_args();
 
 def configure(conf):
@@ -111,6 +113,9 @@ def configure(conf):
         # check python modules
 #        conf.check_python_module('tabulate')
 #        conf.check_python_module('yaml')
+
+    if Options.options.client_multicast:
+        conf.env.append_value("CXXFLAGS", "-DCLIENT_MULTICAST")
 
 def build(bld):
     _depend("src/rrr/pylib/simplerpcgen/rpcgen.py",

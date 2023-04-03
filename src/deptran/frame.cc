@@ -17,7 +17,8 @@
 #include "occ/coordinator.h"
 #include "none_copilot/commo.h"
 #include "none_copilot/scheduler.h"
-#include "copilot-plus/coordinator.h"
+#include "copilotplus/coordinator.h"
+#include "copilotplus/commo.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
 #include "bench/tpcc/workload.h"

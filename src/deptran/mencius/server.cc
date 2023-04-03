@@ -3,7 +3,7 @@
 #include "server.h"
 // #include "paxos_worker.h"
 #include "exec.h"
-#include "../copilot-plus/RW_command.h"
+#include "../RW_command.h"
 
 namespace janus {
 

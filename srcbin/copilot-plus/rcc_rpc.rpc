@@ -1,0 +1,21 @@
+abstract service CopilotPlus {
+  defer Submit(uint64_t slot_id,
+                MarshallDeputy cmd |
+                bool_t accepted,
+                uint64_t i,
+                uint64_t j,
+                int64_t ballot);
+  defer FrontRecover(uint64_t slot_id,
+                      MarshallDeputy cmd,
+                      bool_t commit_no_op_,
+                      uint64_t i,
+                      uint64_t j,
+                      int64_t ballot |
+                      bool_t up_to_date);
+  defer FrontCommit(uint64_t slot_id,
+                    MarshallDeputy cmd,
+                    bool_t commit_no_op_,
+                    uint64_t i,
+                    uint64_t j,
+                    int64_t ballot);
+}

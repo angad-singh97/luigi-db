@@ -227,6 +227,9 @@ void CoordinatorClassic::DispatchAsync() {
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
     }
+    Log_info("[copilot+] loc_id_=%d phase_=%d", this->loc_id_, phase_);
+
+#ifndef CLIENT_MULTICAST
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
@@ -234,9 +237,41 @@ void CoordinatorClassic::DispatchAsync() {
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
+#endif
+
+#ifdef CLIENT_MULTICAST
+  MultiBroadcastDispatch(sp_vec_piece);
+#endif
   }
+
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
 }
+
+void CoordinatorClassic::MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
+  int32_t ret;
+  TxnOutput outputs;
+  siteid_t leader;
+  auto sq_quorum = commo()->MultiBroadcastDispatch(sp_vec_piece,
+                                                    &ret,
+                                                    &outputs,
+                                                    &leader);
+  if (sq_quorum->FastYes()) {
+    // Fastpath Success
+    verify(SUCCESS == ret);
+    CoordinatorClassic::DispatchAck(phase_, ret, outputs);
+  } else if (sq_quorum->RecoverWithOpYes() || sq_quorum->RecoverWithoutOpYes()) {
+    // Fastpath Fail
+    auto wait_quorum = commo()->MultiBroadcastWait(sp_vec_piece, leader);
+    if (wait_quorum->value_ > 0) // 0 fail 1 success
+      CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
+    else
+      CoordinatorClassic::DispatchAck(phase_, REJECT, outputs);
+  } else {
+    // number of reply < quorum size
+    verify(0);
+  }
+}
+
 
 // not used
 void CoordinatorClassic::DispatchAsync(bool last) {

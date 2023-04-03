@@ -60,9 +60,6 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
       last_response = it;
     }
     max_response_ = ResponsePack(*max_response);
-    if (max_len == 3) {
-      //Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
-    }
     return max_len;
   }
   
@@ -97,10 +94,6 @@ friend class CopilotPlusProxy;
  private:
   CopilotPlusServer *svr_;
  public:
-  static int maxFailure(int total);
-  static int fastQuorumSize(int total);
-  static int quorumSize(int total);
-  static int smallQuorumSize(int total);
   // void setServer(CopilotPlusServer *svr);
   // CopilotPlusServer* getServer();
 

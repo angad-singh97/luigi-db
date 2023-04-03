@@ -161,6 +161,16 @@ class Coordinator {
                       const std::function<void()>& exe_callback = [](){}) {
     verify(0);
   }
+  virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
+                          bool_t& accepted,
+                          slotid_t& i,
+                          slotid_t& j,
+                          ballot_t& ballot,
+                          siteid_t& leader,
+                          const std::function<void()>& commit_callback = [](){},
+                          const std::function<void()>& exe_callback = [](){}) {
+    Log_debug("FastSubmit didn't implemented");
+  }
   virtual void Reset() {
     committed_ = false;
     commit_reported_ = false;

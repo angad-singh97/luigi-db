@@ -155,6 +155,18 @@ class TxLogServer {
     return false;
   }
 
+  virtual bool MultiDispatch(cmdid_t cmd_id,
+                              shared_ptr<Marshallable> cmd,
+                              TxnOutput& ret_output,
+                              bool_t& accepted,
+                              slotid_t& i,
+                              slotid_t& j,
+                              ballot_t& ballot,
+                              siteid_t& leader) {
+    verify(0);
+    return false;
+  }
+
   void RegLearnerAction(function<void(Marshallable &)> learner_action) {
     app_next_ = learner_action;
   }

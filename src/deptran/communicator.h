@@ -73,6 +73,71 @@ class GetLeaderQuorumEvent : public QuorumEvent {
   }
 };
 
+/*********************************Multicast begin*****************************************/
+
+class MulticastQuorumEvent: public QuorumEvent {
+ public:
+  struct ResponsePack {
+    slotid_t i, j;
+    ballot_t ballot;
+    bool operator < (const ResponsePack &other) const {
+      if (this->i != other.i) return this->i < other.i;
+      if (this->j != other.j) return this->j < other.j;
+      return this->ballot < other.ballot;
+    }
+    bool operator == (const ResponsePack &other) const {
+      return (this->i == other.i) && (this->j == other.j) && (this->ballot == other.ballot);
+    }
+  };
+ private:
+  std::vector<ResponsePack> responses_;
+  ResponsePack max_response_;
+  int response_received_ = 0;
+ public:
+  MulticastQuorumEvent(int n_total, int quorum)
+    : QuorumEvent(n_total, quorum) {}
+  // TODO: FeedResponse add result?
+  void FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot);
+  bool FastYes();
+  bool RecoverWithOpYes();
+  bool RecoverWithoutOpYes();
+  bool IsReady() override;
+  //TODO: put in .cc file
+  ResponsePack GetMax() {
+    return max_response_;
+  }
+ private:
+  //TODO: put in .cc file
+  int FindMax(){
+    verify(responses_.size() > 0);
+    std::sort(responses_.begin(), responses_.end());
+    std::vector<ResponsePack>::iterator max_response, last_response;
+    int max_len, cur_len;
+    for (std::vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
+      if (it == responses_.begin()) {
+        max_response = it;
+        max_len = cur_len = 1;
+      } else if (*it == *last_response) {
+        if (++cur_len > max_len) {
+          max_response = it;
+          max_len = cur_len;
+        }
+      } else {
+        max_len = cur_len = 1;
+      }
+      last_response = it;
+    }
+    max_response_ = ResponsePack(*max_response);
+    if (max_len == 3) {
+      //Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
+    }
+    return max_len;
+  }
+  
+};
+
+/*********************************Multicast end*****************************************/
+
 class Communicator {
  public:
   static uint64_t global_id;
@@ -123,6 +188,11 @@ class Communicator {
   Communicator(PollMgr* poll_mgr = nullptr);
   virtual ~Communicator();
 
+  static int maxFailure(int total);
+  static int fastQuorumSize(int total);
+  static int quorumSize(int total);
+  static int smallQuorumSize(int total);
+
   SiteProxyPair RandomProxyForPartition(parid_t partition_id) const;
   SiteProxyPair LeaderProxyForPartition(parid_t, int idx=-1) const;
 
@@ -155,6 +225,13 @@ class Communicator {
   virtual void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
+  // [copilot+] TODO: why virtual?
+  virtual shared_ptr<MulticastQuorumEvent> MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                                                  int32_t *ret_ret,
+                                                                  TxnOutput *ret_outputs,
+                                                                  siteid_t *ret_leader);
+  virtual shared_ptr<IntEvent> MultiBroadcastWait(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                                  siteid_t leader);
 
 	shared_ptr<QuorumEvent> SendReelect();
 

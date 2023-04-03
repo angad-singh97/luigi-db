@@ -252,6 +252,50 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
   return 0;
 }
 
+/*********************************Multicast begin*****************************************/
+
+int SchedulerClassic::MulticastOnCommit(txnid_t tx_id,
+                                        struct DepId dep_id,
+                                        int commit_or_abort,
+                                        bool_t& accepted,
+                                        slotid_t& i,
+                                        slotid_t& j,
+                                        ballot_t& ballot,
+                                        siteid_t& leader) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  Log_debug("%s: at site %d, tx: %" PRIx64,
+            __FUNCTION__, this->site_id_, tx_id);
+  Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
+  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
+
+  //always true
+  if (Config::GetConfig()->IsReplicated()) {
+    auto cmd = std::make_shared<TpcCommitCommand>();
+    cmd->tx_id_ = tx_id;
+    cmd->ret_ = commit_or_abort;
+    cmd->cmd_ = sp_tx->cmd_;
+    sp_tx->is_leader_hint_ = true;
+    auto sp_m = dynamic_pointer_cast<Marshallable>(cmd);
+    shared_ptr<Coordinator> coo(CreateRepCoord(dep_id.id));
+    coo->svr_workers_g = svr_workers_g;
+    coo->FastSubmit(sp_m, accepted, i, j, ballot, leader);
+    sp_tx->commit_result->Wait();
+		slow_ = coo->slow_;
+  } else {
+    if (commit_or_abort == SUCCESS) {
+      DoCommit(*sp_tx);
+    } else if (commit_or_abort == REJECT) {
+      DoAbort(*sp_tx);
+    } else {
+      verify(0);
+    }
+  }
+  return 0;
+}
+
+/*********************************Multicast end*****************************************/
+
+
 void SchedulerClassic::DoCommit(Tx& tx_box) {
   auto mdb_txn = RemoveMTxn(tx_box.tid_);
   verify(mdb_txn == tx_box.mdb_txn_);

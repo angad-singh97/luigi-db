@@ -6,6 +6,7 @@
 #include "../coordinator.h"
 
 namespace janus {
+
 class ClientControlServiceImpl;
 
 class CoordinatorClassic : public Coordinator {
@@ -17,6 +18,13 @@ class CoordinatorClassic : public Coordinator {
 	rrr::CondVar pre_cond{};
 	map<parid_t, SiteProxyPair> leaders;
   enum Phase { INIT_END = 0, DISPATCH = 1, PREPARE = 2, COMMIT = 3 };
+
+  /***********************Multicast begin************************/
+
+  MulticastQuorumEvent::ResponsePack max_response_;
+
+  /***********************Multicast end**************************/
+
   CoordinatorClassic(uint32_t coo_id,
                      int benchmark,
                      ClientControlServiceImpl* ccsi,
@@ -79,6 +87,7 @@ class CoordinatorClassic : public Coordinator {
   void Restart() override;
 
   virtual void DispatchAsync();
+  virtual void MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece);
   virtual void DispatchAsync(bool last);
   virtual void DispatchAck(phase_t phase,
                            int res,

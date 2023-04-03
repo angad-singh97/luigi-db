@@ -56,6 +56,17 @@ class SchedulerClassic: public TxLogServer {
                        struct DepId dep_id,
                        int commit_or_abort);
 
+  /************************Multicast begin********************************/
+  virtual int MulticastOnCommit(txnid_t tx_id,
+                  struct DepId dep_id,
+                  int commit_or_abort,
+                  bool_t& accepted,
+                  slotid_t& i,
+                  slotid_t& j,
+                  ballot_t& ballot,
+                  siteid_t& leader);
+  /************************Multicast end********************************/
+
   virtual int OnEarlyAbort(txid_t tx_id);
 
   virtual void DoCommit(Tx& tx_box);

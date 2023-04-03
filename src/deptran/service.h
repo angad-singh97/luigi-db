@@ -50,7 +50,28 @@ class ClassicServiceImpl : public ClassicService {
                 TxnOutput* output,
                 uint64_t* coro_id,
                 DeferredReply* defer_reply) override;
-
+  
+  /************************Multicast begin********************************/
+  void MultiDispatch(const i64& cmd_id,
+                      const DepId& dep_id,
+                      const MarshallDeputy& md,
+                      int32_t* res,
+                      TxnOutput* output,
+                      uint64_t* coro_id,
+                      bool_t* accepted,
+                      slotid_t* i,
+                      slotid_t* j,
+                      ballot_t* ballot,
+                      siteid_t* leader,
+                      rrr::DeferredReply* defer);
+  void MulticastWait(const i64& cmd_id,
+                      const DepId& dep_id,
+                      const MarshallDeputy& md,
+                      int32_t* res,
+                      TxnOutput* output,
+                      uint64_t* coro_id,
+                      rrr::DeferredReply* defer);
+  /************************Multicast end********************************/
 
   void FailOverTrig(const bool_t& pause, 
                         rrr::i32* res, 

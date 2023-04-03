@@ -94,6 +94,61 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 	// func();
 }
 
+/*********************************Multicast begin*****************************************/
+void ClassicServiceImpl::MultiDispatch(const i64& cmd_id,
+																	const DepId& dep_id,
+                                  const MarshallDeputy& md,
+                                  int32_t* res,
+                                  TxnOutput* output,
+                                  uint64_t* coro_id,
+                                  bool_t* accepted,
+                                  slotid_t* i,
+                                  slotid_t* j,
+                                  ballot_t* ballot,
+                                  siteid_t* leader,
+                                  rrr::DeferredReply* defer) {
+  Log_debug("The server side receives a message from the client worker");
+
+#ifdef PIECE_COUNT
+  piece_count_key_t piece_count_key =
+      (piece_count_key_t){header.t_type, header.p_type};
+  std::map<piece_count_key_t, uint64_t>::iterator pc_it =
+      piece_count_.find(piece_count_key);
+
+  if (pc_it == piece_count_.end())
+      piece_count_[piece_count_key] = 1;
+  else
+      piece_count_[piece_count_key]++;
+  piece_count_tid_.insert(header.tid);
+#endif
+  shared_ptr<Marshallable> sp = md.sp_data_;
+  *res = SUCCESS;
+  if (!dtxn_sched()->MultiDispatch(cmd_id, sp, *output, *accepted, *i, *j, *ballot, *leader)) {
+    *res = REJECT;
+  }
+  *coro_id = Coroutine::CurrentCoroutine()->id;
+  defer->reply();
+}
+
+void ClassicServiceImpl::MulticastWait(const i64& cmd_id,
+                                      const DepId& dep_id,
+                                      const MarshallDeputy& md,
+                                      int32_t* res,
+                                      TxnOutput* output,
+                                      uint64_t* coro_id,
+                                      rrr::DeferredReply* defer) {
+  Log_debug("The server side receives a message from the client worker");
+
+  shared_ptr<Marshallable> sp = md.sp_data_;
+    *res = SUCCESS;
+    if (!dtxn_sched()->Dispatch(cmd_id, sp, *output)) {
+      *res = REJECT;
+    }
+    *coro_id = Coroutine::CurrentCoroutine()->id;
+    defer->reply();
+}
+/*********************************Multicast end*****************************************/
+
 
 void ClassicServiceImpl::FailOverTrig(
     const bool_t& pause, rrr::i32* res, rrr::DeferredReply* defer) {

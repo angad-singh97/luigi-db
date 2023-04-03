@@ -31,6 +31,16 @@ class SchedulerNone: public SchedulerClassic {
                         shared_ptr<Marshallable> cmd,
                         TxnOutput& ret_output) override;
 
+  /************************Multicast begin********************************/
+  bool MultiDispatch(cmdid_t cmd_id,
+                      shared_ptr<Marshallable> cmd,
+                      TxnOutput& ret_output,
+                      bool_t& accepted,
+                      slotid_t& i,
+                      slotid_t& j,
+                      ballot_t& ballot,
+                      siteid_t& leader);
+  /************************Multicast end********************************/
 };
 
 } // janus

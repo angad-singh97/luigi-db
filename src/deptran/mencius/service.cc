@@ -1,7 +1,7 @@
 
 #include "service.h"
 #include "server.h"
-#include "../copilot-plus/RW_command.h"
+#include "../RW_command.h"
 
 namespace janus {
 
