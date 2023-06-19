@@ -22,6 +22,7 @@ class CoordinatorClassic : public Coordinator {
   /***********************Multicast begin************************/
 
   MulticastQuorumEvent::ResponsePack max_response_;
+  int cmd_coount = 0;
 
   /***********************Multicast end**************************/
 

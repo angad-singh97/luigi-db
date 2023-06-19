@@ -24,6 +24,35 @@ abstract service MultiPaxos {
 	       
 }
 
+abstract service MultiPaxosPlus {
+
+  defer Forward(MarshallDeputy pos,
+                MarshallDeputy cmd,
+                bool_t accepted);
+  
+  defer CoordinatorAccept(MarshallDeputy pos,
+                          MarshallDeputy cmd |
+                          bool_t accepted);
+
+  defer Prepare(MarshallDeputy pos,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot,
+                i32 last_accepted_status,
+                MarshallDeputy last_accepted_cmd,
+                ballot_t last_accepted_ballot);
+
+  defer Accept(MarshallDeputy pos,
+                MarshallDeputy md_cmd,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot);
+
+  defer Commit(MarshallDeputy pos,
+                MarshallDeputy md_cmd);
+	       
+}
+
 abstract service Mencius {
 
   defer Prepare(uint64_t slot,
@@ -187,10 +216,10 @@ abstract service Classic {
                       TxnOutput output,
                       uint64_t coro_id,
                       bool_t accepted,
-                      uint64_t i,
-                      uint64_t j,
+                      Position pos,
                       int64_t ballot,
                       uint16_t leader);
+  defer MultiDispatchTest(uint64_t a | uint64_t b);
   defer MulticastWait(i64 tid, DepId dep_id, MarshallDeputy cmd |
                       i32 res, TxnOutput output, uint64_t coro_id);
 
@@ -362,7 +391,7 @@ struct TxnInfoRes {
     i32 total_try;  // total number of tries finished
     i32 commit_txn; // number of commit transactions
     i32 num_exhausted; // number of txns that reached the retry limit
-    vector<double> this_latency; // latencies started && finish in this period
+    vector<double> this_latency; // latencies started  finish in this period
     vector<double> last_latency; // latencies started in last period, finish in this period
     vector<double> attempt_latency; // interval latencies for each attempts
     vector<double> interval_latency; // latencies finish in this period

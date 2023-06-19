@@ -94,6 +94,10 @@ class Coordinator {
   std::function<void()> exe_callback_ = [] () {verify(0);};
   // above should be reset
 
+  /******global unique id begin********/
+  int cmd_in_client_count = 0;
+  /******global unique id end********/
+
 #ifdef TXN_STAT
   typedef struct txn_stat_t {
     uint64_t                             n_serv_tch;
@@ -161,16 +165,18 @@ class Coordinator {
                       const std::function<void()>& exe_callback = [](){}) {
     verify(0);
   }
+  /***************************************PLUS Begin***********************************************************/
+
   virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
                           bool_t& accepted,
-                          slotid_t& i,
-                          slotid_t& j,
-                          ballot_t& ballot,
-                          siteid_t& leader,
+                          Position& pos,
+                          value_t& result,
                           const std::function<void()>& commit_callback = [](){},
                           const std::function<void()>& exe_callback = [](){}) {
-    Log_debug("FastSubmit didn't implemented");
+    verify(0);
   }
+
+  /***************************************PLUS End***********************************************************/
   virtual void Reset() {
     committed_ = false;
     commit_reported_ = false;

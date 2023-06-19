@@ -58,11 +58,15 @@ void CoordinatorClassic::ForwardTxRequestAck(const TxReply& txn_reply) {
 
 void CoordinatorClassic::DoTxAsync(TxRequest& req) {
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
+  // cmd already RWChopper type if RW workload
+  // also copy data by (1) ws_init_ = req.input_; (2) ws_ = req.input_;
   TxData* cmd = frame_->CreateTxnCommand(req, txn_reg_);
   verify(txn_reg_ != nullptr);
   cmd->root_id_ = this->next_txn_id();
   cmd->id_ = cmd->root_id_;
   ongoing_tx_id_ = cmd->id_;
+  cmd->client_id = req.client_id;
+  cmd->cmd_id_in_client = req.cmd_id_in_client;
   Log_debug("assigning tx id: %" PRIx64, ongoing_tx_id_);
   cmd->timestamp_ = GenerateTimestamp();
   cmd_ = cmd;
@@ -255,13 +259,20 @@ void CoordinatorClassic::MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<TxP
                                                     &ret,
                                                     &outputs,
                                                     &leader);
+  sq_quorum->Wait();
+  Log_info("[copilot+] After quorum");
   if (sq_quorum->FastYes()) {
     // Fastpath Success
+    Log_info("[copilot+] Fastpath Success");
     verify(SUCCESS == ret);
     CoordinatorClassic::DispatchAck(phase_, ret, outputs);
   } else if (sq_quorum->RecoverWithOpYes() || sq_quorum->RecoverWithoutOpYes()) {
     // Fastpath Fail
+    Log_info("[copilot+] Fastpath Fail");
     auto wait_quorum = commo()->MultiBroadcastWait(sp_vec_piece, leader);
+    wait_quorum->Wait();
+    Log_info("[copilot+] Wait Fail!!!!!!!!!!!!!!!!!!!!!!!");
+    // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
     if (wait_quorum->value_ > 0) // 0 fail 1 success
       CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
     else

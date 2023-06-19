@@ -6,6 +6,7 @@
 #include "../classic/tpc_command.h"
 #include "../copilot/server.h"
 #include <stack>
+#include "../RW_command.h"
 
 #define REVERSE(p) (1 - (p))
 
@@ -24,7 +25,20 @@ const size_t n_status = 5;
 
 *************************************************** */
 
-struct CopilotPlusData {
+class FrontCopilotPlusData {
+ public:
+  enum Status {INIT, PRE_EXECUTED, OVER_WRITTEN, COMMITTED};
+ private:
+  shared_ptr<Marshallable> cmd_{nullptr};
+  bool_t no_op_ = false;
+ public:
+  Status status_ = Status::INIT;
+  FrontCopilotPlusData(shared_ptr<Marshallable> cmd): cmd_(cmd), no_op_(nullptr == cmd) {}
+  FrontCopilotPlusData(shared_ptr<Marshallable> cmd, bool_t no_op): cmd_(cmd), no_op_(no_op) {}
+};
+
+class CopilotPlusData {
+ public:
   shared_ptr<Marshallable>  cmd{nullptr};  // command
   slotid_t                  dep_id;  // dependency
   uint8_t                   is_pilot;
@@ -33,6 +47,17 @@ struct CopilotPlusData {
   status_t                  status;  // status
   int                       low, dfn;  //tarjan
   SharedIntEvent            cmit_evt{};
+  /***************************************PLUS Begin***********************************************************/
+  key_t key_;
+  std::vector<FrontCopilotPlusData> attached_; // include cmd in position 0
+  CopilotPlusData(shared_ptr<Marshallable> cmd, slotid_t dep_id, uint8_t is_pilot, slotid_t slot_id, ballot_t ballot,
+                  status_t status, int low, int dfn): cmd(cmd), dep_id(dep_id), is_pilot(is_pilot), slot_id(slot_id),
+                  ballot(ballot), status(status), low(low), dfn(dfn) {
+      SimpleRWCommand parsed_cmd = cmd == nullptr ? SimpleRWCommand() : SimpleRWCommand(cmd);
+      key_ = parsed_cmd.key_;
+      attached_.push_back(FrontCopilotPlusData(cmd));
+    }
+  /***************************************PLUS End***********************************************************/
 };
 
 struct CopilotPlusLogInfo {
@@ -67,6 +92,13 @@ class CopilotPlusServer : public TxLogServer {
   uint64_t n_timeout = 0;
 
  public:
+  /***************************************PLUS Begin***********************************************************/
+  std::map<key_t, slotid_t> lastest_slot_map_[2];
+  slotid_t find_key(key_t key, uint8_t is_pilot);
+  bool check_slot_vector_last_committed(slotid_t slot, uint8_t is_pilot);
+  slotid_t push_back_cmd_to_slot(slotid_t slot, uint8_t is_pilot, shared_ptr<Marshallable>& cmd);
+  /***************************************PLUS End***********************************************************/
+
   CopilotPlusServer(Frame *frame);
   ~CopilotPlusServer() {}
 

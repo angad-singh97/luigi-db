@@ -93,6 +93,38 @@ void CopilotPlusPrepareQuorumEvent::Show() {
 
 CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll) : Communicator(poll) {}
 
+shared_ptr<CopilotPlusForwardQuorumEvent>
+CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
+                                              shared_ptr<Marshallable>& cmd,
+                                              bool_t accepted,
+                                              slotid_t i_y,
+                                              slotid_t i_n,
+                                              slotid_t j_y,
+                                              slotid_t j_n,
+                                              ballot_t ballot,
+                                              siteid_t leader) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<CopilotPlusForwardQuorumEvent>(1, 1);
+  auto proxies = rpc_par_proxies_[par_id];
+  for (auto& p : proxies) {
+    auto proxy = (CopilotPlusProxy *)p.second;
+    auto site = p.first;
+    if (site == leader) {
+      FutureAttr fuattr;
+      fuattr.callback = [e, accepted, i_y, i_n, j_y, j_n, ballot](Future *fu) {
+        MarshallDeputy md;
+        slotid_t sgs_i_y, sgs_i_n, sgs_j_y, sgs_j_n; // sgs -> suggested
+        ballot_t b;
+        fu->get_reply() >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n >> b;
+        e->FeedResponse();
+      };
+
+      Future *f = proxy->async_Forward(accepted, i_y, i_n, j_y, j_n, ballot, fuattr);
+      Future::safe_release(f);
+    }
+  }
+}
+
 shared_ptr<CopilotPlusPrepareQuorumEvent>
 CopilotPlusCommo::BroadcastPrepare(parid_t par_id,
                                uint8_t is_pilot,
@@ -146,6 +178,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
                                   ballot_t ballot,
                                   uint64_t dep,
                                   shared_ptr<Marshallable> cmd) {
+  Log_info("[copilot+] [BroadcastFastAccept+]");
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusFastAcceptQuorumEvent>(n, fastQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
@@ -159,7 +192,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 #ifdef SKIP
     if (site == 1) continue;
 #endif
-    if (site == loc_id_) {
+    if (1==0/*site == loc_id_*/) { //[TODO: recover it to site == loc_id_]bt
       ballot_t b;
       slotid_t sgst_dep;
       static_cast<CopilotPlusServer *>(rep_sched_)->OnFastAccept(
@@ -171,8 +204,10 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
       fuattr.callback = [e, dep, ballot, site](Future *fu) {
         ballot_t b;
         slotid_t sgst_dep;
-
-        fu->get_reply() >> b >> sgst_dep;
+        Log_info("[copilot+] try to reply");
+        // fu->get_reply() >> b >> sgst_dep;
+        fu->get_reply() >> b;
+        fu->get_reply() >> sgst_dep;
         bool ok = (ballot == b);
         e->FeedResponse(ok, sgst_dep == dep);
         if (ok) {
@@ -184,12 +219,14 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 
       verify(cmd);
       MarshallDeputy md(cmd);
+      Log_info("[copilot+] [BroadcastFastAccept in] before async_FastAccept");
       Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
       e->AddXid(site, f->get_xid());
       Future::safe_release(f);
+      Log_info("[copilot+] [BroadcastFastAccept in] after async_FastAccept");
     }
   }
-
+  Log_info("[copilot+] [BroadcastFastAccept-]");
   return e;
 }
 
@@ -269,17 +306,16 @@ CopilotPlusCommo::BroadcastCommit(parid_t par_id,
 }
 
 inline int CopilotPlusCommo::maxFailure(int total) {
-  // TODO: now only for odd number
-  return total / 2;
+  return (total + 1) / 2 - 1;
 }
 
 inline int CopilotPlusCommo::fastQuorumSize(int total) {
   int max_fail = maxFailure(total);
-  return max_fail + (max_fail + 1) / 2;
+  return max_fail + (max_fail + 1) / 2 + 1;
 }
 
 inline int CopilotPlusCommo::quorumSize(int total) {
-  return maxFailure(total) + 1;
+  return total - maxFailure(total);
 }
 
 } // namespace janus

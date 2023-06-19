@@ -89,8 +89,9 @@ bool SchedulerClassic::Dispatch(cmdid_t cmd_id,
   auto sp_vec_piece =
       dynamic_pointer_cast<VecPieceData>(cmd)->sp_vec_piece_data_;
   verify(sp_vec_piece);
-  auto tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(cmd_id));
-  verify(tx);
+  // auto tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(cmd_id));
+  auto tx = dynamic_pointer_cast<TxClassic>(GetTx(cmd_id));
+  verify(tx != nullptr);
 //  MergeCommands(tx.cmd_, cmd);
   Log_debug("%d: received dispatch for tx id: %" PRIx64, site_id_, tx->tid_);
 //  verify(partition_id_ == piece_data.partition_id_);
@@ -217,10 +218,13 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 															 struct DepId dep_id,
 															 int commit_or_abort) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // Log_info("[copilot+] [3+] SchedulerClassic::OnCommit");
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
-  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
+  // auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
+  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(tx_id));
+  verify(sp_tx != nullptr);
 
   // TODO maybe change inuse to an event?
 //  verify(!sp_tx->inuse);
@@ -249,6 +253,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
       verify(0);
     }
   }
+  // Log_info("[copilot+] [3-] SchedulerClassic::OnCommit");
   return 0;
 }
 
@@ -258,17 +263,18 @@ int SchedulerClassic::MulticastOnCommit(txnid_t tx_id,
                                         struct DepId dep_id,
                                         int commit_or_abort,
                                         bool_t& accepted,
-                                        slotid_t& i,
-                                        slotid_t& j,
+                                        Position& pos,
                                         ballot_t& ballot,
                                         siteid_t& leader) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // Log_info("[copilot+] [3+] SchedulerClassic::MulticastOnCommit");
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
 
   //always true
+  verify(Config::GetConfig()->IsReplicated());
   if (Config::GetConfig()->IsReplicated()) {
     auto cmd = std::make_shared<TpcCommitCommand>();
     cmd->tx_id_ = tx_id;
@@ -278,18 +284,15 @@ int SchedulerClassic::MulticastOnCommit(txnid_t tx_id,
     auto sp_m = dynamic_pointer_cast<Marshallable>(cmd);
     shared_ptr<Coordinator> coo(CreateRepCoord(dep_id.id));
     coo->svr_workers_g = svr_workers_g;
-    coo->FastSubmit(sp_m, accepted, i, j, ballot, leader);
-    sp_tx->commit_result->Wait();
+    coo->FastSubmit(sp_m, accepted, pos, ballot, leader);
+    coo->Forward(sp_m, accepted, pos, ballot, leader);
+    // Log_info("[copilot+] [in 3] accpeted=%d, i_y=%d, i_n=%d", accepted, i_y, i_n);
+    // Log_info("[copilot+] [3 in] before wait");
+    // sp_tx->commit_result->Wait();
+    // Log_info("[copilot+] [3 in] after wait");
 		slow_ = coo->slow_;
-  } else {
-    if (commit_or_abort == SUCCESS) {
-      DoCommit(*sp_tx);
-    } else if (commit_or_abort == REJECT) {
-      DoAbort(*sp_tx);
-    } else {
-      verify(0);
-    }
   }
+  // Log_info("[copilot+] [3-] SchedulerClassic::MulticastOnCommit");
   return 0;
 }
 

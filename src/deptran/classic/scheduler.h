@@ -4,6 +4,7 @@
 #pragma once
 
 #include "../scheduler.h"
+#include "../position.h"
 
 namespace janus {
 
@@ -61,8 +62,7 @@ class SchedulerClassic: public TxLogServer {
                   struct DepId dep_id,
                   int commit_or_abort,
                   bool_t& accepted,
-                  slotid_t& i,
-                  slotid_t& j,
+                  Position& pos,
                   ballot_t& ballot,
                   siteid_t& leader);
   /************************Multicast end********************************/

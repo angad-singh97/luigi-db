@@ -160,6 +160,8 @@ ReadyPiecesData TxData::GetReadyPiecesData(int32_t max) {
       piece_data->type_ = pi;
       piece_data->root_id_ = id_;
       piece_data->root_type_ = type_;
+      piece_data->client_id = client_id;
+      piece_data->cmd_id_in_client = cmd_id_in_client;
       piece_data->input = inputs_[pi];
       piece_data->output_size = output_size_[pi];
       piece_data->root_ = this;

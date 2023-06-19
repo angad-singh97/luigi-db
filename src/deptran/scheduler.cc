@@ -67,9 +67,11 @@ shared_ptr<Tx> TxLogServer::GetOrCreateTx(txnid_t tid, bool ro) {
   shared_ptr<Tx> ret = nullptr;
   auto it = dtxns_.find(tid);
   if (it == dtxns_.end()) {
+    // Log_info("[copilot+] CreateTx");
     ret = CreateTx(tid, ro);
   } else {
     //Log_info("found");
+    // Log_info("[copilot+] GetTx");
     ret = it->second;
   }
   //Log_info("Tx is %ld", tid);

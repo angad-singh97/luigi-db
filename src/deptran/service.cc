@@ -56,6 +56,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   uint64_t* coro_id,
                                   rrr::DeferredReply* defer) {
   Log_debug("The server side receives a message from the client worker");
+  // Log_info("[copilot+] [1+] enter ClassicServiceImpl::Dispatch");
 
 #ifdef PIECE_COUNT
   piece_count_key_t piece_count_key =
@@ -92,6 +93,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   // auto sched = (SchedulerClassic*) dtxn_sched_;
   // auto tx = dynamic_pointer_cast<TxClassic>(sched->GetOrCreateTx(cmd_id));
 	// func();
+  // Log_info("[copilot+] [1-] exit ClassicServiceImpl::Dispatch");
 }
 
 /*********************************Multicast begin*****************************************/
@@ -102,12 +104,12 @@ void ClassicServiceImpl::MultiDispatch(const i64& cmd_id,
                                   TxnOutput* output,
                                   uint64_t* coro_id,
                                   bool_t* accepted,
-                                  slotid_t* i,
-                                  slotid_t* j,
+                                  Position* pos,
                                   ballot_t* ballot,
                                   siteid_t* leader,
                                   rrr::DeferredReply* defer) {
   Log_debug("The server side receives a message from the client worker");
+  // Log_info("[copilot+] [1+] enter ClassicServiceImpl::MultiDispatch");
 
 #ifdef PIECE_COUNT
   piece_count_key_t piece_count_key =
@@ -123,13 +125,19 @@ void ClassicServiceImpl::MultiDispatch(const i64& cmd_id,
 #endif
   shared_ptr<Marshallable> sp = md.sp_data_;
   *res = SUCCESS;
-  if (!dtxn_sched()->MultiDispatch(cmd_id, sp, *output, *accepted, *i, *j, *ballot, *leader)) {
+
+  if (!dtxn_sched()->MultiDispatch(cmd_id, sp, *output, *accepted, *pos, *ballot, *leader)) {
     *res = REJECT;
   }
+  // Log_info("[copilot+] [1-] ClassicServiceImpl::MultiDispatch accepted=%d i_y=%d i_n=%d j_y=%d, j_n=%d ballot=%d leader=%d\n", *accepted, *i_y, *i_n, *j_y, *j_n, *ballot, *leader);
   *coro_id = Coroutine::CurrentCoroutine()->id;
   defer->reply();
 }
-
+void ClassicServiceImpl::MultiDispatchTest(const uint64_t& a, uint64_t* b, rrr::DeferredReply* defer) {
+  *b = a * 7;
+  // Log_info("[copilot+] 111111111");
+  defer->reply();
+}
 void ClassicServiceImpl::MulticastWait(const i64& cmd_id,
                                       const DepId& dep_id,
                                       const MarshallDeputy& md,

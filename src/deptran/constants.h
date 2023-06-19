@@ -24,6 +24,8 @@ namespace janus {
 #define cmdtype_t uint32_t
 #define groupid_t uint32_t
 #define bool_t int8_t
+#define key_t int32_t
+#define value_t int32_t
 
 /** read and write type */
 #define OP_WRITE   (0x01)
@@ -91,6 +93,7 @@ namespace janus {
 #define MODE_DEPTRAN (4)
 
 #define MODE_MULTI_PAXOS   (0x40)
+#define MODE_MULTI_PAXOS_PLUS   (0x41)
 #define MODE_EPAXOS        (0x80)
 #define MODE_TAPIR         (0x100)
 #define MODE_MENCIUS       (0x200)

@@ -3,6 +3,7 @@
 #include "../__dep__.h"
 #include "../coordinator.h"
 #include "../frame.h"
+#include "../position.h"
 
 namespace janus {
 
@@ -69,6 +70,22 @@ class CopilotPlusCoordinator : public Coordinator {
               const std::function<void()> &func = []() {},
               const std::function<void()> &exe_callback = []() {}) override;
   
+  /***************************************PLUS Begin***********************************************************/
+  virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
+                          bool_t& accepted,
+                          Position& pos,
+                          ballot_t& ballot,
+                          siteid_t& leader,
+                          const std::function<void()>& commit_callback = [](){},
+                          const std::function<void()>& exe_callback = [](){}) override;
+  
+  virtual void Forward(shared_ptr<Marshallable>& cmd,
+                        bool_t accepted,
+                        Position& pos,
+                        ballot_t ballot,
+                        siteid_t leader) override;
+  /***************************************PLUS End***********************************************************/
+
   // Protocol operations
   void Prepare();
   void FastAccept();

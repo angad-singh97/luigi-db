@@ -540,7 +540,11 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
     TxRequest *req = new TxRequest;
     {
       std::lock_guard<std::mutex> lock(this->request_gen_mutex);
+      // req->input_ will have the data
       tx_generator_->GetTxRequest(req, coo->coo_id_);
+      // set unique command ID
+      req->client_id = coo->coo_id_;
+      req->cmd_id_in_client = coo->cmd_in_client_count++;
     }
 //     req.callback_ = std::bind(&ClientWorker::RequestDone,
 //                               this,

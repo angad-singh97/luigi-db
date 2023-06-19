@@ -39,6 +39,32 @@ class CopilotAcceptQuorumEvent : public QuorumEvent {
   }
 };
 
+class CopilotPlusForwardQuorumEvent : public QuorumEvent {
+ public:
+  struct sgs_pos {
+    slotid_t _sgs_i_y, _sgs_i_n, _sgs_j_y, _sgs_j_n;
+  };
+  sgs_pos pos;
+  // using QuorumEvent::QuorumEvent;
+  CopilotPlusForwardQuorumEvent(int n_total, int quorum)
+      : QuorumEvent(n_total, quorum) {}
+
+  void FeedResponse(bool y, slotid_t sgs_i_y, slotid_t sgs_i_n, slotid_t sgs_j_y, slotid_t sgs_j_n) {
+    if (y)
+      VoteYes();
+    else
+      VoteNo();
+    pos._sgs_i_y = sgs_i_y;
+    pos._sgs_i_n = sgs_i_n;
+    pos._sgs_j_y = sgs_j_y;
+    pos._sgs_j_n = sgs_j_n;
+  }
+
+  sgs_pos getSgsPos() {
+    return pos;
+  }
+};
+
 class CopilotPlusPrepareQuorumEvent : public QuorumEvent {
   vector<vector<CopilotPlusData> > ret_cmds_by_status_;
 
@@ -89,6 +115,17 @@ friend class CopilotPlusProxy;
  public:
   CopilotPlusCommo() = delete;
   CopilotPlusCommo(PollMgr *);
+
+  shared_ptr<CopilotPlusForwardQuorumEvent>
+  ForwardResultToCoordinator(parid_t par_id,
+                              shared_ptr<Marshallable>& cmd,
+                              bool_t accepted,
+                              slotid_t i_y,
+                              slotid_t i_n,
+                              slotid_t j_y,
+                              slotid_t j_n,
+                              ballot_t ballot,
+                              siteid_t leader);
 
   shared_ptr<CopilotPlusPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,

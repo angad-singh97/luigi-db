@@ -46,7 +46,7 @@ void CopilotPlusServiceImpl::FastAccept(const uint8_t& is_pilot,
                                     uint64_t* ret_dep,
                                     rrr::DeferredReply* defer) {
   verify(sched_);
-
+  // Log_info("[copilot+] CopilotPlusServiceImpl::FastAccept");
   // auto coro = Coroutine::CreateRun([&]() {
     sched_->OnFastAccept(is_pilot, slot,
                          ballot,

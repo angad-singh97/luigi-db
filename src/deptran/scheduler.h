@@ -159,8 +159,10 @@ class TxLogServer {
                               shared_ptr<Marshallable> cmd,
                               TxnOutput& ret_output,
                               bool_t& accepted,
-                              slotid_t& i,
-                              slotid_t& j,
+                              slotid_t& i_y,
+                              slotid_t& i_n,
+                              slotid_t& j_y,
+                              slotid_t& j_n,
                               ballot_t& ballot,
                               siteid_t& leader) {
     verify(0);

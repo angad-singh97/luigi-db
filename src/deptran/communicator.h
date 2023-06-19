@@ -78,26 +78,30 @@ class GetLeaderQuorumEvent : public QuorumEvent {
 class MulticastQuorumEvent: public QuorumEvent {
  public:
   struct ResponsePack {
-    slotid_t i, j;
-    ballot_t ballot;
+    Position pos_;
+    ballot_t ballot_;
     bool operator < (const ResponsePack &other) const {
-      if (this->i != other.i) return this->i < other.i;
-      if (this->j != other.j) return this->j < other.j;
-      return this->ballot < other.ballot;
+      return (pos_ < other.pos_) || ((pos_ == other.pos_) && (ballot_ < other.ballot_));
     }
     bool operator == (const ResponsePack &other) const {
-      return (this->i == other.i) && (this->j == other.j) && (this->ballot == other.ballot);
+      return (pos_ == other.pos_) && (ballot_ == other.ballot_);
     }
   };
  private:
   std::vector<ResponsePack> responses_;
   ResponsePack max_response_;
   int response_received_ = 0;
+
+  /****depfast related begin******/
+  vector<int32_t> ret_vec;
+  vector<TxnOutput> outputs_vec;
+  /****depfast related end******/
+  vector<siteid_t> leader_vec;
  public:
   MulticastQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
-  void FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot);
+  void FeedResponse(bool_t accepted, Position pos, ballot_t ballot, int32_t ret_ret, TxnOutput ret_outputs, siteid_t ret_leader);
   bool FastYes();
   bool RecoverWithOpYes();
   bool RecoverWithoutOpYes();
@@ -106,6 +110,9 @@ class MulticastQuorumEvent: public QuorumEvent {
   ResponsePack GetMax() {
     return max_response_;
   }
+  int32_t getRet();
+  TxnOutput getOutputs();
+  siteid_t getLeader();
  private:
   //TODO: put in .cc file
   int FindMax(){

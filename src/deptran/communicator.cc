@@ -9,16 +9,20 @@
 #include "procedure.h"
 #include "rcc_rpc.h"
 #include <typeinfo>
+#include "position.h"
 
 
 namespace janus {
 
 /*********************************Multicast begin*****************************************/
 
-void MulticastQuorumEvent::FeedResponse(bool_t accepted, slotid_t i, slotid_t j, ballot_t ballot) {
-  // Log_info("[copilot+] FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, i, j, ballot);
+void MulticastQuorumEvent::FeedResponse(bool_t accepted, Position pos, ballot_t ballot, int32_t ret, TxnOutput outputs, siteid_t leader) {
+  // Log_info("[copilot+] MulticastQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
+  ret_vec.push_back(ret);
+  outputs_vec.push_back(outputs);
+  leader_vec.push_back(leader);
   response_received_++;
-  responses_.push_back(ResponsePack{i, j, ballot});
+  responses_.push_back(ResponsePack{pos, ballot});
   if (accepted)
     VoteYes();
   else
@@ -28,6 +32,7 @@ void MulticastQuorumEvent::FeedResponse(bool_t accepted, slotid_t i, slotid_t j,
 bool MulticastQuorumEvent::FastYes() {
   if (response_received_ < Communicator::fastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
+  // Log_info("[copilot+] FastYes max_len=%d, fastQuorumSize=%d", max_len, Communicator::fastQuorumSize(n_total_));
   return max_len >= Communicator::fastQuorumSize(n_total_);
 }
 
@@ -61,13 +66,28 @@ bool MulticastQuorumEvent::IsReady() {
   return false;
 }
 
+int32_t MulticastQuorumEvent::getRet() {
+  // TODO: verify all things in ret_vec are same or something
+  return ret_vec[0];
+}
+
+TxnOutput MulticastQuorumEvent::getOutputs() {
+  // TODO: verify all things in outputs_vec are same or something
+  return outputs_vec[0];
+}
+
+siteid_t MulticastQuorumEvent::getLeader() {
+  // TODO: verify all things in leader_vec are same or something
+  return leader_vec[0];
+}
+
 inline int Communicator::maxFailure(int total) {
   return (total + 1) / 2 - 1;
 }
 
 inline int Communicator::fastQuorumSize(int total) {
   // TODO: calculate carefully
-  return total / 4 * 3 + 1;
+  return (total * 3 - 1) / 4 + 1;
 }
 
 inline int Communicator::quorumSize(int total) {
@@ -76,7 +96,7 @@ inline int Communicator::quorumSize(int total) {
 
 inline int Communicator::smallQuorumSize(int total) {
   // TODO: calculate carefully
-  return total / 4 + 1;
+  return (total - 1) / 4 + 1;
 }
 
 /*********************************Multicast end*****************************************/
@@ -387,37 +407,22 @@ Communicator::MultiBroadcastDispatch(
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<MulticastQuorumEvent>(n, quorumSize(n));
 
-  vector<int32_t> ret_vec;
-  vector<TxnOutput> outputs_vec;
-  vector<siteid_t> leader_vec;
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
-        [e, this, &ret_vec, &outputs_vec, &leader_vec](Future* fu) {
+        [e, this](Future* fu) {
+          // Log_info("[copilot+] callback function [1] in Communicator::MultiBroadcastDispatch");
           int32_t ret;
           TxnOutput outputs;
           uint64_t coro_id;
           bool_t accepted;
-          slotid_t i;
-          slotid_t j;
+          // TODO: make it general
+          Position pos(MarshallDeputy::POSITION_CLASSIC, 2);
           ballot_t ballot;
           siteid_t leader;
-          fu->get_reply() >> ret >> outputs >> coro_id >> accepted >> i >> j >> ballot >> leader;
-          ret_vec.push_back(ret);
-          outputs_vec.push_back(outputs);
-          leader_vec.push_back(leader);
-          e->FeedResponse(accepted, i, j, ballot);
-          // std::string log_out;
-          // log_out = "{";
-          // for (auto it=outputs.begin(); it != outputs.end(); ++it) {
-          //   log_out += "[" + to_string(it->first) + ":";
-          //   for (auto it2=it->second.begin(); it2 != it->second.end(); ++it2) {
-          //     log_out += "(" + to_string(it2->first) + "," + to_string(it2->second.get_i32()) + ")";
-          //   }
-          //   log_out += "],";
-          // }
-          // log_out += "}";
-          // Log_info("[copilot+] ret=%d outputs=%s", ret, log_out.c_str());
+          vector<slotid_t> pos;
+          fu->get_reply() >> ret >> outputs >> coro_id >> accepted >> pos >> ballot >> leader;
+          e->FeedResponse(accepted, pos, ballot, ret, outputs, leader);
         };
     
     DepId di;
@@ -425,15 +430,17 @@ Communicator::MultiBroadcastDispatch(
     di.id = Communicator::global_id++;
     
     auto proxy = pair.second;
-    auto future = proxy->async_MultiDispatch(cmd_id, di, md, fuattr);
-    Future::safe_release(future);
+    Future::safe_release(proxy->async_MultiDispatch(cmd_id, di, md, fuattr));
   }
 
-  // [copilot+] TODO: check all the things in ret_vec / outputs_vec / leader_vec are the same
-  *ret_ret = ret_vec[0];
-  *ret_outputs = outputs_vec[0];
-  *ret_leader = leader_vec[0];
+  e->Wait();
+  Log_info("[copilot+] after wait");
 
+  // [copilot+] TODO: check all the things in ret_vec / outputs_vec / leader_vec are the same
+  *ret_ret = e->getRet();
+  *ret_outputs = e->getOutputs();
+  *ret_leader = e->getLeader();
+  
   return e;
 }
 

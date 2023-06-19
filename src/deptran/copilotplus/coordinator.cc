@@ -45,6 +45,7 @@ inline ballot_t CopilotPlusCoordinator::pickGreaterBallot(ballot_t ballot) {
 void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
                                 const std::function<void()> &func,
                                 const std::function<void()> &exe_callback) {
+  Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::Submit");
   verify(IsPilot() || IsCopilot());  // only pilot or copilot can initiate command submission
   done_ = false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -62,7 +63,75 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
   verify(cmd_now_->kind_ != MarshallDeputy::UNKNOWN);
   commit_callback_ = func;
   GotoNextPhase();
+  Log_info("[copilot+] [4-] exit CopilotPlusCoordinator::Submit");
 }
+
+/***************************************PLUS Begin***********************************************************/
+void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
+                                        bool_t& accepted,
+                                        Position& pos,
+                                        ballot_t& ballot,
+                                        siteid_t& leader,
+                                        const std::function<void()> &func,
+                                        const std::function<void()> &exe_callback) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::FastSubmit");
+
+  shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+  key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
+  slotid_t slot_y = sch_->find_key(key, YES);
+  slotid_t slot_n = sch_->find_key(key, NO);
+  if (-1 == slot_y || -1 == slot_n) {
+    Log_info("[copilot+] branch 1");
+    accepted = false;
+    i_y = 0;
+    i_n = 0;
+    j_y = 0;
+    j_n = 0;
+    ballot = 0;
+    leader = 0;
+  } else {
+    if (sch_->check_slot_vector_last_committed(slot_y, YES) && sch_->check_slot_vector_last_committed(slot_n, NO)) {
+      Log_info("[copilot+] branch 2");
+      accepted = true;
+      i_y = slot_y;
+      i_n = slot_n;
+      j_y = sch_->push_back_cmd_to_slot(slot_y, YES, cmd);
+      j_n = sch_->push_back_cmd_to_slot(slot_n, NO, cmd);
+      ballot = 0;
+      leader = 0;
+      // TODO: run command
+    } else {
+      Log_info("[copilot+] branch 3");
+      accepted = false;
+      i_y = 0;
+      i_n = 0;
+      j_y = 0;
+      j_n = 0;
+      ballot = 0;
+      leader = 0;
+    }
+  }
+  Log_info("[copilot+] [4-] exit OnSubmit with accepted=%d i_y=%d i_n=%d j_y=%d j_n=%d ballot=%d leader=%d",
+    accepted, i_y, i_n, j_y, j_n, ballot, leader);
+    
+  commit_callback_ = func;
+  commit_callback_();
+  Log_info("[copilot+] [4---] exit CopilotPlusCoordinator::FastSubmit");
+}
+
+void CopilotPlusCoordinator::Forward(shared_ptr<Marshallable>& cmd,
+                                      bool_t accepted,
+                                      Position pos,
+                                      ballot_t ballot,
+                                      siteid_t leader) {
+  shared_ptr<CopilotPlusForwardQuorumEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, accepted, i_y, i_n, j_y, j_n, ballot, leader);
+  CopilotPlusForwardQuorumEvent::sgs_pos sgs_pos = sq_quorum->getSgsPos();
+  // put cmd into log
+  // send a request to client
+}
+/***************************************PLUS End***********************************************************/
+
 
 void CopilotPlusCoordinator::Prepare() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -159,6 +228,7 @@ start_prepare:
 }
 
 void CopilotPlusCoordinator::FastAccept() {
+  Log_info("[copilot+] [FastAccept+] enter FastAccept");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotPlusFrame*>(frame_)->n_fast_accept_++;
   if ((static_cast<CopilotPlusFrame*>(frame_)->n_fast_accept_ & 0xfff) == 0)
@@ -219,10 +289,12 @@ void CopilotPlusCoordinator::FastAccept() {
       verify(0);
     }
   }
+  Log_info("[copilot+] [FastAccept-] exit FastAccept");
   GotoNextPhase();
 }
 
 void CopilotPlusCoordinator::Accept() {
+  Log_info("[copilot+] [FastAccept+] enter Accept");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotPlusFrame*>(frame_)->n_accept_++;
   verify(current_phase_ == Phase::ACCEPT);
@@ -262,10 +334,12 @@ void CopilotPlusCoordinator::Accept() {
     // TODO process timeout.
     verify(0);
   }
+  Log_info("[copilot+] [FastAccept-] exit Accept");
   GotoNextPhase();
 }
 
 void CopilotPlusCoordinator::Commit() {
+  Log_info("[copilot+] [Commit+]");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotPlusFrame*>(frame_)->n_commit_++;
   verify(current_phase_ == Phase::COMMIT);
@@ -329,6 +403,7 @@ void CopilotPlusCoordinator::Commit() {
     // Log_info("takeover %lldus", finish);
   }
   clearStatus();
+  Log_info("[copilot+] [Commit-]");
 }
 
 void CopilotPlusCoordinator::GotoNextPhase() {

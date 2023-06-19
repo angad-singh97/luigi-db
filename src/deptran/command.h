@@ -13,6 +13,12 @@ class CmdData : public Marshallable {
   cmdid_t root_id_ = 0;
   cmdtype_t root_type_ = 0;
 
+  /****global unique id begin******/
+  int client_id = -1;
+  int cmd_id_in_client = -1;
+  pair<int, int> cmd_id = make_pair<int, int>(-1, -1);
+  /****global unique id end******/
+
   virtual innid_t inn_id() const {
     return inn_id_;
   }

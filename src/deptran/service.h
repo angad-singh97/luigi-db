@@ -2,6 +2,7 @@
 
 #include "__dep__.h"
 #include "rcc_rpc.h"
+#include "../position.h"
 
 #define DepTranServiceImpl ClassicServiceImpl
 
@@ -59,18 +60,18 @@ class ClassicServiceImpl : public ClassicService {
                       TxnOutput* output,
                       uint64_t* coro_id,
                       bool_t* accepted,
-                      slotid_t* i,
-                      slotid_t* j,
+                      Position* pos,
                       ballot_t* ballot,
                       siteid_t* leader,
-                      rrr::DeferredReply* defer);
+                      rrr::DeferredReply* defer) override;
+  void MultiDispatchTest(const uint64_t& a, uint64_t* b, rrr::DeferredReply* defer) override;
   void MulticastWait(const i64& cmd_id,
                       const DepId& dep_id,
                       const MarshallDeputy& md,
                       int32_t* res,
                       TxnOutput* output,
                       uint64_t* coro_id,
-                      rrr::DeferredReply* defer);
+                      rrr::DeferredReply* defer) override;
   /************************Multicast end********************************/
 
   void FailOverTrig(const bool_t& pause, 
