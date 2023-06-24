@@ -28,9 +28,8 @@ bool SchedulerNone::MultiDispatch(cmdid_t cmd_id,
 									shared_ptr<Marshallable> cmd,
 									TxnOutput& ret_output,
 									bool_t& accepted,
-									Position& pos,
-									ballot_t& ballot,
-									siteid_t& leader) {
+									shared_ptr<Position>& pos,
+									value_t& result) {
 	Log_debug("Dispatch the request to the correct protocol on the server side");
 
 	// Log_info("[copilot+] [2+] enter SchedulerNone::MultiDispatch");
@@ -43,7 +42,7 @@ bool SchedulerNone::MultiDispatch(cmdid_t cmd_id,
 	di.id = 0;
 	SchedulerClassic::Dispatch(cmd_id, di, cmd, ret_output);
 	sp_tx->fully_dispatched_->Wait();
-	MulticastOnCommit(cmd_id, di, SUCCESS, accepted, pos, ballot, leader);  // it waits for the command to be executed
+	MulticastOnCommit(cmd_id, di, SUCCESS, accepted, pos, result);  // it waits for the command to be executed
 	// Log_info("[copilot+] [2-] exit SchedulerNone::MultiDispatch accepted=%d, i_y=%d, i_n=%d", accepted, i_y, i_n);
 	return true;
 	

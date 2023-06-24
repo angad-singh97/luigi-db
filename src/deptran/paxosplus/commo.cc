@@ -31,7 +31,7 @@ bool PaxosPlusPrepareQuorumEvent::CommitYes() {
   if (count_ <= quorum_) return false;
   for (int i = 0; i < accepted_cmds_.size(); i++) {
     if (accepted_cmds_[i].last_accepted_status == PaxosPlusData::PaxosPlusStatus::committed) {
-      ready_cmd_ = make_shared<Marshallable>(accepted_cmds_[i]);
+      ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
       return true;
     }
   }
@@ -45,7 +45,7 @@ bool PaxosPlusPrepareQuorumEvent::AcceptYes() {
   for (int i = 0; i < accepted_cmds_.size(); i++) {
     if (accepted_cmds_[i].last_accepted_status == PaxosPlusData::PaxosPlusStatus::accepted
         && accepted_cmds_[i].last_accepted_ballot > max_ballot_of_ready_cmd_) {
-      ready_cmd_ = make_shared<Marshallable>(accepted_cmds_[i]);
+      ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
       max_ballot_of_ready_cmd_ = accepted_cmds_[i].last_accepted_ballot;
     }
   }
@@ -53,14 +53,15 @@ bool PaxosPlusPrepareQuorumEvent::AcceptYes() {
 }
 
 bool PaxosPlusPrepareQuorumEvent::FastAcceptYes() {
-
+  // TODO
+  return true;
 }
 
 bool PaxosPlusPrepareQuorumEvent::AcceptAnyYes() {
   ready_cmd_ = nullptr;
   if (count_ <= quorum_) return false;
   // TODO: check whether we can pick anyone if no commit / accept
-  ready_cmd_ = make_shared<Marshallable>(accepted_cmds_[0]);
+  ready_cmd_ = accepted_cmds_[0].last_accepted_cmd;
   return true;
 }
 
@@ -79,7 +80,7 @@ MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(pos), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;
@@ -91,6 +92,7 @@ MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
       Future::safe_release(f);
     }
   }
+  return e;
 }
 
 shared_ptr<PaxosPlusCoordinatorAcceptQuorumEvent>
@@ -98,21 +100,22 @@ MultiPaxosPlusCommo::BroadcastCoordinatorAccept(parid_t par_id,
                           shared_ptr<Position> pos,
                           shared_ptr<Marshallable> cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusCoordinatorAcceptQuorumEvent>();
+  auto e = Reactor::CreateSpEvent<PaxosPlusCoordinatorAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(pos), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;
-    bool_t accepted;
     FutureAttr fuattr;
-    fuattr.callback = [e, accepted](Future *fu) {
+    fuattr.callback = [e](Future *fu) {
+      bool_t accepted;
       fu->get_reply() >> accepted;
       e->FeedResponse(accepted);
     };
     Future *f = proxy->async_CoordinatorAccept(pos_deputy, cmd_deputy, fuattr);
     Future::safe_release(f);
   }
+  return e;
 }
 
 shared_ptr<PaxosPlusPrepareQuorumEvent>
@@ -120,25 +123,26 @@ MultiPaxosPlusCommo::BroadcastPrepare(parid_t par_id,
                   shared_ptr<Position> pos,
                   ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusPrepareQuorumEvent>();
+  auto e = Reactor::CreateSpEvent<PaxosPlusPrepareQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(pos);
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
-    bool_t accepted;
-    ballot_t seen_ballot;
-    i32 last_accepted_status;
-    MarshallDeputy last_accepted_cmd;
-    ballot_t last_accepted_ballot;
-    fuattr.callback = [e, accepted, seen_ballot, last_accepted_status, last_accepted_cmd, last_accepted_ballot](Future *fu) {
+    fuattr.callback = [e](Future *fu) {
+      bool_t accepted;
+      ballot_t seen_ballot;
+      i32 last_accepted_status;
+      MarshallDeputy last_accepted_cmd;
+      ballot_t last_accepted_ballot;
       fu->get_reply() >> accepted >> seen_ballot >> last_accepted_status >> last_accepted_cmd >> last_accepted_ballot;
       e->FeedResponse(accepted, seen_ballot, last_accepted_status, last_accepted_cmd, last_accepted_ballot);
     };
     Future *f = proxy->async_Prepare(pos_deputy, ballot, fuattr);
     Future::safe_release(f);
   }
+  return e;
 }
 
 shared_ptr<PaxosPlusAcceptQuorumEvent>
@@ -147,22 +151,23 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
                 shared_ptr<Marshallable> cmd,
                 ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusAcceptQuorumEvent>();
+  auto e = Reactor::CreateSpEvent<PaxosPlusAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(pos), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
-    bool_t accepted;
-    ballot_t seen_ballot;
-    fuattr.callback = [e, accepted, seen_ballot](Future *fu) {
+    fuattr.callback = [e](Future *fu) {
+      bool_t accepted;
+      ballot_t seen_ballot;
       fu->get_reply() >> accepted >> seen_ballot;
       e->FeedResponse(accepted, seen_ballot);
     };
     Future *f = proxy->async_Accept(pos_deputy, cmd_deputy, ballot, fuattr);
     Future::safe_release(f);
   }
+  return e;
 }
 
 shared_ptr<IntEvent>
@@ -172,7 +177,7 @@ MultiPaxosPlusCommo::BroadcastCommit(parid_t par_id,
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(pos), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;
@@ -181,6 +186,7 @@ MultiPaxosPlusCommo::BroadcastCommit(parid_t par_id,
     Future *f = proxy->async_Commit(pos_deputy, cmd_deputy, fuattr);
     Future::safe_release(f);
   }
+  return e;
 }
 
 inline int maxFailure(int total) {

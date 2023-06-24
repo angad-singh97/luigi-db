@@ -7,6 +7,7 @@
 #include "command_marshaler.h"
 #include "deptran/rcc/dep_graph.h"
 #include "rcc_rpc.h"
+#include "position.h"
 #include <unordered_map>
 
 namespace janus {
@@ -77,14 +78,20 @@ class GetLeaderQuorumEvent : public QuorumEvent {
 
 class MulticastQuorumEvent: public QuorumEvent {
  public:
-  struct ResponsePack {
-    Position pos_;
-    ballot_t ballot_;
+  class ResponsePack {
+   public:
+    shared_ptr<Position> pos_{nullptr};
+    ballot_t ballot_ = 0;
+    ResponsePack() {}
+    ResponsePack(Position& pos, ballot_t ballot) {
+      pos_ = make_shared<Position>(Position(pos));
+      ballot_ = ballot;
+    }
     bool operator < (const ResponsePack &other) const {
-      return (pos_ < other.pos_) || ((pos_ == other.pos_) && (ballot_ < other.ballot_));
+      return (pos_.get() < other.pos_.get()) || ((pos_.get() == other.pos_.get()) && (ballot_ < other.ballot_));
     }
     bool operator == (const ResponsePack &other) const {
-      return (pos_ == other.pos_) && (ballot_ == other.ballot_);
+      return (pos_.get() == other.pos_.get()) && (ballot_ == other.ballot_);
     }
   };
  private:

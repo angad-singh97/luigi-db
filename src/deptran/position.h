@@ -18,11 +18,18 @@ class Position : public Marshallable {
     }
   }
 
+  Position(const Position& other) : Marshallable(other.kind_), len_(other.len_) {
+    for (int i = 0; i < other.len_; i++) {
+      pos_.push_back(other.pos_[i]);
+    }
+  }
+
   Marshal& ToMarshal(Marshal& m) const override {
     m << len_;
     for (int i = 0; i < len_; i++) {
       m << pos_[i];
     }
+    return m;
   }
 
   Marshal& FromMarshal(Marshal& m) override {
@@ -30,6 +37,7 @@ class Position : public Marshallable {
     for (int i = 0; i < len_; i++) {
       m >> pos_[i];
     }
+    return m;
   }
 
   bool operator < (const Position &other) const {

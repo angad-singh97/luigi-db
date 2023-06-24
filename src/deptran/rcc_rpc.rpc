@@ -216,7 +216,7 @@ abstract service Classic {
                       TxnOutput output,
                       uint64_t coro_id,
                       bool_t accepted,
-                      Position pos,
+                      MarshallDeputy pos,
                       int64_t ballot,
                       uint16_t leader);
   defer MultiDispatchTest(uint64_t a | uint64_t b);

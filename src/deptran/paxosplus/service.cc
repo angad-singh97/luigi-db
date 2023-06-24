@@ -47,7 +47,7 @@ void MultiPaxosPlusServiceImpl::Prepare(const MarshallDeputy& pos,
                     accepted,
                     seen_ballot,
                     last_accepted_status,
-                    const_cast<MarshallDeputy&>(*last_accepted_cmd).sp_data_,
+                    &const_cast<MarshallDeputy&>(*last_accepted_cmd).sp_data_,
                     last_accepted_ballot,
                     bind(&rrr::DeferredReply::reply, defer));
 }

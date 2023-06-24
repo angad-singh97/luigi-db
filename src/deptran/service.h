@@ -2,7 +2,7 @@
 
 #include "__dep__.h"
 #include "rcc_rpc.h"
-#include "../position.h"
+#include "position.h"
 
 #define DepTranServiceImpl ClassicServiceImpl
 
@@ -60,7 +60,7 @@ class ClassicServiceImpl : public ClassicService {
                       TxnOutput* output,
                       uint64_t* coro_id,
                       bool_t* accepted,
-                      Position* pos,
+                      MarshallDeputy* pos_deputy,
                       ballot_t* ballot,
                       siteid_t* leader,
                       rrr::DeferredReply* defer) override;

@@ -6,6 +6,7 @@
 #include "../classic/tpc_command.h"
 #include "../classic/tx.h"
 #include "coordinator.h"
+#include "commo.h"
 #include <chrono>
 #include <ctime>
 
@@ -42,11 +43,11 @@ struct ResponseData {
   int accept_count_, max_accept_count_;
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
     shared_ptr<CmdData> md = dynamic_pointer_cast<CmdData>(cmd);
-    pair<int, int> cmd_id = make_pair<int, int>(md->client_id, md->cmd_id_in_client);
+    pair<int, int> cmd_id = {md->client_id, md->cmd_id_in_client};
     responses_[cmd_id].push_back(cmd);
     accept_count_++;
     max_accept_count_ = max(max_accept_count_, (int)responses_[cmd_id].size());
-    return make_pair<int, int>(accept_count_, max_accept_count_);
+    return {accept_count_, max_accept_count_};
   }
 };
 
@@ -70,6 +71,13 @@ class PaxosPlusServer : public TxLogServer {
 
   map<pair<key_t, slotid_t>, ResponseData> response_storage_;
 
+  MultiPaxosPlusCommo *commo_{nullptr};
+
+  MultiPaxosPlusCommo *commo() {
+    verify(commo_ != nullptr);
+    return (MultiPaxosPlusCommo *) commo_;
+  }
+
   ~PaxosPlusServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
   }
@@ -88,7 +96,7 @@ class PaxosPlusServer : public TxLogServer {
                 bool_t* accepted,
                 ballot_t* seen_ballot,
                 int* last_accepted_status,
-                shared_ptr<Marshallable> last_accepted_cmd,
+                shared_ptr<Marshallable>* last_accepted_cmd,
                 ballot_t* last_accepted_ballot,
                 const function<void()> &cb);
 

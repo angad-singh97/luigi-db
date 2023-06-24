@@ -62,9 +62,8 @@ class SchedulerClassic: public TxLogServer {
                   struct DepId dep_id,
                   int commit_or_abort,
                   bool_t& accepted,
-                  Position& pos,
-                  ballot_t& ballot,
-                  siteid_t& leader);
+                  shared_ptr<Position>& pos,
+                  value_t& result);
   /************************Multicast end********************************/
 
   virtual int OnEarlyAbort(txid_t tx_id);

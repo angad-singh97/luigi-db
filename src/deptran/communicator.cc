@@ -416,13 +416,12 @@ Communicator::MultiBroadcastDispatch(
           TxnOutput outputs;
           uint64_t coro_id;
           bool_t accepted;
-          // TODO: make it general
-          Position pos(MarshallDeputy::POSITION_CLASSIC, 2);
+          MarshallDeputy pos_deputy;
           ballot_t ballot;
           siteid_t leader;
           vector<slotid_t> pos;
-          fu->get_reply() >> ret >> outputs >> coro_id >> accepted >> pos >> ballot >> leader;
-          e->FeedResponse(accepted, pos, ballot, ret, outputs, leader);
+          fu->get_reply() >> ret >> outputs >> coro_id >> accepted >> pos_deputy >> ballot >> leader;
+          e->FeedResponse(accepted, *dynamic_pointer_cast<Position>(pos_deputy.sp_data_).get(), ballot, ret, outputs, leader);
         };
     
     DepId di;

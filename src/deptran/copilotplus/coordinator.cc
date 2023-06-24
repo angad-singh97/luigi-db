@@ -69,11 +69,10 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
 /***************************************PLUS Begin***********************************************************/
 void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
                                         bool_t& accepted,
-                                        Position& pos,
-                                        ballot_t& ballot,
-                                        siteid_t& leader,
-                                        const std::function<void()> &func,
-                                        const std::function<void()> &exe_callback) {
+                                        shared_ptr<Position>& pos,
+                                        value_t& result,
+                                        const std::function<void()>& commit_callback,
+                                        const std::function<void()>& exe_callback) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::FastSubmit");
 
@@ -84,52 +83,46 @@ void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
   if (-1 == slot_y || -1 == slot_n) {
     Log_info("[copilot+] branch 1");
     accepted = false;
-    i_y = 0;
-    i_n = 0;
-    j_y = 0;
-    j_n = 0;
-    ballot = 0;
-    leader = 0;
+    pos.get()->set(0, 0);
+    pos.get()->set(1, 0);
+    pos.get()->set(2, 0);
+    pos.get()->set(3, 0);
+    result = -1;
   } else {
     if (sch_->check_slot_vector_last_committed(slot_y, YES) && sch_->check_slot_vector_last_committed(slot_n, NO)) {
       Log_info("[copilot+] branch 2");
       accepted = true;
-      i_y = slot_y;
-      i_n = slot_n;
-      j_y = sch_->push_back_cmd_to_slot(slot_y, YES, cmd);
-      j_n = sch_->push_back_cmd_to_slot(slot_n, NO, cmd);
-      ballot = 0;
-      leader = 0;
-      // TODO: run command
+      pos.get()->set(0, slot_y);
+      pos.get()->set(1, sch_->push_back_cmd_to_slot(slot_y, YES, cmd));
+      pos.get()->set(2, slot_n);
+      pos.get()->set(3, sch_->push_back_cmd_to_slot(slot_n, NO, cmd));
+      // TODO: result
     } else {
       Log_info("[copilot+] branch 3");
       accepted = false;
-      i_y = 0;
-      i_n = 0;
-      j_y = 0;
-      j_n = 0;
-      ballot = 0;
-      leader = 0;
+      pos.get()->set(0, 0);
+      pos.get()->set(1, 0);
+      pos.get()->set(2, 0);
+      pos.get()->set(3, 0);
+      result = -1;
     }
   }
-  Log_info("[copilot+] [4-] exit OnSubmit with accepted=%d i_y=%d i_n=%d j_y=%d j_n=%d ballot=%d leader=%d",
-    accepted, i_y, i_n, j_y, j_n, ballot, leader);
+  // Log_info("[copilot+] [4-] exit OnSubmit with accepted=%d i_y=%d i_n=%d j_y=%d j_n=%d ballot=%d leader=%d",
+  //   accepted, i_y, i_n, j_y, j_n, ballot, leader);
     
-  commit_callback_ = func;
+  commit_callback_ = commit_callback;
   commit_callback_();
-  Log_info("[copilot+] [4---] exit CopilotPlusCoordinator::FastSubmit");
+  // Log_info("[copilot+] [4---] exit CopilotPlusCoordinator::FastSubmit");
 }
 
-void CopilotPlusCoordinator::Forward(shared_ptr<Marshallable>& cmd,
-                                      bool_t accepted,
-                                      Position pos,
-                                      ballot_t ballot,
-                                      siteid_t leader) {
-  shared_ptr<CopilotPlusForwardQuorumEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, accepted, i_y, i_n, j_y, j_n, ballot, leader);
-  CopilotPlusForwardQuorumEvent::sgs_pos sgs_pos = sq_quorum->getSgsPos();
-  // put cmd into log
-  // send a request to client
-}
+// void CopilotPlusCoordinator::Forward(shared_ptr<Marshallable>& cmd,
+//                                       bool_t accepted,
+//                                       Position pos) {
+//   shared_ptr<CopilotPlusForwardQuorumEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, accepted, pos);
+//   CopilotPlusForwardQuorumEvent::sgs_pos sgs_pos = sq_quorum->getSgsPos();
+//   // put cmd into log
+//   // send a request to client
+// }
 /***************************************PLUS End***********************************************************/
 
 

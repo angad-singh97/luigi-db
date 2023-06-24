@@ -97,30 +97,28 @@ shared_ptr<CopilotPlusForwardQuorumEvent>
 CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
                                               shared_ptr<Marshallable>& cmd,
                                               bool_t accepted,
-                                              slotid_t i_y,
-                                              slotid_t i_n,
-                                              slotid_t j_y,
-                                              slotid_t j_n,
-                                              ballot_t ballot,
-                                              siteid_t leader) {
+                                              Position pos) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusForwardQuorumEvent>(1, 1);
   auto proxies = rpc_par_proxies_[par_id];
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy *)p.second;
     auto site = p.first;
-    if (site == leader) {
+    // TODO: generalize
+    if (0 == site) {
       FutureAttr fuattr;
-      fuattr.callback = [e, accepted, i_y, i_n, j_y, j_n, ballot](Future *fu) {
-        MarshallDeputy md;
-        slotid_t sgs_i_y, sgs_i_n, sgs_j_y, sgs_j_n; // sgs -> suggested
-        ballot_t b;
-        fu->get_reply() >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n >> b;
-        e->FeedResponse();
+      fuattr.callback = [e](Future *fu) {
+        // TODO
+        // MarshallDeputy md;
+
+        // slotid_t sgs_i_y, sgs_i_n, sgs_j_y, sgs_j_n; // sgs -> suggested
+        // ballot_t b;
+        // fu->get_reply() >> accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n >> b;
+        // e->FeedResponse(accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n);
       };
 
-      Future *f = proxy->async_Forward(accepted, i_y, i_n, j_y, j_n, ballot, fuattr);
-      Future::safe_release(f);
+      // Future *f = proxy->async_Forward(accepted, i_y, i_n, j_y, j_n, ballot, fuattr);
+      // Future::safe_release(f);
     }
   }
 }

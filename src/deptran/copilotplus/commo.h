@@ -120,12 +120,7 @@ friend class CopilotPlusProxy;
   ForwardResultToCoordinator(parid_t par_id,
                               shared_ptr<Marshallable>& cmd,
                               bool_t accepted,
-                              slotid_t i_y,
-                              slotid_t i_n,
-                              slotid_t j_y,
-                              slotid_t j_n,
-                              ballot_t ballot,
-                              siteid_t leader);
+                              Position pos);
 
   shared_ptr<CopilotPlusPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,
