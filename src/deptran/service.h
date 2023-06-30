@@ -61,8 +61,7 @@ class ClassicServiceImpl : public ClassicService {
                       uint64_t* coro_id,
                       bool_t* accepted,
                       MarshallDeputy* pos_deputy,
-                      ballot_t* ballot,
-                      siteid_t* leader,
+                      value_t* result,
                       rrr::DeferredReply* defer) override;
   void MultiDispatchTest(const uint64_t& a, uint64_t* b, rrr::DeferredReply* defer) override;
   void MulticastWait(const i64& cmd_id,

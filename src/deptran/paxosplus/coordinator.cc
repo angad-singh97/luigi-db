@@ -11,11 +11,12 @@ CoordinatorMultiPaxosPlus::CoordinatorMultiPaxosPlus(uint32_t coo_id,
                                              ClientControlServiceImpl* ccsi,
                                              uint32_t thread_id)
     : Coordinator(coo_id, benchmark, ccsi, thread_id) {
+  Log_info("[CURP] Coordinator created with coo_id=%d thread_id=%d", coo_id, thread_id);
 }
                                     
 void CoordinatorMultiPaxosPlus::FastSubmit(shared_ptr<Marshallable>& cmd,
                                             bool_t& accepted,
-                                            shared_ptr<Position>& pos,
+                                            Position& pos,
                                             value_t& result,
                                             const std::function<void()>& commit_callback,
                                             const std::function<void()>& exe_callback) {
@@ -24,25 +25,26 @@ void CoordinatorMultiPaxosPlus::FastSubmit(shared_ptr<Marshallable>& cmd,
 
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
+  verify(sch_ != nullptr);
   bool_t fast_path_validation = sch_->check_fast_path_validation(key);
   if (!fast_path_validation) {
     accepted = false;
-    pos.get()->set(0, -1);
+    pos.set(0, -1);
     result = 0;
   } else {
     accepted = true;
     if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Read) {
-      pos.get()->set(0, -1);
+      pos.set(0, -1);
       result = sch_->read(key);
     } else if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Write) {
       slotid_t new_slot_pos = sch_->append_cmd(key, cmd);
-      pos.get()->set(0, new_slot_pos);
+      pos.set(0, new_slot_pos);
       result = 1;
     } else {
       verify(0);
     }
   }
-  shared_ptr<IntEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, pos, cmd, accepted);
+  shared_ptr<IntEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, pos, accepted);
   // TODO
   commit_callback_ = commit_callback;
   commit_callback_();

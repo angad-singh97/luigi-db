@@ -9,7 +9,7 @@
 
 namespace janus {
 
-REG_FRAME(MODE_MULTI_PAXOS_PLUS, vector<string>({"paxos_plus"}), MultiPaxosPlusFrame);
+REG_FRAME(MODE_CURP_PLUS, vector<string>({"curp_plus"}), MultiPaxosPlusFrame);
 
 /*template<typename D>
 struct automatic_register {
@@ -56,19 +56,21 @@ Coordinator *MultiPaxosPlusFrame::CreateCoordinator(cooid_t coo_id,
   coo->commo_ = commo_;
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);
   coo->loc_id_ = this->site_info_->locale_id;
+  coo->sch_ = sch_;
   verify(coo->n_replica_ != 0); // TODO
   Log_debug("create new multi-paxos coord, coo_id: %d", (int) coo->coo_id_);
   return coo;
 }
 
 TxLogServer *MultiPaxosPlusFrame::CreateScheduler() {
-  TxLogServer *sch = nullptr;
-  sch = new PaxosPlusServer();
-  sch->frame_ = this;
-  // TODO: use same commo?
-  verify(commo_ != nullptr);
-  sch->commo_ = commo_;
-  return sch;
+  if (sch_ == nullptr) {
+    sch_ = new PaxosPlusServer();
+    sch_->frame_ = this;
+  } else {
+    verify(0);
+  }
+  Log_debug("[CURP] create curp+ sched loc: %d", this->site_info_->locale_id);
+  return sch_;
 }
 
 Communicator *MultiPaxosPlusFrame::CreateCommo(PollMgr *poll) {
@@ -88,8 +90,9 @@ MultiPaxosPlusFrame::CreateRpcServices(uint32_t site_id,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
+  Log_info("[CURP] start MultiPaxosPlusServiceImpl");
   switch (config->replica_proto_) {
-    case MODE_MULTI_PAXOS_PLUS:result.push_back(new MultiPaxosPlusServiceImpl(rep_sched));
+    case MODE_CURP_PLUS:result.push_back(new MultiPaxosPlusServiceImpl(rep_sched));
     default:break;
   }
   return result;

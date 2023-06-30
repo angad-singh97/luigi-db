@@ -96,8 +96,8 @@ CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll) : Communicator(poll) {}
 shared_ptr<CopilotPlusForwardQuorumEvent>
 CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
                                               shared_ptr<Marshallable>& cmd,
-                                              bool_t accepted,
-                                              Position pos) {
+                                              Position pos,
+                                              bool_t accepted) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusForwardQuorumEvent>(1, 1);
   auto proxies = rpc_par_proxies_[par_id];

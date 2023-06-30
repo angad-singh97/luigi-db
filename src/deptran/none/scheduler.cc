@@ -28,7 +28,7 @@ bool SchedulerNone::MultiDispatch(cmdid_t cmd_id,
 									shared_ptr<Marshallable> cmd,
 									TxnOutput& ret_output,
 									bool_t& accepted,
-									shared_ptr<Position>& pos,
+									Position& pos,
 									value_t& result) {
 	Log_debug("Dispatch the request to the correct protocol on the server side");
 

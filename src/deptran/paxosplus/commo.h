@@ -80,9 +80,9 @@ class PaxosPlusAcceptQuorumEvent : public QuorumEvent {
     
     shared_ptr<IntEvent>
     ForwardResultToCoordinator(parid_t par_id,
-                                shared_ptr<Position> pos,
-                                shared_ptr<Marshallable> cmd,
-                                bool_t accepted);
+                              shared_ptr<Marshallable>& cmd,
+                              Position pos,
+                              bool_t accepted);
     
     shared_ptr<PaxosPlusCoordinatorAcceptQuorumEvent>
     BroadcastCoordinatorAccept(parid_t par_id,

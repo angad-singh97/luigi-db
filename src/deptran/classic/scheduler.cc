@@ -263,7 +263,7 @@ int SchedulerClassic::MulticastOnCommit(txnid_t tx_id,
                                         struct DepId dep_id,
                                         int commit_or_abort,
                                         bool_t& accepted,
-                                        shared_ptr<Position>& pos,
+                                        Position& pos,
                                         value_t& result) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   // Log_info("[copilot+] [3+] SchedulerClassic::MulticastOnCommit");
@@ -284,14 +284,8 @@ int SchedulerClassic::MulticastOnCommit(txnid_t tx_id,
     shared_ptr<Coordinator> coo(CreateRepCoord(dep_id.id));
     coo->svr_workers_g = svr_workers_g;
     coo->FastSubmit(sp_m, accepted, pos, result);
-    // coo->Forward(sp_m, accepted, pos, ballot, leader);
-    // Log_info("[copilot+] [in 3] accpeted=%d, i_y=%d, i_n=%d", accepted, i_y, i_n);
-    // Log_info("[copilot+] [3 in] before wait");
-    // sp_tx->commit_result->Wait();
-    // Log_info("[copilot+] [3 in] after wait");
 		slow_ = coo->slow_;
   }
-  // Log_info("[copilot+] [3-] SchedulerClassic::MulticastOnCommit");
   return 0;
 }
 

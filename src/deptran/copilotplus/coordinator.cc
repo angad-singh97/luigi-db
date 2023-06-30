@@ -69,7 +69,7 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
 /***************************************PLUS Begin***********************************************************/
 void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
                                         bool_t& accepted,
-                                        shared_ptr<Position>& pos,
+                                        Position& pos,
                                         value_t& result,
                                         const std::function<void()>& commit_callback,
                                         const std::function<void()>& exe_callback) {
@@ -83,27 +83,27 @@ void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
   if (-1 == slot_y || -1 == slot_n) {
     Log_info("[copilot+] branch 1");
     accepted = false;
-    pos.get()->set(0, 0);
-    pos.get()->set(1, 0);
-    pos.get()->set(2, 0);
-    pos.get()->set(3, 0);
+    pos.set(0, 0);
+    pos.set(1, 0);
+    pos.set(2, 0);
+    pos.set(3, 0);
     result = -1;
   } else {
     if (sch_->check_slot_vector_last_committed(slot_y, YES) && sch_->check_slot_vector_last_committed(slot_n, NO)) {
       Log_info("[copilot+] branch 2");
       accepted = true;
-      pos.get()->set(0, slot_y);
-      pos.get()->set(1, sch_->push_back_cmd_to_slot(slot_y, YES, cmd));
-      pos.get()->set(2, slot_n);
-      pos.get()->set(3, sch_->push_back_cmd_to_slot(slot_n, NO, cmd));
+      pos.set(0, slot_y);
+      pos.set(1, sch_->push_back_cmd_to_slot(slot_y, YES, cmd));
+      pos.set(2, slot_n);
+      pos.set(3, sch_->push_back_cmd_to_slot(slot_n, NO, cmd));
       // TODO: result
     } else {
       Log_info("[copilot+] branch 3");
       accepted = false;
-      pos.get()->set(0, 0);
-      pos.get()->set(1, 0);
-      pos.get()->set(2, 0);
-      pos.get()->set(3, 0);
+      pos.set(0, 0);
+      pos.set(1, 0);
+      pos.set(2, 0);
+      pos.set(3, 0);
       result = -1;
     }
   }

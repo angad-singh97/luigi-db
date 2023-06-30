@@ -62,7 +62,7 @@ class SchedulerClassic: public TxLogServer {
                   struct DepId dep_id,
                   int commit_or_abort,
                   bool_t& accepted,
-                  shared_ptr<Position>& pos,
+                  Position& pos,
                   value_t& result);
   /************************Multicast end********************************/
 

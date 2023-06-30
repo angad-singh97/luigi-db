@@ -36,7 +36,7 @@ class SchedulerNone: public SchedulerClassic {
                       shared_ptr<Marshallable> cmd,
                       TxnOutput& ret_output,
                       bool_t& accepted,
-                      shared_ptr<Position>& pos,
+                      Position& pos,
                       value_t& result);
   /************************Multicast end********************************/
 };

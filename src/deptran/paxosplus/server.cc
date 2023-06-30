@@ -5,10 +5,15 @@
 
 namespace janus {
 
-/***************************************PLUS Begin***********************************************************/
   bool_t PaxosPlusServer::check_fast_path_validation(key_t key) {
-    // TODO
-    return true;
+    test_test_test_ = 21;
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    // [CURP] TODO: generalize
+    Log_info("[CURP] Key = %d", key);
+    log_cols_[key];
+    Log_info("[CURP] count_ = %d", log_cols_[key].count_);
+    Log_info("[CURP] last_finish_pos_ = %d", log_cols_[key].last_finish_pos_);
+    return (log_cols_[key].count_) - (log_cols_[key].last_finish_pos_) > 1;
   }
 
   value_t PaxosPlusServer::read(key_t key) {
@@ -21,13 +26,18 @@ namespace janus {
   }
 
   slotid_t PaxosPlusServer::append_cmd(key_t key, shared_ptr<Marshallable>& cmd) {
-    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    // [CURP] TODO: whether lock?
+    // std::lock_guard<std::recursive_mutex> lock(mtx_);
     log_cols_[key].logs_[log_cols_[key].count_]->fast_accepted_cmd_ = cmd;
     slotid_t append_pos = log_cols_[key].count_;
     log_cols_[key].count_++;
     return append_pos;
   }
-/***************************************PLUS End***********************************************************/
+
+  void PaxosPlusServer::Setup() {
+    Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
+          (void*)this, this->loc_id_, (void*)this->commo_);
+  }
 
   void PaxosPlusServer::OnForward(const shared_ptr<Position>& pos,
                                   const shared_ptr<Marshallable>& cmd,

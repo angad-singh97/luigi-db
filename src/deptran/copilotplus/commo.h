@@ -119,8 +119,8 @@ friend class CopilotPlusProxy;
   shared_ptr<CopilotPlusForwardQuorumEvent>
   ForwardResultToCoordinator(parid_t par_id,
                               shared_ptr<Marshallable>& cmd,
-                              bool_t accepted,
-                              Position pos);
+                              Position pos,
+                              bool_t accepted);
 
   shared_ptr<CopilotPlusPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,

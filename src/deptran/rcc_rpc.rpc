@@ -217,8 +217,7 @@ abstract service Classic {
                       uint64_t coro_id,
                       bool_t accepted,
                       MarshallDeputy pos,
-                      int64_t ballot,
-                      uint16_t leader);
+                      int32_t result);
   defer MultiDispatchTest(uint64_t a | uint64_t b);
   defer MulticastWait(i64 tid, DepId dep_id, MarshallDeputy cmd |
                       i32 res, TxnOutput output, uint64_t coro_id);

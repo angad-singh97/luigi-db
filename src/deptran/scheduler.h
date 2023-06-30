@@ -156,13 +156,14 @@ class TxLogServer {
     return false;
   }
 
+
   virtual bool MultiDispatch(cmdid_t cmd_id,
                               shared_ptr<Marshallable> cmd,
                               TxnOutput& ret_output,
                               bool_t& accepted,
                               Position& pos,
-                              ballot_t& ballot,
-                              siteid_t& leader) {
+                              value_t& result) {
+    // [CURP+] implement this to support multi-broadcast (only need on concurent control scheduler)
     verify(0);
     return false;
   }

@@ -74,13 +74,13 @@ MultiPaxosPlusCommo::MultiPaxosPlusCommo(PollMgr* poll) : Communicator(poll) {
 
 shared_ptr<IntEvent>
 MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
-                                            shared_ptr<Position> pos,
-                                            shared_ptr<Marshallable> cmd,
+                                            shared_ptr<Marshallable>& cmd,
+                                            Position pos,
                                             bool_t accepted) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(make_shared<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (MultiPaxosPlusProxy *)p.second;
     auto site = p.first;

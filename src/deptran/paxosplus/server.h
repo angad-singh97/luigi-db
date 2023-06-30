@@ -35,12 +35,14 @@ struct PaxosPlusData {
 class PaxosPlusDataCol {
  public:
   size_t count_ = 0;
+  // [CURP] TODO: update last_finish_pos_
+  int last_finish_pos_ = -(INT_MAX / 2);
   map<slotid_t, shared_ptr<PaxosPlusData>> logs_{};
 };
 
 struct ResponseData {
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
-  int accept_count_, max_accept_count_;
+  int accept_count_ = 0, max_accept_count_ = 0;
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
     shared_ptr<CmdData> md = dynamic_pointer_cast<CmdData>(cmd);
     pair<int, int> cmd_id = {md->client_id, md->cmd_id_in_client};
@@ -68,6 +70,7 @@ class PaxosPlusServer : public TxLogServer {
   int n_accept_ = 0;
   int n_commit_ = 0;
   bool in_applying_logs_{false};
+  int test_test_test_ = -1; 
 
   map<pair<key_t, slotid_t>, ResponseData> response_storage_;
 
@@ -81,6 +84,8 @@ class PaxosPlusServer : public TxLogServer {
   ~PaxosPlusServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
   }
+
+  void Setup();
 
   void OnForward(const shared_ptr<Position>& pos,
                  const shared_ptr<Marshallable>& cmd,
