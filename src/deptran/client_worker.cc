@@ -543,8 +543,8 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
       // req->input_ will have the data
       tx_generator_->GetTxRequest(req, coo->coo_id_);
       // set unique command ID
-      req->client_id = coo->coo_id_;
-      req->cmd_id_in_client = coo->cmd_in_client_count++;
+      req->client_id_ = coo->coo_id_;
+      req->cmd_id_in_client_ = coo->cmd_in_client_count++;
     }
 //     req.callback_ = std::bind(&ClientWorker::RequestDone,
 //                               this,

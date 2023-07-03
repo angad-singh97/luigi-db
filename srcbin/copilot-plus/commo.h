@@ -24,7 +24,6 @@ class CopilotPlusSubmitQuorumEvent: public QuorumEvent {
  private:
   std::vector<ResponsePack> responses_;
   ResponsePack max_response_;
-  int response_received_ = 0;
  public:
   CopilotPlusSubmitQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}

@@ -5,7 +5,7 @@
 
 namespace janus {
 
-  bool_t PaxosPlusServer::check_fast_path_validation(key_t key) {
+  bool_t CurpPlusServer::check_fast_path_validation(key_t key) {
     test_test_test_ = 21;
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     // [CURP] TODO: generalize
@@ -16,7 +16,7 @@ namespace janus {
     return (log_cols_[key].count_) - (log_cols_[key].last_finish_pos_) > 1;
   }
 
-  value_t PaxosPlusServer::read(key_t key) {
+  value_t CurpPlusServer::read(key_t key) {
     if (0 == log_cols_[key].count_)
         return 0;
     shared_ptr<Marshallable> cmd = log_cols_[key].logs_[log_cols_[key].count_ - 1]->committed_cmd_;
@@ -25,7 +25,7 @@ namespace janus {
     return value;
   }
 
-  slotid_t PaxosPlusServer::append_cmd(key_t key, shared_ptr<Marshallable>& cmd) {
+  slotid_t CurpPlusServer::append_cmd(key_t key, const shared_ptr<Marshallable>& cmd) {
     // [CURP] TODO: whether lock?
     // std::lock_guard<std::recursive_mutex> lock(mtx_);
     log_cols_[key].logs_[log_cols_[key].count_]->fast_accepted_cmd_ = cmd;
@@ -34,12 +34,55 @@ namespace janus {
     return append_pos;
   }
 
-  void PaxosPlusServer::Setup() {
+  void CurpPlusServer::Setup() {
     Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
           (void*)this, this->loc_id_, (void*)this->commo_);
   }
 
-  void PaxosPlusServer::OnForward(const shared_ptr<Position>& pos,
+  void CurpPlusServer::OnDispatch(const int32_t& client_id,
+                                    const int32_t& cmd_id_in_client,
+                                    const shared_ptr<Marshallable>& cmd,
+                                    bool_t* accepted,
+                                    MarshallDeputy* pos_deputy,
+                                    value_t* result,
+                                    siteid_t* coo_id,
+                                    const function<void()> &cb) {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+    key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
+    bool_t fast_path_validation = check_fast_path_validation(key);
+    pos_deputy->sp_data_ = make_shared<Position>(MarshallDeputy::POSITION_CLASSIC, 2);
+    std::shared_ptr<Position> pos = dynamic_pointer_cast<Position>(pos_deputy->sp_data_);
+    if (!fast_path_validation) {
+      *accepted = false;
+      pos->set(0, -1);
+      result = 0;
+    } else {
+      *accepted = true;
+      if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Read) {
+        pos->set(0, -1);
+        *result = read(key);
+      } else if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Write) {
+        slotid_t new_slot_pos = append_cmd(key, cmd);
+        pos->set(0, new_slot_pos);
+        *result = 1;
+      } else {
+        verify(0);
+      }
+    }
+    shared_ptr<IntEvent> sq_quorum = commo()->ForwardResultToCoordinator(partition_id_, cmd, *pos.get(), *accepted);
+    cb();
+  }
+  
+  void CurpPlusServer::OnWaitCommit(const int32_t& client_id,
+                                      const int32_t& cmd_id_in_client,
+                                      bool_t* committed,
+                                      const function<void()> &cb) {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    cb();
+  }
+
+  void CurpPlusServer::OnForward(const shared_ptr<Position>& pos,
                                   const shared_ptr<Marshallable>& cmd,
                                   const bool_t& accepted) {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -51,24 +94,26 @@ namespace janus {
     int n_replica = Config::GetConfig()->GetPartitionSize(par_id_);
     if (accepted_num >= commo()->fastQuorumSize(n_replica)) {
       commo()->BroadcastCommit(partition_id_, pos, cmd);
-    } else if (accepted_num >= commo()->quorumSize(n_replica) && max_accepted_num >= commo()->smallQuorumSize(n_replica)) {
+    } else if (accepted_num >= commo()->quorumSize(n_replica) /*&& max_accepted_num >= commo()->smallQuorumSize(n_replica)*/) {
+      // [CURP] TODO: check this condition
       commo()->BroadcastCoordinatorAccept(partition_id_, pos, cmd);
     } else {
       // do nothing
     }
   }
 
-  void PaxosPlusServer::OnCoordinatorAccept(const shared_ptr<Position>& pos,
+  void CurpPlusServer::OnCoordinatorAccept(const shared_ptr<Position>& pos,
                                             const shared_ptr<Marshallable>& cmd,
                                             bool_t* accepted,
                                             const function<void()> &cb) {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
     shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
     key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
-    shared_ptr<PaxosPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
-    if (log->status_ != PaxosPlusData::PaxosPlusStatus::committed) {
+    shared_ptr<CurpPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
+    if (log->status_ != CurpPlusData::CurpPlusStatus::committed) {
       log->last_accepted_ = cmd;
       log->last_accepted_ballot_ = 0,
-      log->last_accepted_status_ = PaxosPlusData::PaxosPlusStatus::accepted;
+      log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::accepted;
       *accepted = true;
     } else {
       *accepted = false;
@@ -76,7 +121,7 @@ namespace janus {
     cb();
   }
 
-  void PaxosPlusServer::OnPrepare(const shared_ptr<Position>& pos,
+  void CurpPlusServer::OnPrepare(const shared_ptr<Position>& pos,
                                   const ballot_t& ballot,
                                   bool_t* accepted,
                                   ballot_t* seen_ballot,
@@ -84,10 +129,11 @@ namespace janus {
                                   shared_ptr<Marshallable>* last_accepted_cmd,
                                   ballot_t* last_accepted_ballot,
                                   const function<void()> &cb) {
-    shared_ptr<PaxosPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    shared_ptr<CurpPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
     if (ballot > log->max_ballot_seen_) {
       log->max_ballot_seen_ = ballot;
-      log->status_ = PaxosPlusData::PaxosPlusStatus::prepared;
+      log->status_ = CurpPlusData::CurpPlusStatus::prepared;
       *accepted = true;
     } else {
       *accepted = false;
@@ -99,21 +145,22 @@ namespace janus {
     cb();
   }
 
-  void PaxosPlusServer::OnAccept(const shared_ptr<Position>& pos,
+  void CurpPlusServer::OnAccept(const shared_ptr<Position>& pos,
                                 const shared_ptr<Marshallable>& cmd,
                                 const ballot_t& ballot,
                                 bool_t* accepted,
                                 ballot_t* seen_ballot,
                                 const function<void()> &cb) {
-    shared_ptr<PaxosPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    shared_ptr<CurpPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
     if (ballot >= log->max_ballot_seen_) {
       log->accepted_cmd_ = cmd;
       log->max_ballot_seen_ = ballot;
       log->max_ballot_accepted_ = ballot;
-      log->status_ = PaxosPlusData::PaxosPlusStatus::accepted;
+      log->status_ = CurpPlusData::CurpPlusStatus::accepted;
       log->last_accepted_ = cmd;
       log->last_accepted_ballot_ = ballot;
-      log->last_accepted_status_ = PaxosPlusData::PaxosPlusStatus::accepted;
+      log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::accepted;
       *accepted = true;
     } else {
       *accepted = false;
@@ -122,13 +169,14 @@ namespace janus {
     cb();
   }
 
-  void PaxosPlusServer::OnCommit(const shared_ptr<Position>& pos,
+  void CurpPlusServer::OnCommit(const shared_ptr<Position>& pos,
                                 const shared_ptr<Marshallable>& cmd) {
-    shared_ptr<PaxosPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
-    log->status_ = PaxosPlusData::PaxosPlusStatus::committed;
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    shared_ptr<CurpPlusData> log = log_cols_[pos->get_key(0)].logs_[pos->get_slot(1)];
+    log->status_ = CurpPlusData::CurpPlusStatus::committed;
     log->committed_cmd_ = cmd;
     log->last_accepted_ = cmd;
-    log->last_accepted_status_ = PaxosPlusData::PaxosPlusStatus::committed;
+    log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::committed;
   }
 
 } // namespace janus

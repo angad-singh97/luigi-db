@@ -24,7 +24,19 @@ abstract service MultiPaxos {
 	       
 }
 
-abstract service MultiPaxosPlus {
+abstract service CurpPlus {
+
+  defer Dispatch(int32_t client_id,
+                int32_t cmd_id_in_client,
+                MarshallDeputy cmd |
+                bool_t accepted,
+                MarshallDeputy pos,
+                int32_t result,
+                siteid_t coo_id);
+  
+  defer WaitCommit(int32_t client_id,
+                  int32_t cmd_id_in_client |
+                  bool_t committed)
 
   defer Forward(MarshallDeputy pos,
                 MarshallDeputy cmd,
@@ -211,17 +223,6 @@ abstract service Classic {
 	defer ReElect(| bool_t success);
   defer Dispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
                  i32 res, TxnOutput output, uint64_t coro_id);
-  defer MultiDispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
-                      i32 res,
-                      TxnOutput output,
-                      uint64_t coro_id,
-                      bool_t accepted,
-                      MarshallDeputy pos,
-                      int32_t result);
-  defer MultiDispatchTest(uint64_t a | uint64_t b);
-  defer MulticastWait(i64 tid, DepId dep_id, MarshallDeputy cmd |
-                      i32 res, TxnOutput output, uint64_t coro_id);
-
   defer Prepare(i64 tid, 
                 vector<i32> sids,
                 DepId dep_id | 

@@ -11,19 +11,19 @@
 
 namespace janus {
 
-class MultiPaxosPlusCommo;
-class PaxosPlusServer;
-class CoordinatorMultiPaxosPlus : public Coordinator {
+class CurpPlusCommo;
+class CurpPlusServer;
+class CoordinatorCurpPlus : public Coordinator {
  public:
-  PaxosPlusServer* sch_ = nullptr;
+  CurpPlusServer* sch_ = nullptr;
   uint32_t n_replica_ = 0;
 
-  MultiPaxosPlusCommo *commo() {
+  CurpPlusCommo *commo() {
     verify(commo_ != nullptr);
-    return (MultiPaxosPlusCommo *) commo_;
+    return (CurpPlusCommo *) commo_;
   }
   
-  CoordinatorMultiPaxosPlus(uint32_t coo_id,
+  CoordinatorCurpPlus(uint32_t coo_id,
                         int32_t benchmark,
                         ClientControlServiceImpl *ccsi,
                         uint32_t thread_id);

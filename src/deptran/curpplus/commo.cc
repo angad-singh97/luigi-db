@@ -9,7 +9,7 @@
 
 namespace janus {
 
-void PaxosPlusPrepareQuorumEvent::FeedResponse(bool y,
+void CurpPlusPrepareQuorumEvent::FeedResponse(bool y,
                                                 ballot_t seen_ballot,
                                                 int last_accepted_status,
                                                 MarshallDeputy last_accepted_md_cmd,
@@ -17,8 +17,8 @@ void PaxosPlusPrepareQuorumEvent::FeedResponse(bool y,
   count_++;
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
   if (y) {
-    shared_ptr<Marshallable> last_accepted_cmd = const_cast<MarshallDeputy&>(last_accepted_md_cmd).sp_data_;
-    pair<int, int> cmd_id = dynamic_pointer_cast<CmdData>(last_accepted_cmd)->cmd_id;
+    shared_ptr<CmdData> last_accepted_cmd = dynamic_pointer_cast<CmdData>(const_cast<MarshallDeputy&>(last_accepted_md_cmd).sp_data_);
+    pair<int, int> cmd_id = {last_accepted_cmd->client_id_, last_accepted_cmd->cmd_id_in_client_};
     accepted_cmds_.push_back(AcceptedCmd{cmd_id, last_accepted_status, last_accepted_cmd, last_accepted_ballot});
     VoteYes();
   } else {
@@ -26,11 +26,11 @@ void PaxosPlusPrepareQuorumEvent::FeedResponse(bool y,
   }
 }
 
-bool PaxosPlusPrepareQuorumEvent::CommitYes() {
+bool CurpPlusPrepareQuorumEvent::CommitYes() {
   ready_cmd_ = nullptr;
   if (count_ <= quorum_) return false;
   for (int i = 0; i < accepted_cmds_.size(); i++) {
-    if (accepted_cmds_[i].last_accepted_status == PaxosPlusData::PaxosPlusStatus::committed) {
+    if (accepted_cmds_[i].last_accepted_status == CurpPlusData::CurpPlusStatus::committed) {
       ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
       return true;
     }
@@ -38,12 +38,12 @@ bool PaxosPlusPrepareQuorumEvent::CommitYes() {
   return false;
 }
 
-bool PaxosPlusPrepareQuorumEvent::AcceptYes() {
+bool CurpPlusPrepareQuorumEvent::AcceptYes() {
   ready_cmd_ = nullptr;
   ballot_t max_ballot_of_ready_cmd_ = -1;
   if (count_ <= quorum_) return false;
   for (int i = 0; i < accepted_cmds_.size(); i++) {
-    if (accepted_cmds_[i].last_accepted_status == PaxosPlusData::PaxosPlusStatus::accepted
+    if (accepted_cmds_[i].last_accepted_status == CurpPlusData::CurpPlusStatus::accepted
         && accepted_cmds_[i].last_accepted_ballot > max_ballot_of_ready_cmd_) {
       ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
       max_ballot_of_ready_cmd_ = accepted_cmds_[i].last_accepted_ballot;
@@ -52,12 +52,12 @@ bool PaxosPlusPrepareQuorumEvent::AcceptYes() {
   return ready_cmd_ != nullptr;
 }
 
-bool PaxosPlusPrepareQuorumEvent::FastAcceptYes() {
+bool CurpPlusPrepareQuorumEvent::FastAcceptYes() {
   // TODO
   return true;
 }
 
-bool PaxosPlusPrepareQuorumEvent::AcceptAnyYes() {
+bool CurpPlusPrepareQuorumEvent::AcceptAnyYes() {
   ready_cmd_ = nullptr;
   if (count_ <= quorum_) return false;
   // TODO: check whether we can pick anyone if no commit / accept
@@ -65,16 +65,16 @@ bool PaxosPlusPrepareQuorumEvent::AcceptAnyYes() {
   return true;
 }
 
-void PaxosPlusAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
+void CurpPlusAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
 }
 
-MultiPaxosPlusCommo::MultiPaxosPlusCommo(PollMgr* poll) : Communicator(poll) {
+CurpPlusCommo::CurpPlusCommo(PollMgr* poll) : Communicator(poll) {
 }
 
 shared_ptr<IntEvent>
-MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
-                                            shared_ptr<Marshallable>& cmd,
+CurpPlusCommo::ForwardResultToCoordinator(parid_t par_id,
+                                            const shared_ptr<Marshallable>& cmd,
                                             Position pos,
                                             bool_t accepted) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
@@ -82,7 +82,7 @@ MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(make_shared<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;
     // TODO: generelize
     if (0 == site) {
@@ -95,16 +95,16 @@ MultiPaxosPlusCommo::ForwardResultToCoordinator(parid_t par_id,
   return e;
 }
 
-shared_ptr<PaxosPlusCoordinatorAcceptQuorumEvent>
-MultiPaxosPlusCommo::BroadcastCoordinatorAccept(parid_t par_id,
+shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
+CurpPlusCommo::BroadcastCoordinatorAccept(parid_t par_id,
                           shared_ptr<Position> pos,
                           shared_ptr<Marshallable> cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusCoordinatorAcceptQuorumEvent>(n);
+  auto e = Reactor::CreateSpEvent<CurpPlusCoordinatorAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -118,16 +118,16 @@ MultiPaxosPlusCommo::BroadcastCoordinatorAccept(parid_t par_id,
   return e;
 }
 
-shared_ptr<PaxosPlusPrepareQuorumEvent>
-MultiPaxosPlusCommo::BroadcastPrepare(parid_t par_id,
+shared_ptr<CurpPlusPrepareQuorumEvent>
+CurpPlusCommo::BroadcastPrepare(parid_t par_id,
                   shared_ptr<Position> pos,
                   ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusPrepareQuorumEvent>(n);
+  auto e = Reactor::CreateSpEvent<CurpPlusPrepareQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -145,17 +145,17 @@ MultiPaxosPlusCommo::BroadcastPrepare(parid_t par_id,
   return e;
 }
 
-shared_ptr<PaxosPlusAcceptQuorumEvent>
-MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
+shared_ptr<CurpPlusAcceptQuorumEvent>
+CurpPlusCommo::BroadcastAccept(parid_t par_id,
                 shared_ptr<Position> pos,
                 shared_ptr<Marshallable> cmd,
                 ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<PaxosPlusAcceptQuorumEvent>(n);
+  auto e = Reactor::CreateSpEvent<CurpPlusAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -171,7 +171,7 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
 }
 
 shared_ptr<IntEvent>
-MultiPaxosPlusCommo::BroadcastCommit(parid_t par_id,
+CurpPlusCommo::BroadcastCommit(parid_t par_id,
                                     shared_ptr<Position> pos,
                                     shared_ptr<Marshallable> cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
@@ -179,7 +179,7 @@ MultiPaxosPlusCommo::BroadcastCommit(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [](Future *fu) {};

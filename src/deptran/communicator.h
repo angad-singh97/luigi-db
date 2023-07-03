@@ -76,52 +76,44 @@ class GetLeaderQuorumEvent : public QuorumEvent {
 
 /*********************************Multicast begin*****************************************/
 
-class MulticastQuorumEvent: public QuorumEvent {
+class DirectCurpDispatchQuorumEvent: public QuorumEvent {
  public:
   class ResponsePack {
    public:
     shared_ptr<Position> pos_{nullptr};
-    ballot_t ballot_ = 0;
+    value_t result_ = -1;
     ResponsePack() {}
-    ResponsePack(Position& pos, ballot_t ballot) {
+    ResponsePack(Position& pos, value_t result) {
       pos_ = make_shared<Position>(Position(pos));
-      ballot_ = ballot;
+      result_ = result;
     }
     bool operator < (const ResponsePack &other) const {
-      return (pos_.get() < other.pos_.get()) || ((pos_.get() == other.pos_.get()) && (ballot_ < other.ballot_));
+      return (pos_.get() < other.pos_.get()) || ((pos_.get() == other.pos_.get()) && (result_ < other.result_));
     }
     bool operator == (const ResponsePack &other) const {
-      return (pos_.get() == other.pos_.get()) && (ballot_ == other.ballot_);
+      return (pos_.get() == other.pos_.get()) && (result_ == other.result_);
     }
   };
  private:
   std::vector<ResponsePack> responses_;
   ResponsePack max_response_;
-  int response_received_ = 0;
 
-  /****depfast related begin******/
-  vector<int32_t> ret_vec;
-  vector<TxnOutput> outputs_vec;
-  /****depfast related end******/
-  vector<siteid_t> leader_vec;
+  vector<siteid_t> coo_id_vec_;
  public:
-  MulticastQuorumEvent(int n_total, int quorum)
+  DirectCurpDispatchQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
-  void FeedResponse(bool_t accepted, Position pos, ballot_t ballot, int32_t ret_ret, TxnOutput ret_outputs, siteid_t ret_leader);
+  void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
   bool FastYes();
-  bool RecoverWithOpYes();
-  bool RecoverWithoutOpYes();
+  bool FastNo();
   bool IsReady() override;
   //TODO: put in .cc file
   ResponsePack GetMax() {
     return max_response_;
   }
-  int32_t getRet();
-  TxnOutput getOutputs();
-  siteid_t getLeader();
+  siteid_t GetCooId();
  private:
-  //TODO: put in .cc file
+  // [CURP] TODO: put in .cc file
   int FindMax(){
     verify(responses_.size() > 0);
     std::sort(responses_.begin(), responses_.end());
@@ -137,14 +129,11 @@ class MulticastQuorumEvent: public QuorumEvent {
           max_len = cur_len;
         }
       } else {
-        max_len = cur_len = 1;
+        cur_len = 1;
       }
       last_response = it;
     }
     max_response_ = ResponsePack(*max_response);
-    if (max_len == 3) {
-      //Log_info("[copilot+] max_response is i=%d j=%d ballot=%d", max_response->i, max_response->j, max_response->ballot);
-    }
     return max_len;
   }
   
@@ -240,12 +229,9 @@ class Communicator {
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
   // [copilot+] TODO: why virtual?
-  virtual shared_ptr<MulticastQuorumEvent> MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                                                  int32_t *ret_ret,
-                                                                  TxnOutput *ret_outputs,
-                                                                  siteid_t *ret_leader);
-  virtual shared_ptr<IntEvent> MultiBroadcastWait(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                                  siteid_t leader);
+  virtual shared_ptr<DirectCurpDispatchQuorumEvent> DirectCurpBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data);
+  virtual shared_ptr<QuorumEvent> DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                                                siteid_t coo_id);
 
 	shared_ptr<QuorumEvent> SendReelect();
 

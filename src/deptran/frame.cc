@@ -19,8 +19,8 @@
 #include "none_copilot/scheduler.h"
 #include "copilotplus/coordinator.h"
 #include "copilotplus/commo.h"
-#include "paxosplus/coordinator.h"
-#include "paxosplus/server.h"
+#include "curpplus/coordinator.h"
+#include "curpplus/server.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
 #include "bench/tpcc/workload.h"
@@ -218,7 +218,7 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
                                         ccsi,
                                         id);
     case MODE_CURP_PLUS:
-      coo = new CoordinatorMultiPaxosPlus(coo_id,
+      coo = new CoordinatorCurpPlus(coo_id,
                                           benchmark,
                                           ccsi,
                                           id);
@@ -313,7 +313,7 @@ Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
       commo_ = new CopilotPlusCommo(pollmgr);
       break;
     case MODE_CURP_PLUS:
-      commo_ = new MultiPaxosPlusCommo(pollmgr);
+      commo_ = new CurpPlusCommo(pollmgr);
     default:
       commo_ = new Communicator(pollmgr);
       break;
@@ -405,8 +405,8 @@ TxLogServer* Frame::CreateScheduler() {
       sch = new SchedulerNoneCopilot();
       break;
     // case MODE_CURP_PLUS:
-    //   Log_info("[CURP] Create PaxosPlusServer");
-    //   sch = new PaxosPlusServer();
+    //   Log_info("[CURP] Create CurpPlusServer");
+    //   sch = new CurpPlusServer();
     //   break;
     case MODE_RPC_NULL:
     case MODE_RCC:

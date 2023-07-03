@@ -54,7 +54,7 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('-L', '--enable-leaksan', dest='leaksan',
                    default=False, action='store_true')
-    opt.add_option('', '--enable-client_multicast', dest='client_multicast',
+    opt.add_option('', '--skip-txn-server', dest='skip_txn_server',
                    default=False, action='store_true')
     opt.parse_args();
 
@@ -114,8 +114,8 @@ def configure(conf):
 #        conf.check_python_module('tabulate')
 #        conf.check_python_module('yaml')
 
-    if Options.options.client_multicast:
-        conf.env.append_value("CXXFLAGS", "-DCLIENT_MULTICAST")
+    if Options.options.skip_txn_server:
+        conf.env.append_value("CXXFLAGS", "-DSKIP_TXN_SERVER")
 
 def build(bld):
     _depend("src/rrr/pylib/simplerpcgen/rpcgen.py",

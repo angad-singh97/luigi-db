@@ -16,11 +16,11 @@ static int fastQuorumSize(int total);
 
 static int quorumSize(int total);
 
-class PaxosPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
+class CurpPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
 
  public:
   // using QuorumEvent::QuorumEvent;
-  PaxosPlusCoordinatorAcceptQuorumEvent(int n_total)
+  CurpPlusCoordinatorAcceptQuorumEvent(int n_total)
       : QuorumEvent(n_total, quorumSize(n_total)) {
   }
 
@@ -39,14 +39,14 @@ struct AcceptedCmd {
   ballot_t last_accepted_ballot;
 };
 
-class PaxosPlusPrepareQuorumEvent : public QuorumEvent {
+class CurpPlusPrepareQuorumEvent : public QuorumEvent {
   ballot_t max_seen_ballot_ = 0;
   vector<AcceptedCmd> accepted_cmds_;
   int count_ = 0;
   shared_ptr<Marshallable> ready_cmd_{nullptr};
  public:
   // using QuorumEvent::QuorumEvent;
-  PaxosPlusPrepareQuorumEvent(int n_total)
+  CurpPlusPrepareQuorumEvent(int n_total)
       : QuorumEvent(n_total, quorumSize(n_total)) {
 
   }
@@ -58,11 +58,11 @@ class PaxosPlusPrepareQuorumEvent : public QuorumEvent {
   bool AcceptAnyYes();
 };
 
-class PaxosPlusAcceptQuorumEvent : public QuorumEvent {
+class CurpPlusAcceptQuorumEvent : public QuorumEvent {
   ballot_t max_seen_ballot_;
  public:
   // using QuorumEvent::QuorumEvent;
-  PaxosPlusAcceptQuorumEvent(int n_total)
+  CurpPlusAcceptQuorumEvent(int n_total)
       : QuorumEvent(n_total, quorumSize(n_total)) {
 
   }
@@ -73,28 +73,28 @@ class PaxosPlusAcceptQuorumEvent : public QuorumEvent {
 };
 
 
-  class MultiPaxosPlusCommo : public Communicator {
+  class CurpPlusCommo : public Communicator {
    public:
-    MultiPaxosPlusCommo() = delete;
-    MultiPaxosPlusCommo(PollMgr*);
+    CurpPlusCommo() = delete;
+    CurpPlusCommo(PollMgr*);
     
     shared_ptr<IntEvent>
     ForwardResultToCoordinator(parid_t par_id,
-                              shared_ptr<Marshallable>& cmd,
+                              const shared_ptr<Marshallable>& cmd,
                               Position pos,
                               bool_t accepted);
     
-    shared_ptr<PaxosPlusCoordinatorAcceptQuorumEvent>
+    shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
     BroadcastCoordinatorAccept(parid_t par_id,
                               shared_ptr<Position> pos,
                               shared_ptr<Marshallable> cmd);
 
-    shared_ptr<PaxosPlusPrepareQuorumEvent>
+    shared_ptr<CurpPlusPrepareQuorumEvent>
     BroadcastPrepare(parid_t par_id,
                       shared_ptr<Position> pos,
                       ballot_t ballot);
 
-    shared_ptr<PaxosPlusAcceptQuorumEvent>
+    shared_ptr<CurpPlusAcceptQuorumEvent>
     BroadcastAccept(parid_t par_id,
                     shared_ptr<Position> pos,
                     shared_ptr<Marshallable> cmd,

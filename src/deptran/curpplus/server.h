@@ -12,15 +12,15 @@
 
 namespace janus {
 
-struct PaxosPlusData {
-  enum PaxosPlusStatus {
+struct CurpPlusData {
+  enum CurpPlusStatus {
     init = 0,
     fastAccepted = 1,
     prepared = 2,
     accepted = 3,
     committed = 4
   };
-  PaxosPlusStatus status_ = PaxosPlusStatus::init;
+  CurpPlusStatus status_ = CurpPlusStatus::init;
   ballot_t max_ballot_seen_ = 0;
   ballot_t max_ballot_accepted_ = 0;
   shared_ptr<Marshallable> fast_accepted_cmd_{nullptr};
@@ -28,16 +28,16 @@ struct PaxosPlusData {
   shared_ptr<Marshallable> committed_cmd_{nullptr};
   
   shared_ptr<Marshallable> last_accepted_{nullptr};
-  PaxosPlusStatus last_accepted_status_ = PaxosPlusStatus::init;
+  CurpPlusStatus last_accepted_status_ = CurpPlusStatus::init;
   ballot_t last_accepted_ballot_ = 0;
 };
 
-class PaxosPlusDataCol {
+class CurpPlusDataCol {
  public:
   size_t count_ = 0;
   // [CURP] TODO: update last_finish_pos_
   int last_finish_pos_ = -(INT_MAX / 2);
-  map<slotid_t, shared_ptr<PaxosPlusData>> logs_{};
+  map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
 };
 
 struct ResponseData {
@@ -45,7 +45,7 @@ struct ResponseData {
   int accept_count_ = 0, max_accept_count_ = 0;
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
     shared_ptr<CmdData> md = dynamic_pointer_cast<CmdData>(cmd);
-    pair<int, int> cmd_id = {md->client_id, md->cmd_id_in_client};
+    pair<int, int> cmd_id = {md->client_id_, md->cmd_id_in_client_};
     responses_[cmd_id].push_back(cmd);
     accept_count_++;
     max_accept_count_ = max(max_accept_count_, (int)responses_[cmd_id].size());
@@ -53,19 +53,19 @@ struct ResponseData {
   }
 };
 
-class PaxosPlusServer : public TxLogServer {
+class CurpPlusServer : public TxLogServer {
  public:
   /***************************************PLUS Begin***********************************************************/
   bool_t check_fast_path_validation(key_t key);
   value_t read(key_t key);
-  slotid_t append_cmd(key_t key, shared_ptr<Marshallable>& cmd);
+  slotid_t append_cmd(key_t key, const shared_ptr<Marshallable>& cmd);
   /***************************************PLUS End***********************************************************/
 
   // ----min_active <= max_executed <= max_committed---
   slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
   slotid_t max_executed_slot_ = 0;
   slotid_t max_committed_slot_ = 0;
-  map<key_t, PaxosPlusDataCol> log_cols_{};
+  map<key_t, CurpPlusDataCol> log_cols_{};
   int n_prepare_ = 0;
   int n_accept_ = 0;
   int n_commit_ = 0;
@@ -74,18 +74,32 @@ class PaxosPlusServer : public TxLogServer {
 
   map<pair<key_t, slotid_t>, ResponseData> response_storage_;
 
-  MultiPaxosPlusCommo *commo_{nullptr};
+  CurpPlusCommo *commo_{nullptr};
 
-  MultiPaxosPlusCommo *commo() {
+  CurpPlusCommo *commo() {
     verify(commo_ != nullptr);
-    return (MultiPaxosPlusCommo *) commo_;
+    return (CurpPlusCommo *) commo_;
   }
 
-  ~PaxosPlusServer() {
+  ~CurpPlusServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
   }
 
   void Setup();
+
+  void OnDispatch(const int32_t& client_id,
+                  const int32_t& cmd_id_in_client,
+                  const shared_ptr<Marshallable>& cmd,
+                  bool_t* accepted,
+                  MarshallDeputy* pos_deputy,
+                  value_t* result,
+                  siteid_t* coo_id,
+                  const function<void()> &cb);
+  
+  void OnWaitCommit(const int32_t& client_id,
+                    const int32_t& cmd_id_in_client,
+                    bool_t* committed,
+                    const function<void()> &cb);
 
   void OnForward(const shared_ptr<Position>& pos,
                  const shared_ptr<Marshallable>& cmd,

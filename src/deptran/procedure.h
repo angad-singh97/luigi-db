@@ -91,8 +91,8 @@ class TxRequest {
   TxWorkspace input_{};    // the inputs for the transactions.
   int n_try_ = 20;
   /******global unique id begin********/
-  int client_id = -1;
-  int cmd_id_in_client = -1;
+  int client_id_ = -1;
+  int cmd_id_in_client_ = -1;
   /******global unique id end********/
   function<void(TxReply &)> callback_ = [] (TxReply&)->void {verify(0);};
   function<void()> fail_callback_ = [] () {

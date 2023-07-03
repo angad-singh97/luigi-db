@@ -96,68 +96,6 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   // Log_info("[copilot+] [1-] exit ClassicServiceImpl::Dispatch");
 }
 
-/*********************************Multicast begin*****************************************/
-void ClassicServiceImpl::MultiDispatch(const i64& cmd_id,
-																	const DepId& dep_id,
-                                  const MarshallDeputy& md,
-                                  int32_t* res,
-                                  TxnOutput* output,
-                                  uint64_t* coro_id,
-                                  bool_t* accepted,
-                                  MarshallDeputy* pos_deputy,
-                                  value_t* result,
-                                  rrr::DeferredReply* defer) {
-  Log_debug("The server side receives a message from the client worker");
-  // Log_info("[copilot+] [1+] enter ClassicServiceImpl::MultiDispatch");
-
-#ifdef PIECE_COUNT
-  piece_count_key_t piece_count_key =
-      (piece_count_key_t){header.t_type, header.p_type};
-  std::map<piece_count_key_t, uint64_t>::iterator pc_it =
-      piece_count_.find(piece_count_key);
-
-  if (pc_it == piece_count_.end())
-      piece_count_[piece_count_key] = 1;
-  else
-      piece_count_[piece_count_key]++;
-  piece_count_tid_.insert(header.tid);
-#endif
-  shared_ptr<Marshallable> sp = md.sp_data_;
-  *res = SUCCESS;
-
-  // [CURP] TODO: look at this?
-  // pos_deputy->sp_data_ = make_shared<Position>();
-  if (!dtxn_sched()->MultiDispatch(cmd_id, sp, *output, *accepted, *dynamic_pointer_cast<Position>(pos_deputy->sp_data_), *result)) {
-    *res = REJECT;
-  }
-  // Log_info("[copilot+] [1-] ClassicServiceImpl::MultiDispatch accepted=%d i_y=%d i_n=%d j_y=%d, j_n=%d ballot=%d leader=%d\n", *accepted, *i_y, *i_n, *j_y, *j_n, *ballot, *leader);
-  *coro_id = Coroutine::CurrentCoroutine()->id;
-  defer->reply();
-}
-void ClassicServiceImpl::MultiDispatchTest(const uint64_t& a, uint64_t* b, rrr::DeferredReply* defer) {
-  *b = a * 7;
-  // Log_info("[copilot+] 111111111");
-  defer->reply();
-}
-void ClassicServiceImpl::MulticastWait(const i64& cmd_id,
-                                      const DepId& dep_id,
-                                      const MarshallDeputy& md,
-                                      int32_t* res,
-                                      TxnOutput* output,
-                                      uint64_t* coro_id,
-                                      rrr::DeferredReply* defer) {
-  Log_debug("The server side receives a message from the client worker");
-
-  shared_ptr<Marshallable> sp = md.sp_data_;
-    *res = SUCCESS;
-    if (!dtxn_sched()->Dispatch(cmd_id, sp, *output)) {
-      *res = REJECT;
-    }
-    *coro_id = Coroutine::CurrentCoroutine()->id;
-    defer->reply();
-}
-/*********************************Multicast end*****************************************/
-
 
 void ClassicServiceImpl::FailOverTrig(
     const bool_t& pause, rrr::i32* res, rrr::DeferredReply* defer) {

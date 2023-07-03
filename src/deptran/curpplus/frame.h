@@ -8,13 +8,13 @@
 
 namespace janus {
 
-class MultiPaxosPlusFrame : public Frame {
+class CurpPlusFrame : public Frame {
  private:
   slotid_t slot_hint_ = 1;
-  PaxosPlusServer *sch_ = nullptr;
-  MultiPaxosPlusCommo *commo_ = nullptr;
+  CurpPlusServer *sch_ = nullptr;
+  CurpPlusCommo *commo_ = nullptr;
  public:
-  MultiPaxosPlusFrame(int mode);
+  CurpPlusFrame(int mode);
   Coordinator *CreateCoordinator(cooid_t coo_id,
                                  Config *config,
                                  int benchmark,

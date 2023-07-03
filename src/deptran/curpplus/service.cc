@@ -4,13 +4,42 @@
 
 namespace janus {
 
-MultiPaxosPlusServiceImpl::MultiPaxosPlusServiceImpl(TxLogServer *sched)
-    : sched_((PaxosPlusServer*)sched) {
+CurpPlusServiceImpl::CurpPlusServiceImpl(TxLogServer *sched)
+    : sched_((CurpPlusServer*)sched) {
 
 }
 
+void CurpPlusServiceImpl::Dispatch(const int32_t& client_id,
+                                    const int32_t& cmd_id_in_client,
+                                    const MarshallDeputy& cmd,
+                                    bool_t* accepted,
+                                    MarshallDeputy* pos,
+                                    int32_t* result,
+                                    siteid_t* coo_id,
+                                    rrr::DeferredReply* defer) {
+  verify(sched_ != nullptr);
+  sched_->OnDispatch(client_id,
+                      cmd_id_in_client,
+                      const_cast<MarshallDeputy&>(cmd).sp_data_,
+                      accepted,
+                      pos,
+                      result,
+                      coo_id,
+                      bind(&rrr::DeferredReply::reply, defer));
+}
 
-void MultiPaxosPlusServiceImpl::Forward(const MarshallDeputy& pos,
+void CurpPlusServiceImpl::WaitCommit(const int32_t& client_id,
+                                      const int32_t& cmd_id_in_client,
+                                      bool_t* committed,
+                                      rrr::DeferredReply* defer) {
+  verify(sched_ != nullptr);
+  sched_->OnWaitCommit(client_id,
+                        cmd_id_in_client,
+                        committed,
+                        bind(&rrr::DeferredReply::reply, defer));
+}
+
+void CurpPlusServiceImpl::Forward(const MarshallDeputy& pos,
                                         const MarshallDeputy& cmd,
                                         const bool_t& accepted,
                                         rrr::DeferredReply* defer) {
@@ -21,7 +50,7 @@ void MultiPaxosPlusServiceImpl::Forward(const MarshallDeputy& pos,
   defer->reply();
 }
 
-void MultiPaxosPlusServiceImpl::CoordinatorAccept(const MarshallDeputy& pos,
+void CurpPlusServiceImpl::CoordinatorAccept(const MarshallDeputy& pos,
                                                   const MarshallDeputy& cmd,
                                                   bool_t* accepted,
                                                   rrr::DeferredReply* defer) {
@@ -32,7 +61,7 @@ void MultiPaxosPlusServiceImpl::CoordinatorAccept(const MarshallDeputy& pos,
                               bind(&rrr::DeferredReply::reply, defer));
 }
 
-void MultiPaxosPlusServiceImpl::Prepare(const MarshallDeputy& pos,
+void CurpPlusServiceImpl::Prepare(const MarshallDeputy& pos,
             const ballot_t& ballot,
             bool_t* accepted,
             ballot_t* seen_ballot,
@@ -52,7 +81,7 @@ void MultiPaxosPlusServiceImpl::Prepare(const MarshallDeputy& pos,
                     bind(&rrr::DeferredReply::reply, defer));
 }
 
-void MultiPaxosPlusServiceImpl::Accept(const MarshallDeputy& pos,
+void CurpPlusServiceImpl::Accept(const MarshallDeputy& pos,
             const MarshallDeputy& cmd,
             const ballot_t& ballot,
             bool_t* accepted,
@@ -67,7 +96,7 @@ void MultiPaxosPlusServiceImpl::Accept(const MarshallDeputy& pos,
                     bind(&rrr::DeferredReply::reply, defer));
 }
 
-void MultiPaxosPlusServiceImpl::Commit(const MarshallDeputy& pos,
+void CurpPlusServiceImpl::Commit(const MarshallDeputy& pos,
             const MarshallDeputy& cmd,
             rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);

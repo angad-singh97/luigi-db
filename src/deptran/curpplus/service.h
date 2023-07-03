@@ -14,11 +14,25 @@ class SimpleCommand;
 namespace janus {
 
 class TxLogServer;
-class PaxosPlusServer;
-class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService {
+class CurpPlusServer;
+class CurpPlusServiceImpl : public CurpPlusService {
  public:
-  PaxosPlusServer* sched_;
-  MultiPaxosPlusServiceImpl(TxLogServer* sched);
+  CurpPlusServer* sched_;
+  CurpPlusServiceImpl(TxLogServer* sched);
+
+  void Dispatch(const int32_t& client_id,
+                const int32_t& cmd_id_in_client,
+                const MarshallDeputy& cmd,
+                bool_t* accepted,
+                MarshallDeputy* pos,
+                int32_t* result,
+                siteid_t* coo_id,
+                rrr::DeferredReply* defer) override;
+
+  void WaitCommit(const int32_t& client_id,
+                  const int32_t& cmd_id_in_client,
+                  bool_t* committed,
+                  rrr::DeferredReply* defer) override;
 
   void Forward(const MarshallDeputy& pos,
                 const MarshallDeputy& cmd,

@@ -9,7 +9,7 @@
 
 namespace janus {
 
-REG_FRAME(MODE_CURP_PLUS, vector<string>({"curp_plus"}), MultiPaxosPlusFrame);
+REG_FRAME(MODE_CURP_PLUS, vector<string>({"curp_plus"}), CurpPlusFrame);
 
 /*template<typename D>
 struct automatic_register {
@@ -31,23 +31,23 @@ template<typename D> typename automatic_register<D>::exec_register
 
 struct foo : automatic_register<foo> {
   static void do_it() {
-    REG_FRAME(MODE_MULTI_PAXOS, vector<string>({"paxos"}), MultiPaxosPlusFrame);
+    REG_FRAME(MODE_MULTI_PAXOS, vector<string>({"paxos"}), CurpPlusFrame);
   }
 };*/
 
-MultiPaxosPlusFrame::MultiPaxosPlusFrame(int mode) : Frame(mode) {
+CurpPlusFrame::CurpPlusFrame(int mode) : Frame(mode) {
 
 }
 
-Coordinator *MultiPaxosPlusFrame::CreateCoordinator(cooid_t coo_id,
+Coordinator *CurpPlusFrame::CreateCoordinator(cooid_t coo_id,
                                                 Config *config,
                                                 int benchmark,
                                                 ClientControlServiceImpl *ccsi,
                                                 uint32_t id,
                                                 shared_ptr<TxnRegistry> txn_reg) {
   verify(config != nullptr);
-  CoordinatorMultiPaxosPlus *coo;
-  coo = new CoordinatorMultiPaxosPlus(coo_id,
+  CoordinatorCurpPlus *coo;
+  coo = new CoordinatorCurpPlus(coo_id,
                                   benchmark,
                                   ccsi,
                                   id);
@@ -62,9 +62,9 @@ Coordinator *MultiPaxosPlusFrame::CreateCoordinator(cooid_t coo_id,
   return coo;
 }
 
-TxLogServer *MultiPaxosPlusFrame::CreateScheduler() {
+TxLogServer *CurpPlusFrame::CreateScheduler() {
   if (sch_ == nullptr) {
-    sch_ = new PaxosPlusServer();
+    sch_ = new CurpPlusServer();
     sch_->frame_ = this;
   } else {
     verify(0);
@@ -73,26 +73,26 @@ TxLogServer *MultiPaxosPlusFrame::CreateScheduler() {
   return sch_;
 }
 
-Communicator *MultiPaxosPlusFrame::CreateCommo(PollMgr *poll) {
-  // We only have 1 instance of MultiPaxosPlusFrame object that is returned from
-  // GetFrame method. MultiPaxosPlusCommo currently seems ok to share among the
+Communicator *CurpPlusFrame::CreateCommo(PollMgr *poll) {
+  // We only have 1 instance of CurpPlusFrame object that is returned from
+  // GetFrame method. CurpPlusCommo currently seems ok to share among the
   // clients of this method.
   if (commo_ == nullptr) {
-    commo_ = new MultiPaxosPlusCommo(poll);
+    commo_ = new CurpPlusCommo(poll);
   }
   return commo_;
 }
 
 vector<rrr::Service *>
-MultiPaxosPlusFrame::CreateRpcServices(uint32_t site_id,
+CurpPlusFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
                                    rrr::PollMgr *poll_mgr,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
-  Log_info("[CURP] start MultiPaxosPlusServiceImpl");
+  Log_info("[CURP] start CurpPlusServiceImpl");
   switch (config->replica_proto_) {
-    case MODE_CURP_PLUS:result.push_back(new MultiPaxosPlusServiceImpl(rep_sched));
+    case MODE_CURP_PLUS:result.push_back(new CurpPlusServiceImpl(rep_sched));
     default:break;
   }
   return result;

@@ -16,39 +16,31 @@ namespace janus {
 
 /*********************************Multicast begin*****************************************/
 
-void MulticastQuorumEvent::FeedResponse(bool_t accepted, Position pos, ballot_t ballot, int32_t ret, TxnOutput outputs, siteid_t leader) {
-  // Log_info("[copilot+] MulticastQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
-  ret_vec.push_back(ret);
-  outputs_vec.push_back(outputs);
-  leader_vec.push_back(leader);
-  response_received_++;
-  responses_.push_back(ResponsePack{pos, ballot});
-  if (accepted)
+void DirectCurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
+  // Log_info("[copilot+] DirectCurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
+  coo_id_vec_.push_back(coo_id);
+  if (accepted) {
     VoteYes();
+    responses_.push_back(ResponsePack{pos, result});
+  }
   else
     VoteNo();
 }
 
-bool MulticastQuorumEvent::FastYes() {
-  if (response_received_ < Communicator::fastQuorumSize(n_total_)) return false;
+bool DirectCurpDispatchQuorumEvent::FastYes() {
+  if (n_voted_yes_ + n_voted_no_ < Communicator::fastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
   // Log_info("[copilot+] FastYes max_len=%d, fastQuorumSize=%d", max_len, Communicator::fastQuorumSize(n_total_));
   return max_len >= Communicator::fastQuorumSize(n_total_);
 }
 
-bool MulticastQuorumEvent::RecoverWithOpYes() {
-  if (response_received_ < quorum_) return false;
+bool DirectCurpDispatchQuorumEvent::FastNo() {
+  if (n_voted_yes_ + n_voted_no_ < Communicator::fastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
-  return max_len >= Communicator::smallQuorumSize(n_total_);
+  return max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < Communicator::fastQuorumSize(n_total_);
 }
 
-bool MulticastQuorumEvent::RecoverWithoutOpYes() {
-  if (response_received_ < quorum_) return false;
-  int max_len = FindMax();
-  return max_len < Communicator::smallQuorumSize(n_total_);
-}
-
-bool MulticastQuorumEvent::IsReady() {
+bool DirectCurpDispatchQuorumEvent::IsReady() {
   if (timeouted_) {
     //Log_info("[copilot+] timeouted_ ready");
     return true;
@@ -56,29 +48,31 @@ bool MulticastQuorumEvent::IsReady() {
   if (FastYes()) {
     // Log_info("[copilot+] FastYes ready");
     return true;
-  } else if (RecoverWithOpYes()) {
-    // Log_info("[copilot+] RecoverWithOpYes ready");
-    return true;
-  } else if (RecoverWithoutOpYes()) {
-    // Log_info("[copilot+] RecoverWithOpYes ready");
+  } else if (FastNo()) {
+    // Log_info("[copilot+] FastNo ready");
     return true;
   }
   return false;
 }
 
-int32_t MulticastQuorumEvent::getRet() {
-  // TODO: verify all things in ret_vec are same or something
-  return ret_vec[0];
-}
-
-TxnOutput MulticastQuorumEvent::getOutputs() {
-  // TODO: verify all things in outputs_vec are same or something
-  return outputs_vec[0];
-}
-
-siteid_t MulticastQuorumEvent::getLeader() {
-  // TODO: verify all things in leader_vec are same or something
-  return leader_vec[0];
+siteid_t DirectCurpDispatchQuorumEvent::GetCooId() {
+  
+  int max_len, max_value, cur_len;
+  for (int i = 0; i < coo_id_vec_.size(); i++) {
+    if (i == 0) {
+      max_value = coo_id_vec_[i];
+      max_len = cur_len = 1;
+    } else if (coo_id_vec_[i] == coo_id_vec_[i - 1]) {
+      if (++cur_len > max_len) {
+        max_value = coo_id_vec_[i];
+        max_len = cur_len;
+      } else {
+        cur_len = 1;
+      }
+    }
+  }
+  // [CURP] TODO: How much of max_len is enough?
+  return max_value;
 }
 
 inline int Communicator::maxFailure(int total) {
@@ -387,70 +381,55 @@ void Communicator::BroadcastDispatch(
 
 /*********************************Multicast begin*****************************************/
 
-shared_ptr<MulticastQuorumEvent>
-Communicator::MultiBroadcastDispatch(
-    shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
-    int32_t *ret_ret,
-    TxnOutput *ret_outputs,
-    siteid_t *ret_leader) {
-  Log_debug("Do a multi dispatch on client worker");
-  cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
+shared_ptr<DirectCurpDispatchQuorumEvent>
+Communicator::DirectCurpBroadcastDispatch(
+    shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
+  // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
-
-  // TODO: [copilot+] compatiable for MENCIUS
   
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
   MarshallDeputy md(sp_vpd);
 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<MulticastQuorumEvent>(n, quorumSize(n));
+  auto e = Reactor::CreateSpEvent<DirectCurpDispatchQuorumEvent>(n, quorumSize(n));
 
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, this](Future* fu) {
-          // Log_info("[copilot+] callback function [1] in Communicator::MultiBroadcastDispatch");
-          int32_t ret;
-          TxnOutput outputs;
-          uint64_t coro_id;
+          // Log_info("[copilot+] callback function [1] in Communicator::DirectCurpBroadcastDispatch");
           bool_t accepted;
           MarshallDeputy pos_deputy;
-          ballot_t ballot;
-          siteid_t leader;
+          value_t result;
+          siteid_t coo_id;
           vector<slotid_t> pos;
-          fu->get_reply() >> ret >> outputs >> coro_id >> accepted >> pos_deputy >> ballot >> leader;
-          e->FeedResponse(accepted, *dynamic_pointer_cast<Position>(pos_deputy.sp_data_).get(), ballot, ret, outputs, leader);
+          fu->get_reply() >> accepted >> pos >> result >> coo_id;
+          e->FeedResponse(accepted, *dynamic_pointer_cast<Position>(pos_deputy.sp_data_).get(), result, coo_id);
         };
     
     DepId di;
     di.str = "dep";
     di.id = Communicator::global_id++;
     
-    auto proxy = pair.second;
-    Future::safe_release(proxy->async_MultiDispatch(cmd_id, di, md, fuattr));
+    auto proxy = (CurpPlusProxy *)pair.second;
+    auto future = proxy->async_Dispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
+    Future::safe_release(future);
   }
 
   e->Wait();
-  Log_info("[copilot+] after wait");
 
-  // [copilot+] TODO: check all the things in ret_vec / outputs_vec / leader_vec are the same
-  *ret_ret = e->getRet();
-  *ret_outputs = e->getOutputs();
-  *ret_leader = e->getLeader();
-  
   return e;
 }
 
-shared_ptr<IntEvent> Communicator::MultiBroadcastWait(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                        siteid_t leader) {
+shared_ptr<QuorumEvent> Communicator::DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                        siteid_t coo_id) {
   // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
-  cmdid_t cmd_id = vec_piece_data->at(0)->root_id_;
+  int32_t client_id_ = vec_piece_data->at(0)->client_id_;
+  int32_t cmd_id_in_client_ = vec_piece_data->at(0)->cmd_id_in_client_;
   auto par_id = vec_piece_data->at(0)->PartitionId();
-  auto e = Reactor::CreateSpEvent<IntEvent>();
-  e->value_ = 0;
-	e->target_ = 1;
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
 
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   // sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
@@ -458,19 +437,20 @@ shared_ptr<IntEvent> Communicator::MultiBroadcastWait(shared_ptr<vector<shared_p
   MarshallDeputy md(sp_vpd);
 
   for (auto& pair : rpc_par_proxies_[par_id])
-    if (pair.first == leader) {
+    if (pair.first == coo_id) {
       rrr::FutureAttr fuattr;
       fuattr.callback =
           [e](Future* fu) {
-            e->value_++;
+            bool_t committed;
+            fu->get_reply() >> committed;
+            if (committed)
+              e->VoteYes();
+            else
+              e->VoteNo();
           };
       
-      DepId di;
-      di.str = "dep";
-      di.id = Communicator::global_id++;
-      
-      auto proxy = pair.second;
-      auto future = proxy->async_MulticastWait(cmd_id, di, md, fuattr);
+      auto proxy = (CurpPlusProxy *)pair.second;
+      auto future = proxy->async_WaitCommit(client_id_, cmd_id_in_client_, fuattr);
       Future::safe_release(future);
   }
   return e;

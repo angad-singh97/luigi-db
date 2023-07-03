@@ -6,7 +6,7 @@
 
 namespace janus {
 
-CoordinatorMultiPaxosPlus::CoordinatorMultiPaxosPlus(uint32_t coo_id,
+CoordinatorCurpPlus::CoordinatorCurpPlus(uint32_t coo_id,
                                              int32_t benchmark,
                                              ClientControlServiceImpl* ccsi,
                                              uint32_t thread_id)
@@ -14,7 +14,7 @@ CoordinatorMultiPaxosPlus::CoordinatorMultiPaxosPlus(uint32_t coo_id,
   Log_info("[CURP] Coordinator created with coo_id=%d thread_id=%d", coo_id, thread_id);
 }
                                     
-void CoordinatorMultiPaxosPlus::FastSubmit(shared_ptr<Marshallable>& cmd,
+void CoordinatorCurpPlus::FastSubmit(shared_ptr<Marshallable>& cmd,
                                             bool_t& accepted,
                                             Position& pos,
                                             value_t& result,

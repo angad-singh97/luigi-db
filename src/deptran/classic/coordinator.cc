@@ -65,8 +65,8 @@ void CoordinatorClassic::DoTxAsync(TxRequest& req) {
   cmd->root_id_ = this->next_txn_id();
   cmd->id_ = cmd->root_id_;
   ongoing_tx_id_ = cmd->id_;
-  cmd->client_id = req.client_id;
-  cmd->cmd_id_in_client = req.cmd_id_in_client;
+  cmd->client_id_ = req.client_id_;
+  cmd->cmd_id_in_client_ = req.cmd_id_in_client_;
   Log_debug("assigning tx id: %" PRIx64, ongoing_tx_id_);
   cmd->timestamp_ = GenerateTimestamp();
   cmd_ = cmd;
@@ -233,7 +233,8 @@ void CoordinatorClassic::DispatchAsync() {
     }
     Log_info("[copilot+] loc_id_=%d phase_=%d", this->loc_id_, phase_);
 
-#ifndef CLIENT_MULTICAST
+#ifndef SKIP_TXN_SERVER
+    Log_info("SKIP_TXN_SERVER off");
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
@@ -243,43 +244,34 @@ void CoordinatorClassic::DispatchAsync() {
                                          std::placeholders::_2));
 #endif
 
-#ifdef CLIENT_MULTICAST
-  MultiBroadcastDispatch(sp_vec_piece);
+#ifdef SKIP_TXN_SERVER
+  Log_info("SKIP_TXN_SERVER on");
+  DirectCurpBroadcastDispatch(sp_vec_piece);
 #endif
   }
 
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
 }
 
-void CoordinatorClassic::MultiBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
-  int32_t ret;
+void CoordinatorClassic::DirectCurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
   TxnOutput outputs;
   siteid_t leader;
-  auto sq_quorum = commo()->MultiBroadcastDispatch(sp_vec_piece,
-                                                    &ret,
-                                                    &outputs,
-                                                    &leader);
+  auto sq_quorum = commo()->DirectCurpBroadcastDispatch(sp_vec_piece);
   sq_quorum->Wait();
   Log_info("[copilot+] After quorum");
   if (sq_quorum->FastYes()) {
     // Fastpath Success
     Log_info("[copilot+] Fastpath Success");
-    verify(SUCCESS == ret);
-    CoordinatorClassic::DispatchAck(phase_, ret, outputs);
-  } else if (sq_quorum->RecoverWithOpYes() || sq_quorum->RecoverWithoutOpYes()) {
-    // Fastpath Fail
+    CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
+  } else if (sq_quorum->timeouted_) {
+    // Fastpath timeout
     Log_info("[copilot+] Fastpath Fail");
-    auto wait_quorum = commo()->MultiBroadcastWait(sp_vec_piece, leader);
+    auto wait_quorum = commo()->DirectCurpBroadcastWaitCommit(sp_vec_piece, sq_quorum->GetCooId());
     wait_quorum->Wait();
-    Log_info("[copilot+] Wait Fail!!!!!!!!!!!!!!!!!!!!!!!");
-    // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
-    if (wait_quorum->value_ > 0) // 0 fail 1 success
+    if (wait_quorum->Yes()) // 0 fail 1 success
       CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
     else
       CoordinatorClassic::DispatchAck(phase_, REJECT, outputs);
-  } else {
-    // number of reply < quorum size
-    verify(0);
   }
 }
 

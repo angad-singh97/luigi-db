@@ -121,6 +121,7 @@ CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
       // Future::safe_release(f);
     }
   }
+  return nullptr;
 }
 
 shared_ptr<CopilotPlusPrepareQuorumEvent>
