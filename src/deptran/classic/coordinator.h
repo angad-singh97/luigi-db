@@ -21,7 +21,7 @@ class CoordinatorClassic : public Coordinator {
 
   /***********************Multicast begin************************/
 
-  DirectCurpDispatchQuorumEvent::ResponsePack max_response_;
+  CurpDispatchQuorumEvent::ResponsePack max_response_;
   int cmd_coount = 0;
 
   /***********************Multicast end**************************/
@@ -88,7 +88,7 @@ class CoordinatorClassic : public Coordinator {
   void Restart() override;
 
   virtual void DispatchAsync();
-  virtual void DirectCurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece);
+  virtual void CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece);
   virtual void DispatchAsync(bool last);
   virtual void DispatchAck(phase_t phase,
                            int res,

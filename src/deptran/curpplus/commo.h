@@ -77,7 +77,7 @@ class CurpPlusAcceptQuorumEvent : public QuorumEvent {
    public:
     CurpPlusCommo() = delete;
     CurpPlusCommo(PollMgr*);
-    
+
     shared_ptr<IntEvent>
     ForwardResultToCoordinator(parid_t par_id,
                               const shared_ptr<Marshallable>& cmd,

@@ -80,7 +80,7 @@ CurpPlusCommo::ForwardResultToCoordinator(parid_t par_id,
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(make_shared<Marshallable>(pos)), cmd_deputy(cmd);
+  MarshallDeputy pos_deputy(make_shared<Position>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
     auto proxy = (CurpPlusProxy *)p.second;
     auto site = p.first;

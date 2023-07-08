@@ -67,62 +67,62 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
 }
 
 /***************************************PLUS Begin***********************************************************/
-void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
-                                        bool_t& accepted,
-                                        Position& pos,
-                                        value_t& result,
-                                        const std::function<void()>& commit_callback,
-                                        const std::function<void()>& exe_callback) {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::FastSubmit");
+// void CopilotPlusCoordinator::FastSubmit(shared_ptr<Marshallable>& cmd,
+//                                         bool_t& accepted,
+//                                         Position& pos,
+//                                         value_t& result,
+//                                         const std::function<void()>& commit_callback,
+//                                         const std::function<void()>& exe_callback) {
+//   std::lock_guard<std::recursive_mutex> lock(mtx_);
+//   Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::FastSubmit");
 
-  shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
-  key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
-  slotid_t slot_y = sch_->find_key(key, YES);
-  slotid_t slot_n = sch_->find_key(key, NO);
-  if (-1 == slot_y || -1 == slot_n) {
-    Log_info("[copilot+] branch 1");
-    accepted = false;
-    pos.set(0, 0);
-    pos.set(1, 0);
-    pos.set(2, 0);
-    pos.set(3, 0);
-    result = -1;
-  } else {
-    if (sch_->check_slot_vector_last_committed(slot_y, YES) && sch_->check_slot_vector_last_committed(slot_n, NO)) {
-      Log_info("[copilot+] branch 2");
-      accepted = true;
-      pos.set(0, slot_y);
-      pos.set(1, sch_->push_back_cmd_to_slot(slot_y, YES, cmd));
-      pos.set(2, slot_n);
-      pos.set(3, sch_->push_back_cmd_to_slot(slot_n, NO, cmd));
-      // TODO: result
-    } else {
-      Log_info("[copilot+] branch 3");
-      accepted = false;
-      pos.set(0, 0);
-      pos.set(1, 0);
-      pos.set(2, 0);
-      pos.set(3, 0);
-      result = -1;
-    }
-  }
-  // Log_info("[copilot+] [4-] exit OnSubmit with accepted=%d i_y=%d i_n=%d j_y=%d j_n=%d ballot=%d leader=%d",
-  //   accepted, i_y, i_n, j_y, j_n, ballot, leader);
+//   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+//   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
+//   slotid_t slot_y = sch_->find_key(key, YES);
+//   slotid_t slot_n = sch_->find_key(key, NO);
+//   if (-1 == slot_y || -1 == slot_n) {
+//     Log_info("[copilot+] branch 1");
+//     accepted = false;
+//     pos.set(0, 0);
+//     pos.set(1, 0);
+//     pos.set(2, 0);
+//     pos.set(3, 0);
+//     result = -1;
+//   } else {
+//     if (sch_->check_slot_vector_last_committed(slot_y, YES) && sch_->check_slot_vector_last_committed(slot_n, NO)) {
+//       Log_info("[copilot+] branch 2");
+//       accepted = true;
+//       pos.set(0, slot_y);
+//       pos.set(1, sch_->push_back_cmd_to_slot(slot_y, YES, cmd));
+//       pos.set(2, slot_n);
+//       pos.set(3, sch_->push_back_cmd_to_slot(slot_n, NO, cmd));
+//       // TODO: result
+//     } else {
+//       Log_info("[copilot+] branch 3");
+//       accepted = false;
+//       pos.set(0, 0);
+//       pos.set(1, 0);
+//       pos.set(2, 0);
+//       pos.set(3, 0);
+//       result = -1;
+//     }
+//   }
+//   // Log_info("[copilot+] [4-] exit OnSubmit with accepted=%d i_y=%d i_n=%d j_y=%d j_n=%d ballot=%d leader=%d",
+//   //   accepted, i_y, i_n, j_y, j_n, ballot, leader);
     
-  commit_callback_ = commit_callback;
-  commit_callback_();
-  // Log_info("[copilot+] [4---] exit CopilotPlusCoordinator::FastSubmit");
-}
-
-// void CopilotPlusCoordinator::Forward(shared_ptr<Marshallable>& cmd,
-//                                       bool_t accepted,
-//                                       Position pos) {
-//   shared_ptr<CopilotPlusForwardQuorumEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, accepted, pos);
-//   CopilotPlusForwardQuorumEvent::sgs_pos sgs_pos = sq_quorum->getSgsPos();
-//   // put cmd into log
-//   // send a request to client
+//   commit_callback_ = commit_callback;
+//   commit_callback_();
+//   // Log_info("[copilot+] [4---] exit CopilotPlusCoordinator::FastSubmit");
 // }
+
+// // void CopilotPlusCoordinator::Forward(shared_ptr<Marshallable>& cmd,
+// //                                       bool_t accepted,
+// //                                       Position pos) {
+// //   shared_ptr<CopilotPlusForwardQuorumEvent> sq_quorum = commo()->ForwardResultToCoordinator(par_id_, cmd, accepted, pos);
+// //   CopilotPlusForwardQuorumEvent::sgs_pos sgs_pos = sq_quorum->getSgsPos();
+// //   // put cmd into log
+// //   // send a request to client
+// // }
 /***************************************PLUS End***********************************************************/
 
 

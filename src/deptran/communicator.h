@@ -76,7 +76,7 @@ class GetLeaderQuorumEvent : public QuorumEvent {
 
 /*********************************Multicast begin*****************************************/
 
-class DirectCurpDispatchQuorumEvent: public QuorumEvent {
+class CurpDispatchQuorumEvent: public QuorumEvent {
  public:
   class ResponsePack {
    public:
@@ -100,7 +100,7 @@ class DirectCurpDispatchQuorumEvent: public QuorumEvent {
 
   vector<siteid_t> coo_id_vec_;
  public:
-  DirectCurpDispatchQuorumEvent(int n_total, int quorum)
+  CurpDispatchQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
   void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
@@ -228,10 +228,20 @@ class Communicator {
   virtual void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
-  // [copilot+] TODO: why virtual?
-  virtual shared_ptr<DirectCurpDispatchQuorumEvent> DirectCurpBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data);
-  virtual shared_ptr<QuorumEvent> DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                                                siteid_t coo_id);
+  
+  virtual shared_ptr<CurpDispatchQuorumEvent>
+  CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data);
+  
+  virtual shared_ptr<CurpDispatchQuorumEvent>
+  CurpBroadcastDispatch(shared_ptr<Marshallable> cmd);
+
+  virtual shared_ptr<QuorumEvent>
+  DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                siteid_t coo_id);
+
+  virtual shared_ptr<QuorumEvent>
+  DirectCurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
+                                siteid_t coo_id);
 
 	shared_ptr<QuorumEvent> SendReelect();
 

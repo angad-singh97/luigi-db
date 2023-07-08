@@ -28,15 +28,20 @@ namespace janus {
   slotid_t CurpPlusServer::append_cmd(key_t key, const shared_ptr<Marshallable>& cmd) {
     // [CURP] TODO: whether lock?
     // std::lock_guard<std::recursive_mutex> lock(mtx_);
-    log_cols_[key].logs_[log_cols_[key].count_]->fast_accepted_cmd_ = cmd;
+    auto col = log_cols_[key];
+    auto idx = log_cols_[key].count_;
+    // [CURP] TODO: verify col.logs_[idx] is a nullptr
+    col.logs_[idx] = make_shared<CurpPlusData>();
+    col.logs_[idx]->fast_accepted_cmd_ = cmd;
+    // log_cols_[key].logs_[log_cols_[key].count_]->fast_accepted_cmd_ = cmd;
     slotid_t append_pos = log_cols_[key].count_;
     log_cols_[key].count_++;
     return append_pos;
   }
 
   void CurpPlusServer::Setup() {
-    Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
-          (void*)this, this->loc_id_, (void*)this->commo_);
+    verify(commo_ != nullptr);
+    Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p",  (void*)this, this->loc_id_, (void*)this->commo_);
   }
 
   void CurpPlusServer::OnDispatch(const int32_t& client_id,
@@ -51,25 +56,31 @@ namespace janus {
     shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
     key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
     bool_t fast_path_validation = check_fast_path_validation(key);
-    pos_deputy->sp_data_ = make_shared<Position>(MarshallDeputy::POSITION_CLASSIC, 2);
-    std::shared_ptr<Position> pos = dynamic_pointer_cast<Position>(pos_deputy->sp_data_);
+    std::shared_ptr<Position> pos = make_shared<Position>(MarshallDeputy::POSITION_CLASSIC, 2);
     if (!fast_path_validation) {
       *accepted = false;
       pos->set(0, -1);
+      pos->set(1, -1);
       result = 0;
     } else {
       *accepted = true;
       if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Read) {
         pos->set(0, -1);
+        pos->set(1, -1);
         *result = read(key);
       } else if (parsed_cmd_->type_ == SimpleRWCommand::CmdType::Write) {
         slotid_t new_slot_pos = append_cmd(key, cmd);
-        pos->set(0, new_slot_pos);
+        pos->set(0, key);
+        pos->set(1, new_slot_pos);
         *result = 1;
       } else {
         verify(0);
       }
     }
+    int k = pos->get_key();
+    int v = pos->get_slot();
+    Log_info("k=%d v=%d", k, v);
+    pos_deputy =  new MarshallDeputy(pos);
     shared_ptr<IntEvent> sq_quorum = commo()->ForwardResultToCoordinator(partition_id_, cmd, *pos.get(), *accepted);
     cb();
   }
@@ -79,6 +90,7 @@ namespace janus {
                                       bool_t* committed,
                                       const function<void()> &cb) {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
+    
     cb();
   }
 

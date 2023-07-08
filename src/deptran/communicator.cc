@@ -6,6 +6,7 @@
 #include "rcc/graph_marshaler.h"
 #include "command.h"
 #include "command_marshaler.h"
+#include "classic/tpc_command.h"
 #include "procedure.h"
 #include "rcc_rpc.h"
 #include <typeinfo>
@@ -16,8 +17,8 @@ namespace janus {
 
 /*********************************Multicast begin*****************************************/
 
-void DirectCurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
-  // Log_info("[copilot+] DirectCurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
+void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
+  // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
   coo_id_vec_.push_back(coo_id);
   if (accepted) {
     VoteYes();
@@ -27,20 +28,20 @@ void DirectCurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, 
     VoteNo();
 }
 
-bool DirectCurpDispatchQuorumEvent::FastYes() {
+bool CurpDispatchQuorumEvent::FastYes() {
   if (n_voted_yes_ + n_voted_no_ < Communicator::fastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
   // Log_info("[copilot+] FastYes max_len=%d, fastQuorumSize=%d", max_len, Communicator::fastQuorumSize(n_total_));
   return max_len >= Communicator::fastQuorumSize(n_total_);
 }
 
-bool DirectCurpDispatchQuorumEvent::FastNo() {
+bool CurpDispatchQuorumEvent::FastNo() {
   if (n_voted_yes_ + n_voted_no_ < Communicator::fastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
   return max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < Communicator::fastQuorumSize(n_total_);
 }
 
-bool DirectCurpDispatchQuorumEvent::IsReady() {
+bool CurpDispatchQuorumEvent::IsReady() {
   if (timeouted_) {
     //Log_info("[copilot+] timeouted_ ready");
     return true;
@@ -55,7 +56,7 @@ bool DirectCurpDispatchQuorumEvent::IsReady() {
   return false;
 }
 
-siteid_t DirectCurpDispatchQuorumEvent::GetCooId() {
+siteid_t CurpDispatchQuorumEvent::GetCooId() {
   
   int max_len, max_value, cur_len;
   for (int i = 0; i < coo_id_vec_.size(); i++) {
@@ -381,8 +382,8 @@ void Communicator::BroadcastDispatch(
 
 /*********************************Multicast begin*****************************************/
 
-shared_ptr<DirectCurpDispatchQuorumEvent>
-Communicator::DirectCurpBroadcastDispatch(
+shared_ptr<CurpDispatchQuorumEvent>
+Communicator::CurpBroadcastDispatch(
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
   // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   verify(!sp_vec_piece->empty());
@@ -393,13 +394,13 @@ Communicator::DirectCurpBroadcastDispatch(
   MarshallDeputy md(sp_vpd);
 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<DirectCurpDispatchQuorumEvent>(n, quorumSize(n));
+  auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, quorumSize(n));
 
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, this](Future* fu) {
-          // Log_info("[copilot+] callback function [1] in Communicator::DirectCurpBroadcastDispatch");
+          // Log_info("[copilot+] callback function [1] in Communicator::CurpBroadcastDispatch");
           bool_t accepted;
           MarshallDeputy pos_deputy;
           value_t result;
@@ -423,8 +424,17 @@ Communicator::DirectCurpBroadcastDispatch(
   return e;
 }
 
-shared_ptr<QuorumEvent> Communicator::DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                        siteid_t coo_id) {
+shared_ptr<CurpDispatchQuorumEvent>
+Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
+  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  return CurpBroadcastDispatch(sp_vec_piece);
+}
+
+shared_ptr<QuorumEvent> 
+Communicator::DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                            siteid_t coo_id) {
   // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   int32_t client_id_ = vec_piece_data->at(0)->client_id_;
   int32_t cmd_id_in_client_ = vec_piece_data->at(0)->cmd_id_in_client_;
@@ -454,6 +464,16 @@ shared_ptr<QuorumEvent> Communicator::DirectCurpBroadcastWaitCommit(shared_ptr<v
       Future::safe_release(future);
   }
   return e;
+}
+
+
+shared_ptr<QuorumEvent>
+Communicator::DirectCurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
+                                            siteid_t coo_id) {
+  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  return DirectCurpBroadcastWaitCommit(sp_vec_piece, coo_id);
 }
 
 /*********************************Multicast end*****************************************/

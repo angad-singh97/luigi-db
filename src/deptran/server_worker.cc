@@ -220,7 +220,9 @@ void ServerWorker::SetupCommo() {
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
     }
+    verify(rep_commo_ != nullptr);
     rep_sched_->commo_ = rep_commo_;
+    verify(rep_sched_->commo_ != nullptr);
 		rep_sched_->Setup();
 
     rep_commo_->rep_sched_ = rep_sched_;

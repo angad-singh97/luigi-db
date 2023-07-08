@@ -56,6 +56,8 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('', '--skip-txn-server', dest='skip_txn_server',
                    default=False, action='store_true')
+    # opt.add_option('', '--curp-fast-path', dest='curp_fast_path',
+    #                default=False, action='store_true')
     opt.parse_args();
 
 def configure(conf):
@@ -116,6 +118,9 @@ def configure(conf):
 
     if Options.options.skip_txn_server:
         conf.env.append_value("CXXFLAGS", "-DSKIP_TXN_SERVER")
+    
+    # if Options.options.curp_fast_path:
+    #     conf.env.append_value("CXXFLAGS", "-DCURP_FAST_PATH")
 
 def build(bld):
     _depend("src/rrr/pylib/simplerpcgen/rpcgen.py",

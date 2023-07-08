@@ -246,17 +246,17 @@ void CoordinatorClassic::DispatchAsync() {
 
 #ifdef SKIP_TXN_SERVER
   Log_info("SKIP_TXN_SERVER on");
-  DirectCurpBroadcastDispatch(sp_vec_piece);
+  CurpBroadcastDispatch(sp_vec_piece);
 #endif
   }
 
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
 }
 
-void CoordinatorClassic::DirectCurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
+void CoordinatorClassic::CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
   TxnOutput outputs;
   siteid_t leader;
-  auto sq_quorum = commo()->DirectCurpBroadcastDispatch(sp_vec_piece);
+  auto sq_quorum = commo()->CurpBroadcastDispatch(sp_vec_piece);
   sq_quorum->Wait();
   Log_info("[copilot+] After quorum");
   if (sq_quorum->FastYes()) {

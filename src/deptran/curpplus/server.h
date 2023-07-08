@@ -74,11 +74,13 @@ class CurpPlusServer : public TxLogServer {
 
   map<pair<key_t, slotid_t>, ResponseData> response_storage_;
 
-  CurpPlusCommo *commo_{nullptr};
-
   CurpPlusCommo *commo() {
     verify(commo_ != nullptr);
     return (CurpPlusCommo *) commo_;
+  }
+
+  CurpPlusServer() {
+    Log_info("CurpPlusServer Created, site par %d, loc %d", partition_id_, loc_id_);
   }
 
   ~CurpPlusServer() {

@@ -218,7 +218,6 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 															 struct DepId dep_id,
 															 int commit_or_abort) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  // Log_info("[copilot+] [3+] SchedulerClassic::OnCommit");
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
@@ -253,7 +252,6 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
       verify(0);
     }
   }
-  // Log_info("[copilot+] [3-] SchedulerClassic::OnCommit");
   return 0;
 }
 

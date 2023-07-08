@@ -165,18 +165,18 @@ class Coordinator {
                       const std::function<void()>& exe_callback = [](){}) {
     verify(0);
   }
-  /***************************************PLUS Begin***********************************************************/
+  // /***************************************PLUS Begin***********************************************************/
 
-  virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
-                          bool_t& accepted,
-                          Position& pos,
-                          value_t& result,
-                          const std::function<void()>& commit_callback = [](){},
-                          const std::function<void()>& exe_callback = [](){}) {
-    verify(0);
-  }
+  // virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
+  //                         bool_t& accepted,
+  //                         Position& pos,
+  //                         value_t& result,
+  //                         const std::function<void()>& commit_callback = [](){},
+  //                         const std::function<void()>& exe_callback = [](){}) {
+  //   verify(0);
+  // }
 
-  /***************************************PLUS End***********************************************************/
+  // /***************************************PLUS End***********************************************************/
   virtual void Reset() {
     committed_ = false;
     commit_reported_ = false;
