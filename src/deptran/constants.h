@@ -26,6 +26,7 @@ namespace janus {
 #define bool_t int8_t
 #define key_t int32_t
 #define value_t int32_t
+#define pos_t int32_t
 
 /** read and write type */
 #define OP_WRITE   (0x01)

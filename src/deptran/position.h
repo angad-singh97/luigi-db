@@ -10,7 +10,7 @@ namespace janus {
 class Position : public Marshallable {
  public:
   int32_t len_{0};
-  vector<slotid_t> pos_;
+  vector<pos_t> pos_;
 
   Position(MarshallDeputy::Kind kind, int32_t len) : Marshallable(kind), len_(len) {
     for (int i = 0; i < len_; i++) {
@@ -60,19 +60,14 @@ class Position : public Marshallable {
     return true;
   }
 
-  void set(int pos, int value) {
+  void set(int pos, pos_t value) {
     verify(pos <= pos_.size());
     pos_[pos] = value;
   }
 
-  key_t get_key(int pos = 0) const {
+  pos_t get(int pos) const {
     verify(pos <= pos_.size());
-    return (key_t)(pos_[pos]);
-  }
-
-  key_t get_slot(int pos = 1) const {
-    verify(pos <= pos_.size());
-    return (slotid_t)(pos_[pos]);
+    return pos_[pos];
   }
 };
 

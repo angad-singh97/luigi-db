@@ -30,9 +30,9 @@ void PaxosWorker::SetupBase() {
   auto config = Config::GetConfig();
   rep_frame_ = Frame::GetFrame(config->replica_proto_);
   rep_frame_->site_info_ = site_info_;
-  Log_info("[CURP] Before PaxosWorker CreateScheduler");
+  // Log_info("[CURP] Before PaxosWorker CreateScheduler");
   rep_sched_ = rep_frame_->CreateScheduler();
-  Log_info("[CURP] After PaxosWorker CreateScheduler");
+  // Log_info("[CURP] After PaxosWorker CreateScheduler");
   rep_sched_->loc_id_ = site_info_->locale_id;
   rep_sched_->partition_id_ = site_info_->partition_id_;
   this->tot_num = config->get_tot_req();

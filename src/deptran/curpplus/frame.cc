@@ -90,7 +90,7 @@ CurpPlusFrame::CreateRpcServices(uint32_t site_id,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
-  Log_info("[CURP] start CurpPlusServiceImpl");
+  // Log_info("[CURP] start CurpPlusServiceImpl");
   switch (config->replica_proto_) {
     case MODE_CURP_PLUS:result.push_back(new CurpPlusServiceImpl(rep_sched));
     default:break;

@@ -17,11 +17,25 @@ namespace janus {
 
 /*********************************Multicast begin*****************************************/
 
-void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
+// void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
+//   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
+//   coo_id_vec_.push_back(coo_id);
+//   if (accepted) {
+//     VoteYes();
+//     responses_.push_back(ResponsePack{pos, result});
+//   }
+//   else
+//     VoteNo();
+// }
+
+void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, pos_t pos0, pos_t pos1, value_t result, siteid_t coo_id) {
   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
   coo_id_vec_.push_back(coo_id);
   if (accepted) {
     VoteYes();
+    Position pos(MarshallDeputy::POSITION_CLASSIC, 2);
+    pos.set(0, pos0);
+    pos.set(1, pos1);
     responses_.push_back(ResponsePack{pos, result});
   }
   else
@@ -382,6 +396,47 @@ void Communicator::BroadcastDispatch(
 
 /*********************************Multicast begin*****************************************/
 
+// shared_ptr<CurpDispatchQuorumEvent>
+// Communicator::CurpBroadcastDispatch(
+//     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
+//   // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
+//   verify(!sp_vec_piece->empty());
+//   auto par_id = sp_vec_piece->at(0)->PartitionId();
+  
+//   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+//   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+//   MarshallDeputy md(sp_vpd);
+
+//   int n = Config::GetConfig()->GetPartitionSize(par_id);
+//   auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, quorumSize(n));
+
+//   for (auto& pair : rpc_par_proxies_[par_id]) {
+//     rrr::FutureAttr fuattr;
+//     fuattr.callback =
+//         [e, this](Future* fu) {
+//           // Log_info("[copilot+] callback function [1] in Communicator::CurpBroadcastDispatch");
+//           bool_t accepted;
+//           MarshallDeputy pos_deputy;
+//           value_t result;
+//           siteid_t coo_id;
+//           fu->get_reply() >> accepted >> pos_deputy >> result >> coo_id;
+//           e->FeedResponse(accepted, *dynamic_pointer_cast<Position>(pos_deputy.sp_data_).get(), result, coo_id);
+//         };
+    
+//     DepId di;
+//     di.str = "dep";
+//     di.id = Communicator::global_id++;
+    
+//     auto proxy = (CurpPlusProxy *)pair.second;
+//     auto future = proxy->async_Dispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
+//     Future::safe_release(future);
+//   }
+
+//   e->Wait();
+
+//   return e;
+// }
+
 shared_ptr<CurpDispatchQuorumEvent>
 Communicator::CurpBroadcastDispatch(
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
@@ -402,12 +457,11 @@ Communicator::CurpBroadcastDispatch(
         [e, this](Future* fu) {
           // Log_info("[copilot+] callback function [1] in Communicator::CurpBroadcastDispatch");
           bool_t accepted;
-          MarshallDeputy pos_deputy;
+          pos_t pos0, pos1;
           value_t result;
           siteid_t coo_id;
-          vector<slotid_t> pos;
-          fu->get_reply() >> accepted >> pos >> result >> coo_id;
-          e->FeedResponse(accepted, *dynamic_pointer_cast<Position>(pos_deputy.sp_data_).get(), result, coo_id);
+          fu->get_reply() >> accepted >> pos0 >> pos1 >> result >> coo_id;
+          e->FeedResponse(accepted, pos0, pos1, result, coo_id);
         };
     
     DepId di;
@@ -415,7 +469,7 @@ Communicator::CurpBroadcastDispatch(
     di.id = Communicator::global_id++;
     
     auto proxy = (CurpPlusProxy *)pair.second;
-    auto future = proxy->async_Dispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
+    auto future = proxy->async_PoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }
 
@@ -429,7 +483,41 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
   shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
   VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
   shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
-  return CurpBroadcastDispatch(sp_vec_piece);
+  verify(!sp_vec_piece->empty());
+  auto par_id = sp_vec_piece->at(0)->PartitionId();
+  
+  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+  MarshallDeputy md(cmd);
+
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, quorumSize(n));
+
+  for (auto& pair : rpc_par_proxies_[par_id]) {
+    rrr::FutureAttr fuattr;
+    fuattr.callback =
+        [e, this](Future* fu) {
+          // Log_info("[copilot+] callback function [1] in Communicator::CurpBroadcastDispatch");
+          bool_t accepted;
+          pos_t pos0, pos1;
+          value_t result;
+          siteid_t coo_id;
+          fu->get_reply() >> accepted >> pos0 >> pos1 >> result >> coo_id;
+          e->FeedResponse(accepted, pos0, pos1, result, coo_id);
+        };
+    
+    DepId di;
+    di.str = "dep";
+    di.id = Communicator::global_id++;
+    
+    auto proxy = (CurpPlusProxy *)pair.second;
+    auto future = proxy->async_PoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
+    Future::safe_release(future);
+  }
+
+  e->Wait();
+
+  return e;
 }
 
 shared_ptr<QuorumEvent> 

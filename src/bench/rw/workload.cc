@@ -56,12 +56,18 @@ RwWorkload::RwWorkload(Config *config) : Workload(config) {
 void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
   req->n_try_ = n_try_;
   std::vector<double> weights = {txn_weights_["read"], txn_weights_["write"]};
+  int32_t key, value;
   switch (RandomGenerator::weighted_select(weights)) {
     case 0: // read
       GenerateReadRequest(req, cid);
+      key = req->input_.values_->at(0).get_i32();
+      // Log_info("[CURP] Generate RW Read %d", key);
       break;
     case 1: // write
       GenerateWriteRequest(req, cid);
+      key = req->input_.values_->at(0).get_i32();
+      value = req->input_.values_->at(1).get_i32();
+      // Log_info("[CURP] Generate RW Write %d %d", key, value);
       break;
     default:
       verify(0);

@@ -9,20 +9,41 @@ CurpPlusServiceImpl::CurpPlusServiceImpl(TxLogServer *sched)
 
 }
 
-void CurpPlusServiceImpl::Dispatch(const int32_t& client_id,
+// void CurpPlusServiceImpl::Dispatch(const int32_t& client_id,
+//                                     const int32_t& cmd_id_in_client,
+//                                     const MarshallDeputy& cmd,
+//                                     bool_t* accepted,
+//                                     MarshallDeputy* pos,
+//                                     int32_t* result,
+//                                     siteid_t* coo_id,
+//                                     rrr::DeferredReply* defer) {
+//   verify(sched_ != nullptr);
+//   sched_->OnDispatch(client_id,
+//                       cmd_id_in_client,
+//                       const_cast<MarshallDeputy&>(cmd).sp_data_,
+//                       accepted,
+//                       pos,
+//                       result,
+//                       coo_id,
+//                       bind(&rrr::DeferredReply::reply, defer));
+// }
+
+void CurpPlusServiceImpl::PoorDispatch(const int32_t& client_id,
                                     const int32_t& cmd_id_in_client,
                                     const MarshallDeputy& cmd,
                                     bool_t* accepted,
-                                    MarshallDeputy* pos,
+                                    pos_t* pos0,
+                                    pos_t* pos1,
                                     int32_t* result,
                                     siteid_t* coo_id,
                                     rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-  sched_->OnDispatch(client_id,
+  sched_->OnPoorDispatch(client_id,
                       cmd_id_in_client,
                       const_cast<MarshallDeputy&>(cmd).sp_data_,
                       accepted,
-                      pos,
+                      pos0,
+                      pos1,
                       result,
                       coo_id,
                       bind(&rrr::DeferredReply::reply, defer));

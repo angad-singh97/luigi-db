@@ -12,7 +12,8 @@
 
 namespace janus {
 
-struct CurpPlusData {
+class CurpPlusData {
+ public:
   enum CurpPlusStatus {
     init = 0,
     fastAccepted = 1,
@@ -44,7 +45,9 @@ struct ResponseData {
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
   int accept_count_ = 0, max_accept_count_ = 0;
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
-    shared_ptr<CmdData> md = dynamic_pointer_cast<CmdData>(cmd);
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    VecPieceData *vecPiece = (VecPieceData*)(tpc_cmd->cmd_.get());
+    shared_ptr<CmdData> md = vecPiece->sp_vec_piece_data_->at(0);
     pair<int, int> cmd_id = {md->client_id_, md->cmd_id_in_client_};
     responses_[cmd_id].push_back(cmd);
     accept_count_++;
@@ -65,14 +68,14 @@ class CurpPlusServer : public TxLogServer {
   slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
   slotid_t max_executed_slot_ = 0;
   slotid_t max_committed_slot_ = 0;
-  map<key_t, CurpPlusDataCol> log_cols_{};
+  map<key_t, shared_ptr<CurpPlusDataCol> > log_cols_{};
   int n_prepare_ = 0;
   int n_accept_ = 0;
   int n_commit_ = 0;
   bool in_applying_logs_{false};
   int test_test_test_ = -1; 
 
-  map<pair<key_t, slotid_t>, ResponseData> response_storage_;
+  map<pair<pos_t, pos_t>, ResponseData> response_storage_;
 
   CurpPlusCommo *commo() {
     verify(commo_ != nullptr);
@@ -98,6 +101,16 @@ class CurpPlusServer : public TxLogServer {
                   siteid_t* coo_id,
                   const function<void()> &cb);
   
+  void OnPoorDispatch(const int32_t& client_id,
+                      const int32_t& cmd_id_in_client,
+                      const shared_ptr<Marshallable>& cmd,
+                      bool_t* accepted,
+                      pos_t* pos0,
+                      pos_t* pos1,
+                      value_t* result,
+                      siteid_t* coo_id,
+                      const function<void()> &cb);
+
   void OnWaitCommit(const int32_t& client_id,
                     const int32_t& cmd_id_in_client,
                     bool_t* committed,

@@ -103,7 +103,8 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   CurpDispatchQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
-  void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
+  // void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
+  void FeedResponse(bool_t accepted, pos_t pos0, pos_t pos1, value_t result, siteid_t coo_id);
   bool FastYes();
   bool FastNo();
   bool IsReady() override;

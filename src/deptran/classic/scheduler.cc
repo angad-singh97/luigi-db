@@ -233,6 +233,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
   if (Config::GetConfig()->IsReplicated()) {
     auto cmd = std::make_shared<TpcCommitCommand>();
     cmd->tx_id_ = tx_id;
+    // Log_info("[CURP] tx_id=%d");
     cmd->ret_ = commit_or_abort;
     cmd->cmd_ = sp_tx->cmd_;
     sp_tx->is_leader_hint_ = true;

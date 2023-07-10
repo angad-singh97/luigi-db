@@ -231,10 +231,10 @@ void CoordinatorClassic::DispatchAsync() {
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
     }
-    Log_info("[copilot+] loc_id_=%d phase_=%d", this->loc_id_, phase_);
+    // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
 
 #ifndef SKIP_TXN_SERVER
-    Log_info("SKIP_TXN_SERVER off");
+    // Log_info("SKIP_TXN_SERVER off");
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,

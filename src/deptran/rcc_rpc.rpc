@@ -26,14 +26,23 @@ abstract service MultiPaxos {
 
 abstract service CurpPlus {
 
-  defer Dispatch(int32_t client_id,
-                int32_t cmd_id_in_client,
-                MarshallDeputy cmd |
-                bool_t accepted,
-                MarshallDeputy pos,
-                int32_t result,
-                siteid_t coo_id);
+//  defer Dispatch(int32_t client_id,
+//                int32_t cmd_id_in_client,
+//                MarshallDeputy cmd |
+//                bool_t accepted,
+//                MarshallDeputy pos,
+//                int32_t result,
+//                siteid_t coo_id);
   
+  defer PoorDispatch(int32_t client_id,
+                    int32_t cmd_id_in_client,
+                    MarshallDeputy cmd |
+                    bool_t accepted,
+                    int32_t pos0,
+                    int32_t pos1,
+                    int32_t result,
+                    siteid_t coo_id);
+
   defer WaitCommit(int32_t client_id,
                   int32_t cmd_id_in_client |
                   bool_t committed)
@@ -41,10 +50,20 @@ abstract service CurpPlus {
   defer Forward(MarshallDeputy pos,
                 MarshallDeputy cmd,
                 bool_t accepted);
+
+//  defer PoorForward(int32_t pos0,
+//                    int32_t pos1,
+//                    MarshallDeputy cmd,
+//                    bool_t accepted);
   
   defer CoordinatorAccept(MarshallDeputy pos,
                           MarshallDeputy cmd |
                           bool_t accepted);
+  
+//  defer PoorCoordinatorAccept(int32_t pos0,
+//                              int32_t pos1,
+//                              MarshallDeputy cmd |
+//                              bool_t accepted);
 
   defer Prepare(MarshallDeputy pos,
                 ballot_t ballot |
@@ -54,15 +73,34 @@ abstract service CurpPlus {
                 MarshallDeputy last_accepted_cmd,
                 ballot_t last_accepted_ballot);
 
+//  defer PoorPrepare(int32_t pos0,
+//                    int32_t pos1,
+//                    ballot_t ballot |
+//                    bool_t accepted,
+//                    ballot_t seen_ballot,
+//                    i32 last_accepted_status,
+//                    MarshallDeputy last_accepted_cmd,
+//                    ballot_t last_accepted_ballot);
+
   defer Accept(MarshallDeputy pos,
                 MarshallDeputy md_cmd,
                 ballot_t ballot |
                 bool_t accepted,
                 ballot_t seen_ballot);
 
+//  defer PoorAccept(int32_t pos0,
+//                    int32_t pos1,
+//                    MarshallDeputy md_cmd,
+//                    ballot_t ballot |
+//                    bool_t accepted,
+//                    ballot_t seen_ballot);
+
   defer Commit(MarshallDeputy pos,
                 MarshallDeputy md_cmd);
-	       
+
+//  defer PoorCommit(int32_t pos0,
+//                    int32_t pos1,
+//                    MarshallDeputy md_cmd);       
 }
 
 abstract service Mencius {
