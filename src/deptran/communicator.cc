@@ -390,6 +390,18 @@ void Communicator::BroadcastDispatch(
 	di.str = "dep";
 	di.id = Communicator::global_id++;
   
+#ifdef CURP_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
 }
@@ -440,6 +452,7 @@ void Communicator::BroadcastDispatch(
 shared_ptr<CurpDispatchQuorumEvent>
 Communicator::CurpBroadcastDispatch(
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
+  verify(0);
   // cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
@@ -511,6 +524,13 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     di.id = Communicator::global_id++;
     
     auto proxy = (CurpPlusProxy *)pair.second;
+
+#ifdef CURP_TIME_DEBUG
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    Log_info("[CURP] [1-] [tx=%d] async_PoorDispatch called by Submit %.3f", tpc_cmd->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
     auto future = proxy->async_PoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }

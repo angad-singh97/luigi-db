@@ -155,10 +155,18 @@ namespace janus {
     shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
     // [CURP] TODO: ugly here, maybe problem
     tpc_cmd->ret_ = SUCCESS;
-    if (accepted_num >= commo()->fastQuorumSize(n_replica)) {
+    // [CURP] TODO: change back to function
+    // if (accepted_num >= commo()->fastQuorumSize(n_replica)) {
+    if (accepted_num >= (n_replica * 3 - 1) / 4 + 1) {
       commo()->BroadcastCommit(partition_id_, pos, cmd);
+#ifdef CURP_TIME_DEBUG
+      struct timeval tp;
+      gettimeofday(&tp, NULL);
+      Log_info("[CURP] [3-] [tx=%d] Before app_next_ %.3f", dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
       app_next_(*tpc_cmd);
-    } else if (accepted_num >= commo()->quorumSize(n_replica) /*&& max_accepted_num >= commo()->smallQuorumSize(n_replica)*/) {
+    // } else if (accepted_num >= commo()->quorumSize(n_replica) && max_accepted_num >= commo()->smallQuorumSize(n_replica)) {
+    } else if ((accepted_num >= n_replica - ((n_replica + 1) / 2 - 1)) && (max_accepted_num >= (n_replica - 1) / 4 + 1)) {
       // [CURP] TODO: check this condition
       shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent> quorum = commo()->BroadcastCoordinatorAccept(partition_id_, pos, cmd);
       quorum->Wait();

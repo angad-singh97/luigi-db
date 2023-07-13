@@ -55,6 +55,18 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   TxnOutput* output,
                                   uint64_t* coro_id,
                                   rrr::DeferredReply* defer) {
+#ifdef CURP_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C+] Received Dispatch %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C+] Received Dispatch %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
   Log_debug("The server side receives a message from the client worker");
   // Log_info("[copilot+] [1+] enter ClassicServiceImpl::Dispatch");
 

@@ -133,6 +133,8 @@ namespace janus {
 #define YES (1)
 #define NO  (0)
 
-//#define COPILOT_DEBUG
+// #define COPILOT_DEBUG
+// #define CURP_TIME_DEBUG
+// #define COPILOT_TIME_DEBUG
 
 } // namespace janus

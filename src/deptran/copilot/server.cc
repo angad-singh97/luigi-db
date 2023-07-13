@@ -334,6 +334,11 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   *max_ballot = ballot;
   *ret_dep = suggest_dep;
 
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [2-] [tx=%d] Before on FastAccept cb() %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
   if (cb) {
     pingpong_event_.Set(1);
     pingpong_ok_ = true;

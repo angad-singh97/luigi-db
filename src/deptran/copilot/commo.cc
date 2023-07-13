@@ -184,6 +184,12 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
 
       verify(cmd);
       MarshallDeputy md(cmd);
+
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [1-] [tx=%d] async_FastAccept called by Submit %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
       Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
       e->AddXid(site, f->get_xid());
       Future::safe_release(f);

@@ -18,7 +18,7 @@ void CoordinatorCurpPlus::Submit(shared_ptr<Marshallable>& cmd,
                                   const std::function<void()>& commit_callback,
                                   const std::function<void()>& exe_callback) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  
+
   shared_ptr<CurpDispatchQuorumEvent> sq_quorum = commo()->CurpBroadcastDispatch(cmd);
   commit_callback_ = commit_callback;
 

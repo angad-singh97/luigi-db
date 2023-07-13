@@ -54,9 +54,19 @@ int SchedulerNoneCopilot::OnCommit(cmdid_t tx_id,
 				Log_info("avg batch size %f", (double)total_/submit_);
 			shared_ptr<Coordinator> coo(CreateRepCoord(dep_id.id));
 			auto sp_m = dynamic_pointer_cast<Marshallable>(batch_cmd);
+#ifdef COPILOT_TIME_DEBUG
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    Log_info("[CURP] [0/start] [tx=%d] before submit %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
 			coo->Submit(sp_m);
 		}
 		sp_tx->commit_result->Wait();
+#ifdef COPILOT_TIME_DEBUG
+	struct timeval tp;
+    gettimeofday(&tp, NULL);
+    Log_info("[CURP] [end] [tx=%d] after commit_result wait %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
 	} else {
 		if (commit_or_abort == SUCCESS) {
 			DoCommit(*sp_tx);

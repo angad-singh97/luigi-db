@@ -75,6 +75,7 @@ Frame* Frame::GetFrame(int mode) {
   // some built-in mode
   switch (mode) {
     case MODE_NONE:
+    case MODE_NONE_COPILOT:
     case MODE_NOTX:
     case MODE_MDCC:
     case MODE_2PL:

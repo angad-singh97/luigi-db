@@ -38,6 +38,13 @@ void CurpPlusServiceImpl::PoorDispatch(const int32_t& client_id,
                                     siteid_t* coo_id,
                                     rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
+
+#ifdef CURP_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [1+] [tx=%d] on PoorDispatch %.3f", dynamic_pointer_cast<TpcCommitCommand>(const_cast<MarshallDeputy&>(cmd).sp_data_)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
   sched_->OnPoorDispatch(client_id,
                       cmd_id_in_client,
                       const_cast<MarshallDeputy&>(cmd).sp_data_,
@@ -65,6 +72,13 @@ void CurpPlusServiceImpl::Forward(const MarshallDeputy& pos,
                                         const bool_t& accepted,
                                         rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
+
+#ifdef CURP_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [2+] [tx=%d] on Forward %.3f", dynamic_pointer_cast<TpcCommitCommand>(const_cast<MarshallDeputy&>(cmd).sp_data_)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
   sched_->OnForward(dynamic_pointer_cast<Position>(const_cast<MarshallDeputy&>(pos).sp_data_),
                     const_cast<MarshallDeputy&>(cmd).sp_data_,
                     accepted);
@@ -76,6 +90,7 @@ void CurpPlusServiceImpl::CoordinatorAccept(const MarshallDeputy& pos,
                                                   bool_t* accepted,
                                                   rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
+
   sched_->OnCoordinatorAccept(dynamic_pointer_cast<Position>(const_cast<MarshallDeputy&>(pos).sp_data_),
                               const_cast<MarshallDeputy&>(cmd).sp_data_,
                               accepted,

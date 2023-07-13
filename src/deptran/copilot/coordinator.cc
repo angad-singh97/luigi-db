@@ -180,6 +180,11 @@ void CoordinatorCopilot::FastAccept() {
   // Log_debug("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
 
   sq_quorum->Wait();
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [2+] [tx=%d] FastAccept quorum finish %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd_now_)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
   fac = Time::now(true) - begin;
 #ifdef DO_FINALIZE
   sq_quorum->Finalize(finalize_timeout_us,

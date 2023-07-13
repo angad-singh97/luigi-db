@@ -88,6 +88,13 @@ CurpPlusCommo::ForwardResultToCoordinator(parid_t par_id,
     if (0 == site) {
       FutureAttr fuattr;
       fuattr.callback = [](Future *fu) {};
+
+#ifdef CURP_TIME_DEBUG
+      struct timeval tp;
+      gettimeofday(&tp, NULL);
+      Log_info("[CURP] [2-] [tx=%d] Forward %.3f", dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
       Future *f = proxy->async_Forward(pos_deputy, cmd_deputy, accepted, fuattr);
       Future::safe_release(f);
     }
