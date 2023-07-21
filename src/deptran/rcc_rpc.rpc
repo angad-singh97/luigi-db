@@ -24,6 +24,70 @@ abstract service MultiPaxos {
 	       
 }
 
+abstract service MultiPaxosPlus {
+
+  defer Forward(MarshallDeputy cmd,
+                uint64_t dep_id |
+                uint64_t coro_id);
+
+  defer Prepare(uint64_t slot,
+                ballot_t ballot |
+                ballot_t max_ballot,
+                uint64_t coro_id);
+
+  defer Accept(uint64_t slot,
+               uint64_t time,
+               ballot_t ballot,
+               MarshallDeputy cmd |
+               ballot_t max_ballot,
+               uint64_t coro_id);
+
+  defer Decide(uint64_t slot,
+               ballot_t ballot,
+               MarshallDeputy cmd);
+
+  // below are about curp
+
+  defer CurpPoorDispatch(int32_t client_id,
+                    int32_t cmd_id_in_client,
+                    MarshallDeputy cmd |
+                    bool_t accepted,
+                    int32_t pos0,
+                    int32_t pos1,
+                    int32_t result,
+                    siteid_t coo_id);
+
+  defer CurpWaitCommit(int32_t client_id,
+                  int32_t cmd_id_in_client |
+                  bool_t committed)
+
+  defer CurpForward(MarshallDeputy pos,
+                MarshallDeputy cmd,
+                bool_t accepted);
+  
+  defer CurpCoordinatorAccept(MarshallDeputy pos,
+                          MarshallDeputy cmd |
+                          bool_t accepted);
+
+  defer CurpPrepare(MarshallDeputy pos,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot,
+                i32 last_accepted_status,
+                MarshallDeputy last_accepted_cmd,
+                ballot_t last_accepted_ballot);
+
+  defer CurpAccept(MarshallDeputy pos,
+                MarshallDeputy md_cmd,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot);
+
+  defer CurpCommit(MarshallDeputy pos,
+                MarshallDeputy md_cmd);
+	       
+}
+
 abstract service CurpPlus {
 
 //  defer Dispatch(int32_t client_id,
@@ -34,44 +98,44 @@ abstract service CurpPlus {
 //                int32_t result,
 //                siteid_t coo_id);
   
-  defer PoorDispatch(int32_t client_id,
-                    int32_t cmd_id_in_client,
-                    MarshallDeputy cmd |
-                    bool_t accepted,
-                    int32_t pos0,
-                    int32_t pos1,
-                    int32_t result,
-                    siteid_t coo_id);
+//  defer PoorDispatch(int32_t client_id,
+//                    int32_t cmd_id_in_client,
+//                    MarshallDeputy cmd |
+//                    bool_t accepted,
+//                    int32_t pos0,
+//                    int32_t pos1,
+//                    int32_t result,
+//                    siteid_t coo_id);
 
-  defer WaitCommit(int32_t client_id,
-                  int32_t cmd_id_in_client |
-                  bool_t committed)
+//  defer WaitCommit(int32_t client_id,
+//                  int32_t cmd_id_in_client |
+//                  bool_t committed)
 
-  defer Forward(MarshallDeputy pos,
-                MarshallDeputy cmd,
-                bool_t accepted);
+//  defer Forward(MarshallDeputy pos,
+//                MarshallDeputy cmd,
+//                bool_t accepted);
 
 //  defer PoorForward(int32_t pos0,
 //                    int32_t pos1,
 //                    MarshallDeputy cmd,
 //                    bool_t accepted);
   
-  defer CoordinatorAccept(MarshallDeputy pos,
-                          MarshallDeputy cmd |
-                          bool_t accepted);
+//  defer CoordinatorAccept(MarshallDeputy pos,
+//                          MarshallDeputy cmd |
+//                          bool_t accepted);
   
 //  defer PoorCoordinatorAccept(int32_t pos0,
 //                              int32_t pos1,
 //                              MarshallDeputy cmd |
 //                              bool_t accepted);
 
-  defer Prepare(MarshallDeputy pos,
-                ballot_t ballot |
-                bool_t accepted,
-                ballot_t seen_ballot,
-                i32 last_accepted_status,
-                MarshallDeputy last_accepted_cmd,
-                ballot_t last_accepted_ballot);
+//  defer Prepare(MarshallDeputy pos,
+//                ballot_t ballot |
+//                bool_t accepted,
+//                ballot_t seen_ballot,
+//                i32 last_accepted_status,
+//                MarshallDeputy last_accepted_cmd,
+//                ballot_t last_accepted_ballot);
 
 //  defer PoorPrepare(int32_t pos0,
 //                    int32_t pos1,
@@ -82,11 +146,11 @@ abstract service CurpPlus {
 //                    MarshallDeputy last_accepted_cmd,
 //                    ballot_t last_accepted_ballot);
 
-  defer Accept(MarshallDeputy pos,
-                MarshallDeputy md_cmd,
-                ballot_t ballot |
-                bool_t accepted,
-                ballot_t seen_ballot);
+//  defer Accept(MarshallDeputy pos,
+//                MarshallDeputy md_cmd,
+//                ballot_t ballot |
+//                bool_t accepted,
+//                ballot_t seen_ballot);
 
 //  defer PoorAccept(int32_t pos0,
 //                    int32_t pos1,
@@ -95,8 +159,8 @@ abstract service CurpPlus {
 //                    bool_t accepted,
 //                    ballot_t seen_ballot);
 
-  defer Commit(MarshallDeputy pos,
-                MarshallDeputy md_cmd);
+//  defer Commit(MarshallDeputy pos,
+//                MarshallDeputy md_cmd);
 
 //  defer PoorCommit(int32_t pos0,
 //                    int32_t pos1,
@@ -123,7 +187,68 @@ abstract service Mencius {
   defer Decide(uint64_t slot,
                ballot_t ballot,
                MarshallDeputy cmd);
-	       
+}
+
+abstract service MenciusPlus {
+
+  defer Prepare(uint64_t slot,
+                ballot_t ballot |
+                ballot_t max_ballot,
+                uint64_t coro_id);
+
+  defer Suggest(uint64_t slot,
+               uint64_t time,
+               ballot_t ballot,
+               uint64_t sender,
+               vector<uint64_t> skip_commits,
+               vector<uint64_t> skip_potentials,
+               MarshallDeputy cmd |
+               ballot_t max_ballot,
+               uint64_t coro_id);
+
+  defer Decide(uint64_t slot,
+               ballot_t ballot,
+               MarshallDeputy cmd);
+	
+  // below are about curp
+
+  defer CurpPoorDispatch(int32_t client_id,
+                    int32_t cmd_id_in_client,
+                    MarshallDeputy cmd |
+                    bool_t accepted,
+                    int32_t pos0,
+                    int32_t pos1,
+                    int32_t result,
+                    siteid_t coo_id);
+
+  defer CurpWaitCommit(int32_t client_id,
+                  int32_t cmd_id_in_client |
+                  bool_t committed)
+
+  defer CurpForward(MarshallDeputy pos,
+                MarshallDeputy cmd,
+                bool_t accepted);
+  
+  defer CurpCoordinatorAccept(MarshallDeputy pos,
+                          MarshallDeputy cmd |
+                          bool_t accepted);
+
+  defer CurpPrepare(MarshallDeputy pos,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot,
+                i32 last_accepted_status,
+                MarshallDeputy last_accepted_cmd,
+                ballot_t last_accepted_ballot);
+
+  defer CurpAccept(MarshallDeputy pos,
+                MarshallDeputy md_cmd,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot);
+
+  defer CurpCommit(MarshallDeputy pos,
+                MarshallDeputy md_cmd);
 }
 
 abstract service FpgaRaft {
@@ -246,6 +371,46 @@ abstract service CopilotPlus {
                uint64_t slot,
                uint64_t dep,
                MarshallDeputy cmd);
+  
+  // below are about curp
+
+  defer CurpPoorDispatch(int32_t client_id,
+                    int32_t cmd_id_in_client,
+                    MarshallDeputy cmd |
+                    bool_t accepted,
+                    int32_t pos0,
+                    int32_t pos1,
+                    int32_t result,
+                    siteid_t coo_id);
+
+  defer CurpWaitCommit(int32_t client_id,
+                  int32_t cmd_id_in_client |
+                  bool_t committed)
+
+  defer CurpForward(MarshallDeputy pos,
+                MarshallDeputy cmd,
+                bool_t accepted);
+  
+  defer CurpCoordinatorAccept(MarshallDeputy pos,
+                          MarshallDeputy cmd |
+                          bool_t accepted);
+
+  defer CurpPrepare(MarshallDeputy pos,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot,
+                i32 last_accepted_status,
+                MarshallDeputy last_accepted_cmd,
+                ballot_t last_accepted_ballot);
+
+  defer CurpAccept(MarshallDeputy pos,
+                MarshallDeputy md_cmd,
+                ballot_t ballot |
+                bool_t accepted,
+                ballot_t seen_ballot);
+
+  defer CurpCommit(MarshallDeputy pos,
+                MarshallDeputy md_cmd);
 }
 
 // below is for 2PL and OCC

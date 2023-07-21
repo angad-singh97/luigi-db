@@ -165,18 +165,7 @@ class Coordinator {
                       const std::function<void()>& exe_callback = [](){}) {
     verify(0);
   }
-  // /***************************************PLUS Begin***********************************************************/
 
-  // virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
-  //                         bool_t& accepted,
-  //                         Position& pos,
-  //                         value_t& result,
-  //                         const std::function<void()>& commit_callback = [](){},
-  //                         const std::function<void()>& exe_callback = [](){}) {
-  //   verify(0);
-  // }
-
-  // /***************************************PLUS End***********************************************************/
   virtual void Reset() {
     committed_ = false;
     commit_reported_ = false;
@@ -207,6 +196,14 @@ class Coordinator {
   }
   virtual void restart(TxData *ch) {verify(0);};
   virtual void Restart() = 0;
+
+  // below are about CURP
+  
+  virtual void CurpSubmit(shared_ptr<Marshallable>& cmd,
+                      const std::function<void()>& commit_callback = [](){},
+                      const std::function<void()>& exe_callback = [](){}) {
+    verify(0);
+  }
 };
 
 } // namespace janus

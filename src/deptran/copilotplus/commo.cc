@@ -30,7 +30,7 @@ uint64_t CopilotPlusFastAcceptQuorumEvent::GetFinalDep() {
 }
 
 bool CopilotPlusFastAcceptQuorumEvent::FastYes() {
-  return n_fastac_ok_ >= CopilotPlusCommo::fastQuorumSize(n_total_);
+  return n_fastac_ok_ >= CopilotPlusCommo::CurpFastQuorumSize(n_total_);
 }
 
 bool CopilotPlusFastAcceptQuorumEvent::FastNo() {
@@ -93,36 +93,36 @@ void CopilotPlusPrepareQuorumEvent::Show() {
 
 CopilotPlusCommo::CopilotPlusCommo(PollMgr *poll) : Communicator(poll) {}
 
-shared_ptr<CopilotPlusForwardQuorumEvent>
-CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
-                                              shared_ptr<Marshallable>& cmd,
-                                              Position pos,
-                                              bool_t accepted) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CopilotPlusForwardQuorumEvent>(1, 1);
-  auto proxies = rpc_par_proxies_[par_id];
-  for (auto& p : proxies) {
-    auto proxy = (CopilotPlusProxy *)p.second;
-    auto site = p.first;
-    // TODO: generalize
-    if (0 == site) {
-      FutureAttr fuattr;
-      fuattr.callback = [e](Future *fu) {
-        // TODO
-        // MarshallDeputy md;
+// shared_ptr<CopilotPlusForwardQuorumEvent>
+// CopilotPlusCommo::ForwardResultToCoordinator(parid_t par_id,
+//                                               shared_ptr<Marshallable>& cmd,
+//                                               Position pos,
+//                                               bool_t accepted) {
+//   int n = Config::GetConfig()->GetPartitionSize(par_id);
+//   auto e = Reactor::CreateSpEvent<CopilotPlusForwardQuorumEvent>(1, 1);
+//   auto proxies = rpc_par_proxies_[par_id];
+//   for (auto& p : proxies) {
+//     auto proxy = (CopilotPlusProxy *)p.second;
+//     auto site = p.first;
+//     // TODO: generalize
+//     if (0 == site) {
+//       FutureAttr fuattr;
+//       fuattr.callback = [e](Future *fu) {
+//         // TODO
+//         // MarshallDeputy md;
 
-        // slotid_t sgs_i_y, sgs_i_n, sgs_j_y, sgs_j_n; // sgs -> suggested
-        // ballot_t b;
-        // fu->get_reply() >> accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n >> b;
-        // e->FeedResponse(accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n);
-      };
+//         // slotid_t sgs_i_y, sgs_i_n, sgs_j_y, sgs_j_n; // sgs -> suggested
+//         // ballot_t b;
+//         // fu->get_reply() >> accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n >> b;
+//         // e->FeedResponse(accepted >> sgs_i_y >> sgs_i_n >> sgs_j_y >> sgs_j_n);
+//       };
 
-      // Future *f = proxy->async_Forward(accepted, i_y, i_n, j_y, j_n, ballot, fuattr);
-      // Future::safe_release(f);
-    }
-  }
-  return nullptr;
-}
+//       // Future *f = proxy->async_Forward(accepted, i_y, i_n, j_y, j_n, ballot, fuattr);
+//       // Future::safe_release(f);
+//     }
+//   }
+//   return nullptr;
+// }
 
 shared_ptr<CopilotPlusPrepareQuorumEvent>
 CopilotPlusCommo::BroadcastPrepare(parid_t par_id,
@@ -130,7 +130,7 @@ CopilotPlusCommo::BroadcastPrepare(parid_t par_id,
                                slotid_t slot_id,
                                ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CopilotPlusPrepareQuorumEvent>(n, quorumSize(n));
+  auto e = Reactor::CreateSpEvent<CopilotPlusPrepareQuorumEvent>(n, CurpQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
@@ -179,7 +179,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
                                   shared_ptr<Marshallable> cmd) {
   Log_info("[copilot+] [BroadcastFastAccept+]");
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CopilotPlusFastAcceptQuorumEvent>(n, fastQuorumSize(n));
+  auto e = Reactor::CreateSpEvent<CopilotPlusFastAcceptQuorumEvent>(n, CurpFastQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
@@ -191,7 +191,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 #ifdef SKIP
     if (site == 1) continue;
 #endif
-    if (1==0/*site == loc_id_*/) { //[TODO: recover it to site == loc_id_]bt
+    if (1==0/*site == loc_id_*/) { //[TODO: recover it to site == loc_id_]
       ballot_t b;
       slotid_t sgst_dep;
       static_cast<CopilotPlusServer *>(rep_sched_)->OnFastAccept(
@@ -203,10 +203,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
       fuattr.callback = [e, dep, ballot, site](Future *fu) {
         ballot_t b;
         slotid_t sgst_dep;
-        Log_info("[copilot+] try to reply");
-        // fu->get_reply() >> b >> sgst_dep;
-        fu->get_reply() >> b;
-        fu->get_reply() >> sgst_dep;
+        fu->get_reply() >> b >> sgst_dep;
         bool ok = (ballot == b);
         e->FeedResponse(ok, sgst_dep == dep);
         if (ok) {
@@ -237,7 +234,7 @@ CopilotPlusCommo::BroadcastAccept(parid_t par_id,
                               uint64_t dep,
                               shared_ptr<Marshallable> cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CopilotAcceptQuorumEvent>(n, quorumSize(n));
+  auto e = Reactor::CreateSpEvent<CopilotAcceptQuorumEvent>(n, CurpQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
@@ -308,12 +305,12 @@ inline int CopilotPlusCommo::maxFailure(int total) {
   return (total + 1) / 2 - 1;
 }
 
-inline int CopilotPlusCommo::fastQuorumSize(int total) {
+inline int CopilotPlusCommo::CurpFastQuorumSize(int total) {
   int max_fail = maxFailure(total);
   return max_fail + (max_fail + 1) / 2 + 1;
 }
 
-inline int CopilotPlusCommo::quorumSize(int total) {
+inline int CopilotPlusCommo::CurpQuorumSize(int total) {
   return total - maxFailure(total);
 }
 

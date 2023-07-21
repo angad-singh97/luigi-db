@@ -10,7 +10,7 @@
 
 namespace janus {
 
-REG_FRAME(MODE_MENCIUS, vector<string>({"Mencius"}), MenciusFrame);
+REG_FRAME(MODE_MENCIUS, vector<string>({"mencius"}), MenciusFrame);
 
 MenciusFrame::MenciusFrame(int mode) : Frame(mode) {
 

@@ -9,25 +9,6 @@
 const uint64_t PINGPONG_TIMEOUT_US = 500;
 
 namespace janus {
-/***************************************PLUS Begin***********************************************************/
-slotid_t CopilotPlusServer::find_key(key_t key, uint8_t is_pilot) {
-  auto lastest_slot = lastest_slot_map_[is_pilot].find(key);
-  if (lastest_slot == lastest_slot_map_[is_pilot].end()) {
-    return -1;
-  } else {
-    return lastest_slot->second;
-  }
-}
-
-bool CopilotPlusServer::check_slot_vector_last_committed(slotid_t slot, uint8_t is_pilot) {
-  return log_infos_[is_pilot].logs[slot]->status == COMMITED;
-}
-
-slotid_t CopilotPlusServer::push_back_cmd_to_slot(slotid_t slot, uint8_t is_pilot, shared_ptr<Marshallable>& cmd) {
-  log_infos_[is_pilot].logs[slot]->attached_.push_back(cmd);
-  return log_infos_[is_pilot].logs[slot]->attached_.size() - 1;
-}
-/***************************************PLUS End***********************************************************/
 
 const char* CopilotPlusServer::toString(uint8_t is_pilot) {
   if (is_pilot)

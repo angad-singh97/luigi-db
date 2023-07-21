@@ -94,9 +94,11 @@ namespace janus {
 #define MODE_DEPTRAN (4)
 
 #define MODE_MULTI_PAXOS   (0x40)
+#define MODE_MULTI_PAXOS_PLUS   (0x41)
 #define MODE_EPAXOS        (0x80)
 #define MODE_TAPIR         (0x100)
 #define MODE_MENCIUS       (0x200)
+#define MODE_MENCIUS_PLUS       (0x201)
 #define MODE_CAROUSEL (0x2000)
 #define MODE_FPGA_RAFT (0x400)
 #define MODE_COPILOT        (0x4000)
@@ -136,5 +138,6 @@ namespace janus {
 // #define COPILOT_DEBUG
 // #define CURP_TIME_DEBUG
 // #define COPILOT_TIME_DEBUG
+#define FINISH_COUNTDOWN_MAX (1)
 
 } // namespace janus

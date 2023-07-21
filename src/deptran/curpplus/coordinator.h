@@ -7,9 +7,12 @@
 #include "../RW_command.h"
 #include "../position.h"
 #include "server.h"
+#include "commo.h"
 #include <chrono>
 
 namespace janus {
+
+
 
 class CurpPlusCommo;
 class CurpPlusServer;
@@ -17,6 +20,13 @@ class CoordinatorCurpPlus : public Coordinator {
  public:
   CurpPlusServer* sch_ = nullptr;
   uint32_t n_replica_ = 0;
+
+  // /***********************Multicast begin************************/
+
+  // CurpDispatchQuorumEvent::ResponsePack max_response_;
+  // int cmd_coount = 0;
+
+  // /***********************Multicast end**************************/
 
   CurpPlusCommo *commo() {
     verify(commo_ != nullptr);
@@ -40,13 +50,6 @@ class CoordinatorCurpPlus : public Coordinator {
   //   return this->loc_id_ == 0;
   // }
 
-  // slotid_t GetNextSlot() {
-  //   verify(0);
-  //   verify(slot_hint_ != nullptr);
-  //   slot_id_ = (*slot_hint_)++;
-  //   return 0;
-  // }
-
   void DoTxAsync(TxRequest &req) override {}
   void Restart() override { verify(0); }
 
@@ -57,9 +60,11 @@ class CoordinatorCurpPlus : public Coordinator {
   //                         const std::function<void()>& commit_callback = [](){},
   //                         const std::function<void()>& exe_callback = [](){}) override;
 
-  virtual void Submit(shared_ptr<Marshallable>& cmd,
-                      const std::function<void()>& commit_callback = [](){},
-                      const std::function<void()>& exe_callback = [](){}) override;
+  // virtual void Submit(shared_ptr<Marshallable>& cmd,
+  //                     const std::function<void()>& commit_callback = [](){},
+  //                     const std::function<void()>& exe_callback = [](){}) override;
+
+  // virtual void CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece);
 
 };
 

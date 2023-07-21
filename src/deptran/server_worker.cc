@@ -60,14 +60,33 @@ void ServerWorker::SetupBase() {
     rep_sched_->loc_id_ = site_info_->locale_id;
     rep_sched_->site_id_ = site_info_->id;
     rep_sched_->tx_sched_ = tx_sched_;
+
+    // curp_rep_frame_ = Frame::GetFrame(MODE_CURP_PLUS);
+    // curp_rep_frame_->site_info_ = site_info_;
+    // curp_rep_sched_ = curp_rep_frame_->CreateScheduler();
+    // curp_rep_sched_->txn_reg_ = tx_reg_;
+    // curp_rep_sched_->loc_id_ = site_info_->locale_id;
+    // curp_rep_sched_->site_id_ = site_info_->id;
+    // curp_rep_sched_->tx_sched_ = tx_sched_;
+
     tx_sched_->rep_frame_ = rep_frame_;
     tx_sched_->rep_sched_ = rep_sched_;
+
+    // tx_sched_->curp_rep_frame_ = curp_rep_frame_;
+    // tx_sched_->curp_rep_sched_ = curp_rep_sched_;
+
+    // // link rep_sched_ with curp_rep_sched_
+    // rep_sched_->curp_rep_sched_ = curp_rep_sched_;
+    // curp_rep_sched_->rep_sched_ = rep_sched_;
   }
   // add callbacks to execute commands to rep_sched_
   if (rep_sched_ && tx_sched_) {
     rep_sched_->RegLearnerAction(std::bind(&TxLogServer::Next,
                                            tx_sched_,
                                            std::placeholders::_1));
+    // curp_rep_sched_->RegLearnerAction(std::bind(&TxLogServer::Next,
+    //                                             tx_sched_,
+    //                                             std::placeholders::_1));
   }
 }
 
@@ -152,6 +171,15 @@ void ServerWorker::SetupService() {
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
 
+  // if (curp_rep_frame_ != nullptr) {
+  //   auto s3 = curp_rep_frame_->CreateRpcServices(site_info_->id,
+  //                                               curp_rep_sched_,
+  //                                               svr_poll_mgr_,
+  //                                               scsi_);
+
+  //   services_.insert(services_.end(), s3.begin(), s3.end());
+  // }
+
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);
 
@@ -227,6 +255,18 @@ void ServerWorker::SetupCommo() {
 
     rep_commo_->rep_sched_ = rep_sched_;
   }
+  // if (curp_rep_frame_) {
+  //   curp_rep_commo_ = curp_rep_frame_->CreateCommo(svr_poll_mgr_);
+  //   if (curp_rep_commo_) {
+  //     curp_rep_commo_->loc_id_ = site_info_->locale_id;
+  //   }
+  //   verify(curp_rep_commo_ != nullptr);
+  //   rep_sched_->commo_ = curp_rep_commo_;
+  //   verify(rep_sched_->commo_ != nullptr);
+	// 	rep_sched_->Setup();
+
+  //   curp_rep_commo_->rep_sched_ = rep_sched_;
+  // }
 }
 
 void ServerWorker::Pause() {

@@ -23,6 +23,7 @@ class Workload;
 class Frame {
  public:
   Communicator *commo_ = nullptr;
+  Communicator *curp_commo_ = nullptr;
 
   // static variables to hold frames
   static map<string, int> &FrameNameToMode();

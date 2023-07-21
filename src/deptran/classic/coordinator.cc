@@ -245,34 +245,13 @@ void CoordinatorClassic::DispatchAsync() {
 #endif
 
 #ifdef SKIP_TXN_SERVER
+  verify(0);
   Log_info("SKIP_TXN_SERVER on");
   CurpBroadcastDispatch(sp_vec_piece);
 #endif
   }
 
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
-}
-
-void CoordinatorClassic::CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece) {
-  TxnOutput outputs;
-  siteid_t leader;
-  auto sq_quorum = commo()->CurpBroadcastDispatch(sp_vec_piece);
-  sq_quorum->Wait();
-  Log_info("[copilot+] After quorum");
-  if (sq_quorum->FastYes()) {
-    // Fastpath Success
-    Log_info("[copilot+] Fastpath Success");
-    CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
-  } else if (sq_quorum->timeouted_) {
-    // Fastpath timeout
-    Log_info("[copilot+] Fastpath Fail");
-    auto wait_quorum = commo()->DirectCurpBroadcastWaitCommit(sp_vec_piece, sq_quorum->GetCooId());
-    wait_quorum->Wait();
-    if (wait_quorum->Yes()) // 0 fail 1 success
-      CoordinatorClassic::DispatchAck(phase_, SUCCESS, outputs);
-    else
-      CoordinatorClassic::DispatchAck(phase_, REJECT, outputs);
-  }
 }
 
 

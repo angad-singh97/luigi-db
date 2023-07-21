@@ -74,7 +74,11 @@ class GetLeaderQuorumEvent : public QuorumEvent {
   }
 };
 
-/*********************************Multicast begin*****************************************/
+/************************CURP begin*********************************/
+int CurpMaxFailure(int total);
+int CurpFastQuorumSize(int total);
+int CurpQuorumSize(int total);
+int CurpSmallQuorumSize(int total);
 
 class CurpDispatchQuorumEvent: public QuorumEvent {
  public:
@@ -140,7 +144,63 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   
 };
 
-/*********************************Multicast end*****************************************/
+
+class CurpPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
+
+ public:
+  // using QuorumEvent::QuorumEvent;
+  CurpPlusCoordinatorAcceptQuorumEvent(int n_total)
+      : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+  }
+
+  void FeedResponse(bool y) {
+    if (y)
+      VoteYes();
+    else
+      VoteNo();
+  }
+};
+
+struct AcceptedCmd {
+  pair<int, int> cmd_id;
+  int last_accepted_status;
+  shared_ptr<Marshallable> last_accepted_cmd{nullptr};
+  ballot_t last_accepted_ballot;
+};
+
+class CurpPlusPrepareQuorumEvent : public QuorumEvent {
+  ballot_t max_seen_ballot_ = 0;
+  vector<AcceptedCmd> accepted_cmds_;
+  int count_ = 0;
+  shared_ptr<Marshallable> ready_cmd_{nullptr};
+ public:
+  // using QuorumEvent::QuorumEvent;
+  CurpPlusPrepareQuorumEvent(int n_total)
+      : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+
+  }
+
+  void FeedResponse(bool y, ballot_t seen_ballot, int last_accepted_status, MarshallDeputy last_accepted_cmd, ballot_t last_accepted_ballot);
+  bool CommitYes();
+  bool AcceptYes();
+  bool FastAcceptYes();
+  bool AcceptAnyYes();
+};
+
+class CurpPlusAcceptQuorumEvent : public QuorumEvent {
+  ballot_t max_seen_ballot_;
+ public:
+  // using QuorumEvent::QuorumEvent;
+  CurpPlusAcceptQuorumEvent(int n_total)
+      : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+
+  }
+
+  void FeedResponse(bool y, ballot_t seen_ballot);
+  bool FastYes();
+  bool FastNo();
+};
+/************************CURP end*********************************/
 
 class Communicator {
  public:
@@ -192,11 +252,6 @@ class Communicator {
   Communicator(PollMgr* poll_mgr = nullptr);
   virtual ~Communicator();
 
-  static int maxFailure(int total);
-  static int fastQuorumSize(int total);
-  static int quorumSize(int total);
-  static int smallQuorumSize(int total);
-
   SiteProxyPair RandomProxyForPartition(parid_t partition_id) const;
   SiteProxyPair LeaderProxyForPartition(parid_t, int idx=-1) const;
 
@@ -229,20 +284,6 @@ class Communicator {
   virtual void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
-  
-  virtual shared_ptr<CurpDispatchQuorumEvent>
-  CurpBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data);
-  
-  virtual shared_ptr<CurpDispatchQuorumEvent>
-  CurpBroadcastDispatch(shared_ptr<Marshallable> cmd);
-
-  virtual shared_ptr<QuorumEvent>
-  DirectCurpBroadcastWaitCommit(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                siteid_t coo_id);
-
-  virtual shared_ptr<QuorumEvent>
-  DirectCurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
-                                siteid_t coo_id);
 
 	shared_ptr<QuorumEvent> SendReelect();
 
@@ -302,6 +343,45 @@ class Communicator {
   void SetNewLeaderProxy(parid_t par_id, locid_t loc_id);
   void SendSimpleCmd(groupid_t gid, SimpleCommand& cmd, std::vector<int32_t>& sids,
       const function<void(int)>& callback);
+  
+
+  // below are about CURP
+
+  shared_ptr<CurpDispatchQuorumEvent>
+  CurpBroadcastDispatch(shared_ptr<Marshallable> cmd);
+
+
+  shared_ptr<QuorumEvent>
+  CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
+                              siteid_t coo_id);
+
+  shared_ptr<IntEvent>
+  CurpForwardResultToCoordinator(parid_t par_id,
+                            const shared_ptr<Marshallable>& cmd,
+                            Position pos,
+                            bool_t accepted);
+  
+  shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
+  CurpBroadcastCoordinatorAccept(parid_t par_id,
+                            shared_ptr<Position> pos,
+                            shared_ptr<Marshallable> cmd);
+
+  shared_ptr<CurpPlusPrepareQuorumEvent>
+  CurpBroadcastPrepare(parid_t par_id,
+                    shared_ptr<Position> pos,
+                    ballot_t ballot);
+
+  shared_ptr<CurpPlusAcceptQuorumEvent>
+  CurpBroadcastAccept(parid_t par_id,
+                  shared_ptr<Position> pos,
+                  shared_ptr<Marshallable> cmd,
+                  ballot_t ballot);
+
+  shared_ptr<IntEvent>
+  CurpBroadcastCommit(parid_t par_id,
+                  shared_ptr<Position> pos,
+                  shared_ptr<Marshallable> md_cmd,
+                  uint16_t ban_site);
 };
 
 } // namespace janus

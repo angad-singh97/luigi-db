@@ -34,14 +34,17 @@ class ServerWorker {
 
   Frame* tx_frame_ = nullptr;
   Frame* rep_frame_ = nullptr;
+  // Frame* curp_rep_frame_ = nullptr;
   Config::SiteInfo *site_info_ = nullptr;
   Sharding *sharding_ = nullptr;
   TxLogServer *tx_sched_ = nullptr;
   TxLogServer *rep_sched_ = nullptr;
+  // TxLogServer *curp_rep_sched_ = nullptr;
   shared_ptr<TxnRegistry> tx_reg_{nullptr};
 
   Communicator *tx_commo_ = nullptr;
   Communicator *rep_commo_ = nullptr;
+  // Communicator *curp_rep_commo_ = nullptr;
 
   bool launched_{false};
 

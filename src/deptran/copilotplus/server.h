@@ -94,9 +94,9 @@ class CopilotPlusServer : public TxLogServer {
  public:
   /***************************************PLUS Begin***********************************************************/
   std::map<key_t, slotid_t> lastest_slot_map_[2];
-  slotid_t find_key(key_t key, uint8_t is_pilot);
-  bool check_slot_vector_last_committed(slotid_t slot, uint8_t is_pilot);
-  slotid_t push_back_cmd_to_slot(slotid_t slot, uint8_t is_pilot, shared_ptr<Marshallable>& cmd);
+  // slotid_t find_key(key_t key, uint8_t is_pilot);
+  // bool check_slot_vector_last_committed(slotid_t slot, uint8_t is_pilot);
+  // slotid_t push_back_cmd_to_slot(slotid_t slot, uint8_t is_pilot, shared_ptr<Marshallable>& cmd);
   /***************************************PLUS End***********************************************************/
 
   CopilotPlusServer(Frame *frame);
