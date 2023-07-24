@@ -237,25 +237,11 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     cmd->ret_ = commit_or_abort;
     cmd->cmd_ = sp_tx->cmd_;
     sp_tx->is_leader_hint_ = true;
-    auto sp_m = dynamic_pointer_cast<Marshallable>(cmd);
-    bool fast_path = true;
+    shared_ptr<Marshallable> sp_m = dynamic_pointer_cast<Marshallable>(cmd);
     shared_ptr<Coordinator> coo{CreateRepCoord(dep_id.id)};
     coo->svr_workers_g = svr_workers_g;
-#ifdef CURP_TIME_DEBUG
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    Log_info("[CURP] [0/start] [tx=%d] before submit %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
-    bool fast_path_enabled = true;
-    if (fast_path_enabled)
-      coo->CurpSubmit(sp_m);
-    else
-      coo->Submit(sp_m);
+    FastPathManagerSubmit(coo, sp_m);
     sp_tx->commit_result->Wait();
-#ifdef CURP_TIME_DEBUG
-    gettimeofday(&tp, NULL);
-    Log_info("[CURP] [3+/end] [tx=%d] after commit_result wait %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
 		slow_ = coo->slow_;
   } else {
     if (commit_or_abort == SUCCESS) {
@@ -358,5 +344,16 @@ void SchedulerClassic::Next(Marshallable& cmd) {
     verify(0);
   }
 }
+
+void SchedulerClassic::FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m) {
+  bool fast_path_enabled = true;
+  if (fast_path_enabled) {
+    coo->CurpSubmit(sp_m);
+  } else {
+    coo->OriginalSubmit(sp_m);
+  }
+}
+
+
 
 } // namespace janus

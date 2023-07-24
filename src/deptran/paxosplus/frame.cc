@@ -60,7 +60,7 @@ Coordinator *MultiPaxosPlusFrame::CreateCoordinator(cooid_t coo_id,
   coo->frame_ = this;
   verify(commo_ != nullptr);
   coo->commo_ = commo_;
-  Log_info("[CURP] Coordinator %p has Commo %p", (void*)coo, (void*)commo_);
+  // Log_info("[CURP] Coordinator %p has Commo %p", (void*)coo, (void*)commo_);
   coo->slot_hint_ = &slot_hint_;
   coo->slot_id_ = slot_hint_++;
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);

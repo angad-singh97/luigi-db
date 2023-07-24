@@ -85,7 +85,10 @@ abstract service MultiPaxosPlus {
 
   defer CurpCommit(MarshallDeputy pos,
                 MarshallDeputy md_cmd);
-	       
+  
+  defer OriginalSubmit(MarshallDeputy cmd,
+                        i64 dep_id |
+                        bool_t slow);
 }
 
 abstract service CurpPlus {

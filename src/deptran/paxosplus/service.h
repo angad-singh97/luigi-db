@@ -90,7 +90,10 @@ class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService {
               const MarshallDeputy& md_cmd,
               rrr::DeferredReply* defer) override;
 
-
+  void OriginalSubmit(const MarshallDeputy& cmd,
+                    const rrr::i64& dep_id,
+                    bool_t* slow,
+                    rrr::DeferredReply* defer) override;
 };
 
 } // namespace janus

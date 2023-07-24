@@ -125,6 +125,21 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   in_applying_logs_ = false;
 }
 
+void PaxosPlusServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
+                                        const rrr::i64& dep_id,
+                                        bool_t* slow,
+                                        const function<void()> &cb) {
+  // Log_info("enter OnOriginalSubmit");
+  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_));
+  shared_ptr<Coordinator> coo{CreateRepCoord(dep_id)};
+  coo->svr_workers_g = svr_workers_g;
+  coo->Submit(cmd);
+  // [CURP] TODO: deal with slow
+  // sp_tx->commit_result->Wait();
+  // *slow = coo->slow_;
+  cb();
+}
+
 void PaxosPlusServer::Setup() {
   Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
         (void*)this, this->loc_id_, (void*)this->commo_);

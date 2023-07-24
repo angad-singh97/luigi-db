@@ -78,6 +78,10 @@ class SchedulerClassic: public TxLogServer {
 
   bool CheckCommitted(Marshallable& commit_cmd) override;
 
+private:
+
+  void FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m);
+
 };
 
 } // namespace janus

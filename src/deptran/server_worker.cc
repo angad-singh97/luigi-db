@@ -60,6 +60,8 @@ void ServerWorker::SetupBase() {
     rep_sched_->loc_id_ = site_info_->locale_id;
     rep_sched_->site_id_ = site_info_->id;
     rep_sched_->tx_sched_ = tx_sched_;
+    // [CURP] TODO: should I add this?
+    rep_sched_->rep_frame_ = rep_frame_;
 
     // curp_rep_frame_ = Frame::GetFrame(MODE_CURP_PLUS);
     // curp_rep_frame_->site_info_ = site_info_;

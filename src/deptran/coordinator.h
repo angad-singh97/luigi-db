@@ -204,6 +204,12 @@ class Coordinator {
                       const std::function<void()>& exe_callback = [](){}) {
     verify(0);
   }
+
+  virtual void OriginalSubmit(shared_ptr<Marshallable>& cmd,
+                      const std::function<void()>& commit_callback = [](){},
+                      const std::function<void()>& exe_callback = [](){}) {
+    verify(0);
+  }
 };
 
 } // namespace janus

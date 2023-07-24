@@ -1155,22 +1155,12 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, this](Future* fu) {
-          // Log_info("[copilot+] callback function [1] in Communicator::CurpBroadcastDispatch");
           bool_t accepted;
           pos_t pos0, pos1;
           value_t result;
           siteid_t coo_id;
           fu->get_reply() >> accepted >> pos0 >> pos1 >> result >> coo_id;
           e->FeedResponse(accepted, pos0, pos1, result, coo_id);
-        };
-    
-    rrr::FutureAttr test_fuattr;
-    test_fuattr.callback =
-        [e, this](Future* fu) {
-          int32_t b;
-          fu->get_reply() >> b;
-          verify(b == 24);
-          // Log_info("[CURP] Client Received Reply 24");
         };
     
     DepId di;
@@ -1185,15 +1175,45 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     Log_info("[CURP] [1-] [tx=%d] async_PoorDispatch called by Submit %.3f", tpc_cmd->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
-    // Log_info("[CURP] Before async_Test");
-
-    // int32_t b;
-    // proxy->async_Test(42, &b);
-    // Future::safe_release(proxy->async_CurpTest(42, test_fuattr));
-
     auto future = proxy->async_CurpPoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }
+
+  e->Wait();
+
+  return e;
+}
+
+shared_ptr<IntEvent>
+Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id) {
+  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  verify(!sp_vec_piece->empty());
+  auto par_id = sp_vec_piece->at(0)->PartitionId();
+  
+  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+  MarshallDeputy md(cmd);
+
+  auto e = Reactor::CreateSpEvent<IntEvent>();
+
+  for (auto& pair : rpc_par_proxies_[par_id]) 
+    if (pair.first == target_site) {
+      rrr::FutureAttr fuattr;
+      fuattr.callback =
+          [e, this](Future* fu) {
+            bool_t slow;
+            fu->get_reply() >> slow;
+            this->slow = slow;
+            e->Set(1);
+          };
+      
+      auto proxy = (MultiPaxosPlusProxy *)pair.second;
+
+      auto future = proxy->async_OriginalSubmit(md, dep_id, fuattr);
+      Future::safe_release(future);
+    }
 
   e->Wait();
 

@@ -234,7 +234,7 @@ void CoordinatorMultiPaxosPlus::GotoNextPhase() {
   }
 }
 
-// below are about CURP
+// below are about CURP, client side
 
 void CoordinatorMultiPaxosPlus::CurpSubmit(shared_ptr<Marshallable>& cmd,
                                   const std::function<void()>& commit_callback,
@@ -258,15 +258,13 @@ void CoordinatorMultiPaxosPlus::CurpSubmit(shared_ptr<Marshallable>& cmd,
     // [CURP] TODO: maybe some problem
     commit_callback_();
   } else if (sq_quorum->FastNo() || sq_quorum->timeouted_) {
-    Log_info("[CURP] Fail FastYes path");
+    // Log_info("[CURP] Fail FastYes path");
     // Fastpath timeout
     // Log_info("[CURP] Fastpath Fail");
     auto wait_quorum = commo()->CurpBroadcastWaitCommit(cmd, sq_quorum->GetCooId());
     wait_quorum->Wait();
     if (wait_quorum->Yes()) {// 0 fail 1 success
-      // [CURP] TODO: submit here
-      // this->Submit(cmd);
-      verify(0);
+      commo()->OriginalDispatch(cmd, frame_->site_info_->id, dep_id_);
       commit_callback_();
     } 
     else {
@@ -276,5 +274,13 @@ void CoordinatorMultiPaxosPlus::CurpSubmit(shared_ptr<Marshallable>& cmd,
     verify(0);
   }
 }
+
+void CoordinatorMultiPaxosPlus::OriginalSubmit(shared_ptr<Marshallable>& cmd,
+                                  const std::function<void()>& commit_callback,
+                                  const std::function<void()>& exe_callback) {
+  commo()->OriginalDispatch(cmd, frame_->site_info_->id, dep_id_);
+  commit_callback_ = commit_callback;
+}
+
 
 } // namespace janus

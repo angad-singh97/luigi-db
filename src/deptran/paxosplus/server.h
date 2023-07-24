@@ -34,6 +34,9 @@ class PaxosPlusServer : public TxLogServer {
   int n_commit_ = 0;
   bool in_applying_logs_{false};
 
+  PaxosPlusServer() {
+  }
+
   ~PaxosPlusServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
   }
@@ -68,6 +71,11 @@ class PaxosPlusServer : public TxLogServer {
   void OnCommit(const slotid_t slot_id,
                 const ballot_t ballot,
                 shared_ptr<Marshallable> &cmd);
+
+  void OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
+                        const rrr::i64& dep_id,
+                        bool_t* slow,
+                        const function<void()> &cb);
 
   void Setup();
 

@@ -350,6 +350,8 @@ class Communicator {
   shared_ptr<CurpDispatchQuorumEvent>
   CurpBroadcastDispatch(shared_ptr<Marshallable> cmd);
 
+  shared_ptr<IntEvent>
+  OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id);
 
   shared_ptr<QuorumEvent>
   CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
