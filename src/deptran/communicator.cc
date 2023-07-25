@@ -1167,7 +1167,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     di.str = "dep";
     di.id = Communicator::global_id++;
     
-    auto proxy = (MultiPaxosPlusProxy *)pair.second;
+    auto proxy = (CurpProxy *)pair.second;
 
 #ifdef CURP_TIME_DEBUG
     struct timeval tp;
@@ -1209,7 +1209,7 @@ Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_sit
             e->Set(1);
           };
       
-      auto proxy = (MultiPaxosPlusProxy *)pair.second;
+      auto proxy = (CurpProxy *)pair.second;
 
       auto future = proxy->async_OriginalSubmit(md, dep_id, fuattr);
       Future::safe_release(future);
@@ -1250,7 +1250,7 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
               e->VoteNo();
           };
       
-      auto proxy = (MultiPaxosPlusProxy *)pair.second;
+      auto proxy = (CurpProxy *)pair.second;
       auto future = proxy->async_CurpWaitCommit(client_id_, cmd_id_in_client_, fuattr);
       Future::safe_release(future);
   }
@@ -1267,7 +1267,7 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(make_shared<Position>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     // TODO: generelize
     if (0 == site) {
@@ -1296,7 +1296,7 @@ Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -1319,7 +1319,7 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -1347,7 +1347,7 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
@@ -1372,7 +1372,7 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
   for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy *)p.second;
+    auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     if (site != ban_site) {
       FutureAttr fuattr;

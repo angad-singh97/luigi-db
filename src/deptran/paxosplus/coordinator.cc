@@ -247,10 +247,21 @@ void CoordinatorMultiPaxosPlus::CurpSubmit(shared_ptr<Marshallable>& cmd,
 
   // return;
 
+  // shared_ptr<IntEvent> test_event = commo()->BroadcastTest();
+  // test_event->Wait();
+  // Log_info("[CURP] Passed Curp Test");
+
   shared_ptr<CurpDispatchQuorumEvent> sq_quorum = commo()->CurpBroadcastDispatch(cmd);
   commit_callback_ = commit_callback;
 
   sq_quorum->Wait();
+
+  // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  // VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  // shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  // shared_ptr<TxPieceData> simple_cmd = *(sp_vec_piece->begin());
+  // Log_info("Cmd(%d, %d) quorum %s result %d", simple_cmd->client_id_, simple_cmd->cmd_id_in_client_, sq_quorum->Print().c_str(), sq_quorum->FastYes());
+  
   // Log_info("[CURP] After quorum");
   if (sq_quorum->FastYes()) {
     // Fastpath Success
@@ -269,6 +280,7 @@ void CoordinatorMultiPaxosPlus::CurpSubmit(shared_ptr<Marshallable>& cmd,
     } 
     else {
       /*TODO*/
+      verify(0);
     }
   } else {
     verify(0);

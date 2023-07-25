@@ -6,7 +6,6 @@
 #include "../procedure.h"
 #include "../command_marshaler.h"
 #include "../rcc_rpc.h"
-#include "../curpplus/commo.h"
 
 namespace janus {
 
@@ -180,6 +179,23 @@ void MultiPaxosPlusCommo::BroadcastDecide(const parid_t par_id,
   }
 }
 
-
+shared_ptr<IntEvent> MultiPaxosPlusCommo::BroadcastTest() {
+  auto proxies = rpc_par_proxies_[0];
+  auto e = Reactor::CreateSpEvent<IntEvent>();
+  for (auto& p : proxies) {
+    auto proxy = (CurpProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      int32_t b;
+      fu->get_reply() >> b;
+      verify(b == 24);
+      Log_info("[CURP] received replied 24");
+      e->Set(1);
+    };
+    auto f = proxy->async_CurpTest(42, fuattr);
+    Future::safe_release(f);
+  }
+  return e;
+}
 
 } // namespace janus

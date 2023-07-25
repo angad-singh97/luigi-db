@@ -3,7 +3,6 @@
 #include "../__dep__.h"
 #include "../constants.h"
 #include "../communicator.h"
-#include "../curpplus/commo.h"
 #include <chrono>
 #include <ctime>
 
@@ -77,7 +76,7 @@ class MultiPaxosPlusCommo : public Communicator {
                        const slotid_t slot_id,
                        const ballot_t ballot,
                        const shared_ptr<Marshallable> cmd);
-  
+  shared_ptr<IntEvent> BroadcastTest();
 };
 
 } // namespace janus

@@ -15,10 +15,17 @@ namespace janus {
 
 class TxLogServer;
 class PaxosPlusServer;
-class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService {
+class MultiPaxosPlusServiceImpl : public MultiPaxosService, public CurpService {
  public:
   PaxosPlusServer* sched_;
   MultiPaxosPlusServiceImpl(TxLogServer* sched);
+
+  int __reg_to__(rrr::Server* svr) override {
+    MultiPaxosService::__reg_to__(svr);
+    CurpService::__reg_to__(svr);
+    return 0;
+  }
+
   void Forward(const MarshallDeputy& cmd,
                const uint64_t& dep_id,
                uint64_t* coro_id,
@@ -31,7 +38,7 @@ class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService {
                rrr::DeferredReply* defer) override;
 
   void Accept(const uint64_t& slot,
-	      const uint64_t& time,
+	          const uint64_t& time,
               const ballot_t& ballot,
               const MarshallDeputy& cmd,
               ballot_t* max_ballot,
@@ -94,6 +101,10 @@ class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService {
                     const rrr::i64& dep_id,
                     bool_t* slow,
                     rrr::DeferredReply* defer) override;
+
+  void CurpTest(const int32_t& a,
+                int32_t* b,
+                rrr::DeferredReply* defer) override;
 };
 
 } // namespace janus

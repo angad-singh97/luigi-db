@@ -216,4 +216,13 @@ void MultiPaxosPlusServiceImpl::OriginalSubmit(const MarshallDeputy& md,
                             bind(&rrr::DeferredReply::reply, defer));
 }
 
+void MultiPaxosPlusServiceImpl::CurpTest(const int32_t& a,
+                                          int32_t* b,
+                                          rrr::DeferredReply* defer) {
+  verify(a == 42);
+  Log_info("[CURP] received sent 42");
+  *b = 24;
+  defer->reply();
+}
+
 } // namespace janus;

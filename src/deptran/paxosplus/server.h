@@ -9,7 +9,6 @@
 #include "commo.h"
 #include <chrono>
 #include <ctime>
-#include "../curpplus/server.h"
 
 namespace janus {
 class Command;

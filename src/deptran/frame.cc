@@ -19,8 +19,6 @@
 #include "none_copilot/scheduler.h"
 #include "copilotplus/coordinator.h"
 #include "copilotplus/commo.h"
-#include "curpplus/coordinator.h"
-#include "curpplus/server.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
 #include "bench/tpcc/workload.h"
@@ -218,11 +216,6 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
                                         benchmark,
                                         ccsi,
                                         id);
-    case MODE_CURP_PLUS:
-      coo = new CoordinatorCurpPlus(coo_id,
-                                          benchmark,
-                                          ccsi,
-                                          id);
     case MODE_NONE:
     case MODE_NONE_COPILOT:
     default:
@@ -313,8 +306,6 @@ Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
     case MODE_COPILOT_PLUS:
       commo_ = new CopilotPlusCommo(pollmgr);
       break;
-    case MODE_CURP_PLUS:
-      commo_ = new CurpPlusCommo(pollmgr);
     default:
       commo_ = new Communicator(pollmgr);
       break;
@@ -354,7 +345,6 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
     case MODE_NONE:
     case MODE_NOTX:
     case MODE_COPILOT_PLUS:
-    case MODE_CURP_PLUS:
       //sp_tx.reset(new xxx());//TODO
     default:
       sp_tx.reset(new TxClassic(epoch, tid, mgr));
@@ -400,17 +390,11 @@ TxLogServer* Frame::CreateScheduler() {
       break;
     case MODE_NOTX:
     case MODE_NONE:
-    case MODE_CURP_PLUS:
-      Log_info("[CURP] Create SchedulerNone");
       sch = new SchedulerNone();
       break;
     case MODE_NONE_COPILOT:
       sch = new SchedulerNoneCopilot();
       break;
-    // case MODE_CURP_PLUS:
-    //   Log_info("[CURP] Create CurpPlusServer");
-    //   sch = new CurpPlusServer();
-    //   break;
     case MODE_RPC_NULL:
     case MODE_RCC:
     case MODE_RO6:
@@ -498,7 +482,6 @@ map<string, int> &Frame::FrameNameToMode() {
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},
       {"copilot_plus",  MODE_COPILOT_PLUS},
-      {"curp_plus",     MODE_CURP_PLUS},
   };
   return frame_name_mode_s;
 }

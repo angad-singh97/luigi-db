@@ -92,10 +92,10 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
       result_ = result;
     }
     bool operator < (const ResponsePack &other) const {
-      return (pos_.get() < other.pos_.get()) || ((pos_.get() == other.pos_.get()) && (result_ < other.result_));
+      return (*pos_.get() < *other.pos_.get()) || ((*pos_.get() == *other.pos_.get()) && (result_ < other.result_));
     }
     bool operator == (const ResponsePack &other) const {
-      return (pos_.get() == other.pos_.get()) && (result_ == other.result_);
+      return (*pos_.get() == *other.pos_.get()) && (result_ == other.result_);
     }
   };
  private:
@@ -117,14 +117,22 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
     return max_response_;
   }
   siteid_t GetCooId();
+  string Print() {
+    string ret;
+    sort(responses_.begin(), responses_.end());
+    for (vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
+      ret = ret + "[(" + to_string(it->pos_->get(0)) + ", " + to_string(it->pos_->get(1)) + "), " + to_string(it->result_) + "] ";
+    }
+    return "{" + ret + "}";
+  }
  private:
   // [CURP] TODO: put in .cc file
   int FindMax(){
     verify(responses_.size() > 0);
-    std::sort(responses_.begin(), responses_.end());
-    std::vector<ResponsePack>::iterator max_response, last_response;
+    sort(responses_.begin(), responses_.end());
+    vector<ResponsePack>::iterator max_response, last_response;
     int max_len, cur_len;
-    for (std::vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
+    for (vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
       if (it == responses_.begin()) {
         max_response = it;
         max_len = cur_len = 1;
@@ -141,7 +149,6 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
     max_response_ = ResponsePack(*max_response);
     return max_len;
   }
-  
 };
 
 

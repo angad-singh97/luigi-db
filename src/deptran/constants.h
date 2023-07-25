@@ -103,7 +103,6 @@ namespace janus {
 #define MODE_FPGA_RAFT (0x400)
 #define MODE_COPILOT        (0x4000)
 #define MODE_COPILOT_PLUS (0x4001)
-#define MODE_CURP_PLUS      (0x8000)
 #define MODE_NOT_READY     (0x00)
 
 #define OP_IR   (0x1)
