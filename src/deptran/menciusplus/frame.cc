@@ -71,7 +71,7 @@ MenciusPlusFrame::CreateRpcServices(uint32_t site_id,
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
   switch (config->replica_proto_) {
-    case MODE_MENCIUS:result.push_back(new MenciusPlusServiceImpl(rep_sched));
+    case MODE_MENCIUS_PLUS:result.push_back(new MenciusPlusServiceImpl(rep_sched));
     default:break;
   }
   return result;

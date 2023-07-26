@@ -288,6 +288,8 @@ class TxLogServer {
   // int n_prepare_ = 0;
   // int n_accept_ = 0;
   // int n_commit_ = 0;
+  int n_fast_path_attempted_ = 0;
+  int n_fast_path_failed_ = 0;
   bool curp_in_applying_logs_{false};
 
   // global id related
@@ -341,9 +343,18 @@ class TxLogServer {
   void CurpCommit(shared_ptr<Position> pos,
               shared_ptr<Marshallable> cmd);
 
+  void OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
+                        const rrr::i64& dep_id,
+                        bool_t* slow,
+                        const function<void()> &cb);
+                        
   slotid_t ApplyForNewGlobalID();
 
   slotid_t OriginalProtocolApplyForNewGlobalID(key_t key);
+
+  shared_ptr<CurpPlusData> GetCurpLog(pos_t pos0, pos_t pos1);
+
+  shared_ptr<CurpPlusData> GetOrCreateCurpLog(pos_t pos0, pos_t pos1);
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
 

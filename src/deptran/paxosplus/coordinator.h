@@ -75,16 +75,6 @@ class CoordinatorMultiPaxosPlus : public Coordinator {
   void Restart() override { verify(0); }
 
   void GotoNextPhase();
-
-  // below are about CURP
-
-  void CurpSubmit(shared_ptr<Marshallable>& cmd,
-                  const std::function<void()>& commit_callback = [](){},
-                  const std::function<void()>& exe_callback = [](){}) override;
-  
-  void OriginalSubmit(shared_ptr<Marshallable>& cmd,
-                  const std::function<void()>& commit_callback = [](){},
-                  const std::function<void()>& exe_callback = [](){}) override;
 };
 
 } //namespace janus

@@ -22,16 +22,16 @@ schema: # table information
 sharding:
   history:    MOD
 
-# config/copilotplus.yml
+# config/occ_paxos.yml
 mode:
   cc: none # concurrency control
-  ab: curp_plus # atomic broadcast
+  ab: mencius_plus # atomic broadcast
   read_only: occ
   batch: false
   retry: 20
   ongoing: 1 # per client
 
-# config/concurrent_10.yml 
+# config/concurrent_100.yml 
 n_concurrent: 10
 
 # config/1c1s3r3p.yml

@@ -24,7 +24,7 @@ void MenciusPlusCommo::BroadcastPrepare(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   auto leader_id = LeaderProxyForPartition(par_id).first;
   for (auto& p : proxies) {
-    auto proxy = (MenciusProxy*) p.second;
+    auto proxy = (MenciusPlusProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = cb;
     Future::safe_release(proxy->async_Prepare(slot_id, ballot, fuattr));
@@ -44,7 +44,7 @@ MenciusPlusCommo::BroadcastPrepare(parid_t par_id,
   WAN_WAIT;
   auto leader_id = LeaderProxyForPartition(par_id).first;
   for (auto& p : proxies) {
-    auto proxy = (MenciusProxy*) p.second;
+    auto proxy = (MenciusPlusProxy*) p.second;
     auto follower_id = p.first;
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
 
@@ -141,7 +141,7 @@ MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
   ms->g_mutex.unlock();
 
   for (auto& p : proxies) {
-    auto proxy = (MenciusProxy*) p.second;
+    auto proxy = (MenciusPlusProxy*) p.second;
     auto follower_id = p.first;
 
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
@@ -179,7 +179,7 @@ void MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
   // auto leader_id = LeaderProxyForPartition(par_id).first;
   // vector<Future*> fus;
   // for (auto& p : proxies) {
-  //   auto proxy = (MenciusProxy*) p.second;
+  //   auto proxy = (MenciusPlusProxy*) p.second;
   //   FutureAttr fuattr;
   //   fuattr.callback = cb;
   //   MarshallDeputy md(cmd);
@@ -203,7 +203,7 @@ void MenciusPlusCommo::BroadcastDecide(const parid_t par_id,
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
   vector<Future*> fus;
   for (auto& p : proxies) {
-    auto proxy = (MenciusProxy*) p.second;
+    auto proxy = (MenciusPlusProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [](Future* fu) {};
     MarshallDeputy md(cmd);

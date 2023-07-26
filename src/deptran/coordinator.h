@@ -199,17 +199,13 @@ class Coordinator {
 
   // below are about CURP
   
-  virtual void CurpSubmit(shared_ptr<Marshallable>& cmd,
+  void CurpSubmit(shared_ptr<Marshallable>& cmd,
                       const std::function<void()>& commit_callback = [](){},
-                      const std::function<void()>& exe_callback = [](){}) {
-    verify(0);
-  }
+                      const std::function<void()>& exe_callback = [](){});
 
-  virtual void OriginalSubmit(shared_ptr<Marshallable>& cmd,
+  void OriginalSubmit(shared_ptr<Marshallable>& cmd,
                       const std::function<void()>& commit_callback = [](){},
-                      const std::function<void()>& exe_callback = [](){}) {
-    verify(0);
-  }
+                      const std::function<void()>& exe_callback = [](){});
 };
 
 } // namespace janus

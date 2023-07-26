@@ -419,7 +419,7 @@ slotid_t TxLogServer::append_cmd(key_t key, const shared_ptr<Marshallable>& cmd)
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
   size_t idx = ++curp_log_cols_[key]->count_;
-  verify(col->logs_[idx] == nullptr);
+  verify(!col->logs_.count(idx));
   col->logs_[idx] = make_shared<CurpPlusData>();
   col->logs_[idx]->fast_accepted_cmd_ = cmd;
   // Log_info("[CURP] Loc %d Site %d append log on[%d][%d]", loc_id_, site_id_, key, idx);
@@ -436,6 +436,7 @@ void TxLogServer::OnCurpPoorDispatch(const int32_t& client_id,
                                   siteid_t* coo_id,
                                   const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  n_fast_path_attempted_++;
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
   bool_t fast_path_validation = check_fast_path_validation(key);
@@ -539,13 +540,14 @@ void TxLogServer::OnCurpCoordinatorAccept(const shared_ptr<Position>& pos,
                                           const shared_ptr<Marshallable>& cmd,
                                           bool_t* accepted,
                                           const function<void()> &cb) {
+  n_fast_path_failed_++;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
   pos_t pos0 = pos->get(0);
   pos_t pos1 = pos->get(1);
   // Log_info("[CURP] Loc %d Site %d OnCoordinatorAccept access log[%d][%d]", loc_id_, site_id_, pos0, pos1);
-  shared_ptr<CurpPlusData> log = curp_log_cols_[pos->get(0)]->logs_[pos->get(1)];
+  shared_ptr<CurpPlusData> log = GetOrCreateCurpLog(pos->get(0), pos->get(1));
   if (log->status_ != CurpPlusData::CurpPlusStatus::committed) {
     log->last_accepted_ = cmd;
     log->last_accepted_ballot_ = 0;
@@ -566,7 +568,7 @@ void TxLogServer::OnCurpPrepare(const shared_ptr<Position>& pos,
                                 ballot_t* last_accepted_ballot,
                                 const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  shared_ptr<CurpPlusData> log = curp_log_cols_[pos->get(0)]->logs_[pos->get(1)];
+  shared_ptr<CurpPlusData> log = GetOrCreateCurpLog(pos->get(0), pos->get(1));
   if (ballot > log->max_ballot_seen_) {
     log->max_ballot_seen_ = ballot;
     log->status_ = CurpPlusData::CurpPlusStatus::prepared;
@@ -588,7 +590,7 @@ void TxLogServer::OnCurpAccept(const shared_ptr<Position>& pos,
                               ballot_t* seen_ballot,
                               const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  shared_ptr<CurpPlusData> log = curp_log_cols_[pos->get(0)]->logs_[pos->get(1)];
+  shared_ptr<CurpPlusData> log = GetOrCreateCurpLog(pos->get(0), pos->get(1));
   if (ballot >= log->max_ballot_seen_) {
     log->accepted_cmd_ = cmd;
     log->max_ballot_seen_ = ballot;
@@ -608,8 +610,8 @@ void TxLogServer::OnCurpAccept(const shared_ptr<Position>& pos,
 void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
                               const shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  key_t key = pos->get(0);
-  slotid_t slot_id = pos->get(1);
+  pos_t key = pos->get(0);
+  pos_t slot_id = pos->get(1);
 
   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
   shared_ptr<CurpPlusData> instance = col->logs_[slot_id];
@@ -677,6 +679,44 @@ slotid_t TxLogServer::OriginalProtocolApplyForNewGlobalID(key_t key) {
     return ApplyForNewGlobalID();
   else
     return 0;
+}
+
+void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
+                                    const rrr::i64& dep_id,
+                                    bool_t* slow,
+                                    const function<void()> &cb) {
+  // Log_info("enter OnOriginalSubmit");
+  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_));
+  shared_ptr<Coordinator> coo{CreateRepCoord(dep_id)};
+  coo->svr_workers_g = svr_workers_g;
+  coo->Submit(cmd);
+  // [CURP] TODO: deal with slow
+  // sp_tx->commit_result->Wait();
+  // *slow = coo->slow_;
+  cb();
+}
+
+shared_ptr<CurpPlusData> TxLogServer::GetCurpLog(pos_t pos0, pos_t pos1) {
+  if (curp_log_cols_.count(pos0)) {
+    if (curp_log_cols_[pos0]->logs_.count(pos1)) {
+      return curp_log_cols_[pos0]->logs_[pos1];
+    } else {
+      return nullptr;
+    }
+  } else {
+    return nullptr;
+  }
+}
+
+shared_ptr<CurpPlusData> TxLogServer::GetOrCreateCurpLog(pos_t pos0, pos_t pos1) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  if (!curp_log_cols_.count(pos0))
+    curp_log_cols_[pos0] = make_shared<CurpPlusDataCol>();
+  if (!curp_log_cols_[pos0]->logs_.count(pos1))
+    curp_log_cols_[pos0]->logs_[pos1] = make_shared<CurpPlusData>();
+  if (pos1 > curp_log_cols_[pos0]->count_)
+    curp_log_cols_[pos0]->count_ = pos1;
+  return curp_log_cols_[pos0]->logs_[pos1];
 }
 
 UniqueCmdID TxLogServer::GetUniqueCmdID(shared_ptr<Marshallable> cmd) {
