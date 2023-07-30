@@ -626,9 +626,9 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   num_txn.store(0);
   success.store(0);
   num_try.store(0);
-  Log_info("[CURP] Before CreateCommo");
+  // Log_info("[CURP] Before CreateCommo");
   commo_ = frame_->CreateCommo(poll_mgr_);
-  Log_info("[CURP] After CreateCommo");
+  // Log_info("[CURP] After CreateCommo");
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
       (config->replica_proto_ == MODE_FPGA_RAFT && site_info.locale_id != 0) ? true :

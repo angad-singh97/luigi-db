@@ -268,6 +268,9 @@ TxLogServer::~TxLogServer() {
     it->second = NULL;
   }
   mdb_txns_.clear();
+  Log_info("[CURP] loc_id_=%d site_id_=%d curp_fast_path_success_count_=%d curp_coordinator_accept_count_=%d original_protocol_submit_count_=%d, total=%d",
+            loc_id_, site_id_, curp_fast_path_success_count_, curp_coordinator_accept_count_, original_protocol_submit_count_,
+            curp_fast_path_success_count_ + curp_coordinator_accept_count_ + original_protocol_submit_count_);
 }
 
 /**
@@ -512,6 +515,7 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
     curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_ = true;
     // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 1 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
     CurpCommit(pos, cmd);
+    curp_fast_path_success_count_++;
   } else if ((accepted_num >= CurpQuorumSize(n_replica)) && (max_accepted_num >= CurpSmallQuorumSize(n_replica))) {
     // [CURP] TODO: check this condition
     shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent> quorum = commo()->CurpBroadcastCoordinatorAccept(partition_id_, pos, cmd);
@@ -525,6 +529,7 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
       curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_ = true;
       // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 2 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
       CurpCommit(pos, cmd);
+      curp_coordinator_accept_count_++;
     } else if (quorum->No()) {
       verify(0);
     } else {
@@ -686,6 +691,7 @@ void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
                                     bool_t* slow,
                                     const function<void()> &cb) {
   // Log_info("enter OnOriginalSubmit");
+  original_protocol_submit_count_++;
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_));
   shared_ptr<Coordinator> coo{CreateRepCoord(dep_id)};
   coo->svr_workers_g = svr_workers_g;
@@ -693,6 +699,7 @@ void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
   // [CURP] TODO: deal with slow
   // sp_tx->commit_result->Wait();
   // *slow = coo->slow_;
+  *slow = false;
   cb();
 }
 
@@ -738,6 +745,5 @@ UniqueCmdID TxLogServer::GetUniqueCmdID(shared_ptr<Marshallable> cmd) {
   cmd_id.cmd_id_ = casted_cmd->cmd_id_in_client_;
   return cmd_id;
 }
-
 
 } // namespace janus

@@ -211,11 +211,11 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
     case MODE_MDCC:
 //      coo = (Coordinator*)new mdcc::MdccCoordinator(coo_id, id, config, ccsi);
       break;
-    case MODE_COPILOT_PLUS:
-      coo = new CopilotPlusCoordinator(coo_id,
-                                        benchmark,
-                                        ccsi,
-                                        id);
+    // case MODE_COPILOT_PLUS:
+    //   coo = new CopilotPlusCoordinator(coo_id,
+    //                                     benchmark,
+    //                                     ccsi,
+    //                                     id);
     case MODE_NONE:
     case MODE_NONE_COPILOT:
     default:
@@ -406,6 +406,8 @@ TxLogServer* Frame::CreateScheduler() {
   }
   verify(sch);
   sch->frame_ = this;
+  verify(svr_ == nullptr);
+  svr_ = sch;
   return sch;
 }
 

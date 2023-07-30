@@ -23,7 +23,7 @@ class Workload;
 class Frame {
  public:
   Communicator *commo_ = nullptr;
-  Communicator *curp_commo_ = nullptr;
+  TxLogServer *svr_ = nullptr;
 
   // static variables to hold frames
   static map<string, int> &FrameNameToMode();
@@ -36,7 +36,7 @@ class Frame {
 
   int mode_;
   Config::SiteInfo *site_info_ = nullptr;
-  Frame(int mode) : mode_(mode) {};
+  Frame(int mode) : mode_(mode) {Log_info("[CURP] Frame Created");};
   virtual ~Frame() {};
   // for both dtxn and rep
   virtual Coordinator *CreateCoordinator(cooid_t coo_id,

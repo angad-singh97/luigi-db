@@ -7,9 +7,11 @@
 
 namespace janus {
 
-REG_FRAME(MODE_COPILOT_PLUS, vector<string>({"copilotplus"}), CopilotPlusFrame);
+REG_FRAME(MODE_COPILOT_PLUS, vector<string>({"copilot_plus"}), CopilotPlusFrame);
 
-CopilotPlusFrame::CopilotPlusFrame(int mode) : Frame(mode) {}
+CopilotPlusFrame::CopilotPlusFrame(int mode) : Frame(mode) {
+  Log_info("[CURP] CopilotPlusFrame Created");
+}
 
 CopilotPlusFrame::~CopilotPlusFrame() {
   Log_info(
@@ -64,7 +66,7 @@ CopilotPlusFrame::CreateRpcServices(uint32_t site_id,
   auto config = Config::GetConfig();
   auto result = vector<Service *>();
   switch (config->replica_proto_) {
-    case MODE_COPILOT:
+    case MODE_COPILOT_PLUS:
       result.push_back(new CopilotPlusServiceImpl(rep_sched));
       break;
     default:

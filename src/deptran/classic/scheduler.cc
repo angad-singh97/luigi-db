@@ -241,6 +241,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     shared_ptr<Coordinator> coo{CreateRepCoord(dep_id.id)};
     coo->svr_workers_g = svr_workers_g;
     FastPathManagerSubmit(coo, sp_m);
+    // coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
 		slow_ = coo->slow_;
   } else {
@@ -346,6 +347,8 @@ void SchedulerClassic::Next(Marshallable& cmd) {
 }
 
 void SchedulerClassic::FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m) {
+  // coo->Submit(sp_m);
+  // return;
   bool fast_path_enabled = true;
   if (fast_path_enabled) {
     coo->CurpSubmit(sp_m);

@@ -9,7 +9,9 @@ namespace janus {
 
 REG_FRAME(MODE_COPILOT, vector<string>({"copilot"}), CopilotFrame);
 
-CopilotFrame::CopilotFrame(int mode) : Frame(mode) {}
+CopilotFrame::CopilotFrame(int mode) : Frame(mode) {
+  Log_info("[CURP] CopilotFrame Created");
+}
 
 CopilotFrame::~CopilotFrame() {
   Log_info(

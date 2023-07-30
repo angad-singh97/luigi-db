@@ -290,8 +290,9 @@ void ServerWorker::ShutDown() {
   delete rep_frame_;
 //  thread_pool_g->release();
   svr_poll_mgr_->release();
-  // if (rep_sched_) delete rep_sched_;
+  if (rep_sched_) delete rep_sched_;
 }
+
 int ServerWorker::DbChecksum() {
   auto cs = this->tx_sched_->mdb_txn_mgr_->Checksum();
   Log_info("site_id: %d shard_id: %d checksum: %x", (int)this->site_info_->id,

@@ -82,6 +82,7 @@ Coordinator::~Coordinator() {
 void Coordinator::CurpSubmit(shared_ptr<Marshallable>& cmd,
                       const std::function<void()>& commit_callback,
                       const std::function<void()>& exe_callback) {
+  // verify(0);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(commo_);
   // Log_info("[CURP] enter CoordinatorCurpPlus::Submit!!!!!!!!!!!!!!!!!!!!");

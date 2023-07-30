@@ -124,6 +124,10 @@ class TxLogServer {
   bool in_upgrade_epoch_{false};
   const int EPOCH_DURATION = 5;
 
+  // curp countings
+  int curp_fast_path_success_count_ = 0;
+  int curp_coordinator_accept_count_ = 0;
+  int original_protocol_submit_count_ = 0;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
