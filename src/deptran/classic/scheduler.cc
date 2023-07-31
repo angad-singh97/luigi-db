@@ -240,9 +240,23 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     shared_ptr<Marshallable> sp_m = dynamic_pointer_cast<Marshallable>(cmd);
     shared_ptr<Coordinator> coo{CreateRepCoord(dep_id.id)};
     coo->svr_workers_g = svr_workers_g;
+
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    double start_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     FastPathManagerSubmit(coo, sp_m);
     // coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
+    gettimeofday(&tp, NULL);
+    double finish_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+    double latency = finish_ms - start_ms;
+    latency_sum += latency;
+    latency_count++;
+    if (latency < latency_min)
+      latency_min = latency;
+    if (latency > latency_max)
+      latency_max = latency;
+    
 		slow_ = coo->slow_;
   } else {
     if (commit_or_abort == SUCCESS) {

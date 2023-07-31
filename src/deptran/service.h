@@ -35,6 +35,11 @@ class ClassicServiceImpl : public ClassicService {
   rrr::PollMgr* poll_mgr_;
   std::atomic<int32_t> clt_cnt_{0};
 
+  ~ClassicServiceImpl() {
+    if (dtxn_sched_)
+      delete dtxn_sched_;
+  }
+
   TxLogServer* dtxn_sched() {
     return dtxn_sched_;
   }

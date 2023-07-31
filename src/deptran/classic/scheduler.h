@@ -18,6 +18,20 @@ class SchedulerClassic: public TxLogServer {
 
   bool slow_ = false;
 
+  double latency_sum = 0;
+  int latency_count = 0;
+  double latency_max = 0;
+  double latency_min = 1e9;
+
+  SchedulerClassic() {}
+
+  ~SchedulerClassic() {
+    if (latency_count != 0)
+      Log_info("[CURP] Ave Latency %.2f ms; Min Latency %.2f ms; Max Latency %.2f ms", latency_sum/latency_count, latency_min, latency_max);
+    else
+      Log_info("[CURP] No Latency Measured");
+  }
+
   void MergeCommands(vector<shared_ptr<TxPieceData>>&,
                      shared_ptr<Marshallable>);
 
