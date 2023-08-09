@@ -177,7 +177,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
                                   ballot_t ballot,
                                   uint64_t dep,
                                   shared_ptr<Marshallable> cmd) {
-  Log_info("[copilot+] [BroadcastFastAccept+]");
+  // Log_info("[copilot+] [BroadcastFastAccept+]");
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusFastAcceptQuorumEvent>(n, CurpFastQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
@@ -215,14 +215,14 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 
       verify(cmd);
       MarshallDeputy md(cmd);
-      Log_info("[copilot+] [BroadcastFastAccept in] before async_FastAccept");
+      // Log_info("[copilot+] [BroadcastFastAccept in] before async_FastAccept");
       Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
       e->AddXid(site, f->get_xid());
       Future::safe_release(f);
-      Log_info("[copilot+] [BroadcastFastAccept in] after async_FastAccept");
+      // Log_info("[copilot+] [BroadcastFastAccept in] after async_FastAccept");
     }
   }
-  Log_info("[copilot+] [BroadcastFastAccept-]");
+  // Log_info("[copilot+] [BroadcastFastAccept-]");
   return e;
 }
 

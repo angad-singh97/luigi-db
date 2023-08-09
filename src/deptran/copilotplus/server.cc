@@ -272,8 +272,8 @@ void CopilotPlusServer::OnFastAccept(const uint8_t& is_pilot,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
             toString(is_pilot), slot, dep);
-  Log_info("[copilot+] server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
-            toString(is_pilot), slot, dep);
+  // Log_info("[copilot+] server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
+  //           toString(is_pilot), slot, dep);
 
   auto ins = GetInstance(slot, is_pilot);
   verify(ins);
@@ -335,8 +335,8 @@ void CopilotPlusServer::OnFastAccept(const uint8_t& is_pilot,
   }
   *max_ballot = ballot;
   *ret_dep = suggest_dep;
-  Log_info("[copilot+] OnFastAccept max_ballot=%d ret_dep=%d", ballot, suggest_dep);
-  Log_info("[copilot+] OnFastAccept callback exist=%d", cb != nullptr);
+  // Log_info("[copilot+] OnFastAccept max_ballot=%d ret_dep=%d", ballot, suggest_dep);
+  // Log_info("[copilot+] OnFastAccept callback exist=%d", cb != nullptr);
 
   if (cb) {
     pingpong_event_.Set(1);

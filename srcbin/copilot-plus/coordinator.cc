@@ -22,7 +22,7 @@ void CopilotPlusCoordinator::DoTxAsync(TxRequest &) {
 void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func,
               const std::function<void()> &exe_callback) {
-  Log_info("[copilot+] coordinator submit loc_id_=%d", this->loc_id_);
+  // Log_info("[copilot+] coordinator submit loc_id_=%d", this->loc_id_);
   received_cmd_ = cmd;
   parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   //Log_info("[copilot+] enter Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());

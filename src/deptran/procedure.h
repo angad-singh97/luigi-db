@@ -150,6 +150,7 @@ class VecPieceData : public Marshallable {
  public:
   // TODO move shared_ptr into the vector.
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece_data_{};
+  double time_sent_from_client_ = -1e9; // <0 means null, unit is ms
   VecPieceData() : Marshallable(MarshallDeputy::CMD_VEC_PIECE) {
 
   }
@@ -160,6 +161,7 @@ class VecPieceData : public Marshallable {
     for (auto sp : *sp_vec_piece_data_) {
       m << *sp;
     }
+    m << time_sent_from_client_;
 //    m << *sp_vec_piece_data_;
     return m;
   }
@@ -174,6 +176,7 @@ class VecPieceData : public Marshallable {
       m >> *x;
       sp_vec_piece_data_->push_back(x);
     }
+    m >> time_sent_from_client_;
 //    m >> *sp_vec_piece_data_;
     return m;
   }

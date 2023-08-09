@@ -447,6 +447,12 @@ void Communicator::BroadcastDispatch(
   auto proxy = pair_leader_proxy.second;
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+
+  // Record Time
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  sp_vpd->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+
   MarshallDeputy md(sp_vpd); // ????
 
 	DepId di;
@@ -1150,7 +1156,9 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n));
-
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
@@ -1197,7 +1205,9 @@ Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_sit
   MarshallDeputy md(cmd);
 
   auto e = Reactor::CreateSpEvent<IntEvent>();
-
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& pair : rpc_par_proxies_[par_id]) 
     if (pair.first == target_site) {
       rrr::FutureAttr fuattr;
@@ -1236,7 +1246,9 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
   // sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
   sp_vpd->sp_vec_piece_data_ = vec_piece_data;
   MarshallDeputy md(sp_vpd);
-
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& pair : rpc_par_proxies_[par_id])
     if (pair.first == coo_id) {
       rrr::FutureAttr fuattr;
@@ -1266,6 +1278,9 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(make_shared<Position>(pos)), cmd_deputy(cmd);
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1295,6 +1310,9 @@ Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CurpPlusCoordinatorAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1318,6 +1336,9 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CurpPlusPrepareQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1346,6 +1367,9 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CurpPlusAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1371,6 +1395,9 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+#ifdef CURP_SEND_TC
+  usleep(TC_LATENCY);
+#endif
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;

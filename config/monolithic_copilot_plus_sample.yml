@@ -68,7 +68,7 @@ process:
   s301: localhost 
   c01: localhost 
   c02: localhost 
-  c03: localhost 
+  c03: localhost
 
 host:
   localhost: 127.0.0.1

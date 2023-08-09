@@ -138,5 +138,9 @@ namespace janus {
 // #define CURP_TIME_DEBUG
 // #define COPILOT_TIME_DEBUG
 #define FINISH_COUNTDOWN_MAX (1)
+// #define TC
+// #define CURP_SEND_TC
+#define TC_LATENCY (20000)
+#define CURP_FAST_PATH_TIMEOUT (100)
 
 } // namespace janus

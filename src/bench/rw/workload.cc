@@ -82,6 +82,7 @@ void RwWorkload::GenerateWriteRequest(
       {0, Value((i32) id)},
       {1, Value((i32) RandomGenerator::rand(0, 10000))}
   };
+  // Log_info("[CURP] key=%d", id);
 }
 
 void RwWorkload::GenerateReadRequest(
@@ -94,9 +95,21 @@ void RwWorkload::GenerateReadRequest(
 }
 
 int32_t RwWorkload::GetId(uint32_t cid) {
+  // verify(cid < 1000000);
+  // Log_info("[CURP] GetId %d", cid);
   int32_t id;
   if (fix_id_ == -1) {
-    id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
+    // [CURP] TODO: need to change back to random
+    // Log_info("[CURP] id range is (0, %d)", rw_benchmark_para_.n_table_ - 1);
+    // id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    int cli_id = (cid >> 16) - 3, coo_id = cid & ((1 << 16) - 1);
+    verify(cli_id >= 0 && cli_id <= 2 && coo_id >= 0 && coo_id <= 99);
+    int scaler_cid = cli_id * 100 + coo_id;
+    id = scaler_cid * 1000 + non_conflict_counter[scaler_cid];
+    if (++non_conflict_counter[scaler_cid] >= 1000)
+      non_conflict_counter[scaler_cid] = 0;
+    // Log_info("[CURP] Generate %d for cid %d", id, scaler_cid);
   } else {
     auto it = this->key_ids_.find(cid);
     if (it == key_ids_.end()) {

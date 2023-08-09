@@ -55,6 +55,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   TxnOutput* output,
                                   uint64_t* coro_id,
                                   rrr::DeferredReply* defer) {
+  // usleep(20000);
 #ifdef CURP_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);

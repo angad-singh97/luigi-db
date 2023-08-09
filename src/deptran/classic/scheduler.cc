@@ -241,21 +241,18 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     shared_ptr<Coordinator> coo{CreateRepCoord(dep_id.id)};
     coo->svr_workers_g = svr_workers_g;
 
+    double client_ms = ((VecPieceData*)(cmd->cmd_.get()))->time_sent_from_client_;
     struct timeval tp;
     gettimeofday(&tp, NULL);
     double start_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+    cli2tx.append(start_ms - client_ms);
+
     FastPathManagerSubmit(coo, sp_m);
     // coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
     gettimeofday(&tp, NULL);
     double finish_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
-    double latency = finish_ms - start_ms;
-    latency_sum += latency;
-    latency_count++;
-    if (latency < latency_min)
-      latency_min = latency;
-    if (latency > latency_max)
-      latency_max = latency;
+    tx2tx.append(finish_ms - start_ms);
     
 		slow_ = coo->slow_;
   } else {

@@ -268,9 +268,19 @@ TxLogServer::~TxLogServer() {
     it->second = NULL;
   }
   mdb_txns_.clear();
-  Log_info("[CURP] loc_id_=%d site_id_=%d curp_fast_path_success_count_=%d curp_coordinator_accept_count_=%d original_protocol_submit_count_=%d, total=%d",
-            loc_id_, site_id_, curp_fast_path_success_count_, curp_coordinator_accept_count_, original_protocol_submit_count_,
-            curp_fast_path_success_count_ + curp_coordinator_accept_count_ + original_protocol_submit_count_);
+  // verify(cli2svr_dispatch_count > 0 && cli2svr_commit_count > 0);
+  if (cli2svr_dispatch.count() || cli2svr_commit.count())
+    Log_info("[CURP] loc_id_=%d site_id_=%d curp_executed_committed_max_gap_=%d \
+    curp_fast_path_success_count_=%d curp_coordinator_accept_count_=%d original_protocol_submit_count_=%d total=%d \
+    cli2svr_dispatch 50% = %.2f ms cli2svr_dispatch 90% = %.2f ms cli2svr_dispatch 99% = %.2f ms \
+    cli2svr_commit 50% = %.2f ms cli2svr_commit 90% = %.2f ms cli2svr_commit_max 99% = %.2f ms",
+              loc_id_, site_id_, curp_executed_committed_max_gap_, 
+              curp_fast_path_success_count_, curp_coordinator_accept_count_, original_protocol_submit_count_,
+              curp_fast_path_success_count_ + curp_coordinator_accept_count_ + original_protocol_submit_count_,
+              cli2svr_dispatch.pct50(), cli2svr_dispatch.pct90(), cli2svr_dispatch.pct99(),
+              cli2svr_commit.pct50(), cli2svr_commit.pct90(), cli2svr_commit.pct99());
+  else
+    Log_info("[CURP] loc_id_=%d site_id_=%d No Count / Latency Measured", loc_id_, site_id_);
 }
 
 /**
@@ -418,8 +428,10 @@ value_t TxLogServer::read(key_t key) {
 slotid_t TxLogServer::append_cmd(key_t key, const shared_ptr<Marshallable>& cmd) {
   // [CURP] TODO: maybe use a variable to lock
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  if (curp_log_cols_[key] == nullptr)
-    curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
+  // Log_info("[CURP] server %d append_cmd on key %d", loc_id_, key);
+  // verify(curp_log_cols_[key]->count_ == 0);
+  // if (curp_log_cols_[key] == nullptr)
+  //   curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
   size_t idx = ++curp_log_cols_[key]->count_;
   verify(!col->logs_.count(idx));
@@ -442,8 +454,16 @@ void TxLogServer::OnCurpPoorDispatch(const int32_t& client_id,
   n_fast_path_attempted_++;
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
   key_t key = dynamic_pointer_cast<SimpleRWCommand>(parsed_cmd_)->key_;
+  // Log_info("[CURP] OnCurpPoorDispatch loc_id_ %d cmd (%d, %d) key=%d", loc_id_, client_id, cmd_id_in_client, key);
   bool_t fast_path_validation = check_fast_path_validation(key);
   std::shared_ptr<Position> pos = make_shared<Position>(MarshallDeputy::POSITION_CLASSIC, 2);
+
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+  cli2svr_dispatch.append(current_time - sent_time);
+
   if (!fast_path_validation) {
     // Log_info("[CURP] OnPoorDispatch Branch 1");
     *accepted = false;
@@ -491,54 +511,66 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
                                 const shared_ptr<Marshallable>& cmd,
                                 const bool_t& accepted) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  // Log_info("enter");
-  // usleep(1000000);
+  shared_ptr<ResponseData> response_pack = nullptr;
+  if (curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))] == nullptr) {
+      curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))] = make_shared<ResponseData>();
+      response_pack = curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))];
+      struct timeval tp;
+      gettimeofday(&tp, NULL);
+      response_pack->first_seen_time_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+  } else {
+    response_pack = curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))];
+  }
   if (!accepted) {
-    // Log_info("exit here 1");
     return;
   }
-  pair<int, int> accepted_and_max_accepted = curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].append_response(cmd);
+  pair<int, int> accepted_and_max_accepted = response_pack->append_response(cmd);
   int accepted_num = accepted_and_max_accepted.first;
   int max_accepted_num = accepted_and_max_accepted.second;
   int par_id_ = 0; // TODO: change to real par_id_;
   int n_replica = Config::GetConfig()->GetPartitionSize(par_id_);
 
-  // Log_info("[CURP] !!! %p site=%d done=%d accepted_num=%d max_accepted_num=%d", (void*)this, site_id_, curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_, accepted_num, max_accepted_num);
-  if (curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_) {
-    // Log_info("exit here 2");
+  // Log_info("[CURP] !!! %p site=%d done=%d accepted_num=%d max_accepted_num=%d", (void*)this, site_id_, response_pack->done_, accepted_num, max_accepted_num);
+  if (response_pack->done_) {
     return;
   }
 
-  if (accepted_num >= CurpFastQuorumSize(n_replica)) {
-    if (curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_) return;
-    // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 1 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-    curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_ = true;
-    // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 1 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-    CurpCommit(pos, cmd);
-    curp_fast_path_success_count_++;
-  } else if ((accepted_num >= CurpQuorumSize(n_replica)) && (max_accepted_num >= CurpSmallQuorumSize(n_replica))) {
-    // [CURP] TODO: check this condition
-    shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent> quorum = commo()->CurpBroadcastCoordinatorAccept(partition_id_, pos, cmd);
-    quorum->Wait();
-    // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 2 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-    // curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_ = true;
-    // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 2 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-    if (quorum->Yes()) {
-      if (curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_) return;
-      // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 2 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-      curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_ = true;
-      // Log_info("[CURP] site=%d pos %d %d enter CurpCommit on branch 2 %d", site_id_, pos->get(0), pos->get(1), curp_response_storage_[make_pair<pos_t, pos_t>(pos->get(0), pos->get(1))].done_);
-      CurpCommit(pos, cmd);
-      curp_coordinator_accept_count_++;
-    } else if (quorum->No()) {
-      verify(0);
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+  double time_elapses = current_time - response_pack->first_seen_time_;
+
+  if (time_elapses <= CURP_FAST_PATH_TIMEOUT) {
+    if (max_accepted_num >= CurpFastQuorumSize(n_replica)) {
+      if (!response_pack->done_) {
+        response_pack->done_ = true;
+        CurpCommit(pos, cmd);
+        curp_fast_path_success_count_++;
+      } 
     } else {
-      verify(0);
+      // do nothing
     }
   } else {
-    // do nothing
+    if ((accepted_num >= CurpQuorumSize(n_replica)) && (max_accepted_num >= CurpSmallQuorumSize(n_replica))) {
+      // [CURP] TODO: check this condition
+      shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent> quorum = commo()->CurpBroadcastCoordinatorAccept(partition_id_, pos, cmd);
+      quorum->Wait();
+      if (quorum->Yes()) {
+        if (!response_pack->done_) {
+          response_pack->done_ = true;
+          CurpCommit(pos, cmd);
+          curp_coordinator_accept_count_++;
+        }
+      } else if (quorum->No()) {
+        verify(0);
+        // [CURP] TODO: Do original protocol
+      } else {
+        verify(0);
+      }
+    } else {
+      // do nothing
+    }
   }
-  // Log_info("exit here 3");
 }
 
 void TxLogServer::OnCurpCoordinatorAccept(const shared_ptr<Position>& pos,
@@ -618,14 +650,37 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
   pos_t key = pos->get(0);
   pos_t slot_id = pos->get(1);
 
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+  cli2svr_commit.append(current_time - sent_time);
+
+  shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else {
+    verify(0);
+  }
+  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
+  // Log_info("[CURP] Svr %d Commit pos (%d, %d) cmd (%d, %d)", loc_id_, key, slot_id, vector0->client_id_, vector0->cmd_id_in_client_);
+
   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
-  shared_ptr<CurpPlusData> instance = col->logs_[slot_id];
+  shared_ptr<CurpPlusData> instance = GetOrCreateCurpLog(key, slot_id);
   instance->status_ = CurpPlusData::CurpPlusStatus::committed;
   instance->committed_cmd_ = cmd;
   instance->last_accepted_ = cmd;
   instance->last_accepted_status_ = CurpPlusData::CurpPlusStatus::committed;
 
   if (slot_id > col->max_committed_slot_) {
+    curp_executed_committed_gap_ += slot_id - col->max_committed_slot_;
+    if (curp_executed_committed_gap_ > curp_executed_committed_max_gap_)
+      curp_executed_committed_max_gap_ = curp_executed_committed_gap_;
     col->max_committed_slot_ = slot_id;
   }
   UniqueCmdID unique_cmd = GetUniqueCmdID(cmd);
@@ -646,6 +701,7 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
         Log_debug("curp par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
         // n_commit_++;
       }
+      curp_executed_committed_gap_--;
       col->max_executed_slot_++;
     } else {
       break;
@@ -666,8 +722,22 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
 
 void TxLogServer::CurpCommit(shared_ptr<Position> pos,
                             shared_ptr<Marshallable> cmd) {
+  shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else {
+    verify(0);
+  }
+  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
+  // Log_info("[CURP] [CurpCommit] %d Commit pos (%d, %d) cmd (%d, %d)", loc_id_, pos->get(0), pos->get(1), vector0->client_id_, vector0->cmd_id_in_client_);
+
   OnCurpCommit(pos, cmd);
-  commo()->CurpBroadcastCommit(partition_id_, pos, cmd, site_id_);
+  commo()->CurpBroadcastCommit(partition_id_, pos, cmd, loc_id_);
 }
 
 slotid_t TxLogServer::ApplyForNewGlobalID() {
@@ -704,6 +774,7 @@ void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
 }
 
 shared_ptr<CurpPlusData> TxLogServer::GetCurpLog(pos_t pos0, pos_t pos1) {
+  // verify(pos1 == 0);
   if (curp_log_cols_.count(pos0)) {
     if (curp_log_cols_[pos0]->logs_.count(pos1)) {
       return curp_log_cols_[pos0]->logs_[pos1];
@@ -716,6 +787,7 @@ shared_ptr<CurpPlusData> TxLogServer::GetCurpLog(pos_t pos0, pos_t pos1) {
 }
 
 shared_ptr<CurpPlusData> TxLogServer::GetOrCreateCurpLog(pos_t pos0, pos_t pos1) {
+  // verify(pos1 == 1);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!curp_log_cols_.count(pos0))
     curp_log_cols_[pos0] = make_shared<CurpPlusDataCol>();

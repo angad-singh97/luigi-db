@@ -18,18 +18,20 @@ class SchedulerClassic: public TxLogServer {
 
   bool slow_ = false;
 
-  double latency_sum = 0;
-  int latency_count = 0;
-  double latency_max = 0;
-  double latency_min = 1e9;
+  Distribution cli2tx, tx2tx;
 
   SchedulerClassic() {}
 
   ~SchedulerClassic() {
-    if (latency_count != 0)
-      Log_info("[CURP] Ave Latency %.2f ms; Min Latency %.2f ms; Max Latency %.2f ms", latency_sum/latency_count, latency_min, latency_max);
+    if (cli2tx.count() != 0 || tx2tx.count() != 0)
+      Log_info("[CURP] TxSvr loc_id_=%d site_id_=%d \
+                cli2tx 50% = %.2f ms; cli2tx 90% = %.2f ms; cli2tx 99% = %.2f ms; \
+                tx2tx 50% = %.2f ms; tx2tx 90% = %.2f ms; tx2tx 99% = %.2f ms;",
+                loc_id_, site_id_,
+                cli2tx.pct50(), cli2tx.pct90(), cli2tx.pct99(),
+                tx2tx.pct50(), tx2tx.pct90(), tx2tx.pct99());
     else
-      Log_info("[CURP] No Latency Measured");
+      Log_info("[CURP] TxSvr loc_id_=%d site_id_=%d No Latency Measured", loc_id_, site_id_);
   }
 
   void MergeCommands(vector<shared_ptr<TxPieceData>>&,

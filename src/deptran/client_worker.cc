@@ -149,6 +149,7 @@ Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
 
   cooid_t coo_id = cli_id_;
   coo_id = (coo_id << 16) + offset_id;
+  // Log_info("[CURP] coordinator %d %d -> %d have been created", cli_id_, offset_id, coo_id);
   auto coo = frame_->CreateCoordinator(coo_id,
                                        config_,
                                        benchmark,
@@ -619,6 +620,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
     failover_trigger_(failover_trigger),
     failover_server_quit_(failover_server_quit),
     failover_server_idx_(failover_server_idx) {
+  Log_info("[CURP] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
   poll_mgr_ = poll_mgr == nullptr ? new PollMgr(1) : poll_mgr;
   frame_ = Frame::GetFrame(config->tx_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
@@ -626,9 +628,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   num_txn.store(0);
   success.store(0);
   num_try.store(0);
-  // Log_info("[CURP] Before CreateCommo");
   commo_ = frame_->CreateCommo(poll_mgr_);
-  // Log_info("[CURP] After CreateCommo");
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
       (config->replica_proto_ == MODE_FPGA_RAFT && site_info.locale_id != 0) ? true :

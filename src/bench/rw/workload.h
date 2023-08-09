@@ -21,6 +21,10 @@ class RwWorkload : public Workload {
   map<cooid_t, int32_t> key_ids_ = {};
   RwWorkload(Config *config);
   virtual void GetTxRequest(TxRequest* req, uint32_t cid) override;
+  // [CURP] used for non-conflict key test
+  
+  int non_conflict_counter[300] = {};
+  std::recursive_mutex mtx_{};
 
  protected:
   int32_t GetId(uint32_t cid);

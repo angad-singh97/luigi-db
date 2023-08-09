@@ -64,9 +64,34 @@ class CurpPlusDataCol {
   }
 };
 
+class Distribution {
+  vector<double> data;
+ public:
+  void append(double x) {
+    data.push_back(x);
+  }
+  size_t count() {
+    return data.size();
+  }
+  double pct(double pct) {
+    sort(data.begin(), data.end());
+    return data[floor(data.size() * pct)];
+  }
+  double pct50() {
+    return pct(0.5);
+  }
+  double pct90() {
+    return pct(0.9);
+  }
+  double pct99() {
+    return pct(0.99);
+  }
+};
+
 struct ResponseData {
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
   int accept_count_ = 0, max_accept_count_ = 0;
+  double first_seen_time_ = 0;
   bool done_{false};
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
     shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
@@ -128,6 +153,9 @@ class TxLogServer {
   int curp_fast_path_success_count_ = 0;
   int curp_coordinator_accept_count_ = 0;
   int original_protocol_submit_count_ = 0;
+
+  // CURP Timestamp debug
+  Distribution cli2svr_dispatch, cli2svr_commit;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
@@ -287,6 +315,8 @@ class TxLogServer {
   slotid_t curp_min_active_slot_ = 0; // anything before (lt) this slot is freed
   slotid_t curp_max_executed_slot_ = 0;
   slotid_t curp_max_committed_slot_ = 0;
+  slotid_t curp_executed_committed_gap_ = 0;
+  slotid_t curp_executed_committed_max_gap_ = 0;
   map<key_t, shared_ptr<CurpPlusDataCol> > curp_log_cols_{};
   // [CURP] TODO: this need to be used
   // int n_prepare_ = 0;
@@ -299,7 +329,7 @@ class TxLogServer {
   // global id related
   int curp_global_id_hinter_ = 1;
 
-  map<pair<pos_t, pos_t>, ResponseData> curp_response_storage_;
+  map<pair<pos_t, pos_t>, shared_ptr<ResponseData>> curp_response_storage_;
 
   void OnCurpPoorDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,
