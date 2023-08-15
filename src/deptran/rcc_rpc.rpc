@@ -96,9 +96,9 @@ abstract service Curp {
   defer CurpCommit(MarshallDeputy pos,
                 MarshallDeputy md_cmd);
   
-  defer OriginalSubmit(MarshallDeputy cmd,
-                        i64 dep_id |
-                        bool_t slow);
+//  defer OriginalSubmit(MarshallDeputy cmd,
+//                        i64 dep_id |
+//                        bool_t slow);
   
   defer CurpTest(int32_t a |
                 int32_t b);

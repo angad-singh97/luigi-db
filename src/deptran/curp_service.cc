@@ -25,6 +25,7 @@ void CurpServiceImpl::CurpPoorDispatch(const int32_t& client_id,
 #ifdef TC
   usleep(TC_LATENCY);
 #endif
+  // Log_info("[CURP] received CurpPoorDispatch");
   sched_->OnCurpPoorDispatch(client_id,
                       cmd_id_in_client,
                       const_cast<MarshallDeputy&>(cmd).sp_data_,
@@ -138,20 +139,20 @@ void CurpServiceImpl::CurpCommit(const MarshallDeputy& pos,
   defer->reply();
 }
 
-void CurpServiceImpl::OriginalSubmit(const MarshallDeputy& md,
-                                                const rrr::i64& dep_id,
-                                                bool_t* slow,
-                                                rrr::DeferredReply* defer)  {
-  verify(sched_ != nullptr);
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
-  shared_ptr<Marshallable> cmd{md.sp_data_};
-  sched_->OnOriginalSubmit(cmd, 
-                            dep_id,
-                            slow,
-                            bind(&rrr::DeferredReply::reply, defer));
-}
+// void CurpServiceImpl::OriginalSubmit(const MarshallDeputy& md,
+//                                                 const rrr::i64& dep_id,
+//                                                 bool_t* slow,
+//                                                 rrr::DeferredReply* defer)  {
+//   verify(sched_ != nullptr);
+// #ifdef TC
+//   usleep(TC_LATENCY);
+// #endif
+//   shared_ptr<Marshallable> cmd{md.sp_data_};
+//   sched_->OnOriginalSubmit(cmd, 
+//                             dep_id,
+//                             slow,
+//                             bind(&rrr::DeferredReply::reply, defer));
+// }
 
 void CurpServiceImpl::CurpTest(const int32_t& a,
                                           int32_t* b,

@@ -94,8 +94,15 @@ struct ResponseData {
   double first_seen_time_ = 0;
   bool done_{false};
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
-    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-    VecPieceData *vecPiece = (VecPieceData*)(tpc_cmd->cmd_.get());
+    VecPieceData *vecPiece;
+    if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) { // original through tx svr
+      shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+      vecPiece = (VecPieceData*)(tpc_cmd->cmd_.get());
+    } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) { // curp broadcast
+      vecPiece = dynamic_pointer_cast<VecPieceData>(cmd).get();
+    } else {
+      verify(0);
+    }
     shared_ptr<CmdData> md = vecPiece->sp_vec_piece_data_->at(0);
     pair<int, int> cmd_id = {md->client_id_, md->cmd_id_in_client_};
     responses_[cmd_id].push_back(cmd);
@@ -103,6 +110,17 @@ struct ResponseData {
     max_accept_count_ = max(max_accept_count_, (int)responses_[cmd_id].size());
     return {accept_count_, max_accept_count_};
   }
+};
+
+struct CommitNotification {
+  // client side
+  bool client_stored_ = false;
+  bool_t* committed_;
+  function<void()> commit_callback_;
+  // coordinator side
+  bool coordinator_stored_ = false;
+  bool_t coordinator_commit_result_;
+  bool coordinator_replied_ = false;
 };
 
 /*****************************CURP end************************************/
@@ -149,13 +167,16 @@ class TxLogServer {
   bool in_upgrade_epoch_{false};
   const int EPOCH_DURATION = 5;
 
-  // curp countings
+  // CURP countings
   int curp_fast_path_success_count_ = 0;
   int curp_coordinator_accept_count_ = 0;
   int original_protocol_submit_count_ = 0;
 
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
+
+  // CURP coordinator reply/notify the client
+  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> commit_results_;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;

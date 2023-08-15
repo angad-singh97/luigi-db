@@ -170,6 +170,10 @@ void CurpPlusAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
 }
 
+// void CurpCommitResultQuorumEvent::FeedResponse(bool commit_success) {
+//   commit_success_ = commit_success;
+// }
+
 /************************CURP end*********************************/
 
 
@@ -1142,16 +1146,15 @@ void Communicator::SendSimpleCmd(groupid_t gid, SimpleCommand& cmd,
 
 // below are about CURP
 
+// [CURP] TODO: Haven't consider partition
 shared_ptr<CurpDispatchQuorumEvent>
 Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
-  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  // VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = dynamic_pointer_cast<VecPieceData>(cmd)->sp_vec_piece_data_;
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
   
-  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
-  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
   MarshallDeputy md(cmd);
 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
@@ -1182,7 +1185,12 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     gettimeofday(&tp, NULL);
     Log_info("[CURP] [1-] [tx=%d] async_PoorDispatch called by Submit %.3f", tpc_cmd->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
-
+    // Record Time
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    dynamic_pointer_cast<VecPieceData>(cmd)->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+    
+    // Log_info("[CURP] async_CurpPoorDispatch");
     auto future = proxy->async_CurpPoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }
@@ -1192,43 +1200,43 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
   return e;
 }
 
-shared_ptr<IntEvent>
-Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id) {
-  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
-  verify(!sp_vec_piece->empty());
-  auto par_id = sp_vec_piece->at(0)->PartitionId();
+// shared_ptr<IntEvent>
+// Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id) {
+//   shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+//   VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+//   shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+//   verify(!sp_vec_piece->empty());
+//   auto par_id = sp_vec_piece->at(0)->PartitionId();
   
-  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
-  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
-  MarshallDeputy md(cmd);
+//   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+//   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+//   MarshallDeputy md(cmd);
 
-  auto e = Reactor::CreateSpEvent<IntEvent>();
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
-  for (auto& pair : rpc_par_proxies_[par_id]) 
-    if (pair.first == target_site) {
-      rrr::FutureAttr fuattr;
-      fuattr.callback =
-          [e, this](Future* fu) {
-            bool_t slow;
-            fu->get_reply() >> slow;
-            this->slow = slow;
-            e->Set(1);
-          };
+//   auto e = Reactor::CreateSpEvent<IntEvent>();
+// #ifdef CURP_SEND_TC
+//   usleep(TC_LATENCY);
+// #endif
+//   for (auto& pair : rpc_par_proxies_[par_id]) 
+//     if (pair.first == target_site) {
+//       rrr::FutureAttr fuattr;
+//       fuattr.callback =
+//           [e, this](Future* fu) {
+//             bool_t slow;
+//             fu->get_reply() >> slow;
+//             this->slow = slow;
+//             e->Set(1);
+//           };
       
-      auto proxy = (CurpProxy *)pair.second;
+//       auto proxy = (CurpProxy *)pair.second;
 
-      auto future = proxy->async_OriginalSubmit(md, dep_id, fuattr);
-      Future::safe_release(future);
-    }
+//       auto future = proxy->async_OriginalSubmit(md, dep_id, fuattr);
+//       Future::safe_release(future);
+//     }
 
-  e->Wait();
+//   e->Wait();
 
-  return e;
-}
+//   return e;
+// }
 
 shared_ptr<QuorumEvent>
 Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,

@@ -247,8 +247,8 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     double start_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     cli2tx.append(start_ms - client_ms);
 
-    FastPathManagerSubmit(coo, sp_m);
-    // coo->Submit(sp_m);
+    // FastPathManagerSubmit(coo, sp_m);
+    coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
     gettimeofday(&tp, NULL);
     double finish_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
@@ -357,16 +357,16 @@ void SchedulerClassic::Next(Marshallable& cmd) {
   }
 }
 
-void SchedulerClassic::FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m) {
-  // coo->Submit(sp_m);
-  // return;
-  bool fast_path_enabled = true;
-  if (fast_path_enabled) {
-    coo->CurpSubmit(sp_m);
-  } else {
-    coo->OriginalSubmit(sp_m);
-  }
-}
+// void SchedulerClassic::FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m) {
+//   // coo->Submit(sp_m);
+//   // return;
+//   bool fast_path_enabled = true;
+//   if (fast_path_enabled) {
+//     coo->CurpSubmit(sp_m);
+//   } else {
+//     coo->OriginalSubmit(sp_m);
+//   }
+// }
 
 
 

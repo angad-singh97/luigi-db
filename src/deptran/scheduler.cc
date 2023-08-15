@@ -460,7 +460,8 @@ void TxLogServer::OnCurpPoorDispatch(const int32_t& client_id,
 
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  // double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  double sent_time = (dynamic_pointer_cast<VecPieceData>(cmd))->time_sent_from_client_;
   double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
   cli2svr_dispatch.append(current_time - sent_time);
 
@@ -503,8 +504,19 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
                                     bool_t* committed,
                                     const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  
-  cb();
+  int32_t client_id_cp = client_id;
+  int32_t cmd_id_in_client_cp = cmd_id_in_client;
+  pair<int32_t, int32_t> cmd_id = make_pair(client_id_cp, cmd_id_in_client_cp);
+  if (commit_results_[cmd_id] != nullptr)
+    commit_results_[cmd_id] = make_shared<CommitNotification>();
+  commit_results_[cmd_id]->committed_ = committed;
+  commit_results_[cmd_id]->commit_callback_ = cb;
+  commit_results_[cmd_id]->client_stored_ = true;
+  if (commit_results_[cmd_id]->coordinator_stored_) {
+   *committed = commit_results_[cmd_id]->coordinator_commit_result_;
+   commit_results_[cmd_id]->coordinator_replied_ = true;
+   cb();
+  }
 }
 
 void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
@@ -652,7 +664,8 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
 
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  // double sent_time = ((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->time_sent_from_client_;
+  double sent_time = (dynamic_pointer_cast<VecPieceData>(cmd))->time_sent_from_client_;
   double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
   cli2svr_commit.append(current_time - sent_time);
 
@@ -697,7 +710,7 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
       // for now, FINISH cmd also have a global id
       next_instance->global_id_ = ApplyForNewGlobalID();
       if (!next_instance->is_finish_) {
-        app_next_(*next_instance->committed_cmd_);
+        // app_next_(*next_instance->committed_cmd_); // this is for old non-curp-broadcast
         Log_debug("curp par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
         // n_commit_++;
       }

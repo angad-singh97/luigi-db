@@ -197,15 +197,15 @@ class Coordinator {
   virtual void restart(TxData *ch) {verify(0);};
   virtual void Restart() = 0;
 
-  // below are about CURP
+  // // below are about CURP
   
-  void CurpSubmit(shared_ptr<Marshallable>& cmd,
-                      const std::function<void()>& commit_callback = [](){},
-                      const std::function<void()>& exe_callback = [](){});
+  // void CurpSubmit(shared_ptr<Marshallable>& cmd,
+  //                     const std::function<void()>& commit_callback = [](){},
+  //                     const std::function<void()>& exe_callback = [](){});
 
-  void OriginalSubmit(shared_ptr<Marshallable>& cmd,
-                      const std::function<void()>& commit_callback = [](){},
-                      const std::function<void()>& exe_callback = [](){});
+  // void OriginalSubmit(shared_ptr<Marshallable>& cmd,
+  //                     const std::function<void()>& commit_callback = [](){},
+  //                     const std::function<void()>& exe_callback = [](){});
 };
 
 } // namespace janus

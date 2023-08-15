@@ -19,6 +19,7 @@
 #include "none_copilot/scheduler.h"
 #include "copilotplus/coordinator.h"
 #include "copilotplus/commo.h"
+#include "curp/coordinator.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
 #include "bench/tpcc/workload.h"
@@ -78,6 +79,7 @@ Frame* Frame::GetFrame(int mode) {
     case MODE_MDCC:
     case MODE_2PL:
     case MODE_OCC:
+    case MODE_CURP:
       frame = new Frame(mode);
       break;
     case MODE_EXTERNC:
@@ -216,6 +218,13 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
     //                                     benchmark,
     //                                     ccsi,
     //                                     id);
+    case MODE_CURP:
+      coo = new CoordinatorCurp(coo_id,
+                         benchmark,
+                         ccsi,
+                         id);
+      ((Coordinator*)coo)->txn_reg_ = txn_reg;
+      break;
     case MODE_NONE:
     case MODE_NONE_COPILOT:
     default:
@@ -303,9 +312,9 @@ Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
     case MODE_NONE_COPILOT:
       commo_ = new CommunicatorNoneCopilot(pollmgr);
       break;
-    case MODE_COPILOT_PLUS:
-      commo_ = new CopilotPlusCommo(pollmgr);
-      break;
+    // case MODE_COPILOT_PLUS:
+    //   commo_ = new CopilotPlusCommo(pollmgr);
+    //   break;
     default:
       commo_ = new Communicator(pollmgr);
       break;
@@ -390,6 +399,7 @@ TxLogServer* Frame::CreateScheduler() {
       break;
     case MODE_NOTX:
     case MODE_NONE:
+    case MODE_CURP:
       sch = new SchedulerNone();
       break;
     case MODE_NONE_COPILOT:
@@ -484,6 +494,7 @@ map<string, int> &Frame::FrameNameToMode() {
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},
       {"copilot_plus",  MODE_COPILOT_PLUS},
+      {"curp",          MODE_CURP},
   };
   return frame_name_mode_s;
 }
