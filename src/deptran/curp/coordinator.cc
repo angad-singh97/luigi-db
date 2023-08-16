@@ -1,6 +1,7 @@
 #include "coordinator.h"
 #include "frame.h"
 #include "benchmark_control_rpc.h"
+#include "../RW_command.h"
 
 namespace janus {
 
@@ -20,6 +21,7 @@ void CoordinatorCurp::GotoNextPhase() {
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       verify(phase_ % n_phase == Phase::DISPATCH);
+      dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       BroadcastDispatch();
       break;
     case Phase::DISPATCH:
@@ -30,9 +32,11 @@ void CoordinatorCurp::GotoNextPhase() {
         committed_ = true;
         phase_ += 2;
         verify(phase_ % n_phase == Phase::INIT_END);
+        fastpath_count_++;
+        cli2cli_->append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-        // Log_info("[CURP] coo_id=%d fastpath fail, QueryCoordinator", coo_id_);
+        // Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         QueryCoordinator();
       }
       break;
@@ -40,10 +44,12 @@ void CoordinatorCurp::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::ORIGIN);
       if (coordinator_success_) {
         coordinator_success_ = false;
-        // Log_info("[CURP] coo_id=%d QueryCoordinator success", coo_id_);
+        // ("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         committed_ = true;
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
+        coordinatoraccept_count_++;
+        cli2cli_->append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
         // Log_info("[CURP] coo_id=%d QueryCoordinator fail, OriginalProtocol", coo_id_);
@@ -52,8 +58,10 @@ void CoordinatorCurp::GotoNextPhase() {
       break;
     case Phase::ORIGIN:
       verify(phase_ % n_phase == Phase::INIT_END);
-      // Log_info("[CURP] coo_id=%d QueryCoordinator success", coo_id_);
+      // Log_info("[CURP] coo_id=%d Original Protocol success", coo_id_);
       committed_ = true;
+      original_protocol_count_++;
+      cli2cli_->append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       End();
       break;
     default:
@@ -115,7 +123,7 @@ void CoordinatorCurp::QueryCoordinator() {
 }
 
 void CoordinatorCurp::OriginalProtocol() {
-  DispatchAsync();
+  // DispatchAsync();
   GotoNextPhase();
 }
 

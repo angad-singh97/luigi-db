@@ -1241,8 +1241,9 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 shared_ptr<QuorumEvent>
 Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
                                             siteid_t coo_id) {
-  shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+  // VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+  shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
   shared_ptr<vector<shared_ptr<TxPieceData>>> vec_piece_data = cmd_cast->sp_vec_piece_data_;
 
   int32_t client_id_ = vec_piece_data->at(0)->client_id_;

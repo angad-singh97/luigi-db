@@ -7,6 +7,7 @@
 #include "benchmark_control_rpc.h"
 #include "server_worker.h"
 #include "../rrr/reactor/event.h"
+#include "scheduler.h"
 
 #ifdef CPU_PROFILE
 # include <gperftools/profiler.h>
@@ -25,6 +26,8 @@ static std::vector<std::thread> failover_threads_g = {};
 bool* volatile failover_triggers;
 volatile bool failover_server_quit = false;
 volatile locid_t failover_server_idx;
+volatile double total_throughput = 0;
+volatile Distribution cli2cli;
 
 void client_setup_heartbeat(int num_clients) {
   Log_info("%s", __FUNCTION__);
@@ -62,7 +65,9 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             ccsi_g, nullptr, 
                                             &(failover_triggers[client_id]),
                                             &failover_server_quit,
-                                            &failover_server_idx);
+                                            &failover_server_idx,
+                                            &total_throughput,
+                                            &cli2cli);
     workers.push_back(worker);
     client_threads_g.push_back(std::thread(&ClientWorker::Work, worker));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -328,6 +333,8 @@ int main(int argc, char *argv[]) {
     failover_server_quit = true;
     Log_info("all clients have shut down.");
   }
+  // Log_info("Total throughtput is %.2f, Latency-50% is %.2f ms, Latency-90% is %.2f ms, Latency-99% is %.2f ms ", total_throughput, cli2cli.pct50(), cli2cli.pct90(), cli2cli.pct99());
+  Log_info("Total throughtput is %.2f", total_throughput);
 
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.

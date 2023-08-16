@@ -17,6 +17,8 @@ class SimpleRWCommand: public Marshallable {
   std::string cmd_to_string();
   Marshal& ToMarshal(Marshal& m) const override;
   Marshal& FromMarshal(Marshal& m) override;
+  static pair<int32_t, int32_t> GetCmdID(shared_ptr<Marshallable> cmd);
+  static double GetCurrentMsTime();
 };
 
 }

@@ -4,6 +4,8 @@
 #pragma once
 
 #include "../coordinator.h"
+#include "../scheduler.h"
+#include "../RW_command.h"
 
 namespace janus {
 
@@ -18,6 +20,9 @@ class CoordinatorClassic : public Coordinator {
 	rrr::CondVar pre_cond{};
 	map<parid_t, SiteProxyPair> leaders;
   enum Phase { INIT_END = 0, DISPATCH = 1, PREPARE = 2, COMMIT = 3 };
+
+  // For latency test
+  double dispatch_time_ = -1;
 
   CoordinatorClassic(uint32_t coo_id,
                      int benchmark,

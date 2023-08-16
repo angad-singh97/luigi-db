@@ -6,6 +6,7 @@
 //#include "all.h"
 #include "msg.h"
 #include "communicator.h"
+#include "scheduler.h"
 // #include "client_worker.h"
 
 namespace janus {
@@ -97,6 +98,9 @@ class Coordinator {
   /******global unique id begin********/
   int cmd_in_client_count = 0;
   /******global unique id end********/
+
+  // For latency test
+  Distribution *cli2cli_;
 
 #ifdef TXN_STAT
   typedef struct txn_stat_t {

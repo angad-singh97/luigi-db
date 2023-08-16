@@ -15,6 +15,7 @@ ClientWorker::~ClientWorker() {
   for (auto c : created_coordinators_) {
     delete c;
   }
+  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", local_cli2cli_.pct50(), local_cli2cli_.pct90(), local_cli2cli_.pct99());
 //  dispatch_pool_->release();
 }
 
@@ -257,6 +258,7 @@ void ClientWorker::Work() {
         verify(!coo->sp_ev_done_);
         coo->sp_ev_commit_ = Reactor::CreateSpEvent<IntEvent>();
         coo->sp_ev_done_ = Reactor::CreateSpEvent<IntEvent>();
+        coo->cli2cli_ = &this->local_cli2cli_;
 
 				Log_debug("Dispatching request for %d", n_tx);
 				this->outbound++;
@@ -348,6 +350,7 @@ void ClientWorker::Work() {
            Config::GetConfig()->get_duration(),
            static_cast<float>(num_txn.load()) / Config::GetConfig()->get_duration(),
            cli_id_);
+  *total_throughput_ += static_cast<float>(num_txn.load()) / Config::GetConfig()->get_duration();
   fflush(stderr);
   fflush(stdout);
 
@@ -607,7 +610,8 @@ void ClientWorker::SearchLeader(Coordinator* coo) {
 
 ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
     ClientControlServiceImpl* ccsi, PollMgr* poll_mgr, bool* volatile failover_trigger,
-    volatile bool* failover_server_quit, volatile locid_t* failover_server_idx)
+    volatile bool* failover_server_quit, volatile locid_t* failover_server_idx, 
+    volatile double* total_throughput, volatile Distribution* cli2cli)
   : id(id),
     my_site_(site_info),
     config_(config),
@@ -619,7 +623,9 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
     n_concurrent_(config->get_concurrent_txn()),
     failover_trigger_(failover_trigger),
     failover_server_quit_(failover_server_quit),
-    failover_server_idx_(failover_server_idx) {
+    failover_server_idx_(failover_server_idx),
+    total_throughput_(total_throughput),
+    cli2cli_(cli2cli) {
   Log_info("[CURP] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
   poll_mgr_ = poll_mgr == nullptr ? new PollMgr(1) : poll_mgr;
   frame_ = Frame::GetFrame(config->tx_proto_);

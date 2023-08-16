@@ -9,6 +9,7 @@
 #include "rcc/tx.h"
 #include "position.h"
 #include "classic/tpc_command.h"
+#include "RW_command.h"
 
 namespace janus {
 
@@ -25,7 +26,8 @@ class CurpPlusData {
     fastAccepted = 1,
     prepared = 2,
     accepted = 3,
-    committed = 4
+    committed = 4,
+    executed = 5
   };
   CurpPlusStatus status_ = CurpPlusStatus::init;
   ballot_t max_ballot_seen_ = 0;
@@ -89,8 +91,10 @@ class Distribution {
 };
 
 struct ResponseData {
+  pair<pos_t, pos_t> pos_of_this_pack;
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
-  int accept_count_ = 0, max_accept_count_ = 0;
+  shared_ptr<Marshallable> max_cmd_{nullptr};
+  int received_count_ = 0, accept_count_ = 0, max_accept_count_ = 0;
   double first_seen_time_ = 0;
   bool done_{false};
   pair<int, int> append_response(const shared_ptr<Marshallable>& cmd) {
@@ -107,8 +111,23 @@ struct ResponseData {
     pair<int, int> cmd_id = {md->client_id_, md->cmd_id_in_client_};
     responses_[cmd_id].push_back(cmd);
     accept_count_++;
-    max_accept_count_ = max(max_accept_count_, (int)responses_[cmd_id].size());
+    if (responses_[cmd_id].size() > max_accept_count_) {
+      max_accept_count_ = responses_[cmd_id].size();
+      max_cmd_ = cmd;
+    }
+    // Log_info("[CURP] ResponseData at pos(%d, %d) add cmd<%d, %d> , accept_count_=%d max_accept_count_=%d max_cmd_=cmd<%d, %d>",
+    //   pos_of_this_pack.first,
+    //   pos_of_this_pack.second,
+    //   SimpleRWCommand::GetCmdID(cmd).first,
+    //   SimpleRWCommand::GetCmdID(cmd).second,
+    //   accept_count_,
+    //   max_accept_count_,
+    //   SimpleRWCommand::GetCmdID(max_cmd_).first,
+    //   SimpleRWCommand::GetCmdID(max_cmd_).second);
     return {accept_count_, max_accept_count_};
+  }
+  shared_ptr<Marshallable> GetMaxCmd() {
+    return max_cmd_;
   }
 };
 
@@ -121,6 +140,8 @@ struct CommitNotification {
   bool coordinator_stored_ = false;
   bool_t coordinator_commit_result_;
   bool coordinator_replied_ = false;
+  // timestamp (ms)
+  double receive_time_ = -1;
 };
 
 /*****************************CURP end************************************/
@@ -175,8 +196,10 @@ class TxLogServer {
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
 
-  // CURP coordinator reply/notify the client
+  // CURP coordinator reply/notify the client: cmd_id index
   map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> commit_results_;
+  vector<shared_ptr<CommitNotification>> commit_timeout_list_;
+  int commit_timeout_solved_count_;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;

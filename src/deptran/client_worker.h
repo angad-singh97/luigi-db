@@ -59,6 +59,9 @@ class ClientWorker {
   bool* volatile failover_trigger_;
   volatile bool* failover_server_quit_;
   volatile locid_t* failover_server_idx_;
+  volatile double* total_throughput_;
+  volatile Distribution* cli2cli_;
+  Distribution local_cli2cli_;
   locid_t cur_leader_{0}; // init leader is 0
   bool failover_wait_leader_{false};
   bool failover_trigger_loc{false};
@@ -67,7 +70,8 @@ class ClientWorker {
  public:
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
       ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,
-      volatile bool* failover_server_quit, volatile locid_t* failover_server_idx);
+      volatile bool* failover_server_quit, volatile locid_t* failover_server_idxm,
+      volatile double* total_throughput, volatile Distribution* cli2cli);
   ClientWorker() = delete;
   ~ClientWorker();
   // This is called from a different thread.

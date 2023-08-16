@@ -101,7 +101,8 @@ int32_t RwWorkload::GetId(uint32_t cid) {
   if (fix_id_ == -1) {
     // [CURP] TODO: need to change back to random
     // Log_info("[CURP] id range is (0, %d)", rw_benchmark_para_.n_table_ - 1);
-    id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
+    id = RandomGenerator::rand(0, 9);
+    // id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
     // std::lock_guard<std::recursive_mutex> lock(mtx_);
     // int cli_id = (cid >> 16) - 3, coo_id = cid & ((1 << 16) - 1);
     // verify(cli_id >= 0 && cli_id <= 2 && coo_id >= 0 && coo_id <= 99);
