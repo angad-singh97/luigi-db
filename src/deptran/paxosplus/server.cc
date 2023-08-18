@@ -89,6 +89,7 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
                            const ballot_t ballot,
                            shared_ptr<Marshallable> &cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  Log_info("[CURP] PaxosPlus OnCommit");
   Log_debug("multi-paxos scheduler decide for slot: %lx", slot_id);
   auto instance = GetInstance(slot_id);
   instance->committed_cmd_ = cmd;

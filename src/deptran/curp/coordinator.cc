@@ -52,7 +52,7 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_->append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-        // Log_info("[CURP] coo_id=%d QueryCoordinator fail, OriginalProtocol", coo_id_);
+        // Log_info("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         OriginalProtocol();
       }
       break;
@@ -74,6 +74,8 @@ void CoordinatorCurp::BroadcastDispatch() {
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
   auto cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  cmds_by_par_ = cmds_by_par;
+  curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
@@ -88,6 +90,7 @@ void CoordinatorCurp::BroadcastDispatch() {
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
     }
+    verify(sp_vec_piece->size() == 1); // for Curp setting
     cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
     verify(sp_vec_piece->size() > 0);
     verify(par_id == sp_vec_piece->at(0)->PartitionId());
@@ -123,7 +126,7 @@ void CoordinatorCurp::QueryCoordinator() {
 }
 
 void CoordinatorCurp::OriginalProtocol() {
-  // DispatchAsync();
+  DispatchAsync();
   GotoNextPhase();
 }
 

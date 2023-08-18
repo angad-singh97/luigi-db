@@ -218,7 +218,12 @@ void CoordinatorClassic::DispatchAsync() {
   int cnt = 0;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
-  auto cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  ReadyPiecesData cmds_by_par;
+  if (curp_stored_cmd_) {
+    cmds_by_par = cmds_by_par_;
+  } else {
+    cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  }
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;

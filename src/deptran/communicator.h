@@ -13,7 +13,7 @@
 namespace janus {
 
 static void _wan_wait() {
-  Reactor::CreateSpEvent<NeverEvent>()->Wait(100*1000);
+  Reactor::CreateSpEvent<NeverEvent>()->Wait(20*1000);
 }
 
 #ifdef SIMULATE_WAN

@@ -18,12 +18,12 @@ namespace janus {
 /************************CURP begin*********************************/
 
 int CurpMaxFailure(int total) {
-  return (total + 1) / 2 - 1;
+  return (total - 1) / 2;
 }
 
 int CurpFastQuorumSize(int total) {
   // TODO: calculate carefully
-  return (total * 3 - 1) / 4 + 1;
+  return (total + CurpQuorumSize(total) - 1) / 2 + 1;
 }
 
 int CurpQuorumSize(int total) {
@@ -32,7 +32,7 @@ int CurpQuorumSize(int total) {
 
 int CurpSmallQuorumSize(int total) {
   // TODO: calculate carefully
-  return (total - 1) / 4 + 1;
+  return total + 1 - CurpFastQuorumSize(total);
 }
 
 
@@ -1162,6 +1162,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
@@ -1258,6 +1259,7 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& pair : rpc_par_proxies_[par_id])
     if (pair.first == coo_id) {
       rrr::FutureAttr fuattr;
@@ -1290,6 +1292,7 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1322,6 +1325,7 @@ Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1348,6 +1352,7 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1379,6 +1384,7 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
@@ -1407,6 +1413,7 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;

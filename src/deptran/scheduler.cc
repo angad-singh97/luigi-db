@@ -519,9 +519,16 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
    *committed = commit_results_[cmd_id]->coordinator_commit_result_;
    commit_results_[cmd_id]->coordinator_replied_ = true;
 #ifdef CURP_CONFLICT_DEBUG
-   Log_info("[CURP] Client Triggered commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
+    Log_info("[CURP] Client Triggered commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
 #endif
-   cb();
+    cb();
+  }
+  Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_WAIT_COMMIT_TIMEOUT * 1000);
+  if (!commit_results_[cmd_id]->coordinator_replied_) {
+    *commit_results_[cmd_id]->committed_ = false;
+    commit_results_[cmd_id]->commit_callback_();
+    commit_results_[cmd_id]->coordinator_replied_ = true;
+    original_protocol_submit_count_++;
   }
 }
 
@@ -552,9 +559,6 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
   int n_replica = Config::GetConfig()->GetPartitionSize(par_id_);
 
   // Log_info("[CURP] !!! %p site=%d done=%d accepted_num=%d max_accepted_num=%d", (void*)this, site_id_, response_pack->done_, accepted_num, max_accepted_num);
-  if (response_pack->done_) {
-    return;
-  }
 
   double current_time = SimpleRWCommand::GetCurrentMsTime();
   double time_elapses = current_time - response_pack->first_seen_time_;
@@ -565,44 +569,43 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
     SimpleRWCommand::GetCmdID(cmd).second, 
     time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num >= CurpFastQuorumSize(n_replica), 
     ((time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica)) || (time_elapses > CURP_FAST_PATH_TIMEOUT)),
-    (accepted_num >= CurpQuorumSize(n_replica) && max_accepted_num >= CurpQuorumSize(n_replica)),
+    (accepted_num >= CurpQuorumSize(n_replica) && max_accepted_num >= CurpSmallQuorumSize(n_replica)),
     (accepted_num + (n_replica - response_pack->received_count_) < CurpQuorumSize(n_replica) || max_accepted_num + (n_replica - response_pack->received_count_) < CurpSmallQuorumSize(n_replica)));
 #endif
   if (time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num >= CurpFastQuorumSize(n_replica)) {
-    if (!response_pack->done_) {
-      response_pack->done_ = true;
-      CurpCommit(pos, cmd);
-      curp_fast_path_success_count_++;
-    } 
+    if (response_pack->done_) return;
+    response_pack->done_ = true;
+    CurpCommit(pos, cmd);
+    curp_fast_path_success_count_++;
   } else if ( ((time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica)) || (time_elapses > CURP_FAST_PATH_TIMEOUT))
-      && (accepted_num >= CurpQuorumSize(n_replica) && max_accepted_num >= CurpQuorumSize(n_replica)) ) {
+      && (accepted_num >= CurpQuorumSize(n_replica) && max_accepted_num >= CurpSmallQuorumSize(n_replica)) ) {
       // [CURP] TODO: check this condition
       shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
 #ifdef CURP_CONFLICT_DEBUG
       Log_info("[CURP] Broadcast Coordinator Accept for cmd<%d, %d> at pos(%d, %d)", SimpleRWCommand::GetCmdID(max_cmd).first, SimpleRWCommand::GetCmdID(max_cmd).second, pos->get(0), pos->get(1));
 #endif
+      if (response_pack->done_) return;
+      response_pack->done_ = true;
       shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent> quorum = commo()->CurpBroadcastCoordinatorAccept(partition_id_, pos, max_cmd);
       quorum->Wait();
 #ifdef CURP_CONFLICT_DEBUG
       Log_info("[CURP] Coordinator Accept for cmd<%d, %d> Has Result", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
       if (quorum->Yes()) {
-        if (!response_pack->done_) {
-          response_pack->done_ = true;
-          CurpCommit(pos, max_cmd);
-          curp_coordinator_accept_count_++;
-        }
+        CurpCommit(pos, max_cmd);
+        curp_coordinator_accept_count_++;
       } else if (quorum->No()) {
         verify(0);
         // [CURP] TODO: Do original protocol
       } else {
         verify(0);
       }
-  } else if (accepted_num + (n_replica - response_pack->received_count_) < CurpQuorumSize(n_replica) || max_accepted_num + (n_replica - response_pack->received_count_) < CurpQuorumSize(n_replica)) {
+  } else if (accepted_num + (n_replica - response_pack->received_count_) < CurpQuorumSize(n_replica) || max_accepted_num + (n_replica - response_pack->received_count_) < CurpSmallQuorumSize(n_replica)) {
     // abort and do original protocol
     shared_ptr<Marshallable> no_op = make_shared<TpcNoopCommand>();
+    if (response_pack->done_) return;
+    response_pack->done_ = true;
     CurpCommit(pos, no_op);
-    // original_protocol_submit_count_++;
   } else {
     // do nothing
   }
@@ -785,19 +788,19 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
     }
   }
 
-  for (int i = commit_timeout_solved_count_; i < commit_timeout_list_.size(); i++) {
-    if (SimpleRWCommand::GetCurrentMsTime() - commit_timeout_list_[i]->receive_time_ > CURP_WAIT_COMMIT_TIMEOUT) {
-      if (!commit_timeout_list_[i]->coordinator_replied_) {
-        *commit_timeout_list_[i]->committed_ = false;
-        commit_timeout_list_[i]->commit_callback_();
-        commit_timeout_list_[i]->coordinator_replied_ = true;
-        original_protocol_submit_count_++;
-      }
-      commit_timeout_solved_count_++;
-    } else {
-      break;
-    }
-  }
+  // for (int i = commit_timeout_solved_count_; i < commit_timeout_list_.size(); i++) {
+  //   if (SimpleRWCommand::GetCurrentMsTime() - commit_timeout_list_[i]->receive_time_ > CURP_WAIT_COMMIT_TIMEOUT) {
+  //     if (!commit_timeout_list_[i]->coordinator_replied_) {
+  //       *commit_timeout_list_[i]->committed_ = false;
+  //       commit_timeout_list_[i]->commit_callback_();
+  //       commit_timeout_list_[i]->coordinator_replied_ = true;
+  //       original_protocol_submit_count_++;
+  //     }
+  //     commit_timeout_solved_count_++;
+  //   } else {
+  //     break;
+  //   }
+  // }
   // TODO should support snapshot for freeing memory.
   // for now just free anything 1000 slots before.
   // TODO recover this

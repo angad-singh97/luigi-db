@@ -142,7 +142,9 @@ namespace janus {
 // #define TC
 // #define CURP_SEND_TC
 #define TC_LATENCY (20000)
-#define CURP_FAST_PATH_TIMEOUT (100)
+#define CURP_FAST_PATH_TIMEOUT (80)
 #define CURP_WAIT_COMMIT_TIMEOUT (200)
+// #define SIMULATE_WAN
+// #define CURP_CONFLICT_DEBUG
 
 } // namespace janus

@@ -221,6 +221,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
+  Log_info("[CURP] SchedulerClassic::OnCommit");
   // auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(tx_id));
   verify(sp_tx != nullptr);
@@ -248,6 +249,7 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     cli2tx.append(start_ms - client_ms);
 
     // FastPathManagerSubmit(coo, sp_m);
+    Log_info("[CURP] Before OnCommit Submit");
     coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
     gettimeofday(&tp, NULL);

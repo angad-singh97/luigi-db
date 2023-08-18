@@ -24,6 +24,10 @@ class CoordinatorClassic : public Coordinator {
   // For latency test
   double dispatch_time_ = -1;
 
+  // For original protocol use after curp fastpath
+  ReadyPiecesData cmds_by_par_;
+  bool curp_stored_cmd_{false};
+
   CoordinatorClassic(uint32_t coo_id,
                      int benchmark,
                      ClientControlServiceImpl* ccsi,

@@ -32,7 +32,7 @@ mode:
   ongoing: 1 # per client
 
 # config/concurrent_100.yml 
-n_concurrent: 50
+n_concurrent: 5
 
 # config/1c1s3r1p.yml
 site:
@@ -40,7 +40,8 @@ site:
     - ["s101:38000", "s201:38001", "s301:38002"]
   client: # each line is a partition
     # - ["c01", "c02", "c03"]
-    - ["c01", "c02", "c03", "c04", "c05", "c06", "c07", "c08", "c09", "c10"]
+    # - ["c01", "c02", "c03", "c04", "c05", "c06", "c07", "c08", "c09", "c10"]
+    - ["c01", "c02", "c03", "c04", "c05", "c06", "c07", "c08", "c09", "c10", "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18", "c19", "c20"]
 
 # site_name - process_name map
 process:
@@ -57,6 +58,16 @@ process:
   c08: localhost
   c09: localhost
   c10: localhost
+  c11: localhost
+  c12: localhost
+  c13: localhost
+  c14: localhost
+  c15: localhost
+  c16: localhost
+  c17: localhost
+  c18: localhost
+  c19: localhost
+  c20: localhost
 
 host:
   localhost: 127.0.0.1

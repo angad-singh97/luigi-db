@@ -16,13 +16,12 @@ for line in lines:
         if "QueryCoordinator success" in real_line:
             keyword_range = real_line[real_line.find("QueryCoordinator success") - 20 : real_line.find("QueryCoordinator success")]
             QueryCoordinator_done.append(keyword_range[keyword_range.find("<"):keyword_range.find(">")+1])
+        if "QueryCoordinator fail, OriginalProtocol" in real_line:
+            keyword_range = real_line[real_line.find("QueryCoordinator fail, OriginalProtocol") - 20 : real_line.find("QueryCoordinator fail, OriginalProtocol")]
+            QueryCoordinator_done.append(keyword_range[keyword_range.find("<"):keyword_range.find(">")+1])
 
 for launch in QueryCoordinator_launch:
     if launch not in QueryCoordinator_done:
         print(launch)
         
-print("----------------------------")
 
-for done in QueryCoordinator_done:
-    if done not in QueryCoordinator_launch:
-        print(done)
