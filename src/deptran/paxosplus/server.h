@@ -37,6 +37,7 @@ class PaxosPlusServer : public TxLogServer {
   }
 
   ~PaxosPlusServer() {
+    PrintExecutedLogs();
     // Log_info("[CURP] site %d fast_path_attempt %d fast_path_failed %d", site_id_, n_fast_path_attempted_, n_fast_path_failed_);
     // Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
   }
@@ -90,7 +91,7 @@ class PaxosPlusServer : public TxLogServer {
     return (MultiPaxosPlusCommo *) commo_;
   }
 
-  bool TryAssignGlobalID(slotid_t local_id);
+  slotid_t TryAssignGlobalID(slotid_t local_id);
 };
 
 } // namespace janus

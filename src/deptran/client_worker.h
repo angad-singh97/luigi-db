@@ -60,8 +60,10 @@ class ClientWorker {
   volatile bool* failover_server_quit_;
   volatile locid_t* failover_server_idx_;
   volatile double* total_throughput_;
-  volatile Distribution* cli2cli_;
-  Distribution local_cli2cli_;
+  Distribution cli2cli_;
+  int fastpath_count_ = 0;
+  int coordinatoraccept_count_ = 0;
+  int original_protocol_count_ = 0;
   locid_t cur_leader_{0}; // init leader is 0
   bool failover_wait_leader_{false};
   bool failover_trigger_loc{false};
@@ -71,9 +73,10 @@ class ClientWorker {
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
       ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,
       volatile bool* failover_server_quit, volatile locid_t* failover_server_idxm,
-      volatile double* total_throughput, volatile Distribution* cli2cli);
+      volatile double* total_throughput);
   ClientWorker() = delete;
   ~ClientWorker();
+  void retrive_statistic();
   // This is called from a different thread.
   void Work();
   Coordinator* FindOrCreateCoordinator();
@@ -91,5 +94,3 @@ class ClientWorker {
   void ForwardRequestDone(Coordinator* coo, TxReply* output, rrr::DeferredReply* defer, TxReply &txn_reply);
 };
 } // namespace janus
-
-

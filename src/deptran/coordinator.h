@@ -100,7 +100,12 @@ class Coordinator {
   /******global unique id end********/
 
   // For latency test
-  Distribution *cli2cli_;
+  Distribution cli2cli_;
+
+  // For Curp Coordinator Count
+  int fastpath_count_ = 0;
+  int coordinatoraccept_count_ = 0;
+  int original_protocol_count_ = 0;
 
 #ifdef TXN_STAT
   typedef struct txn_stat_t {

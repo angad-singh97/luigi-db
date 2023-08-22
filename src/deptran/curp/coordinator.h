@@ -13,15 +13,15 @@ class CoordinatorCurp : public CoordinatorClassic {
   bool coordinator_success_{false};
   shared_ptr<VecPieceData> sp_vpd_; // cmd
   siteid_t curp_coo_id_ = -1;
-  int fastpath_count_ = 0;
-  int coordinatoraccept_count_ = 0;
-  int original_protocol_count_ = 0;
 
   CoordinatorCurp(uint32_t coo_id,
                   int32_t benchmark,
                   ClientControlServiceImpl *ccsi,
                   uint32_t thread_id);
-  ~CoordinatorCurp() {}
+  ~CoordinatorCurp() {
+    // Log_info("fastpath_count=%d, coordinatoraccept_count=%d, original_protocol_count=%d, cli2cli_50pct=%.2f ms, cli2cli_90pct=%.2f ms, cli2cli_99pct=%.2f ms",
+    //   fastpath_count_, coordinatoraccept_count_, original_protocol_count_, cli2cli_->pct50(), cli2cli_->pct90(), cli2cli_->pct99());
+  }
   void GotoNextPhase() override;
   void BroadcastDispatch();
   void QueryCoordinator();

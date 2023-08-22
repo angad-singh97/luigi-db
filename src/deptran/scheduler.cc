@@ -754,9 +754,11 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
         // app_next_(*next_instance->committed_cmd_); // this is for old non-curp-broadcast
         if (next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_NOOP) {
           // do nothing
+          executed_logs_[next_instance->global_id_] = make_pair<int32_t, int32_t>(-1, -1);
         } else {
           verify(next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_VEC_PIECE);
           pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(next_instance->committed_cmd_);
+          executed_logs_[next_instance->global_id_] = cmd_id;
           if (commit_results_[cmd_id] == nullptr)
             commit_results_[cmd_id] = make_shared<CommitNotification>();
           commit_results_[cmd_id]->coordinator_commit_result_ = true;
@@ -918,6 +920,15 @@ UniqueCmdID TxLogServer::GetUniqueCmdID(shared_ptr<Marshallable> cmd) {
   cmd_id.client_id_ = casted_cmd->client_id_;
   cmd_id.cmd_id_ = casted_cmd->cmd_id_in_client_;
   return cmd_id;
+}
+
+void TxLogServer::PrintExecutedLogs() {
+  string file_name = "loc_" + to_string(loc_id_) + "_site_" + to_string(site_id_) + ".log";
+  freopen(file_name.c_str(), "w", stdout);
+  for (auto it = executed_logs_.begin(); it != executed_logs_.end(); it++) {
+    printf("slot: %d, cmd<%d, %d>\n", it->first, it->second.first, it->second.second);
+  }
+  freopen(NULL, "w", stdout);
 }
 
 } // namespace janus

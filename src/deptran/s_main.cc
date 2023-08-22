@@ -27,7 +27,10 @@ bool* volatile failover_triggers;
 volatile bool failover_server_quit = false;
 volatile locid_t failover_server_idx;
 volatile double total_throughput = 0;
-volatile Distribution cli2cli;
+int fastpath_count = 0;
+int coordinatoraccept_count = 0;
+int original_protocol_count = 0;
+Distribution cli2cli;
 
 void client_setup_heartbeat(int num_clients) {
   Log_info("%s", __FUNCTION__);
@@ -66,8 +69,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             &(failover_triggers[client_id]),
                                             &failover_server_quit,
                                             &failover_server_idx,
-                                            &total_throughput,
-                                            &cli2cli);
+                                            &total_throughput);
     workers.push_back(worker);
     client_threads_g.push_back(std::thread(&ClientWorker::Work, worker));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -133,6 +135,13 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
 }
 
 void client_shutdown() {
+  for (const unique_ptr<ClientWorker>& client: client_workers_g) {
+    client->retrive_statistic();
+    cli2cli.merge(client->cli2cli_);
+    fastpath_count += client->fastpath_count_;
+    coordinatoraccept_count += client->coordinatoraccept_count_;
+    original_protocol_count += client->original_protocol_count_;
+  }
   client_workers_g.clear();
 }
 
@@ -335,7 +344,6 @@ int main(int argc, char *argv[]) {
   }
   // Log_info("Total throughtput is %.2f, Latency-50% is %.2f ms, Latency-90% is %.2f ms, Latency-99% is %.2f ms ", total_throughput, cli2cli.pct50(), cli2cli.pct90(), cli2cli.pct99());
   Log_info("Total throughtput is %.2f", total_throughput);
-
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
 #endif
@@ -372,13 +380,16 @@ int main(int argc, char *argv[]) {
   // stop profiling
   ProfilerStop();
 #endif // ifdef CPU_PROFILE
+  client_shutdown();
+  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli.pct50(), cli2cli.pct90(), cli2cli.pct99());
+  Log_info("FastPath-count = %d CoordinatorAccept-count = %d OriginalProtocol-count = %d", fastpath_count, coordinatoraccept_count, original_protocol_count);
   server_shutdown();
+  // TODO, FIXME pending_future in rpc cause error.
   fflush(stderr);
   fflush(stdout);
   exit(0);
   return 0;
-  // TODO, FIXME pending_future in rpc cause error.
-  client_shutdown();
+  
   Log_info("all server workers have shut down.");
 
   RandomGenerator::destroy();

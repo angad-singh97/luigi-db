@@ -67,10 +67,14 @@ class CurpPlusDataCol {
 };
 
 class Distribution {
-  vector<double> data;
  public:
+  vector<double> data;
   void append(double x) {
     data.push_back(x);
+  }
+  void merge(Distribution &o) {
+    for (int i = 0; i < o.count(); i++)
+      data.push_back(o.data[i]);
   }
   size_t count() {
     return data.size();
@@ -200,6 +204,9 @@ class TxLogServer {
   map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> commit_results_;
   vector<shared_ptr<CommitNotification>> commit_timeout_list_;
   int commit_timeout_solved_count_;
+
+  // executed logs for check
+  map<slotid_t, pair<int32_t, int32_t>> executed_logs_;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
@@ -435,6 +442,8 @@ class TxLogServer {
   shared_ptr<CurpPlusData> GetOrCreateCurpLog(pos_t pos0, pos_t pos1);
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
+
+  void PrintExecutedLogs();
 
 };
 

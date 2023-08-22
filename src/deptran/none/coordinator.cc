@@ -19,7 +19,7 @@ void CoordinatorNone::GotoNextPhase() {
     case Phase::DISPATCH:
       committed_ = true;
       verify(phase_ % n_phase == Phase::INIT_END);
-      cli2cli_->append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       End();
       break;
     default:

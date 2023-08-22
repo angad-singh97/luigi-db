@@ -89,7 +89,7 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
                            const ballot_t ballot,
                            shared_ptr<Marshallable> &cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_info("[CURP] PaxosPlus OnCommit");
+  // Log_info("[CURP] PaxosPlus OnCommit");
   Log_debug("multi-paxos scheduler decide for slot: %lx", slot_id);
   auto instance = GetInstance(slot_id);
   instance->committed_cmd_ = cmd;
@@ -104,7 +104,10 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   in_applying_logs_ = true;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     shared_ptr<Marshallable> next_cmd = GetInstance(id)->committed_cmd_;
-    if (next_cmd && TryAssignGlobalID(id)) {
+    if (next_cmd == nullptr) break;
+    slotid_t global_id = TryAssignGlobalID(id);
+    if (global_id) {
+      executed_logs_[global_id] = SimpleRWCommand::GetCmdID(next_cmd);
       app_next_(*next_cmd);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
@@ -131,11 +134,11 @@ void PaxosPlusServer::Setup() {
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
 
-bool PaxosPlusServer::TryAssignGlobalID(slotid_t local_id) {
+slotid_t PaxosPlusServer::TryAssignGlobalID(slotid_t local_id) {
   shared_ptr<Marshallable> to_assign_cmd = GetInstance(local_id)->committed_cmd_;
   key_t key = get_key_from_marshallable(to_assign_cmd);
   slotid_t global_id = OriginalProtocolApplyForNewGlobalID(key);
-  return global_id != 0;
+  return global_id;
 }
 
 } // namespace janus

@@ -49,4 +49,5 @@ profile-results/
 /log
 /archive
 /results
-curp_log
+curp.log
+*.log
