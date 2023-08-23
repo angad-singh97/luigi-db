@@ -89,6 +89,6 @@ class MenciusPlusServer : public TxLogServer {
     verify(0);
   };
 
-  bool TryAssignGlobalID(slotid_t local_id);
+  // bool TryAssignGlobalID(slotid_t local_id);
 };
 } // namespace janus

@@ -103,6 +103,8 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   ResponsePack max_response_;
 
   vector<siteid_t> coo_id_vec_;
+
+  // int judgement_ = -1, tmp1 = -1, tmp2 = -1;
  public:
   CurpDispatchQuorumEvent(int n_total, int quorum)
     : QuorumEvent(n_total, quorum) {}
@@ -114,6 +116,8 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   bool IsReady() override;
   //TODO: put in .cc file
   ResponsePack GetMax() {
+    // [CURP] should be rm or only called when fastpath success
+    verify(0);
     return max_response_;
   }
   siteid_t GetCooId();
@@ -128,7 +132,9 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
  private:
   // [CURP] TODO: put in .cc file
   int FindMax(){
-    verify(responses_.size() > 0);
+    if (responses_.size() == 0) {
+      return 0;
+    }
     sort(responses_.begin(), responses_.end());
     vector<ResponsePack>::iterator max_response, last_response;
     int max_len, cur_len;
@@ -206,6 +212,18 @@ class CurpPlusAcceptQuorumEvent : public QuorumEvent {
   void FeedResponse(bool y, ballot_t seen_ballot);
   bool FastYes();
   bool FastNo();
+};
+
+class ProposeFinishQuorumEvent: public QuorumEvent {
+  vector<slotid_t> proposed_pos;
+ public:
+  ProposeFinishQuorumEvent(int n_total)
+    : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+    
+  }
+  void FeedResponse(int pos) {
+    proposed_pos.push_back(pos);
+  }
 };
 
 // class CurpCommitResultQuorumEvent : public QuorumEvent {
@@ -399,6 +417,14 @@ class Communicator {
                   shared_ptr<Position> pos,
                   shared_ptr<Marshallable> md_cmd,
                   uint16_t ban_site);
+
+  shared_ptr<ProposeFinishQuorumEvent>
+  CurpProposeFinish(parid_t par_id,
+                    key_t key);
+  
+  shared_ptr<IntEvent>
+  CurpCommitFinish(parid_t par_id,
+                  shared_ptr<Position> pos);
 };
 
 } // namespace janus

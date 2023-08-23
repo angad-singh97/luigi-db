@@ -107,4 +107,23 @@ double SimpleRWCommand::GetCurrentMsTime() {
   return tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
 }
 
+key_t SimpleRWCommand::GetKey(shared_ptr<Marshallable> cmd) {
+  shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+  } else {
+    verify(0);
+  }
+  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
+  TxWorkspace tx_ws = vector0->input;
+  std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
+  auto raw_type = vector0->type_;
+  return kv_map[0].get_i32();
+}
+
 }

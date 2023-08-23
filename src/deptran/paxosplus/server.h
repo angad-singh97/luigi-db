@@ -91,7 +91,6 @@ class PaxosPlusServer : public TxLogServer {
     return (MultiPaxosPlusCommo *) commo_;
   }
 
-  slotid_t TryAssignGlobalID(slotid_t local_id);
 };
 
 } // namespace janus

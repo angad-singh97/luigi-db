@@ -166,7 +166,21 @@ void CurpServiceImpl::CurpTest(const int32_t& a,
   defer->reply();
 }
 
+void CurpServiceImpl::CurpProposeFinish(const int32_t& key,
+                                        uint64_t* pos,
+                                        rrr::DeferredReply* defer) {
+  verify(sched_ != nullptr);
+  sched_->OnCurpProposeFinish(key,
+                              pos,
+                              bind(&rrr::DeferredReply::reply, defer));
+}
 
+void CurpServiceImpl::CurpCommitFinish(const MarshallDeputy& pos,
+                                        rrr::DeferredReply* defer) {
+  verify(sched_ != nullptr);
+  sched_->OnCurpCommitFinish(dynamic_pointer_cast<Position>(const_cast<MarshallDeputy&>(pos).sp_data_),
+                             bind(&rrr::DeferredReply::reply, defer));
+}
 
 
 };

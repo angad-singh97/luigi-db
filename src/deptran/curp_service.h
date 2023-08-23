@@ -73,6 +73,13 @@ class CurpServiceImpl : virtual public CurpService{
   void CurpTest(const int32_t& a,
                 int32_t* b,
                 rrr::DeferredReply* defer) override;
+  
+  void CurpProposeFinish(const int32_t& key,
+                          uint64_t* pos,
+                          rrr::DeferredReply* defer) override;
+  
+  void CurpCommitFinish(const MarshallDeputy& pos,
+                        rrr::DeferredReply* defer) override;
 };
 
 } // namespace janus

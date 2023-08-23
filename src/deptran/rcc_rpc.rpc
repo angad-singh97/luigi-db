@@ -102,6 +102,11 @@ abstract service Curp {
   
   defer CurpTest(int32_t a |
                 int32_t b);
+
+  defer CurpProposeFinish(int32_t key |
+                          uint64_t pos);
+  
+  defer CurpCommitFinish(MarshallDeputy pos);
 }
 
 abstract service Mencius {

@@ -27,9 +27,16 @@ class CurpPlusData {
     prepared = 2,
     accepted = 3,
     committed = 4,
-    executed = 5
+    executed = 5,
+  };
+  enum CurpPlusFinishStatus {
+    non_finish = 0,
+    finish_prepare = 1,
+    finish_no_op = 2,
+    finish_committed = 3
   };
   CurpPlusStatus status_ = CurpPlusStatus::init;
+  CurpPlusFinishStatus fin_status_ = CurpPlusFinishStatus::non_finish;
   ballot_t max_ballot_seen_ = 0;
   ballot_t max_ballot_accepted_ = 0;
   shared_ptr<Marshallable> fast_accepted_cmd_{nullptr};
@@ -39,17 +46,26 @@ class CurpPlusData {
   shared_ptr<Marshallable> last_accepted_{nullptr};
   CurpPlusStatus last_accepted_status_ = CurpPlusStatus::init;
   ballot_t last_accepted_ballot_ = 0;
-  bool_t is_finish_ = false;
 
-  // to determined global id, apply after commit
-  // id starts from 1, so 0 is unassigned
-  slotid_t global_id_ = 0;
+  // // to determined global id, apply after commit
+  // // id starts from 1, so 0 is unassigned
+  // slotid_t global_id_ = 0;
   int finish_countdown_ = FINISH_COUNTDOWN_MAX;
-  vector<UniqueCmdID> OriginalCmdListStandByFinishSymbol;
+  vector<shared_ptr<Marshallable>> OriginalCmdListStandByFinishSymbol;
+
+  CurpPlusData()
+    : fin_status_(CurpPlusFinishStatus::non_finish) {
+    // Do nothing
+  }
+  CurpPlusData(CurpPlusFinishStatus fin_status)
+    : fin_status_(fin_status) {
+    // Do nothing
+  }
 };
 
 class CurpPlusDataCol {
  public:
+  // count_ is the last element index, position 0 is intentionally left blank
   size_t count_ = 0;
   // ----min_active <= max_executed <= max_committed---
   slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
@@ -422,6 +438,8 @@ class TxLogServer {
                 ballot_t* seen_ballot,
                 const function<void()> &cb);
 
+  void TryToApplyLogsOnCol(shared_ptr<CurpPlusDataCol> col);
+
   void OnCurpCommit(const shared_ptr<Position>& pos,
                 const shared_ptr<Marshallable>& cmd);
 
@@ -432,10 +450,18 @@ class TxLogServer {
                         const rrr::i64& dep_id,
                         bool_t* slow,
                         const function<void()> &cb);
-                        
-  slotid_t ApplyForNewGlobalID();
+  
+  void OnCurpProposeFinish(const int32_t& key,
+                        uint64_t* pos,
+                        const function<void()> &cb);
+  
+  void OnCurpCommitFinish(const shared_ptr<Position> &pos,
+                        const function<void()> &cb);
+  // slotid_t ApplyForNewGlobalID();
 
-  slotid_t OriginalProtocolApplyForNewGlobalID(key_t key);
+  // slotid_t OriginalProtocolApplyForNewGlobalID(key_t key);
+
+  bool CurpCombineLog(shared_ptr<Marshallable> &cmd);
 
   shared_ptr<CurpPlusData> GetCurpLog(pos_t pos0, pos_t pos1);
 

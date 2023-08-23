@@ -85,7 +85,7 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
   in_applying_logs_ = true;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
-    if (next_instance->committed_cmd_ && TryAssignGlobalID(id)) {
+    if (next_instance->committed_cmd_ && CurpCombineLog(next_instance->committed_cmd_)) {
       if (executed_slots_[id]!=1){
         app_next_(*next_instance->committed_cmd_);
         executed_slots_.erase(id);
@@ -130,11 +130,11 @@ void MenciusPlusServer::Setup() {
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
 
-bool MenciusPlusServer::TryAssignGlobalID(slotid_t local_id) {
-  shared_ptr<Marshallable> to_assign_cmd = GetInstance(local_id)->committed_cmd_;
-  key_t key = get_key_from_marshallable(to_assign_cmd);
-  slotid_t global_id = OriginalProtocolApplyForNewGlobalID(key);
-  return global_id != 0;
-}
+// bool MenciusPlusServer::TryAssignGlobalID(slotid_t local_id) {
+//   shared_ptr<Marshallable> to_assign_cmd = GetInstance(local_id)->committed_cmd_;
+//   key_t key = get_key_from_marshallable(to_assign_cmd);
+//   slotid_t global_id = OriginalProtocolApplyForNewGlobalID(key);
+//   return global_id != 0;
+// }
 
 } // namespace janus

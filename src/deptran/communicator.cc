@@ -62,27 +62,38 @@ void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, pos_t pos0, pos_t po
 }
 
 bool CurpDispatchQuorumEvent::FastYes() {
-  if (n_voted_yes_ + n_voted_no_ < CurpFastQuorumSize(n_total_)) return false;
+  if (n_voted_yes_ < CurpFastQuorumSize(n_total_)) return false;
+  // if (response_.size() == 0) return false;
   int max_len = FindMax();
-  // Log_info("[copilot+] FastYes max_len=%d, CurpFastQuorumSize=%d", max_len, CurpFastQuorumSize(n_total_));
+  // Log_info("[copilot+] FastYes max_len=%d, CurpFastQuorumSize=%d judgement=%d", max_len, CurpFastQuorumSize(n_total_), max_len >= CurpFastQuorumSize(n_total_));
+  // tmp1 = max_len;
+  // tmp2 = CurpFastQuorumSize(n_total_);
   return max_len >= CurpFastQuorumSize(n_total_);
 }
 
 bool CurpDispatchQuorumEvent::FastNo() {
+  // [CURP] TODO: rm below one line
   if (n_voted_yes_ + n_voted_no_ < CurpFastQuorumSize(n_total_)) return false;
   int max_len = FindMax();
+  // Log_info("[copilot+] FastNo max_possible=%d, CurpFastQuorumSize=%d judgement=%d", max_len + (n_total_ - n_voted_yes_ - n_voted_no_), CurpFastQuorumSize(n_total_), max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < CurpFastQuorumSize(n_total_));
+  // tmp1 = max_len + (n_total_ - n_voted_yes_ - n_voted_no_);
+  // tmp2 = CurpFastQuorumSize(n_total_);
   return max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < CurpFastQuorumSize(n_total_);
 }
 
 bool CurpDispatchQuorumEvent::IsReady() {
+  // Log_info("CurpDispatchQuorumEvent::IsReady");
   if (timeouted_) {
-    //Log_info("[copilot+] timeouted_ ready");
+    // judgement_ = 0;
+    // Log_info("[copilot+] timeouted_ ready");
     return true;
   }
   if (FastYes()) {
+    // judgement_ = 1;
     // Log_info("[copilot+] FastYes ready");
     return true;
   } else if (FastNo()) {
+    // judgement_ = 2;
     // Log_info("[copilot+] FastNo ready");
     return true;
   }
@@ -1428,5 +1439,47 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   return e;
 }
 
+shared_ptr<ProposeFinishQuorumEvent>
+Communicator::CurpProposeFinish(parid_t par_id,
+                                key_t key) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<ProposeFinishQuorumEvent>(n);
+  auto proxies = rpc_par_proxies_[par_id];
+  WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (CurpProxy *)p.second;
+    auto site = p.first;
+      FutureAttr fuattr;
+      fuattr.callback = [e](Future *fu) {
+        slotid_t pos;
+        fu->get_reply() >> pos;
+        e->FeedResponse(pos);
+      };
+      Future *f = proxy->async_CurpProposeFinish(key);
+      Future::safe_release(f);
+  }
+  return e;
+}
+
+shared_ptr<IntEvent>
+Communicator::CurpCommitFinish(parid_t par_id,
+                                shared_ptr<Position> pos) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<IntEvent>();
+  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
+  auto proxies = rpc_par_proxies_[par_id];
+  WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (CurpProxy *)p.second;
+    auto site = p.first;
+      FutureAttr fuattr;
+      fuattr.callback = [e](Future *fu) {
+        e->Set(1);
+      };
+      Future *f = proxy->async_CurpCommitFinish(pos_deputy);
+      Future::safe_release(f);
+  }
+  return e;
+}
 
 } // namespace janus

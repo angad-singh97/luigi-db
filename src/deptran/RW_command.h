@@ -19,6 +19,7 @@ class SimpleRWCommand: public Marshallable {
   Marshal& FromMarshal(Marshal& m) override;
   static pair<int32_t, int32_t> GetCmdID(shared_ptr<Marshallable> cmd);
   static double GetCurrentMsTime();
+  static key_t GetKey(shared_ptr<Marshallable> cmd);
 };
 
 }

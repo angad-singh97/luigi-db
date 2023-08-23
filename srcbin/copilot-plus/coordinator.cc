@@ -19,35 +19,35 @@ void CopilotPlusCoordinator::DoTxAsync(TxRequest &) {
   //Log_info("[copilot+] CopilotPlusCoordinator DoTxAsync");
 }
 
-void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
-              const std::function<void()> &func,
-              const std::function<void()> &exe_callback) {
-  // Log_info("[copilot+] coordinator submit loc_id_=%d", this->loc_id_);
-  received_cmd_ = cmd;
-  parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
-  //Log_info("[copilot+] enter Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());
+// void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
+//               const std::function<void()> &func,
+//               const std::function<void()> &exe_callback) {
+//   // Log_info("[copilot+] coordinator submit loc_id_=%d", this->loc_id_);
+//   received_cmd_ = cmd;
+//   parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+//   //Log_info("[copilot+] enter Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());
 
-  auto sq_quorum = commo()->BroadcastSubmit(par_id_, slot_id_, dynamic_pointer_cast<Marshallable>(cmd));
-  sq_quorum -> Wait();
-  //Log_info("[copilot+] received reply %s", parsed_cmd_->cmd_to_string().c_str());
-  fast_path_success_ = false;
-  if (sq_quorum->FastYes()) {
-    fast_path_success_ = true;
-    //Log_info("[copilot+] accept_cmd_ is received_cmd_");
-  } else if (sq_quorum->RecoverWithOpYes()) {
-    //Log_info("[copilot+] accept_cmd_ is received_cmd_");
-  } else if (sq_quorum->RecoverWithoutOpYes()) {
-    //Log_info("[copilot+] accept_cmd_ is empty_cmd_");
-    commit_no_op_ = true;
-  } else {
-    // number of reply < quorum size
-    verify(0);
-  }
-  commit_callback_ = func;
-  max_response_ = sq_quorum->GetMax();
-  //Log_info("[copilot+] exit Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());
-  GotoNextPhase();
-}
+//   auto sq_quorum = commo()->BroadcastSubmit(par_id_, slot_id_, dynamic_pointer_cast<Marshallable>(cmd));
+//   sq_quorum -> Wait();
+//   //Log_info("[copilot+] received reply %s", parsed_cmd_->cmd_to_string().c_str());
+//   fast_path_success_ = false;
+//   if (sq_quorum->FastYes()) {
+//     fast_path_success_ = true;
+//     //Log_info("[copilot+] accept_cmd_ is received_cmd_");
+//   } else if (sq_quorum->RecoverWithOpYes()) {
+//     //Log_info("[copilot+] accept_cmd_ is received_cmd_");
+//   } else if (sq_quorum->RecoverWithoutOpYes()) {
+//     //Log_info("[copilot+] accept_cmd_ is empty_cmd_");
+//     commit_no_op_ = true;
+//   } else {
+//     // number of reply < quorum size
+//     verify(0);
+//   }
+//   commit_callback_ = func;
+//   max_response_ = sq_quorum->GetMax();
+//   //Log_info("[copilot+] exit Coordinator Submit %s", parsed_cmd_->cmd_to_string().c_str());
+//   GotoNextPhase();
+// }
 
 void CopilotPlusCoordinator::FrontRecover() {
   //Log_info("[copilot+] enter Coordinator FrontRecover %s", parsed_cmd_->cmd_to_string().c_str());

@@ -411,7 +411,7 @@ bool_t TxLogServer::check_fast_path_validation(key_t key) {
   if (0 == curp_log_cols_[key]->count_)
     return true;
   shared_ptr<CurpPlusData> final_slot = curp_log_cols_[key]->Tail();
-  return !(final_slot->is_finish_ && final_slot->finish_countdown_);
+  return !(final_slot->fin_status_ != CurpPlusData::CurpPlusFinishStatus::non_finish && final_slot->finish_countdown_);
 }
 
 value_t TxLogServer::read(key_t key) {
@@ -685,6 +685,89 @@ void TxLogServer::OnCurpAccept(const shared_ptr<Position>& pos,
   cb();
 }
 
+void TxLogServer::TryToApplyLogsOnCol(shared_ptr<CurpPlusDataCol> col) {
+  if (curp_in_applying_logs_) {
+    return;
+  }
+  curp_in_applying_logs_ = true;
+  for (slotid_t id = col->max_executed_slot_ + 1; id <= col->max_committed_slot_; id++) {
+    shared_ptr<CurpPlusData> next_instance = col->logs_[id];
+    if (!(next_instance && next_instance->status_ == CurpPlusData::CurpPlusStatus::committed)) break;
+    if (next_instance->fin_status_ == CurpPlusData::CurpPlusFinishStatus::non_finish) {
+      // try to execute normal fastpath logs or finish_no_op
+      verify(next_instance->committed_cmd_);
+      // app_next_(*next_instance->committed_cmd_); // this is for old non-curp-broadcast
+      if (next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_NOOP) {
+        // do nothing
+      } else {
+        verify(next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_VEC_PIECE);
+        pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(next_instance->committed_cmd_);
+        if (commit_results_[cmd_id] == nullptr)
+          commit_results_[cmd_id] = make_shared<CommitNotification>();
+        commit_results_[cmd_id]->coordinator_commit_result_ = true;
+        commit_results_[cmd_id]->coordinator_stored_ = true;
+#ifdef CURP_CONFLICT_DEBUG
+        Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
+#endif
+        if (commit_results_[cmd_id]->client_stored_ && !commit_results_[cmd_id]->coordinator_replied_) {
+          *commit_results_[cmd_id]->committed_ = commit_results_[cmd_id]->coordinator_commit_result_;
+          commit_results_[cmd_id]->coordinator_replied_ = true;
+#ifdef CURP_CONFLICT_DEBUG
+          Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
+#endif
+          commit_results_[cmd_id]->commit_callback_();
+        } else {
+#ifdef CURP_CONFLICT_DEBUG
+          Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, commit_results_[cmd_id]->client_stored_, commit_results_[cmd_id]->coordinator_replied_);
+#endif
+        }
+      }
+      next_instance->status_ = CurpPlusData::CurpPlusStatus::executed;
+      // Log_debug("curp par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
+      // n_commit_++;
+      curp_executed_committed_gap_--;
+      col->max_executed_slot_++;
+    } else if (next_instance->fin_status_ == CurpPlusData::CurpPlusFinishStatus::finish_committed) {
+      // try to execute finish symbol
+      if (next_instance->finish_countdown_ == 0) {
+        // This finish symbol have done
+        next_instance->status_ = CurpPlusData::CurpPlusStatus::executed;
+        // Log_debug("curp par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
+        // n_commit_++;
+        curp_executed_committed_gap_--;
+        col->max_executed_slot_++;
+      } else {
+        break;
+      }
+    } else {
+      verify(0);
+    }
+  }
+  curp_in_applying_logs_ = false;
+  // for (int i = commit_timeout_solved_count_; i < commit_timeout_list_.size(); i++) {
+  //   if (SimpleRWCommand::GetCurrentMsTime() - commit_timeout_list_[i]->receive_time_ > CURP_WAIT_COMMIT_TIMEOUT) {
+  //     if (!commit_timeout_list_[i]->coordinator_replied_) {
+  //       *commit_timeout_list_[i]->committed_ = false;
+  //       commit_timeout_list_[i]->commit_callback_();
+  //       commit_timeout_list_[i]->coordinator_replied_ = true;
+  //       original_protocol_submit_count_++;
+  //     }
+  //     commit_timeout_solved_count_++;
+  //   } else {
+  //     break;
+  //   }
+  // }
+  // TODO should support snapshot for freeing memory.
+  // for now just free anything 1000 slots before.
+  // TODO recover this
+  // int i = min_active_slot_;
+  // while (i + 1000 < max_executed_slot_) {
+  //   logs_.erase(i);
+  //   i++;
+  // }
+  // min_active_slot_ = i;
+}
+
 void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
                               const shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -740,79 +823,8 @@ void TxLogServer::OnCurpCommit(const shared_ptr<Position>& pos,
   // Log_info("[CURP] CurpCommit at loc %d site %d cmd(%d, %d)", loc_id_, site_id_, unique_cmd.client_id_, unique_cmd.cmd_id_);
   // Log_info("[CURP] slot_id=%d col->max_executed_slot_=%d", slot_id, col->max_executed_slot_);
   verify(slot_id > col->max_executed_slot_);
-  if (curp_in_applying_logs_) {
-    return;
-  }
-  curp_in_applying_logs_ = true;
-  for (slotid_t id = col->max_executed_slot_ + 1; id <= col->max_committed_slot_; id++) {
-    shared_ptr<CurpPlusData> next_instance = col->logs_[id];
-    if (next_instance && next_instance->status_ == CurpPlusData::CurpPlusStatus::committed) {
-      verify(next_instance->committed_cmd_);
-      // for now, FINISH cmd also have a global id
-      next_instance->global_id_ = ApplyForNewGlobalID();
-      if (next_instance->committed_cmd_ && !next_instance->is_finish_) {
-        // app_next_(*next_instance->committed_cmd_); // this is for old non-curp-broadcast
-        if (next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_NOOP) {
-          // do nothing
-          executed_logs_[next_instance->global_id_] = make_pair<int32_t, int32_t>(-1, -1);
-        } else {
-          verify(next_instance->committed_cmd_->kind_ == MarshallDeputy::CMD_VEC_PIECE);
-          pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(next_instance->committed_cmd_);
-          executed_logs_[next_instance->global_id_] = cmd_id;
-          if (commit_results_[cmd_id] == nullptr)
-            commit_results_[cmd_id] = make_shared<CommitNotification>();
-          commit_results_[cmd_id]->coordinator_commit_result_ = true;
-          commit_results_[cmd_id]->coordinator_stored_ = true;
-#ifdef CURP_CONFLICT_DEBUG
-          Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-#endif
-          if (commit_results_[cmd_id]->client_stored_ && !commit_results_[cmd_id]->coordinator_replied_) {
-            *commit_results_[cmd_id]->committed_ = commit_results_[cmd_id]->coordinator_commit_result_;
-            commit_results_[cmd_id]->coordinator_replied_ = true;
-#ifdef CURP_CONFLICT_DEBUG
-            Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-#endif
-            commit_results_[cmd_id]->commit_callback_();
-          } else {
-#ifdef CURP_CONFLICT_DEBUG
-            Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, commit_results_[cmd_id]->client_stored_, commit_results_[cmd_id]->coordinator_replied_);
-#endif
-          }
-        }
-        next_instance->status_ = CurpPlusData::CurpPlusStatus::executed;
-        Log_debug("curp par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
-        // n_commit_++;
-      }
-      curp_executed_committed_gap_--;
-      col->max_executed_slot_++;
-    } else {
-      break;
-    }
-  }
 
-  // for (int i = commit_timeout_solved_count_; i < commit_timeout_list_.size(); i++) {
-  //   if (SimpleRWCommand::GetCurrentMsTime() - commit_timeout_list_[i]->receive_time_ > CURP_WAIT_COMMIT_TIMEOUT) {
-  //     if (!commit_timeout_list_[i]->coordinator_replied_) {
-  //       *commit_timeout_list_[i]->committed_ = false;
-  //       commit_timeout_list_[i]->commit_callback_();
-  //       commit_timeout_list_[i]->coordinator_replied_ = true;
-  //       original_protocol_submit_count_++;
-  //     }
-  //     commit_timeout_solved_count_++;
-  //   } else {
-  //     break;
-  //   }
-  // }
-  // TODO should support snapshot for freeing memory.
-  // for now just free anything 1000 slots before.
-  // TODO recover this
-  // int i = min_active_slot_;
-  // while (i + 1000 < max_executed_slot_) {
-  //   logs_.erase(i);
-  //   i++;
-  // }
-  // min_active_slot_ = i;
-  curp_in_applying_logs_ = false;
+  TryToApplyLogsOnCol(col);
 }
 
 void TxLogServer::CurpCommit(shared_ptr<Position> pos,
@@ -842,21 +854,23 @@ void TxLogServer::CurpCommit(shared_ptr<Position> pos,
   commo()->CurpBroadcastCommit(partition_id_, pos, cmd, loc_id_);
 }
 
-slotid_t TxLogServer::ApplyForNewGlobalID() {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  return curp_global_id_hinter_++;
-}
+// slotid_t TxLogServer::ApplyForNewGlobalID() {
+//   std::lock_guard<std::recursive_mutex> lock(mtx_);
+//   return curp_global_id_hinter_++;
+// }
 
-slotid_t TxLogServer::OriginalProtocolApplyForNewGlobalID(key_t key) {
-  shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
-  // [CURP] TODO: What to do here ?????
-  if (col->count_ == 0 || !col->Tail()->is_finish_ || 0 == col->Tail()->finish_countdown_)
-    return 0;
-  if (col->max_committed_slot_ == col->count_)
-    return ApplyForNewGlobalID();
-  else
-    return 0;
-}
+// slotid_t TxLogServer::OriginalProtocolApplyForNewGlobalID(key_t key) {
+//   if (curp_log_cols_[key] == nullptr)
+//     curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
+//   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
+//   // [CURP] TODO: What to do here ?????
+//   if (!col->Tail()->is_finish_ || 0 == col->Tail()->finish_countdown_)
+//     return 0;
+//   if (col->max_committed_slot_ == col->count_)
+//     return ApplyForNewGlobalID();
+//   else
+//     return 0;
+// }
 
 
 // [CURP] TODO: discard this
@@ -875,6 +889,76 @@ void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
   // *slow = coo->slow_;
   *slow = false;
   cb();
+}
+
+void TxLogServer::OnCurpProposeFinish(const int32_t& key,
+                                    uint64_t* pos,
+                                    const function<void()> &cb) {
+  if (curp_log_cols_[key] == nullptr)
+    curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
+  shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
+  if (col->count_ == 0 || col->logs_[col->count_]->fin_status_ == CurpPlusData::CurpPlusFinishStatus::non_finish || col->logs_[col->count_]->finish_countdown_ == 0) {
+    // need to append finish symbol
+    col->count_++;
+    col->logs_[col->count_] = make_shared<CurpPlusData>(CurpPlusData::CurpPlusFinishStatus::finish_prepare);
+    *pos = col->count_;
+  } else {
+    // already have finish symbol
+    *pos = col->count_;
+  }
+  cb();
+}
+
+void TxLogServer::OnCurpCommitFinish(const shared_ptr<Position> &pos,
+                                    const function<void()> &cb) {
+  key_t key = pos->get(0);
+  if (curp_log_cols_[key] == nullptr)
+    curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
+  shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
+  slotid_t slot = pos->get(1);
+  if (slot > col->count_) {
+    // [CURP] TODO: should cancel forward to coordinator
+    col->count_ = slot;
+  } else {
+    while (col->count_ < slot) {
+      col->count_++;
+      col->logs_[col->count_] = make_shared<CurpPlusData>(CurpPlusData::CurpPlusFinishStatus::finish_no_op);
+      Position pos(MarshallDeputy::POSITION_CLASSIC, 2);
+      pos.set(0, key);
+      pos.set(1, slot);
+      commo()->CurpForwardResultToCoordinator(partition_id_, make_shared<TpcNoopCommand>(), pos, true);
+    }
+  }
+  col->logs_[col->count_]->fin_status_ = CurpPlusData::CurpPlusFinishStatus::finish_committed;
+  col->logs_[col->count_]->status_ = CurpPlusData::CurpPlusStatus::committed;
+  cb();
+}
+
+bool TxLogServer::CurpCombineLog(shared_ptr<Marshallable> &cmd) {
+  key_t key = SimpleRWCommand::GetKey(cmd);
+  if (curp_log_cols_[key] == nullptr)
+    curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
+  shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];
+  if (col->Tail()->fin_status_ == CurpPlusData::CurpPlusFinishStatus::finish_committed && col->Tail()->finish_countdown_ > 0) {
+    // Original Protocol slot have left
+    // Do nothing
+  } else {
+    // Need to commit Finish
+    auto e = commo()->CurpProposeFinish(partition_id_, SimpleRWCommand::GetKey(cmd));
+    e->Wait();
+    verify(col->Tail()->fin_status_ == CurpPlusData::CurpPlusFinishStatus::finish_committed && col->Tail()->finish_countdown_ > 0);
+  }
+
+  TryToApplyLogsOnCol(col);
+
+  if (col->max_executed_slot_ >= col->count_ - 1) {
+    // all logs before finish have been executed
+    col->Tail()->OriginalCmdListStandByFinishSymbol.push_back(cmd);
+    col->Tail()->finish_countdown_--;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 shared_ptr<CurpPlusData> TxLogServer::GetCurpLog(pos_t pos0, pos_t pos1) {

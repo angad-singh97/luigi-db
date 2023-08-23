@@ -105,9 +105,7 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     shared_ptr<Marshallable> next_cmd = GetInstance(id)->committed_cmd_;
     if (next_cmd == nullptr) break;
-    slotid_t global_id = TryAssignGlobalID(id);
-    if (global_id) {
-      executed_logs_[global_id] = SimpleRWCommand::GetCmdID(next_cmd);
+    if (CurpCombineLog(next_cmd)) {
       app_next_(*next_cmd);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
@@ -132,13 +130,6 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
 void PaxosPlusServer::Setup() {
   Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
         (void*)this, this->loc_id_, (void*)this->commo_);
-}
-
-slotid_t PaxosPlusServer::TryAssignGlobalID(slotid_t local_id) {
-  shared_ptr<Marshallable> to_assign_cmd = GetInstance(local_id)->committed_cmd_;
-  key_t key = get_key_from_marshallable(to_assign_cmd);
-  slotid_t global_id = OriginalProtocolApplyForNewGlobalID(key);
-  return global_id;
 }
 
 } // namespace janus
