@@ -411,7 +411,7 @@ bool_t TxLogServer::check_fast_path_validation(key_t key) {
   if (0 == curp_log_cols_[key]->count_)
     return true;
   shared_ptr<CurpPlusData> final_slot = curp_log_cols_[key]->Tail();
-  return !(final_slot->fin_status_ != CurpPlusData::CurpPlusFinishStatus::non_finish && final_slot->finish_countdown_);
+  return !((final_slot->fin_status_ != CurpPlusData::CurpPlusFinishStatus::non_finish && final_slot->finish_countdown_) || final_slot->status_ != CurpPlusData::CurpPlusStatus::executed);
 }
 
 value_t TxLogServer::read(key_t key) {

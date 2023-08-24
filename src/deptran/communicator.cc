@@ -22,8 +22,7 @@ int CurpMaxFailure(int total) {
 }
 
 int CurpFastQuorumSize(int total) {
-  // TODO: calculate carefully
-  return (total + CurpQuorumSize(total) - 1) / 2 + 1;
+  return CurpMaxFailure(total) + (CurpMaxFailure(total) + 1) / 2 + 1;
 }
 
 int CurpQuorumSize(int total) {
@@ -31,8 +30,7 @@ int CurpQuorumSize(int total) {
 }
 
 int CurpSmallQuorumSize(int total) {
-  // TODO: calculate carefully
-  return total + 1 - CurpFastQuorumSize(total);
+  return (CurpMaxFailure(total) + 1) / 2 + 1;
 }
 
 

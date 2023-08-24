@@ -28,7 +28,7 @@ void CoordinatorMultiPaxos::Forward(){
 void CoordinatorMultiPaxos::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
-  Log_info("[CURP] Paxos Submit");
+  // Log_info("[CURP] Paxos Submit");
   if (!IsLeader()) {
     //change back to fatal
     Log_info("i am not the leader; site %d; locale %d",
