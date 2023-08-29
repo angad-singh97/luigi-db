@@ -85,8 +85,9 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
   in_applying_logs_ = true;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
-    if (next_instance->committed_cmd_ && CurpCombineLog(next_instance->committed_cmd_)) {
+    if (next_instance->committed_cmd_) {
       if (executed_slots_[id]!=1){
+        CurpCombineLog(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
         executed_slots_.erase(id);
       }
@@ -106,6 +107,7 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
       SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
       if (uncommitted_keys_[parsed_cmd.key_]==0){
         executed_slots_[id]=1;
+        CurpCombineLog(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
       }
     }

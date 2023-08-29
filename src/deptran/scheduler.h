@@ -461,7 +461,7 @@ class TxLogServer {
 
   // slotid_t OriginalProtocolApplyForNewGlobalID(key_t key);
 
-  bool CurpCombineLog(shared_ptr<Marshallable> &cmd);
+  void CurpCombineLog(shared_ptr<Marshallable> &cmd);
 
   shared_ptr<CurpPlusData> GetCurpLog(pos_t pos0, pos_t pos1);
 

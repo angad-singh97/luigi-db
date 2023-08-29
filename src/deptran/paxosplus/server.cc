@@ -103,10 +103,10 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   }
   in_applying_logs_ = true;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
-    shared_ptr<Marshallable> next_cmd = GetInstance(id)->committed_cmd_;
-    if (next_cmd == nullptr) break;
-    if (CurpCombineLog(next_cmd)) {
-      app_next_(*next_cmd);
+    auto next_instance = GetInstance(id);
+    if (next_instance->committed_cmd_) {
+      CurpCombineLog(next_instance->committed_cmd_);
+      app_next_(*next_instance->committed_cmd_);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
       n_commit_++;

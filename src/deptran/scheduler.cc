@@ -936,7 +936,7 @@ void TxLogServer::OnCurpCommitFinish(const shared_ptr<Position> &pos,
   cb();
 }
 
-bool TxLogServer::CurpCombineLog(shared_ptr<Marshallable> &cmd) {
+void TxLogServer::CurpCombineLog(shared_ptr<Marshallable> &cmd) {
   key_t key = SimpleRWCommand::GetKey(cmd);
   if (curp_log_cols_[key] == nullptr)
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>();
@@ -957,9 +957,8 @@ bool TxLogServer::CurpCombineLog(shared_ptr<Marshallable> &cmd) {
     // all logs before finish have been executed
     col->Tail()->OriginalCmdListStandByFinishSymbol.push_back(cmd);
     col->Tail()->finish_countdown_--;
-    return true;
   } else {
-    return false;
+    verify(0);
   }
 }
 
