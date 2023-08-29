@@ -575,7 +575,9 @@ void TxLogServer::OnCurpForward(const shared_ptr<Position>& pos,
   if (time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num >= CurpFastQuorumSize(n_replica)) {
     if (response_pack->done_) return;
     response_pack->done_ = true;
-    CurpCommit(pos, cmd);
+    shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
+    // [CURP] TODO: verify(cmd == max_cmd)
+    CurpCommit(pos, max_cmd);
     curp_fast_path_success_count_++;
   } else if ( ((time_elapses <= CURP_FAST_PATH_TIMEOUT && max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica)) || (time_elapses > CURP_FAST_PATH_TIMEOUT))
       && (accepted_num >= CurpQuorumSize(n_replica) && max_accepted_num >= CurpSmallQuorumSize(n_replica)) ) {

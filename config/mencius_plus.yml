@@ -1,6 +1,6 @@
 mode:
   cc: curp # concurrency control
-  ab: copilot_plus # atomic broadcast
+  ab: mencius_plus # atomic broadcast
   read_only: occ
   batch: false
   retry: 20

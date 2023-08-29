@@ -565,6 +565,8 @@ void Config::LoadBenchYML(YAML::Node config) {
   }
   if (config["dist"])
     dist_ = config["dist"].as<string>();
+  if (config["range"])
+    range_ = config["range"].as<int32_t>();
   if (config["coefficient"])
     coeffcient_ = config["coefficient"].as<float>();
   if (config["rotate"])

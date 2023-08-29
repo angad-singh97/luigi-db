@@ -63,6 +63,7 @@ class Config {
   uint16_t n_concurrent_;
   int32_t max_retry_;
   string dist_ = "uniform";
+  int32_t range_ = -1;
   float coeffcient_ = 0; // "uniform"
   int32_t rotate_{3};
   int32_t n_parallel_dispatch_{0};
