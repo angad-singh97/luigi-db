@@ -1,9 +1,10 @@
 file_path = "./src/deptran/rcc_rpc.h"
 keywords = [
     "MultiPaxosPlusService",
+    "FpgaRaftPlusService",
     "MenciusPlusService",
     "CopilotPlusService",
-    "CurpService"
+    "CurpService",
 ]
 
 lines = []

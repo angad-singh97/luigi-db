@@ -469,7 +469,7 @@ class TxLogServer {
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
 
-  void PrintExecutedLogs();
+  // void PrintExecutedLogs();
 
 };
 

@@ -1,7 +1,8 @@
 mode:
   cc: none # concurrency control
-  ab: fpga_raft # atomic broadcast
+  ab: mencius # atomic broadcast
   # read_only: occ
   batch: false
   retry: 20
   ongoing: 1 # per client
+

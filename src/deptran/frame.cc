@@ -350,6 +350,7 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
     case MODE_MENCIUS:
     case MODE_MENCIUS_PLUS:
     case MODE_FPGA_RAFT:
+    case MODE_FPGA_RAFT_PLUS:
       break;
     case MODE_NONE:
     case MODE_NOTX:
@@ -491,6 +492,7 @@ map<string, int> &Frame::FrameNameToMode() {
       {"mencius",       MODE_MENCIUS},
       {"mencius_plus",       MODE_MENCIUS_PLUS},
       {"fpga_raft",     MODE_FPGA_RAFT},
+      {"fpga_raft_plus",     MODE_FPGA_RAFT_PLUS},
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},
       {"copilot_plus",  MODE_COPILOT_PLUS},

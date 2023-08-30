@@ -15,8 +15,8 @@ modes_ = [
     # "none_fpga_raft",
     # "none_mencius",
     # "none_copilot",
-    "paxos_plus",
-    # "fpga_raft_plus",
+    # "paxos_plus",
+    "fpga_raft_plus",
     # "mencius_plus",
     # "copilot_plus",
 ]
@@ -67,7 +67,7 @@ def run(m, s, b, c):
     res = "INIT"
     try:
         f = open(output_path, "w")
-        cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-P", "localhost", "-d", "10"]
+        cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "10"]
         # print(' '.join(cmd))
         r = call(cmd, stdout=f, stderr=f, timeout=5*60)
         res = "OK" if r == 0 else "Failed"
@@ -76,7 +76,7 @@ def run(m, s, b, c):
     except Error as e:
         print(e)
     t2 = time()
-    print("%-15s%-10s%-10s%-15s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
+    print("%-15s%-10s%-15s%-15s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
     pass
 
 def main():
@@ -85,10 +85,12 @@ def main():
     global benchmarks_
     soft,hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     if soft < 4096:
-       print("open file limit smaller than 4096; set it with ulimit -n")
-       sys.exit(0)
-    if not os.path.exists('tmp'):
-       os.mkdir('tmp')
+        print("open file limit smaller than 4096; set it with ulimit -n")
+        sys.exit(0)
+    
+    if os.path.exists('tmp'):
+        os.rmdir('tmp')
+    os.mkdir('tmp')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mode', help='running modes', default=modes_,
@@ -106,7 +108,7 @@ def main():
         for b in benchmarks_:
             for s in sites_:
                 for c in concurrent_:
-                   run(m, s, b, c)
+                    run(m, s, b, c)
     pass
 
 if __name__ == "__main__":

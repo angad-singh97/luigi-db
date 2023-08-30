@@ -1007,13 +1007,13 @@ UniqueCmdID TxLogServer::GetUniqueCmdID(shared_ptr<Marshallable> cmd) {
   return cmd_id;
 }
 
-void TxLogServer::PrintExecutedLogs() {
-  string file_name = "loc_" + to_string(loc_id_) + "_site_" + to_string(site_id_) + ".log";
-  freopen(file_name.c_str(), "w", stdout);
-  for (auto it = executed_logs_.begin(); it != executed_logs_.end(); it++) {
-    printf("slot: %d, cmd<%d, %d>\n", it->first, it->second.first, it->second.second);
-  }
-  freopen(NULL, "w", stdout);
-}
+// void TxLogServer::PrintExecutedLogs() {
+//   string file_name = "loc_" + to_string(loc_id_) + "_site_" + to_string(site_id_) + ".log";
+//   freopen(file_name.c_str(), "w", stdout);
+//   for (auto it = executed_logs_.begin(); it != executed_logs_.end(); it++) {
+//     printf("slot: %d, cmd<%d, %d>\n", it->first, it->second.first, it->second.second);
+//   }
+//   freopen(NULL, "w", stdout);
+// }
 
 } // namespace janus
