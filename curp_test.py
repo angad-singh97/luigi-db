@@ -11,14 +11,14 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 modes_ = [
-    # "none_paxos",
-    # "none_fpga_raft",
-    # "none_mencius",
-    # "none_copilot",
-    # "paxos_plus",
+    "none_paxos",
+    "none_fpga_raft",
+    "none_mencius",
+    "none_copilot",
+    "paxos_plus",
     "fpga_raft_plus",
-    # "mencius_plus",
-    # "copilot_plus",
+    "mencius_plus",
+    "copilot_plus",
 ]
 sites_ = [
     "10c1s3r1p",
@@ -32,16 +32,20 @@ benchmarks_ =  [
     "rw_1000000"
 ]
 concurrent_ = [
-    # "concurrent_1",
+    "concurrent_1",
     "concurrent_2",
-    # "concurrent_3",
+    "concurrent_3",
     "concurrent_4",
-    # "concurrent_5",
+    "concurrent_5",
     "concurrent_6",
-    # "concurrent_7",
+    "concurrent_7",
     "concurrent_8",
-    # "concurrent_9",
+    "concurrent_9",
     "concurrent_10",
+    "concurrent_20",
+    "concurrent_30",
+    "concurrent_40",
+    "concurrent_50",
 ]
 latency_concurrent_ = [
     "concurrent_10",
@@ -88,9 +92,8 @@ def main():
         print("open file limit smaller than 4096; set it with ulimit -n")
         sys.exit(0)
     
-    if os.path.exists('tmp'):
-        os.rmdir('tmp')
-    os.mkdir('tmp')
+    if not os.path.exists('tmp'):
+        os.mkdir('tmp')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mode', help='running modes', default=modes_,
