@@ -7,7 +7,6 @@ namespace janus {
 
 class SimpleRWCommand: public Marshallable {
  public:
-  enum CmdType {NoOp=0, Read=1, Write=2};
   int32_t type_;
   key_t key_;
   int32_t value_;

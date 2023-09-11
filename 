@@ -409,12 +409,12 @@
 [31m-//   return e;[m
 [31m-// }[m
 [31m-[m
-[31m-// shared_ptr<CurpPlusPrepareQuorumEvent>[m
+[31m-// shared_ptr<CurpPrepareQuorumEvent>[m
 [31m-// CurpPlusCommo::BroadcastPrepare(parid_t par_id,[m
 [31m-//                   shared_ptr<Position> pos,[m
 [31m-//                   ballot_t ballot) {[m
 [31m-//   int n = Config::GetConfig()->GetPartitionSize(par_id);[m
-[31m-//   auto e = Reactor::CreateSpEvent<CurpPlusPrepareQuorumEvent>(n);[m
+[31m-//   auto e = Reactor::CreateSpEvent<CurpPrepareQuorumEvent>(n);[m
 [31m-//   auto proxies = rpc_par_proxies_[par_id];[m
 [31m-//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));[m
 [31m-//   for (auto& p : proxies) {[m
@@ -436,13 +436,13 @@
 [31m-//   return e;[m
 [31m-// }[m
 [31m-[m
-[31m-// shared_ptr<CurpPlusAcceptQuorumEvent>[m
+[31m-// shared_ptr<CurpAcceptQuorumEvent>[m
 [31m-// CurpPlusCommo::BroadcastAccept(parid_t par_id,[m
 [31m-//                 shared_ptr<Position> pos,[m
 [31m-//                 shared_ptr<Marshallable> cmd,[m
 [31m-//                 ballot_t ballot) {[m
 [31m-//   int n = Config::GetConfig()->GetPartitionSize(par_id);[m
-[31m-//   auto e = Reactor::CreateSpEvent<CurpPlusAcceptQuorumEvent>(n);[m
+[31m-//   auto e = Reactor::CreateSpEvent<CurpAcceptQuorumEvent>(n);[m
 [31m-//   auto proxies = rpc_par_proxies_[par_id];[m
 [31m-//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);[m
 [31m-//   for (auto& p : proxies) {[m
@@ -534,12 +534,12 @@
 [31m-  //                           shared_ptr<Position> pos,[m
 [31m-  //                           shared_ptr<Marshallable> cmd);[m
 [31m-[m
-[31m-  // shared_ptr<CurpPlusPrepareQuorumEvent>[m
+[31m-  // shared_ptr<CurpPrepareQuorumEvent>[m
 [31m-  // BroadcastPrepare(parid_t par_id,[m
 [31m-  //                   shared_ptr<Position> pos,[m
 [31m-  //                   ballot_t ballot);[m
 [31m-[m
-[31m-  // shared_ptr<CurpPlusAcceptQuorumEvent>[m
+[31m-  // shared_ptr<CurpAcceptQuorumEvent>[m
 [31m-  // BroadcastAccept(parid_t par_id,[m
 [31m-  //                 shared_ptr<Position> pos,[m
 [31m-  //                 shared_ptr<Marshallable> cmd,[m
@@ -1053,10 +1053,10 @@
 [31m-//   pos_t pos1 = pos->get(1);[m
 [31m-//   // Log_info("[CURP] Loc %d Site %d OnCoordinatorAccept access log[%d][%d]", loc_id_, site_id_, pos0, pos1);[m
 [31m-//   shared_ptr<CurpPlusData> log = curp_log_cols_[pos->get(0)]->logs_[pos->get(1)];[m
-[31m-//   if (log->status_ != CurpPlusData::CurpPlusStatus::committed) {[m
+[31m-//   if (log->status_ != CurpPlusData::CurpPlusStatus::EXECUTED) {[m
 [31m-//     log->last_accepted_ = cmd;[m
 [31m-//     log->last_accepted_ballot_ = 0;[m
-[31m-//     log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::accepted;[m
+[31m-//     log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::ACCEPTED;[m
 [31m-//     *accepted = true;[m
 [31m-//   } else {[m
 [31m-//     *accepted = false;[m
@@ -1076,7 +1076,7 @@
 [31m-//   shared_ptr<CurpPlusData> log = curp_log_cols_[pos->get(0)]->logs_[pos->get(1)];[m
 [31m-//   if (ballot > log->max_ballot_seen_) {[m
 [31m-//     log->max_ballot_seen_ = ballot;[m
-[31m-//     log->status_ = CurpPlusData::CurpPlusStatus::prepared;[m
+[31m-//     log->status_ = CurpPlusData::CurpPlusStatus::PREPARED;[m
 [31m-//     *accepted = true;[m
 [31m-//   } else {[m
 [31m-//     *accepted = false;[m
@@ -1100,10 +1100,10 @@
 [31m-//     log->accepted_cmd_ = cmd;[m
 [31m-//     log->max_ballot_seen_ = ballot;[m
 [31m-//     log->max_ballot_accepted_ = ballot;[m
-[31m-//     log->status_ = CurpPlusData::CurpPlusStatus::accepted;[m
+[31m-//     log->status_ = CurpPlusData::CurpPlusStatus::ACCEPTED;[m
 [31m-//     log->last_accepted_ = cmd;[m
 [31m-//     log->last_accepted_ballot_ = ballot;[m
-[31m-//     log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::accepted;[m
+[31m-//     log->last_accepted_status_ = CurpPlusData::CurpPlusStatus::ACCEPTED;[m
 [31m-//     *accepted = true;[m
 [31m-//   } else {[m
 [31m-//     *accepted = false;[m
@@ -1119,10 +1119,10 @@
 [31m-//   slotid_t slot_id = pos->get(1);[m
 [31m-//   shared_ptr<CurpPlusDataCol> col = curp_log_cols_[key];[m
 [31m-//   shared_ptr<CurpPlusData> instance = col->logs_[slot_id];[m
-[31m-//   instance->status_ = CurpPlusData::CurpPlusStatus::committed;[m
+[31m-//   instance->status_ = CurpPlusData::CurpPlusStatus::EXECUTED;[m
 [31m-//   instance->committed_cmd_ = cmd;[m
 [31m-//   instance->last_accepted_ = cmd;[m
-[31m-//   instance->last_accepted_status_ = CurpPlusData::CurpPlusStatus::committed;[m
+[31m-//   instance->last_accepted_status_ = CurpPlusData::CurpPlusStatus::EXECUTED;[m
 [31m-[m
 [31m-//   if (slot_id > col->max_committed_slot_) {[m
 [31m-//     col->max_committed_slot_ = slot_id;[m

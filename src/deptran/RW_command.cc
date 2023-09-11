@@ -14,7 +14,7 @@ static int volatile x =
 
 SimpleRWCommand::SimpleRWCommand(): Marshallable(MarshallDeputy::CMD_KV) {
   //Log_info("[copilot+] SimpleRWCommand Empty created");
-  type_ = CmdType::NoOp;
+  type_ = RW_BENCHMARK_NOOP;
   key_ = 0;
   value_ = 0;
 }
@@ -37,15 +37,22 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
   std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
   auto raw_type = vector0->type_;
   if (vector0->type_ == RW_BENCHMARK_R_TXN || vector0->type_ == RW_BENCHMARK_R_TXN_0) {
-    type_ = CmdType::Read;
+    type_ = RW_BENCHMARK_R_TXN;
     key_ = kv_map[0].get_i32();
     value_ = 0;
   } else if (vector0->type_ == RW_BENCHMARK_W_TXN || vector0->type_ == RW_BENCHMARK_W_TXN_0) {
-    type_ = CmdType::Write;
+    type_ = RW_BENCHMARK_W_TXN;
     key_ = kv_map[0].get_i32();
     value_ = kv_map[1].get_i32();
+  } else if (vector0->type_ == RW_BENCHMARK_FINISH) {
+    type_ = vector0->type_;
+    key_ = 0;
+    value_ = kv_map[1].get_i32();
+  } else if (vector0->type_ == RW_BENCHMARK_NOOP) {
+    type_ = vector0->type_;
+    key_ = 0;
+    value_ = 0;
   } else {
-    //Log_info("[copilot+][error] type read from cmd: %d", vector0->type_);
     verify(0);
   }
   // key_t key = (*(*(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin()))->input.values_)[0].get_i32();
@@ -61,12 +68,14 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
 string SimpleRWCommand::cmd_to_string() {
   //Log_info("[copilot+] enter cmd_to_string of %p", (void*)(this));
   //Log_info("[copilot+] cmd_type=%d", type_);
-  if (CmdType::NoOp == type_)
+  if (RW_BENCHMARK_NOOP == type_)
     return string("NoOp");
-  else if (CmdType::Read == type_)
+  else if (RW_BENCHMARK_R_TXN == type_)
     return string("Read k=" + to_string(key_));
-  else if (CmdType::Write == type_)
+  else if (RW_BENCHMARK_W_TXN == type_)
     return string("Write k=" + to_string(key_) + " v=" + to_string(value_));
+  else if (RW_BENCHMARK_FINISH == type_)
+    return string("Finish v=" + to_string(value_));
   else
     verify(0);
 }

@@ -21,12 +21,11 @@ class CurpServiceImpl : virtual public CurpService{
   CurpServiceImpl() {};
   // CurpServiceImpl(TxLogServer* sched);
 
-  void CurpPoorDispatch(const int32_t& client_id,
+  void CurpDispatch(const int32_t& client_id,
                     const int32_t& cmd_id_in_client,
                     const MarshallDeputy& cmd,
                     bool_t* accepted,
-                    pos_t* pos0,
-                    pos_t* pos1,
+                    ver_t* ver,
                     int32_t* result,
                     siteid_t* coo_id,
                     rrr::DeferredReply* defer) override;
@@ -34,36 +33,37 @@ class CurpServiceImpl : virtual public CurpService{
   void CurpWaitCommit(const int32_t& client_id,
                   const int32_t& cmd_id_in_client,
                   bool_t* committed,
+                  value_t* commit_result,
                   rrr::DeferredReply* defer) override;
 
-  void CurpForward(const MarshallDeputy& pos,
-                const MarshallDeputy& cmd,
-                const bool_t& accepted,
-                rrr::DeferredReply* defer) override;
+  void CurpForward(const bool_t& accepted,
+                    const ver_t& ver,
+                    const MarshallDeputy& cmd,
+                    rrr::DeferredReply* defer) override;
 
-  void CurpCoordinatorAccept(const MarshallDeputy& pos,
-                          const MarshallDeputy& cmd,
-                          bool_t* accepted, rrr::DeferredReply* defer) override;
+  // void CurpCoordinatorAccept(const MarshallDeputy& pos,
+  //                         const MarshallDeputy& cmd,
+  //                         bool_t* accepted, rrr::DeferredReply* defer) override;
 
-  void CurpPrepare(const MarshallDeputy& pos,
-              const ballot_t& ballot,
-              bool_t* accepted,
-              ballot_t* seen_ballot,
-              rrr::i32* last_accepted_status,
-              MarshallDeputy* last_accepted_cmd,
-              ballot_t* last_accepted_ballot,
-              rrr::DeferredReply* defer) override;
+  void CurpPrepare(const key_t& k,
+                    const ver_t& ver,
+                    const ballot_t& ballot,
+                    bool_t* accepted,
+                    rrr::i32* status,
+                    ballot_t* replied_ballot,
+                    MarshallDeputy* cmd,
+                    rrr::DeferredReply* defer);
 
-  void CurpAccept(const MarshallDeputy& pos,
-              const MarshallDeputy& md_cmd,
-              const ballot_t& ballot,
-              bool_t* accepted,
-              ballot_t* seen_ballot,
-              rrr::DeferredReply* defer) override;
+  void CurpAccept(const ver_t& ver,
+                  const ballot_t& ballot,
+                  const MarshallDeputy& md_cmd,
+                  bool_t* accepted,
+                  ballot_t* seen_ballot,
+                  rrr::DeferredReply* defer);
   
-  void CurpCommit(const MarshallDeputy& pos,
-              const MarshallDeputy& md_cmd,
-              rrr::DeferredReply* defer) override;
+  void CurpCommit(const ver_t& ver,
+                  const MarshallDeputy& md_cmd,
+                  rrr::DeferredReply* defer) override;
 
 //   void OriginalSubmit(const MarshallDeputy& cmd,
 //                     const rrr::i64& dep_id,
@@ -74,12 +74,12 @@ class CurpServiceImpl : virtual public CurpService{
                 int32_t* b,
                 rrr::DeferredReply* defer) override;
   
-  void CurpProposeFinish(const int32_t& key,
-                          uint64_t* pos,
-                          rrr::DeferredReply* defer) override;
+  // void CurpProposeFinish(const int32_t& key,
+  //                         uint64_t* pos,
+  //                         rrr::DeferredReply* defer) override;
   
-  void CurpCommitFinish(const MarshallDeputy& pos,
-                        rrr::DeferredReply* defer) override;
+  // void CurpCommitFinish(const MarshallDeputy& pos,
+  //                       rrr::DeferredReply* defer) override;
 };
 
 } // namespace janus

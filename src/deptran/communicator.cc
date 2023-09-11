@@ -45,15 +45,12 @@ int CurpSmallQuorumSize(int total) {
 //     VoteNo();
 // }
 
-void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, pos_t pos0, pos_t pos1, value_t result, siteid_t coo_id) {
+void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, ver_t ver, value_t result, siteid_t coo_id) {
   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
   coo_id_vec_.push_back(coo_id);
   if (accepted) {
     VoteYes();
-    Position pos(MarshallDeputy::POSITION_CLASSIC, 2);
-    pos.set(0, pos0);
-    pos.set(1, pos1);
-    responses_.push_back(ResponsePack{pos, result});
+    responses_.push_back(ResponsePack{ver, result});
   }
   else
     VoteNo();
@@ -119,63 +116,52 @@ siteid_t CurpDispatchQuorumEvent::GetCooId() {
 }
 
 
-void CurpPlusPrepareQuorumEvent::FeedResponse(bool y,
-                                                ballot_t seen_ballot,
-                                                int last_accepted_status,
-                                                MarshallDeputy last_accepted_md_cmd,
-                                                ballot_t last_accepted_ballot) {
+void CurpPrepareQuorumEvent::FeedResponse(bool y,
+                                          int status,
+                                          ballot_t seen_ballot,
+                                          MarshallDeputy md_cmd) {
   count_++;
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
   if (y) {
-    shared_ptr<CmdData> last_accepted_cmd = dynamic_pointer_cast<CmdData>(const_cast<MarshallDeputy&>(last_accepted_md_cmd).sp_data_);
-    pair<int, int> cmd_id = {last_accepted_cmd->client_id_, last_accepted_cmd->cmd_id_in_client_};
-    accepted_cmds_.push_back(AcceptedCmd{cmd_id, last_accepted_status, last_accepted_cmd, last_accepted_ballot});
+    shared_ptr<CmdData> cmd = dynamic_pointer_cast<CmdData>(const_cast<MarshallDeputy&>(md_cmd).sp_data_);
+    pair<int, int> cmd_id = {cmd->client_id_, cmd->cmd_id_in_client_};
+    if (status == CurpPlusData::CurpPlusStatus::COMMITTED) {
+      committed_cmd_ = cmd;
+    } else if (status == CurpPlusData::CurpPlusStatus::ACCEPTED) {
+      accepted_count_++;
+    } else if (status == CurpPlusData::CurpPlusStatus::FASTACCEPT) {
+      fast_accept_[cmd_id].first++;
+      fast_accept_[cmd_id].second = cmd;
+      if (fast_accept_[cmd_id].first > max_fast_accept_count_) {
+        max_fast_accept_count_ = fast_accept_[cmd_id].first;
+        max_fast_accept_id_ = cmd_id;
+      }
+    } else {
+      verify(0);
+    }
     VoteYes();
   } else {
     VoteNo();
   }
 }
 
-bool CurpPlusPrepareQuorumEvent::CommitYes() {
-  ready_cmd_ = nullptr;
-  if (count_ <= quorum_) return false;
-  for (int i = 0; i < accepted_cmds_.size(); i++) {
-    if (accepted_cmds_[i].last_accepted_status == CurpPlusData::CurpPlusStatus::committed) {
-      ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
-      return true;
-    }
-  }
-  return false;
+bool CurpPrepareQuorumEvent::CommitYes() {
+  return committed_cmd_ != nullptr;
 }
 
-bool CurpPlusPrepareQuorumEvent::AcceptYes() {
-  ready_cmd_ = nullptr;
-  ballot_t max_ballot_of_ready_cmd_ = -1;
-  if (count_ <= quorum_) return false;
-  for (int i = 0; i < accepted_cmds_.size(); i++) {
-    if (accepted_cmds_[i].last_accepted_status == CurpPlusData::CurpPlusStatus::accepted
-        && accepted_cmds_[i].last_accepted_ballot > max_ballot_of_ready_cmd_) {
-      ready_cmd_ = accepted_cmds_[i].last_accepted_cmd;
-      max_ballot_of_ready_cmd_ = accepted_cmds_[i].last_accepted_ballot;
-    }
-  }
-  return ready_cmd_ != nullptr;
+bool CurpPrepareQuorumEvent::AcceptYes() {
+  return max_seen_ballot_ <= self_ballot_ && accepted_count_ >= CurpQuorumSize(n_total_);
 }
 
-bool CurpPlusPrepareQuorumEvent::FastAcceptYes() {
-  // TODO
-  return true;
+bool CurpPrepareQuorumEvent::FastAcceptYes() {
+  return max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
 }
 
-bool CurpPlusPrepareQuorumEvent::AcceptAnyYes() {
-  ready_cmd_ = nullptr;
-  if (count_ <= quorum_) return false;
-  // TODO: check whether we can pick anyone if no commit / accept
-  ready_cmd_ = accepted_cmds_[0].last_accepted_cmd;
-  return true;
+bool CurpPrepareQuorumEvent::IsReady() {
+  return timeouted_ || CommitYes() || AcceptYes() || FastAcceptYes();
 }
 
-void CurpPlusAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
+void CurpAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
 }
 
@@ -1177,11 +1163,11 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     fuattr.callback =
         [e, this](Future* fu) {
           bool_t accepted;
-          pos_t pos0, pos1;
+          ver_t ver;
           value_t result;
           siteid_t coo_id;
-          fu->get_reply() >> accepted >> pos0 >> pos1 >> result >> coo_id;
-          e->FeedResponse(accepted, pos0, pos1, result, coo_id);
+          fu->get_reply() >> accepted >> ver >> result >> coo_id;
+          e->FeedResponse(accepted, ver, result, coo_id);
         };
     
     DepId di;
@@ -1201,7 +1187,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     dynamic_pointer_cast<VecPieceData>(cmd)->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     
     // Log_info("[CURP] async_CurpPoorDispatch");
-    auto future = proxy->async_CurpPoorDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
+    auto future = proxy->async_CurpDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }
 
@@ -1291,13 +1277,13 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
 
 shared_ptr<IntEvent>
 Communicator::CurpForwardResultToCoordinator(parid_t par_id,
-                                            const shared_ptr<Marshallable>& cmd,
-                                            Position pos,
-                                            bool_t accepted) {
+                                              bool_t accepted,
+                                              ver_t ver,
+                                              const shared_ptr<Marshallable>& cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(make_shared<Position>(pos)), cmd_deputy(cmd);
+  MarshallDeputy cmd_deputy(cmd);
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
@@ -1316,48 +1302,48 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
       Log_info("[CURP] [2-] [tx=%d] Forward %.3f", dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
-      Future *f = proxy->async_CurpForward(pos_deputy, cmd_deputy, accepted, fuattr);
+      Future *f = proxy->async_CurpForward(accepted, ver, cmd_deputy, fuattr);
       Future::safe_release(f);
     }
   }
   return e;
 }
 
-shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
-Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
-                          shared_ptr<Position> pos,
-                          shared_ptr<Marshallable> cmd) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpPlusCoordinatorAcceptQuorumEvent>(n);
-  auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-    FutureAttr fuattr;
-    fuattr.callback = [e](Future *fu) {
-      bool_t accepted;
-      fu->get_reply() >> accepted;
-      e->FeedResponse(accepted);
-    };
-    Future *f = proxy->async_CurpCoordinatorAccept(pos_deputy, cmd_deputy, fuattr);
-    Future::safe_release(f);
-  }
-  return e;
-}
+// shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
+// Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
+//                           shared_ptr<Position> pos,
+//                           shared_ptr<Marshallable> cmd) {
+//   int n = Config::GetConfig()->GetPartitionSize(par_id);
+//   auto e = Reactor::CreateSpEvent<CurpPlusCoordinatorAcceptQuorumEvent>(n);
+//   auto proxies = rpc_par_proxies_[par_id];
+//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+// #ifdef CURP_SEND_TC
+//   usleep(TC_LATENCY);
+// #endif
+//   WAN_WAIT;
+//   for (auto& p : proxies) {
+//     auto proxy = (CurpProxy *)p.second;
+//     auto site = p.first;
+//     FutureAttr fuattr;
+//     fuattr.callback = [e](Future *fu) {
+//       bool_t accepted;
+//       fu->get_reply() >> accepted;
+//       e->FeedResponse(accepted);
+//     };
+//     Future *f = proxy->async_CurpCoordinatorAccept(pos_deputy, cmd_deputy, fuattr);
+//     Future::safe_release(f);
+//   }
+//   return e;
+// }
 
-shared_ptr<CurpPlusPrepareQuorumEvent>
+shared_ptr<CurpPrepareQuorumEvent>
 Communicator::CurpBroadcastPrepare(parid_t par_id,
-                  shared_ptr<Position> pos,
+                  key_t key,
+                  ver_t ver,
                   ballot_t ballot) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpPlusPrepareQuorumEvent>(n);
+  auto e = Reactor::CreateSpEvent<CurpPrepareQuorumEvent>(n, ballot);
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
@@ -1368,28 +1354,27 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
       bool_t accepted;
-      ballot_t seen_ballot;
       i32 last_accepted_status;
-      MarshallDeputy last_accepted_cmd;
-      ballot_t last_accepted_ballot;
-      fu->get_reply() >> accepted >> seen_ballot >> last_accepted_status >> last_accepted_cmd >> last_accepted_ballot;
-      e->FeedResponse(accepted, seen_ballot, last_accepted_status, last_accepted_cmd, last_accepted_ballot);
+      ballot_t seen_ballot;
+      MarshallDeputy cmd;
+      fu->get_reply() >> accepted >> last_accepted_status >> seen_ballot >> cmd;
+      e->FeedResponse(accepted, last_accepted_status, seen_ballot, cmd);
     };
-    Future *f = proxy->async_CurpPrepare(pos_deputy, ballot, fuattr);
+    Future *f = proxy->async_CurpPrepare(key, ver, ballot, fuattr);
     Future::safe_release(f);
   }
   return e;
 }
 
-shared_ptr<CurpPlusAcceptQuorumEvent>
+shared_ptr<CurpAcceptQuorumEvent>
 Communicator::CurpBroadcastAccept(parid_t par_id,
-                shared_ptr<Position> pos,
-                shared_ptr<Marshallable> cmd,
-                ballot_t ballot) {
+                                  ver_t ver,
+                                  ballot_t ballot,
+                                  shared_ptr<Marshallable> cmd) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpPlusAcceptQuorumEvent>(n);
+  auto e = Reactor::CreateSpEvent<CurpAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+  MarshallDeputy cmd_deputy(cmd);
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
@@ -1404,7 +1389,7 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
       fu->get_reply() >> accepted >> seen_ballot;
       e->FeedResponse(accepted, seen_ballot);
     };
-    Future *f = proxy->async_CurpAccept(pos_deputy, cmd_deputy, ballot, fuattr);
+    Future *f = proxy->async_CurpAccept(ver, ballot, cmd_deputy, fuattr);
     Future::safe_release(f);
   }
   return e;
@@ -1412,13 +1397,13 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
 
 shared_ptr<IntEvent>
 Communicator::CurpBroadcastCommit(parid_t par_id,
-                                shared_ptr<Position> pos,
+                                ver_t ver,
                                 shared_ptr<Marshallable> cmd,
                                 uint16_t ban_site) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
+  MarshallDeputy cmd_deputy(cmd);
 #ifdef CURP_SEND_TC
   usleep(TC_LATENCY);
 #endif
@@ -1430,54 +1415,54 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
       FutureAttr fuattr;
       fuattr.callback = [](Future *fu) {};
       // Log_info("[CURP] Broadcast Commit to site %d", site);
-      Future *f = proxy->async_CurpCommit(pos_deputy, cmd_deputy, fuattr);
+      Future *f = proxy->async_CurpCommit(ver, cmd_deputy, fuattr);
       Future::safe_release(f);
     }
   }
   return e;
 }
 
-shared_ptr<ProposeFinishQuorumEvent>
-Communicator::CurpProposeFinish(parid_t par_id,
-                                key_t key) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<ProposeFinishQuorumEvent>(n);
-  auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-      FutureAttr fuattr;
-      fuattr.callback = [e](Future *fu) {
-        slotid_t pos;
-        fu->get_reply() >> pos;
-        e->FeedResponse(pos);
-      };
-      Future *f = proxy->async_CurpProposeFinish(key);
-      Future::safe_release(f);
-  }
-  return e;
-}
+// shared_ptr<ProposeFinishQuorumEvent>
+// Communicator::CurpProposeFinish(parid_t par_id,
+//                                 key_t key) {
+//   int n = Config::GetConfig()->GetPartitionSize(par_id);
+//   auto e = Reactor::CreateSpEvent<ProposeFinishQuorumEvent>(n);
+//   auto proxies = rpc_par_proxies_[par_id];
+//   WAN_WAIT;
+//   for (auto& p : proxies) {
+//     auto proxy = (CurpProxy *)p.second;
+//     auto site = p.first;
+//       FutureAttr fuattr;
+//       fuattr.callback = [e](Future *fu) {
+//         slotid_t pos;
+//         fu->get_reply() >> pos;
+//         e->FeedResponse(pos);
+//       };
+//       Future *f = proxy->async_CurpProposeFinish(key);
+//       Future::safe_release(f);
+//   }
+//   return e;
+// }
 
-shared_ptr<IntEvent>
-Communicator::CurpCommitFinish(parid_t par_id,
-                                shared_ptr<Position> pos) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<IntEvent>();
-  MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
-  auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-      FutureAttr fuattr;
-      fuattr.callback = [e](Future *fu) {
-        e->Set(1);
-      };
-      Future *f = proxy->async_CurpCommitFinish(pos_deputy);
-      Future::safe_release(f);
-  }
-  return e;
-}
+// shared_ptr<IntEvent>
+// Communicator::CurpCommitFinish(parid_t par_id,
+//                                 shared_ptr<Position> pos) {
+//   int n = Config::GetConfig()->GetPartitionSize(par_id);
+//   auto e = Reactor::CreateSpEvent<IntEvent>();
+//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
+//   auto proxies = rpc_par_proxies_[par_id];
+//   WAN_WAIT;
+//   for (auto& p : proxies) {
+//     auto proxy = (CurpProxy *)p.second;
+//     auto site = p.first;
+//       FutureAttr fuattr;
+//       fuattr.callback = [e](Future *fu) {
+//         e->Set(1);
+//       };
+//       Future *f = proxy->async_CurpCommitFinish(pos_deputy);
+//       Future::safe_release(f);
+//   }
+//   return e;
+// }
 
 } // namespace janus

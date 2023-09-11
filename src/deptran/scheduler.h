@@ -22,63 +22,60 @@ struct UniqueCmdID {
 class CurpPlusData {
  public:
   enum CurpPlusStatus {
-    init = 0,
-    fastAccepted = 1,
-    prepared = 2,
-    accepted = 3,
-    committed = 4,
-    executed = 5,
+    INIT = 0,
+    FASTACCEPT = 1,
+    PREPARED = 2,
+    ACCEPTED = 3,
+    COMMITTED = 4,
   };
-  enum CurpPlusFinishStatus {
-    non_finish = 0,
-    finish_prepare = 1,
-    finish_no_op = 2,
-    finish_committed = 3
-  };
-  CurpPlusStatus status_ = CurpPlusStatus::init;
-  CurpPlusFinishStatus fin_status_ = CurpPlusFinishStatus::non_finish;
-  ballot_t max_ballot_seen_ = 0;
-  ballot_t max_ballot_accepted_ = 0;
-  shared_ptr<Marshallable> fast_accepted_cmd_{nullptr};
-  shared_ptr<Marshallable> accepted_cmd_{nullptr};
-  shared_ptr<Marshallable> committed_cmd_{nullptr};
-  
-  shared_ptr<Marshallable> last_accepted_{nullptr};
-  CurpPlusStatus last_accepted_status_ = CurpPlusStatus::init;
-  ballot_t last_accepted_ballot_ = 0;
+  CurpPlusStatus status_;
+  ballot_t max_seen_ballot_;
+  ballot_t max_accepted_ballot_ = 0;
+  shared_ptr<Marshallable> cmd_{nullptr};
 
-  // // to determined global id, apply after commit
-  // // id starts from 1, so 0 is unassigned
-  // slotid_t global_id_ = 0;
-  int finish_countdown_ = FINISH_COUNTDOWN_MAX;
-  vector<shared_ptr<Marshallable>> OriginalCmdListStandByFinishSymbol;
+  // unzip from cmd
+  int32_t type_;
+  key_t key_;
+  value_t value_;
 
-  CurpPlusData()
-    : fin_status_(CurpPlusFinishStatus::non_finish) {
-    // Do nothing
-  }
-  CurpPlusData(CurpPlusFinishStatus fin_status)
-    : fin_status_(fin_status) {
-    // Do nothing
+  CurpPlusData(CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
+    : status_(status), cmd_(cmd), max_seen_ballot_(ballot) {
+      shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+      type_ = parsed_cmd_->type_;
+      key_ = parsed_cmd_->key_;
+      value_ = parsed_cmd_->value_;
   }
 };
 
 class CurpPlusDataCol {
+ private:
+  size_t recent_executed_ = 0;
  public:
-  // count_ is the last element index, position 0 is intentionally left blank
-  size_t count_ = 0;
-  // ----min_active <= max_executed <= max_committed---
-  slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
-  slotid_t max_executed_slot_ = 0;
-  slotid_t max_committed_slot_ = 0;
   bool in_applying_logs_{false};
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
   map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
   CurpPlusDataCol() {
     logs_[0] = nullptr;
   }
-  inline shared_ptr<CurpPlusData> Tail() {
-    return logs_[count_];
+  inline int32_t RecentVersion() {
+    return recent_executed_;
+  }
+  inline int32_t NextVersion() {
+    return recent_executed_ + 1;
+  }
+  inline shared_ptr<CurpPlusData> RecentExecuted() {
+    return Get(RecentVersion());
+  }
+  inline shared_ptr<CurpPlusData> NextInstance() {
+    return GetOrCreate(NextVersion());
+  }
+  inline shared_ptr<CurpPlusData> Get(ver_t ver) {
+    return logs_[ver];
+  }
+  inline shared_ptr<CurpPlusData> GetOrCreate(ver_t ver) {
+    if (logs_[ver] == nullptr)
+      logs_[ver] = make_shared<CurpPlusData>(CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
+    return logs_[ver];
   }
 };
 
@@ -111,7 +108,7 @@ class Distribution {
 };
 
 struct ResponseData {
-  pair<pos_t, pos_t> pos_of_this_pack;
+  pair<ver_t, ver_t> pos_of_this_pack;
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
   shared_ptr<Marshallable> max_cmd_{nullptr};
   int received_count_ = 0, accept_count_ = 0, max_accept_count_ = 0;
@@ -135,15 +132,6 @@ struct ResponseData {
       max_accept_count_ = responses_[cmd_id].size();
       max_cmd_ = cmd;
     }
-    // Log_info("[CURP] ResponseData at pos(%d, %d) add cmd<%d, %d> , accept_count_=%d max_accept_count_=%d max_cmd_=cmd<%d, %d>",
-    //   pos_of_this_pack.first,
-    //   pos_of_this_pack.second,
-    //   SimpleRWCommand::GetCmdID(cmd).first,
-    //   SimpleRWCommand::GetCmdID(cmd).second,
-    //   accept_count_,
-    //   max_accept_count_,
-    //   SimpleRWCommand::GetCmdID(max_cmd_).first,
-    //   SimpleRWCommand::GetCmdID(max_cmd_).second);
     return {accept_count_, max_accept_count_};
   }
   shared_ptr<Marshallable> GetMaxCmd() {
@@ -155,10 +143,11 @@ struct CommitNotification {
   // client side
   bool client_stored_ = false;
   bool_t* committed_;
+  value_t* commit_result_;
   function<void()> commit_callback_;
   // coordinator side
   bool coordinator_stored_ = false;
-  bool_t coordinator_commit_result_;
+  value_t coordinator_commit_result_;
   bool coordinator_replied_ = false;
   // timestamp (ms)
   double receive_time_ = -1;
@@ -172,6 +161,8 @@ class Coordinator;
 class Frame;
 class Communicator;
 class TxLogServer {
+ private:
+  shared_ptr<Marshallable> MakeFinishCmd(int cmd_id, key_t key, value_t value);
  public:
   void *svr_workers_g{nullptr};
 
@@ -221,8 +212,10 @@ class TxLogServer {
   vector<shared_ptr<CommitNotification>> commit_timeout_list_;
   int commit_timeout_solved_count_;
 
-  // executed logs for check
-  map<slotid_t, pair<int32_t, int32_t>> executed_logs_;
+  map<key_t, int> finish_countdown_;
+
+  // application k-v table for rw workload
+  map<key_t, value_t> kv_table_;
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
@@ -333,16 +326,16 @@ class TxLogServer {
   }
 
 
-  virtual bool MultiDispatch(cmdid_t cmd_id,
-                              shared_ptr<Marshallable> cmd,
-                              TxnOutput& ret_output,
-                              bool_t& accepted,
-                              Position& pos,
-                              value_t& result) {
-    // [CURP+] implement this to support multi-broadcast (only need on concurent control scheduler)
-    verify(0);
-    return false;
-  }
+  // virtual bool MultiDispatch(cmdid_t cmd_id,
+  //                             shared_ptr<Marshallable> cmd,
+  //                             TxnOutput& ret_output,
+  //                             bool_t& accepted,
+  //                             Position& pos,
+  //                             value_t& result) {
+  //   // [CURP+] implement this to support multi-broadcast (only need on concurent control scheduler)
+  //   verify(0);
+  //   return false;
+  // }
 
   void RegLearnerAction(function<void(Marshallable &)> learner_action) {
     app_next_ = learner_action;
@@ -371,19 +364,13 @@ class TxLogServer {
   virtual int32_t OnUpgradeEpoch(uint32_t old_epoch);
 
   // below are about CURP
-
-  key_t get_key_from_marshallable(shared_ptr<Marshallable> cmd);
-
-  bool_t check_fast_path_validation(key_t key);
-  value_t read(key_t key);
-  slotid_t append_cmd(key_t key, const shared_ptr<Marshallable>& cmd);
   
-  // ----min_active <= max_executed <= max_committed---
-  slotid_t curp_min_active_slot_ = 0; // anything before (lt) this slot is freed
-  slotid_t curp_max_executed_slot_ = 0;
-  slotid_t curp_max_committed_slot_ = 0;
-  slotid_t curp_executed_committed_gap_ = 0;
-  slotid_t curp_executed_committed_max_gap_ = 0;
+  // // ----min_active <= max_executed <= max_committed---
+  // slotid_t curp_min_active_slot_ = 0; // anything before (lt) this slot is freed
+  // slotid_t curp_max_executed_slot_ = 0;
+  // slotid_t curp_max_committed_slot_ = 0;
+  // slotid_t curp_executed_committed_gap_ = 0;
+  // slotid_t curp_executed_committed_max_gap_ = 0;
   map<key_t, shared_ptr<CurpPlusDataCol> > curp_log_cols_{};
   // [CURP] TODO: this need to be used
   // int n_prepare_ = 0;
@@ -391,19 +378,18 @@ class TxLogServer {
   // int n_commit_ = 0;
   int n_fast_path_attempted_ = 0;
   int n_fast_path_failed_ = 0;
-  bool curp_in_applying_logs_{false};
+  // bool curp_in_applying_logs_{false};
 
   // global id related
   int curp_global_id_hinter_ = 1;
 
-  map<pair<pos_t, pos_t>, shared_ptr<ResponseData>> curp_response_storage_;
+  map<pair<ver_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
 
-  void OnCurpPoorDispatch(const int32_t& client_id,
+  void OnCurpDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,
                       const shared_ptr<Marshallable>& cmd,
                       bool_t* accepted,
-                      pos_t* pos0,
-                      pos_t* pos1,
+                      ver_t* ver,
                       value_t* result,
                       siteid_t* coo_id,
                       const function<void()> &cb);
@@ -411,66 +397,71 @@ class TxLogServer {
   void OnCurpWaitCommit(const int32_t& client_id,
                     const int32_t& cmd_id_in_client,
                     bool_t* committed,
+                    value_t* commit_result,
                     const function<void()> &cb);
 
-  void OnCurpForward(const shared_ptr<Position>& pos,
-                 const shared_ptr<Marshallable>& cmd,
-                 const bool_t& accepted);
+  void OnCurpForward(const bool_t& accepted,
+                      const ver_t& ver,
+                      const shared_ptr<Marshallable>& cmd);
   
-  void OnCurpCoordinatorAccept(const shared_ptr<Position>& pos,
-                          const shared_ptr<Marshallable>& cmd,
-                          bool_t* accepted,
-                          const function<void()> &cb);
+  // void OnCurpCoordinatorAccept(const shared_ptr<Position>& pos,
+  //                         const shared_ptr<Marshallable>& cmd,
+  //                         bool_t* accepted,
+  //                         const function<void()> &cb);
 
-  void OnCurpPrepare(const shared_ptr<Position>& pos,
-                const ballot_t& ballot,
-                bool_t* accepted,
-                ballot_t* seen_ballot,
-                int* last_accepted_status,
-                shared_ptr<Marshallable>* last_accepted_cmd,
-                ballot_t* last_accepted_ballot,
-                const function<void()> &cb);
+  void CurpPrepare(key_t key,
+                    ver_t ver,
+                    ballot_t ballot);
 
-  void OnCurpAccept(const shared_ptr<Position>& pos,
-                const shared_ptr<Marshallable>& cmd,
-                const ballot_t& ballot,
-                bool_t* accepted,
-                ballot_t* seen_ballot,
-                const function<void()> &cb);
+  void CurpAccept(ver_t ver,
+                  ballot_t ballot,
+                  const shared_ptr<Marshallable>& cmd);
 
-  void TryToApplyLogsOnCol(shared_ptr<CurpPlusDataCol> col);
+  void CurpCommit(ver_t ver,
+                  shared_ptr<Marshallable> cmd);
 
-  void OnCurpCommit(const shared_ptr<Position>& pos,
-                const shared_ptr<Marshallable>& cmd);
+  void OnCurpPrepare(const key_t& k,
+                      const ver_t& ver,
+                      const ballot_t& ballot,
+                      bool_t* accepted,
+                      int* status,
+                      ballot_t* replied_ballot,
+                      shared_ptr<Marshallable>* cmd,
+                      const function<void()> &cb);
 
-  void CurpCommit(shared_ptr<Position> pos,
-              shared_ptr<Marshallable> cmd);
+  void OnCurpAccept(const ver_t& ver,
+                    const ballot_t& ballot,
+                    const shared_ptr<Marshallable>& cmd,
+                    bool_t* accepted,
+                    ballot_t* seen_ballot,
+                    const function<void()> &cb);
+
+  void OnCurpCommit(const ver_t& ver,
+                    const shared_ptr<Marshallable>& cmd);
 
   void OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
                         const rrr::i64& dep_id,
                         bool_t* slow,
                         const function<void()> &cb);
   
-  void OnCurpProposeFinish(const int32_t& key,
-                        uint64_t* pos,
-                        const function<void()> &cb);
+  // void OnCurpProposeFinish(const int32_t& key,
+  //                           uint64_t* pos,
+  //                           const function<void()> &cb);
   
-  void OnCurpCommitFinish(const shared_ptr<Position> &pos,
-                        const function<void()> &cb);
-  // slotid_t ApplyForNewGlobalID();
+  // void OnCurpCommitFinish(const shared_ptr<Position> &pos,
+  //                         const function<void()> &cb);
 
-  // slotid_t OriginalProtocolApplyForNewGlobalID(key_t key);
+  void CurpSkipFastpath(int cmd_id, shared_ptr<Marshallable> &cmd);
 
-  void CurpCombineLog(shared_ptr<Marshallable> &cmd);
+  shared_ptr<CurpPlusData> GetCurpLog(key_t key, ver_t ver);
 
-  shared_ptr<CurpPlusData> GetCurpLog(pos_t pos0, pos_t pos1);
-
-  shared_ptr<CurpPlusData> GetOrCreateCurpLog(pos_t pos0, pos_t pos1);
+  shared_ptr<CurpPlusData> GetOrCreateCurpLog(key_t key, ver_t ver);
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
 
-  // void PrintExecutedLogs();
-
+ private:
+  value_t DBGet(const shared_ptr<Marshallable>& cmd);
+  value_t DBPut(const shared_ptr<Marshallable>& cmd);
 };
 
 } // namespace janus

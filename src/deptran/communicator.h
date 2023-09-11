@@ -84,18 +84,16 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
  public:
   class ResponsePack {
    public:
-    shared_ptr<Position> pos_{nullptr};
+    ver_t ver_;
     value_t result_ = -1;
     ResponsePack() {}
-    ResponsePack(Position& pos, value_t result) {
-      pos_ = make_shared<Position>(Position(pos));
-      result_ = result;
+    ResponsePack(ver_t ver, value_t result): ver_(ver), result_(result) {
     }
     bool operator < (const ResponsePack &other) const {
-      return (*pos_.get() < *other.pos_.get()) || ((*pos_.get() == *other.pos_.get()) && (result_ < other.result_));
+      return (ver_ < other.ver_) || ((ver_ == other.ver_) && (result_ < other.result_));
     }
     bool operator == (const ResponsePack &other) const {
-      return (*pos_.get() == *other.pos_.get()) && (result_ == other.result_);
+      return (ver_ == other.ver_) && (result_ == other.result_);
     }
   };
  private:
@@ -110,7 +108,7 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
   // void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
-  void FeedResponse(bool_t accepted, pos_t pos0, pos_t pos1, value_t result, siteid_t coo_id);
+  void FeedResponse(bool_t accepted, ver_t ver, value_t result, siteid_t coo_id);
   bool FastYes();
   bool FastNo();
   bool IsReady() override;
@@ -121,14 +119,14 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
     return max_response_;
   }
   siteid_t GetCooId();
-  string Print() {
-    string ret;
-    sort(responses_.begin(), responses_.end());
-    for (vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
-      ret = ret + "[(" + to_string(it->pos_->get(0)) + ", " + to_string(it->pos_->get(1)) + "), " + to_string(it->result_) + "] ";
-    }
-    return "{" + ret + "}";
-  }
+  // string Print() {
+  //   string ret;
+  //   sort(responses_.begin(), responses_.end());
+  //   for (vector<ResponsePack>::iterator it = responses_.begin(); it != responses_.end(); ++it) {
+  //     ret = ret + "[(" + to_string(it->pos_->get(0)) + ", " + to_string(it->pos_->get(1)) + "), " + to_string(it->result_) + "] ";
+  //   }
+  //   return "{" + ret + "}";
+  // }
  private:
   // [CURP] TODO: put in .cc file
   int FindMax(){
@@ -158,53 +156,65 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
 };
 
 
-class CurpPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
+// class CurpPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
 
- public:
-  // using QuorumEvent::QuorumEvent;
-  CurpPlusCoordinatorAcceptQuorumEvent(int n_total)
-      : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
-  }
+//  public:
+//   // using QuorumEvent::QuorumEvent;
+//   CurpPlusCoordinatorAcceptQuorumEvent(int n_total)
+//       : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+//   }
 
-  void FeedResponse(bool y) {
-    if (y)
-      VoteYes();
-    else
-      VoteNo();
-  }
-};
+//   void FeedResponse(bool y) {
+//     if (y)
+//       VoteYes();
+//     else
+//       VoteNo();
+//   }
+// };
 
-struct AcceptedCmd {
-  pair<int, int> cmd_id;
-  int last_accepted_status;
-  shared_ptr<Marshallable> last_accepted_cmd{nullptr};
-  ballot_t last_accepted_ballot;
-};
-
-class CurpPlusPrepareQuorumEvent : public QuorumEvent {
-  ballot_t max_seen_ballot_ = 0;
-  vector<AcceptedCmd> accepted_cmds_;
+class CurpPrepareQuorumEvent : public QuorumEvent {
   int count_ = 0;
-  shared_ptr<Marshallable> ready_cmd_{nullptr};
+
+  // for COMMITTED
+  shared_ptr<CmdData> committed_cmd_{nullptr};
+
+  // for ACCEPTED
+  ballot_t self_ballot_;
+  ballot_t max_seen_ballot_ = 0;
+  int accepted_count_ = 0;
+
+  // for FASTACCEPT
+  map<pair<int, int>, pair<int, shared_ptr<CmdData> > > fast_accept_;
+  int max_fast_accept_count_ = 0;
+  pair<int, int> max_fast_accept_id_;
  public:
   // using QuorumEvent::QuorumEvent;
-  CurpPlusPrepareQuorumEvent(int n_total)
-      : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
-
+  CurpPrepareQuorumEvent(int n_total, ballot_t self_ballot)
+      : QuorumEvent(n_total, CurpQuorumSize(n_total)), self_ballot_(self_ballot) {
   }
 
-  void FeedResponse(bool y, ballot_t seen_ballot, int last_accepted_status, MarshallDeputy last_accepted_cmd, ballot_t last_accepted_ballot);
+  void FeedResponse(bool y,
+                    int status,
+                    ballot_t seen_ballot,
+                    MarshallDeputy md_cmd);
   bool CommitYes();
   bool AcceptYes();
   bool FastAcceptYes();
-  bool AcceptAnyYes();
+  bool IsReady() override;
+
+  shared_ptr<CmdData> GetCommittedCmd() {
+    return committed_cmd_;
+  }
+  shared_ptr<CmdData> GetFastAcceptedCmd() {
+    return fast_accept_[max_fast_accept_id_].second;
+  }
 };
 
-class CurpPlusAcceptQuorumEvent : public QuorumEvent {
+class CurpAcceptQuorumEvent : public QuorumEvent {
   ballot_t max_seen_ballot_;
  public:
   // using QuorumEvent::QuorumEvent;
-  CurpPlusAcceptQuorumEvent(int n_total)
+  CurpAcceptQuorumEvent(int n_total)
       : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
 
   }
@@ -214,17 +224,17 @@ class CurpPlusAcceptQuorumEvent : public QuorumEvent {
   bool FastNo();
 };
 
-class ProposeFinishQuorumEvent: public QuorumEvent {
-  vector<slotid_t> proposed_pos;
- public:
-  ProposeFinishQuorumEvent(int n_total)
-    : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
+// class ProposeFinishQuorumEvent: public QuorumEvent {
+//   vector<slotid_t> proposed_pos;
+//  public:
+//   ProposeFinishQuorumEvent(int n_total)
+//     : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
     
-  }
-  void FeedResponse(int pos) {
-    proposed_pos.push_back(pos);
-  }
-};
+//   }
+//   void FeedResponse(int pos) {
+//     proposed_pos.push_back(pos);
+//   }
+// };
 
 // class CurpCommitResultQuorumEvent : public QuorumEvent {
 //   bool commit_success_;
@@ -392,39 +402,40 @@ class Communicator {
 
   shared_ptr<IntEvent>
   CurpForwardResultToCoordinator(parid_t par_id,
-                            const shared_ptr<Marshallable>& cmd,
-                            Position pos,
-                            bool_t accepted);
+                                  bool_t accepted,
+                                  ver_t ver,
+                                  const shared_ptr<Marshallable>& cmd);
   
-  shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
-  CurpBroadcastCoordinatorAccept(parid_t par_id,
-                            shared_ptr<Position> pos,
-                            shared_ptr<Marshallable> cmd);
+  // shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
+  // CurpBroadcastCoordinatorAccept(parid_t par_id,
+  //                           shared_ptr<Position> pos,
+  //                           shared_ptr<Marshallable> cmd);
 
-  shared_ptr<CurpPlusPrepareQuorumEvent>
+  shared_ptr<CurpPrepareQuorumEvent>
   CurpBroadcastPrepare(parid_t par_id,
-                    shared_ptr<Position> pos,
-                    ballot_t ballot);
+                      key_t key,
+                      ver_t ver,
+                      ballot_t ballot);
 
-  shared_ptr<CurpPlusAcceptQuorumEvent>
+  shared_ptr<CurpAcceptQuorumEvent>
   CurpBroadcastAccept(parid_t par_id,
-                  shared_ptr<Position> pos,
-                  shared_ptr<Marshallable> cmd,
-                  ballot_t ballot);
+                      ver_t ver,
+                      ballot_t ballot,
+                      shared_ptr<Marshallable> cmd);
 
   shared_ptr<IntEvent>
   CurpBroadcastCommit(parid_t par_id,
-                  shared_ptr<Position> pos,
-                  shared_ptr<Marshallable> md_cmd,
-                  uint16_t ban_site);
+                      ver_t ver,
+                      shared_ptr<Marshallable> md_cmd,
+                      uint16_t ban_site);
 
-  shared_ptr<ProposeFinishQuorumEvent>
-  CurpProposeFinish(parid_t par_id,
-                    key_t key);
+  // shared_ptr<ProposeFinishQuorumEvent>
+  // CurpProposeFinish(parid_t par_id,
+  //                   key_t key);
   
-  shared_ptr<IntEvent>
-  CurpCommitFinish(parid_t par_id,
-                  shared_ptr<Position> pos);
+  // shared_ptr<IntEvent>
+  // CurpCommitFinish(parid_t par_id,
+  //                 shared_ptr<Position> pos);
 };
 
 } // namespace janus

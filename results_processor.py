@@ -1,22 +1,3 @@
-# # Create a list of tuples where the first 4 elements are keywords for sorting, and the rest are values
-# list_of_tuples = [
-#     ('apple', 'banana', 'cherry', 'date', None, 3, 2),
-#     ('banana', 'cherry', 'date', 'apple', 1, 4, 2),
-#     ('cherry', 'banana', 'date', 'apple', 2, 1, None),
-# ]
-
-# # Define a custom key function to extract the sorting keys from each tuple
-# def sorting_key(item):
-#     return item[:4]  # Return the first 4 elements of the tuple as the sorting key
-
-# # Sort the list of tuples using the custom key function
-# sorted_list_of_tuples = sorted(list_of_tuples, key=sorting_key)
-
-# # Print the sorted list of tuples
-# for item in sorted_list_of_tuples:
-#     print(item)
-
-
 import os
 
 def sorting_key(item):
@@ -66,7 +47,7 @@ for file_name in file_names:
     datas.append((site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap))
 
 datas = sorted(datas, key=sorting_key)
-print(datas)
+# print(datas)
 for data in datas:
     print(data)
     

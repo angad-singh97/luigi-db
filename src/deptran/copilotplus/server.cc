@@ -531,7 +531,7 @@ void CopilotPlusServer::removeCmd(CopilotPlusLogInfo& log_info, slotid_t slot) {
 bool CopilotPlusServer::executeCmd(shared_ptr<CopilotPlusData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
-      CurpCombineLog(ins->cmd);
+      CurpSkipFastpath(0, ins->cmd); // [CURP] TODO: findout what's here
       app_next_(*ins->cmd);
     }
     ins->status = Status::EXECUTED;

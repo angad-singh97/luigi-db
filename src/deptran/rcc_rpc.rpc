@@ -49,52 +49,44 @@ abstract service MultiPaxosPlus {
 }
 
 abstract service Curp {
-
-//  defer Dispatch(int32_t client_id,
-//                int32_t cmd_id_in_client,
-//                MarshallDeputy cmd |
-//                bool_t accepted,
-//                MarshallDeputy pos,
-//                int32_t result,
-//                siteid_t coo_id);
   
-  defer CurpPoorDispatch(int32_t client_id,
+  defer CurpDispatch(int32_t client_id,
                     int32_t cmd_id_in_client,
                     MarshallDeputy cmd |
                     bool_t accepted,
-                    int32_t pos0,
-                    int32_t pos1,
+                    int32_t ver,
                     int32_t result,
                     siteid_t coo_id);
 
   defer CurpWaitCommit(int32_t client_id,
                   int32_t cmd_id_in_client |
-                  bool_t committed)
+                  bool_t committed,
+                  int32_t commit_result);
 
-  defer CurpForward(MarshallDeputy pos,
-                MarshallDeputy cmd,
-                bool_t accepted);
+  defer CurpForward(bool_t accepted,
+                    int32_t ver,
+                    MarshallDeputy cmd);
   
-  defer CurpCoordinatorAccept(MarshallDeputy pos,
-                          MarshallDeputy cmd |
-                          bool_t accepted);
+//  defer CurpCoordinatorAccept(MarshallDeputy pos,
+//                          MarshallDeputy cmd |
+//                          bool_t accepted);
 
-  defer CurpPrepare(MarshallDeputy pos,
-                ballot_t ballot |
-                bool_t accepted,
-                ballot_t seen_ballot,
-                i32 last_accepted_status,
-                MarshallDeputy last_accepted_cmd,
-                ballot_t last_accepted_ballot);
+  defer CurpPrepare(int32_t k,
+                    int32_t ver,
+                    ballot_t ballot |
+                    bool_t accepted,
+                    i32 status,
+                    ballot_t replied_ballot,
+                    MarshallDeputy cmd);
 
-  defer CurpAccept(MarshallDeputy pos,
-                MarshallDeputy md_cmd,
-                ballot_t ballot |
-                bool_t accepted,
-                ballot_t seen_ballot);
+  defer CurpAccept(int32_t ver,
+                    ballot_t ballot,
+                    MarshallDeputy md_cmd |
+                    bool_t accepted,
+                    ballot_t seen_ballot);
 
-  defer CurpCommit(MarshallDeputy pos,
-                MarshallDeputy md_cmd);
+  defer CurpCommit(int32_t ver,
+                    MarshallDeputy md_cmd);
   
 //  defer OriginalSubmit(MarshallDeputy cmd,
 //                        i64 dep_id |
@@ -103,10 +95,10 @@ abstract service Curp {
   defer CurpTest(int32_t a |
                 int32_t b);
 
-  defer CurpProposeFinish(int32_t key |
-                          uint64_t pos);
+//  defer CurpProposeFinish(int32_t key |
+//                          uint64_t pos);
   
-  defer CurpCommitFinish(MarshallDeputy pos);
+//  defer CurpCommitFinish(MarshallDeputy pos);
 }
 
 abstract service Mencius {

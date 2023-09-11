@@ -11,14 +11,14 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 modes_ = [
-    "none_paxos",
-    "none_fpga_raft",
-    "none_mencius",
-    "none_copilot",
-    "paxos_plus",
+    # "none_paxos",
+    # "none_fpga_raft",
+    # "none_mencius",
+    # "none_copilot",
+    # "paxos_plus",
     "fpga_raft_plus",
     "mencius_plus",
-    "copilot_plus",
+    # "copilot_plus",
 ]
 sites_ = [
     "10c1s3r1p",
@@ -27,25 +27,25 @@ latency_sites_ = [
     "20c1s3r1p",
 ]
 benchmarks_ =  [
-    "rw_1",
+    # "rw_1",
     "rw_1000",
     "rw_1000000"
 ]
 concurrent_ = [
     "concurrent_1",
-    "concurrent_2",
-    "concurrent_3",
-    "concurrent_4",
+    # "concurrent_2",
+    # "concurrent_3",
+    # "concurrent_4",
     "concurrent_5",
-    "concurrent_6",
-    "concurrent_7",
-    "concurrent_8",
-    "concurrent_9",
-    "concurrent_10",
-    "concurrent_20",
-    "concurrent_30",
-    "concurrent_40",
-    "concurrent_50",
+    # "concurrent_6",
+    # "concurrent_7",
+    # "concurrent_8",
+    # "concurrent_9",
+    # "concurrent_10",
+    # "concurrent_20",
+    # "concurrent_30",
+    # "concurrent_40",
+    # "concurrent_50",
 ]
 latency_concurrent_ = [
     "concurrent_10",

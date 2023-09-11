@@ -69,21 +69,6 @@ class CopilotPlusCoordinator : public Coordinator {
   void Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func = []() {},
               const std::function<void()> &exe_callback = []() {}) override;
-  
-  /***************************************PLUS Begin***********************************************************/
-  // virtual void FastSubmit(shared_ptr<Marshallable>& cmd,
-  //                         bool_t& accepted,
-  //                         Position& pos,
-  //                         value_t& result,
-  //                         const std::function<void()>& commit_callback = [](){},
-  //                         const std::function<void()>& exe_callback = [](){}) override;
-  
-  // virtual void Forward(shared_ptr<Marshallable>& cmd,
-  //                       bool_t accepted,
-  //                       Position& pos,
-  //                       ballot_t ballot,
-  //                       siteid_t leader) override;
-  /***************************************PLUS End***********************************************************/
 
   // Protocol operations
   void Prepare();
