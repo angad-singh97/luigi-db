@@ -132,11 +132,5 @@ void MenciusPlusServer::Setup() {
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
 
-// bool MenciusPlusServer::TryAssignGlobalID(slotid_t local_id) {
-//   shared_ptr<Marshallable> to_assign_cmd = GetInstance(local_id)->committed_cmd_;
-//   key_t key = get_key_from_marshallable(to_assign_cmd);
-//   slotid_t global_id = OriginalProtocolApplyForNewGlobalID(key);
-//   return global_id != 0;
-// }
 
 } // namespace janus

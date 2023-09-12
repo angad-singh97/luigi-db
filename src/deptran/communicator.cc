@@ -10,7 +10,6 @@
 #include "procedure.h"
 #include "rcc_rpc.h"
 #include <typeinfo>
-#include "position.h"
 
 
 namespace janus {
@@ -32,18 +31,6 @@ int CurpQuorumSize(int total) {
 int CurpSmallQuorumSize(int total) {
   return (CurpMaxFailure(total) + 1) / 2 + 1;
 }
-
-
-// void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id) {
-//   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
-//   coo_id_vec_.push_back(coo_id);
-//   if (accepted) {
-//     VoteYes();
-//     responses_.push_back(ResponsePack{pos, result});
-//   }
-//   else
-//     VoteNo();
-// }
 
 void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, ver_t ver, value_t result, siteid_t coo_id) {
   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
@@ -165,9 +152,6 @@ void CurpAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
 }
 
-// void CurpCommitResultQuorumEvent::FeedResponse(bool commit_success) {
-//   commit_success_ = commit_success;
-// }
 
 /************************CURP end*********************************/
 
@@ -1309,33 +1293,6 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
   return e;
 }
 
-// shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
-// Communicator::CurpBroadcastCoordinatorAccept(parid_t par_id,
-//                           shared_ptr<Position> pos,
-//                           shared_ptr<Marshallable> cmd) {
-//   int n = Config::GetConfig()->GetPartitionSize(par_id);
-//   auto e = Reactor::CreateSpEvent<CurpPlusCoordinatorAcceptQuorumEvent>(n);
-//   auto proxies = rpc_par_proxies_[par_id];
-//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos)), cmd_deputy(cmd);
-// #ifdef CURP_SEND_TC
-//   usleep(TC_LATENCY);
-// #endif
-//   WAN_WAIT;
-//   for (auto& p : proxies) {
-//     auto proxy = (CurpProxy *)p.second;
-//     auto site = p.first;
-//     FutureAttr fuattr;
-//     fuattr.callback = [e](Future *fu) {
-//       bool_t accepted;
-//       fu->get_reply() >> accepted;
-//       e->FeedResponse(accepted);
-//     };
-//     Future *f = proxy->async_CurpCoordinatorAccept(pos_deputy, cmd_deputy, fuattr);
-//     Future::safe_release(f);
-//   }
-//   return e;
-// }
-
 shared_ptr<CurpPrepareQuorumEvent>
 Communicator::CurpBroadcastPrepare(parid_t par_id,
                   key_t key,
@@ -1421,48 +1378,5 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   }
   return e;
 }
-
-// shared_ptr<ProposeFinishQuorumEvent>
-// Communicator::CurpProposeFinish(parid_t par_id,
-//                                 key_t key) {
-//   int n = Config::GetConfig()->GetPartitionSize(par_id);
-//   auto e = Reactor::CreateSpEvent<ProposeFinishQuorumEvent>(n);
-//   auto proxies = rpc_par_proxies_[par_id];
-//   WAN_WAIT;
-//   for (auto& p : proxies) {
-//     auto proxy = (CurpProxy *)p.second;
-//     auto site = p.first;
-//       FutureAttr fuattr;
-//       fuattr.callback = [e](Future *fu) {
-//         slotid_t pos;
-//         fu->get_reply() >> pos;
-//         e->FeedResponse(pos);
-//       };
-//       Future *f = proxy->async_CurpProposeFinish(key);
-//       Future::safe_release(f);
-//   }
-//   return e;
-// }
-
-// shared_ptr<IntEvent>
-// Communicator::CurpCommitFinish(parid_t par_id,
-//                                 shared_ptr<Position> pos) {
-//   int n = Config::GetConfig()->GetPartitionSize(par_id);
-//   auto e = Reactor::CreateSpEvent<IntEvent>();
-//   MarshallDeputy pos_deputy(dynamic_pointer_cast<Marshallable>(pos));
-//   auto proxies = rpc_par_proxies_[par_id];
-//   WAN_WAIT;
-//   for (auto& p : proxies) {
-//     auto proxy = (CurpProxy *)p.second;
-//     auto site = p.first;
-//       FutureAttr fuattr;
-//       fuattr.callback = [e](Future *fu) {
-//         e->Set(1);
-//       };
-//       Future *f = proxy->async_CurpCommitFinish(pos_deputy);
-//       Future::safe_release(f);
-//   }
-//   return e;
-// }
 
 } // namespace janus

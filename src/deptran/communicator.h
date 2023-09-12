@@ -7,7 +7,6 @@
 #include "command_marshaler.h"
 #include "deptran/rcc/dep_graph.h"
 #include "rcc_rpc.h"
-#include "position.h"
 #include <unordered_map>
 
 namespace janus {
@@ -155,23 +154,6 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   }
 };
 
-
-// class CurpPlusCoordinatorAcceptQuorumEvent : public QuorumEvent {
-
-//  public:
-//   // using QuorumEvent::QuorumEvent;
-//   CurpPlusCoordinatorAcceptQuorumEvent(int n_total)
-//       : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
-//   }
-
-//   void FeedResponse(bool y) {
-//     if (y)
-//       VoteYes();
-//     else
-//       VoteNo();
-//   }
-// };
-
 class CurpPrepareQuorumEvent : public QuorumEvent {
   int count_ = 0;
 
@@ -224,24 +206,6 @@ class CurpAcceptQuorumEvent : public QuorumEvent {
   bool FastNo();
 };
 
-// class ProposeFinishQuorumEvent: public QuorumEvent {
-//   vector<slotid_t> proposed_pos;
-//  public:
-//   ProposeFinishQuorumEvent(int n_total)
-//     : QuorumEvent(n_total, CurpQuorumSize(n_total)) {
-    
-//   }
-//   void FeedResponse(int pos) {
-//     proposed_pos.push_back(pos);
-//   }
-// };
-
-// class CurpCommitResultQuorumEvent : public QuorumEvent {
-//   bool commit_success_;
-//  public:
-//   CurpCommitResultQuorumEvent(): QuorumEvent(1, 1) {}
-//   void FeedResponse(bool commit_success);
-// };
 
 /************************CURP end*********************************/
 
@@ -405,11 +369,6 @@ class Communicator {
                                   bool_t accepted,
                                   ver_t ver,
                                   const shared_ptr<Marshallable>& cmd);
-  
-  // shared_ptr<CurpPlusCoordinatorAcceptQuorumEvent>
-  // CurpBroadcastCoordinatorAccept(parid_t par_id,
-  //                           shared_ptr<Position> pos,
-  //                           shared_ptr<Marshallable> cmd);
 
   shared_ptr<CurpPrepareQuorumEvent>
   CurpBroadcastPrepare(parid_t par_id,
@@ -429,13 +388,6 @@ class Communicator {
                       shared_ptr<Marshallable> md_cmd,
                       uint16_t ban_site);
 
-  // shared_ptr<ProposeFinishQuorumEvent>
-  // CurpProposeFinish(parid_t par_id,
-  //                   key_t key);
-  
-  // shared_ptr<IntEvent>
-  // CurpCommitFinish(parid_t par_id,
-  //                 shared_ptr<Position> pos);
 };
 
 } // namespace janus

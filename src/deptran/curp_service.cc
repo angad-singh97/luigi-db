@@ -71,20 +71,6 @@ void CurpServiceImpl::CurpForward(const bool_t& accepted,
   defer->reply();
 }
 
-// void CurpServiceImpl::CurpCoordinatorAccept(const MarshallDeputy& pos,
-//                                                   const MarshallDeputy& cmd,
-//                                                   bool_t* accepted,
-//                                                   rrr::DeferredReply* defer) {
-//   verify(sched_ != nullptr);
-// #ifdef TC
-//   usleep(TC_LATENCY);
-// #endif
-//   sched_->OnCurpCoordinatorAccept(dynamic_pointer_cast<Position>(const_cast<MarshallDeputy&>(pos).sp_data_),
-//                               const_cast<MarshallDeputy&>(cmd).sp_data_,
-//                               accepted,
-//                               bind(&rrr::DeferredReply::reply, defer));
-// }
-
 void CurpServiceImpl::CurpPrepare(const key_t& k,
                                   const ver_t& ver,
                                   const ballot_t& ballot,
@@ -162,22 +148,6 @@ void CurpServiceImpl::CurpTest(const int32_t& a,
   *b = 24;
   defer->reply();
 }
-
-// void CurpServiceImpl::CurpProposeFinish(const int32_t& key,
-//                                         uint64_t* pos,
-//                                         rrr::DeferredReply* defer) {
-//   verify(sched_ != nullptr);
-//   sched_->OnCurpProposeFinish(key,
-//                               pos,
-//                               bind(&rrr::DeferredReply::reply, defer));
-// }
-
-// void CurpServiceImpl::CurpCommitFinish(const MarshallDeputy& pos,
-//                                         rrr::DeferredReply* defer) {
-//   verify(sched_ != nullptr);
-//   sched_->OnCurpCommitFinish(dynamic_pointer_cast<Position>(const_cast<MarshallDeputy&>(pos).sp_data_),
-//                              bind(&rrr::DeferredReply::reply, defer));
-// }
 
 
 };

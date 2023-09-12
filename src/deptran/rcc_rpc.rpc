@@ -66,10 +66,6 @@ abstract service Curp {
   defer CurpForward(bool_t accepted,
                     int32_t ver,
                     MarshallDeputy cmd);
-  
-//  defer CurpCoordinatorAccept(MarshallDeputy pos,
-//                          MarshallDeputy cmd |
-//                          bool_t accepted);
 
   defer CurpPrepare(int32_t k,
                     int32_t ver,
@@ -95,10 +91,6 @@ abstract service Curp {
   defer CurpTest(int32_t a |
                 int32_t b);
 
-//  defer CurpProposeFinish(int32_t key |
-//                          uint64_t pos);
-  
-//  defer CurpCommitFinish(MarshallDeputy pos);
 }
 
 abstract service Mencius {

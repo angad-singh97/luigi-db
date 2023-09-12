@@ -7,7 +7,6 @@
 #include "procedure.h"
 #include "tx.h"
 #include "rcc/tx.h"
-#include "position.h"
 #include "classic/tpc_command.h"
 #include "RW_command.h"
 
@@ -325,18 +324,6 @@ class TxLogServer {
     return false;
   }
 
-
-  // virtual bool MultiDispatch(cmdid_t cmd_id,
-  //                             shared_ptr<Marshallable> cmd,
-  //                             TxnOutput& ret_output,
-  //                             bool_t& accepted,
-  //                             Position& pos,
-  //                             value_t& result) {
-  //   // [CURP+] implement this to support multi-broadcast (only need on concurent control scheduler)
-  //   verify(0);
-  //   return false;
-  // }
-
   void RegLearnerAction(function<void(Marshallable &)> learner_action) {
     app_next_ = learner_action;
   }
@@ -365,12 +352,6 @@ class TxLogServer {
 
   // below are about CURP
   
-  // // ----min_active <= max_executed <= max_committed---
-  // slotid_t curp_min_active_slot_ = 0; // anything before (lt) this slot is freed
-  // slotid_t curp_max_executed_slot_ = 0;
-  // slotid_t curp_max_committed_slot_ = 0;
-  // slotid_t curp_executed_committed_gap_ = 0;
-  // slotid_t curp_executed_committed_max_gap_ = 0;
   map<key_t, shared_ptr<CurpPlusDataCol> > curp_log_cols_{};
   // [CURP] TODO: this need to be used
   // int n_prepare_ = 0;
@@ -379,9 +360,6 @@ class TxLogServer {
   int n_fast_path_attempted_ = 0;
   int n_fast_path_failed_ = 0;
   // bool curp_in_applying_logs_{false};
-
-  // global id related
-  int curp_global_id_hinter_ = 1;
 
   map<pair<ver_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
 
@@ -403,11 +381,6 @@ class TxLogServer {
   void OnCurpForward(const bool_t& accepted,
                       const ver_t& ver,
                       const shared_ptr<Marshallable>& cmd);
-  
-  // void OnCurpCoordinatorAccept(const shared_ptr<Position>& pos,
-  //                         const shared_ptr<Marshallable>& cmd,
-  //                         bool_t* accepted,
-  //                         const function<void()> &cb);
 
   void CurpPrepare(key_t key,
                     ver_t ver,
@@ -443,13 +416,6 @@ class TxLogServer {
                         const rrr::i64& dep_id,
                         bool_t* slow,
                         const function<void()> &cb);
-  
-  // void OnCurpProposeFinish(const int32_t& key,
-  //                           uint64_t* pos,
-  //                           const function<void()> &cb);
-  
-  // void OnCurpCommitFinish(const shared_ptr<Position> &pos,
-  //                         const function<void()> &cb);
 
   void CurpSkipFastpath(int cmd_id, shared_ptr<Marshallable> &cmd);
 

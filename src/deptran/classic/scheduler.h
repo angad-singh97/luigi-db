@@ -4,7 +4,6 @@
 #pragma once
 
 #include "../scheduler.h"
-#include "../position.h"
 
 namespace janus {
 
