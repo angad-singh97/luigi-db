@@ -162,8 +162,10 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
 
   // for ACCEPTED
   ballot_t self_ballot_;
-  ballot_t max_seen_ballot_ = 0;
+  ballot_t max_seen_ballot_ = -1;
   int accepted_count_ = 0;
+  int max_last_accepted_ballot_ = -1;
+  shared_ptr<CmdData> to_accept_cmd_{nullptr};
 
   // for FASTACCEPT
   map<pair<int, int>, pair<int, shared_ptr<CmdData> > > fast_accept_;
@@ -177,18 +179,25 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
 
   void FeedResponse(bool y,
                     int status,
-                    ballot_t seen_ballot,
+                    ballot_t max_seen_ballot,
+                    ballot_t last_accepted_ballot,
                     MarshallDeputy md_cmd);
   bool CommitYes();
   bool AcceptYes();
   bool FastAcceptYes();
   bool IsReady() override;
 
+  ballot_t GetMaxSeenBallot() {
+    return max_seen_ballot_;
+  }
   shared_ptr<CmdData> GetCommittedCmd() {
     return committed_cmd_;
   }
   shared_ptr<CmdData> GetFastAcceptedCmd() {
     return fast_accept_[max_fast_accept_id_].second;
+  }
+  shared_ptr<CmdData> GetToAcceptCmd() {
+    return to_accept_cmd_;
   }
 };
 
@@ -202,8 +211,6 @@ class CurpAcceptQuorumEvent : public QuorumEvent {
   }
 
   void FeedResponse(bool y, ballot_t seen_ballot);
-  bool FastYes();
-  bool FastNo();
 };
 
 

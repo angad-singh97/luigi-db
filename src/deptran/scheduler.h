@@ -23,13 +23,13 @@ class CurpPlusData {
   enum CurpPlusStatus {
     INIT = 0,
     FASTACCEPT = 1,
-    PREPARED = 2,
+    // PREPARED = 2,
     ACCEPTED = 3,
     COMMITTED = 4,
   };
   CurpPlusStatus status_;
   ballot_t max_seen_ballot_;
-  ballot_t max_accepted_ballot_ = 0;
+  ballot_t last_accepted_ballot_ = 0;
   shared_ptr<Marshallable> cmd_{nullptr};
 
   // unzip from cmd
@@ -398,7 +398,8 @@ class TxLogServer {
                       const ballot_t& ballot,
                       bool_t* accepted,
                       int* status,
-                      ballot_t* replied_ballot,
+                      ballot_t* max_seen_ballot,
+                      ballot_t* last_accepted_ballot,
                       shared_ptr<Marshallable>* cmd,
                       const function<void()> &cb);
 

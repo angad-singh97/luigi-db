@@ -535,9 +535,10 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     CurpAccept(ver, 1, max_cmd);
   } else if (time_elapses > CURP_FAST_PATH_TIMEOUT && response_pack->received_count_ >= CurpQuorumSize(n_replica)) {
     // Branch 3
-    shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
-    shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
-    CurpPrepare(key, ver, 1);
+    // do nothing
+    // shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
+    // shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
+    // CurpPrepare(key, ver, 1);
   } else if (response_pack->received_count_ < CurpQuorumSize(n_replica)) {
     // Branch 4
     // do nothing
@@ -545,7 +546,7 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     // Branch 5
     // [CURP] TODO: May enter branch 5 when satisfied accepted_num >= CurpQuorumSize(n_replica) or response_pack->received_count_ >= CurpQuorumSize(n_replica)
     // in CURP_FAST_PATH_TIMEOUT and got no replies afterwards, need to create a timeout event judge branch 2 and branch 3 once CURP_FAST_PATH_TIMEOUT
-    verify(0);
+    // verify(0);
   }
 }
 
@@ -555,12 +556,13 @@ void TxLogServer::CurpPrepare(key_t key,
   shared_ptr<CurpPrepareQuorumEvent> e = commo()->CurpBroadcastPrepare(partition_id_, key, ver, ballot);
   e->Wait();
   shared_ptr<CurpPlusData> log = curp_log_cols_[key]->Get(ver);
+  log->max_seen_ballot_ = max(log->max_seen_ballot_, e->GetMaxSeenBallot());
   if (e->CommitYes()) {
     CurpCommit(ver, e->GetCommittedCmd());
-  } else if (e->AcceptYes()) {
-    CurpAccept(ver, ballot, log->cmd_);
   } else if (e->FastAcceptYes()) {
     CurpAccept(ver, ballot, e->GetFastAcceptedCmd());
+  } else if (e->AcceptYes()) {
+    CurpAccept(ver, ballot, log->cmd_);
   }
 }
 
@@ -569,7 +571,9 @@ void TxLogServer::CurpAccept(ver_t ver,
                               const shared_ptr<Marshallable>& cmd) {
   shared_ptr<CurpAcceptQuorumEvent> e = commo()->CurpBroadcastAccept(partition_id_, ver, ballot, cmd);
   e->Wait();
-
+  if (e->Yes()) {
+    CurpCommit(ver, cmd);
+  }
 }
 
 void TxLogServer::CurpCommit(ver_t ver,
@@ -604,20 +608,22 @@ void TxLogServer::OnCurpPrepare(const key_t& k,
                                 const ballot_t& ballot,
                                 bool_t* accepted,
                                 int* status,
-                                ballot_t* replied_ballot,
+                                ballot_t* max_seen_ballot,
+                                ballot_t* last_accepted_ballot,
                                 shared_ptr<Marshallable>* cmd,
                                 const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   shared_ptr<CurpPlusData> log = curp_log_cols_[k]->GetOrCreate(ver);
   if (ballot > log->max_seen_ballot_) {
     log->max_seen_ballot_ = ballot;
-    log->status_ = CurpPlusData::CurpPlusStatus::PREPARED;
+    // log->status_ = CurpPlusData::CurpPlusStatus::PREPARED;
     *accepted = true;
   } else {
     *accepted = false;
   }
   *status = log->status_;
-  *replied_ballot = log->max_seen_ballot_;
+  *max_seen_ballot = log->max_seen_ballot_;
+  *last_accepted_ballot = log->last_accepted_ballot_;
   *cmd = log->cmd_;
   cb();
 }
@@ -634,7 +640,7 @@ void TxLogServer::OnCurpAccept(const ver_t& ver,
   if (ballot >= log->max_seen_ballot_) {
     log->cmd_ = cmd;
     log->max_seen_ballot_ = ballot;
-    log->max_accepted_ballot_ = ballot;
+    log->last_accepted_ballot_ = ballot;
     log->status_ = CurpPlusData::CurpPlusStatus::ACCEPTED;
     *accepted = true;
   } else {

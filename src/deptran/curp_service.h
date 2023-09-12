@@ -46,7 +46,8 @@ class CurpServiceImpl : virtual public CurpService{
                     const ballot_t& ballot,
                     bool_t* accepted,
                     rrr::i32* status,
-                    ballot_t* replied_ballot,
+                    ballot_t* max_seen_ballot,
+                    ballot_t* last_accepted_ballot,
                     MarshallDeputy* cmd,
                     rrr::DeferredReply* defer);
 
