@@ -146,6 +146,6 @@ namespace janus {
 #define CURP_FAST_PATH_TIMEOUT (1)
 #define CURP_WAIT_COMMIT_TIMEOUT (3)
 // #define SIMULATE_WAN
-// #define CURP_CONFLICT_DEBUG
+#define CURP_CONFLICT_DEBUG
 
 } // namespace janus

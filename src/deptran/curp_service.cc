@@ -24,7 +24,7 @@ void CurpServiceImpl::CurpDispatch(const int32_t& client_id,
 #ifdef TC
   usleep(TC_LATENCY);
 #endif
-  // Log_info("[CURP] received CurpPoorDispatch");
+  // Log_info("[CURP] %d, %d received CurpPoorDispatch of cmd<%d, %d>", sched_->loc_id_, sched_->site_id_, client_id, cmd_id_in_client);
   sched_->OnCurpDispatch(client_id,
                       cmd_id_in_client,
                       const_cast<MarshallDeputy&>(cmd).sp_data_,

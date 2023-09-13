@@ -11,14 +11,14 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 modes_ = [
-    # "none_paxos",
-    # "none_fpga_raft",
-    # "none_mencius",
-    # "none_copilot",
-    # "paxos_plus",
+    "none_paxos",
+    "none_fpga_raft",
+    "none_mencius",
+    "none_copilot",
+    "paxos_plus",
     "fpga_raft_plus",
     "mencius_plus",
-    # "copilot_plus",
+    "copilot_plus",
 ]
 sites_ = [
     "10c1s3r1p",
@@ -28,7 +28,7 @@ latency_sites_ = [
 ]
 benchmarks_ =  [
     # "rw_1",
-    "rw_1000",
+    # "rw_1000",
     "rw_1000000"
 ]
 concurrent_ = [
@@ -36,7 +36,7 @@ concurrent_ = [
     # "concurrent_2",
     # "concurrent_3",
     # "concurrent_4",
-    "concurrent_5",
+    # "concurrent_5",
     # "concurrent_6",
     # "concurrent_7",
     # "concurrent_8",
@@ -72,9 +72,10 @@ def run(m, s, b, c):
     try:
         f = open(output_path, "w")
         cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "10"]
-        # print(' '.join(cmd))
+        print(' '.join(cmd))
         r = call(cmd, stdout=f, stderr=f, timeout=5*60)
         res = "OK" if r == 0 else "Failed"
+        # res = "OK"
     except subprocess.TimeoutExpired:
         res = "Timeout"
     except Error as e:

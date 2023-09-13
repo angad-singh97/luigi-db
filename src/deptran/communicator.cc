@@ -121,7 +121,7 @@ void CurpPrepareQuorumEvent::FeedResponse(bool y,
         max_last_accepted_ballot_ = last_accepted_ballot;
         to_accept_cmd_ = cmd;
       }
-    } else if (status == CurpPlusData::CurpPlusStatus::FASTACCEPT) {
+    } else if (status == CurpPlusData::CurpPlusStatus::PREACCEPT) {
       fast_accept_[cmd_id].first++;
       fast_accept_[cmd_id].second = cmd;
       if (fast_accept_[cmd_id].first > max_fast_accept_count_) {
@@ -1175,7 +1175,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     gettimeofday(&tp, NULL);
     dynamic_pointer_cast<VecPieceData>(cmd)->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     
-    // Log_info("[CURP] async_CurpPoorDispatch");
+    Log_info("[CURP] async_CurpPoorDispatch of cmd<%d, %d>", sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_);
     auto future = proxy->async_CurpDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }

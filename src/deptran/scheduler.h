@@ -18,18 +18,23 @@ struct UniqueCmdID {
   int32_t cmd_id_;
 };
 
+shared_ptr<Marshallable> MakeFinishCmd(parid_t par_id, int cmd_id, key_t key, value_t value);
+shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
+
 class CurpPlusData {
+ private:
+  parid_t partition_id_;
  public:
   enum CurpPlusStatus {
     INIT = 0,
-    FASTACCEPT = 1,
+    PREACCEPT = 1,
     // PREPARED = 2,
     ACCEPTED = 3,
     COMMITTED = 4,
   };
   CurpPlusStatus status_;
-  ballot_t max_seen_ballot_;
-  ballot_t last_accepted_ballot_ = 0;
+  ballot_t max_seen_ballot_ = -1;
+  ballot_t last_accepted_ballot_ = -1;
   shared_ptr<Marshallable> cmd_{nullptr};
 
   // unzip from cmd
@@ -37,23 +42,33 @@ class CurpPlusData {
   key_t key_;
   value_t value_;
 
-  CurpPlusData(CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
-    : status_(status), cmd_(cmd), max_seen_ballot_(ballot) {
-      shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
-      type_ = parsed_cmd_->type_;
-      key_ = parsed_cmd_->key_;
-      value_ = parsed_cmd_->value_;
+  CurpPlusData(parid_t partition_id, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
+      : partition_id_(partition_id), status_(status), max_seen_ballot_(ballot) {
+    UpdateCmd(cmd);
+  }
+
+  void UpdateCmd(const shared_ptr<Marshallable> &cmd) {
+    if (cmd == nullptr) {
+      cmd_ = MakeNoOpCmd(partition_id_);
+    } else {
+      cmd_ = cmd;
+    }
+    shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd_);
+    type_ = parsed_cmd_->type_;
+    key_ = parsed_cmd_->key_;
+    value_ = parsed_cmd_->value_;
   }
 };
 
 class CurpPlusDataCol {
  private:
+  parid_t partition_id_;
   size_t recent_executed_ = 0;
  public:
   bool in_applying_logs_{false};
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
   map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
-  CurpPlusDataCol() {
+  CurpPlusDataCol(parid_t par_id): partition_id_(par_id){
     logs_[0] = nullptr;
   }
   inline int32_t RecentVersion() {
@@ -73,7 +88,7 @@ class CurpPlusDataCol {
   }
   inline shared_ptr<CurpPlusData> GetOrCreate(ver_t ver) {
     if (logs_[ver] == nullptr)
-      logs_[ver] = make_shared<CurpPlusData>(CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
+      logs_[ver] = make_shared<CurpPlusData>(partition_id_, CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
     return logs_[ver];
   }
 };
@@ -152,7 +167,7 @@ struct CommitNotification {
   double receive_time_ = -1;
 };
 
-/*****************************CURP end************************************/
+  /*****************************CURP end************************************/
 
 class TxnRegistry;
 class Executor;
@@ -160,8 +175,6 @@ class Coordinator;
 class Frame;
 class Communicator;
 class TxLogServer {
- private:
-  shared_ptr<Marshallable> MakeFinishCmd(int cmd_id, key_t key, value_t value);
  public:
   void *svr_workers_g{nullptr};
 
@@ -351,8 +364,8 @@ class TxLogServer {
   virtual int32_t OnUpgradeEpoch(uint32_t old_epoch);
 
   // below are about CURP
-  
-  map<key_t, shared_ptr<CurpPlusDataCol> > curp_log_cols_{};
+
+  map<key_t, shared_ptr<CurpPlusDataCol>> curp_log_cols_{};
   // [CURP] TODO: this need to be used
   // int n_prepare_ = 0;
   // int n_accept_ = 0;

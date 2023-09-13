@@ -72,5 +72,6 @@
         "typeindex": "cpp",
         "forward_list": "cpp",
         "future": "cpp"
-    }
+    },
+    "C_Cpp.clang_format_style": "{ BasedOnStyle: Chromium, IndentWidth: 4}",
 }

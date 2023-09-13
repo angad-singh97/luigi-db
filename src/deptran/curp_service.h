@@ -14,7 +14,6 @@ class SimpleCommand;
 namespace janus {
 
 class TxLogServer;
-class MenciusPlusServer;
 class CurpServiceImpl : virtual public CurpService{
  public:
   TxLogServer* sched_;

@@ -167,7 +167,7 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
   int max_last_accepted_ballot_ = -1;
   shared_ptr<CmdData> to_accept_cmd_{nullptr};
 
-  // for FASTACCEPT
+  // for PREACCEPT
   map<pair<int, int>, pair<int, shared_ptr<CmdData> > > fast_accept_;
   int max_fast_accept_count_ = 0;
   pair<int, int> max_fast_accept_id_;
