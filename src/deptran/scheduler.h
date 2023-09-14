@@ -23,7 +23,8 @@ shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
 
 class CurpPlusData {
  private:
-  parid_t partition_id_;
+  TxLogServer* svr_{nullptr};
+  shared_ptr<Marshallable> cmd_{nullptr};
  public:
   enum CurpPlusStatus {
     INIT = 0,
@@ -35,40 +36,34 @@ class CurpPlusData {
   CurpPlusStatus status_;
   ballot_t max_seen_ballot_ = -1;
   ballot_t last_accepted_ballot_ = -1;
-  shared_ptr<Marshallable> cmd_{nullptr};
+
+  ver_t ver_;
 
   // unzip from cmd
   int32_t type_;
   key_t key_;
   value_t value_;
 
-  CurpPlusData(parid_t partition_id, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
-      : partition_id_(partition_id), status_(status), max_seen_ballot_(ballot) {
+  CurpPlusData(TxLogServer* svr, ver_t ver, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
+      : svr_(svr), ver_(ver), status_(status), max_seen_ballot_(ballot) {
+    InstanceCommitTimeout();
     UpdateCmd(cmd);
   }
 
-  void UpdateCmd(const shared_ptr<Marshallable> &cmd) {
-    if (cmd == nullptr) {
-      cmd_ = MakeNoOpCmd(partition_id_);
-    } else {
-      cmd_ = cmd;
-    }
-    shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd_);
-    type_ = parsed_cmd_->type_;
-    key_ = parsed_cmd_->key_;
-    value_ = parsed_cmd_->value_;
-  }
+  void UpdateCmd(const shared_ptr<Marshallable> &cmd);
+  shared_ptr<Marshallable> GetCmd();
+  void InstanceCommitTimeout();
 };
 
 class CurpPlusDataCol {
  private:
-  parid_t partition_id_;
   size_t recent_executed_ = 0;
+  TxLogServer* svr_{nullptr};
  public:
   bool in_applying_logs_{false};
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
   map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
-  CurpPlusDataCol(parid_t par_id): partition_id_(par_id){
+  CurpPlusDataCol(TxLogServer* svr): svr_(svr){
     logs_[0] = nullptr;
   }
   inline int32_t RecentVersion() {
@@ -88,7 +83,7 @@ class CurpPlusDataCol {
   }
   inline shared_ptr<CurpPlusData> GetOrCreate(ver_t ver) {
     if (logs_[ver] == nullptr)
-      logs_[ver] = make_shared<CurpPlusData>(partition_id_, CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
+      logs_[ver] = make_shared<CurpPlusData>(svr_, ver, CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
     return logs_[ver];
   }
 };
@@ -374,7 +369,7 @@ class TxLogServer {
   int n_fast_path_failed_ = 0;
   // bool curp_in_applying_logs_{false};
 
-  map<pair<ver_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
+  map<pair<key_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
 
   void OnCurpDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,

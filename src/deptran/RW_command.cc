@@ -35,6 +35,7 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
   shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
   TxWorkspace tx_ws = vector0->input;
   std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
+  cmd_id_ = make_pair(vector0->client_id_, vector0->cmd_id_in_client_);
   auto raw_type = vector0->type_;
   if (vector0->type_ == RW_BENCHMARK_R_TXN || vector0->type_ == RW_BENCHMARK_R_TXN_0) {
     type_ = RW_BENCHMARK_R_TXN;

@@ -10,6 +10,7 @@ class SimpleRWCommand: public Marshallable {
   int32_t type_;
   key_t key_;
   int32_t value_;
+  pair<int32_t, int32_t> cmd_id_;
   SimpleRWCommand();
   // SimpleRWCommand(const SimpleRWCommand &o);
   SimpleRWCommand(shared_ptr<Marshallable> cmd);
