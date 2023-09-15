@@ -27,25 +27,25 @@ latency_sites_ = [
     "20c1s3r1p",
 ]
 benchmarks_ =  [
-    # "rw_1",
-    # "rw_1000",
+    "rw_1",
+    "rw_1000",
     "rw_1000000"
 ]
 concurrent_ = [
     "concurrent_1",
-    # "concurrent_2",
-    # "concurrent_3",
-    # "concurrent_4",
-    # "concurrent_5",
-    # "concurrent_6",
-    # "concurrent_7",
-    # "concurrent_8",
-    # "concurrent_9",
-    # "concurrent_10",
-    # "concurrent_20",
-    # "concurrent_30",
-    # "concurrent_40",
-    # "concurrent_50",
+    "concurrent_2",
+    "concurrent_3",
+    "concurrent_4",
+    "concurrent_5",
+    "concurrent_6",
+    "concurrent_7",
+    "concurrent_8",
+    "concurrent_9",
+    "concurrent_10",
+    "concurrent_20",
+    "concurrent_30",
+    "concurrent_40",
+    "concurrent_50",
 ]
 latency_concurrent_ = [
     "concurrent_10",

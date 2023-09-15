@@ -1,99 +1,54 @@
+# Curp-Plus
 
-# DepFast
+## Run the experiments locally
 
-Welcome to the DepFast artifact for our ATC'22 submission.
+### build
 
-*DepFast: Orchestrating Code of Quorum Systems*
-
-## Run the experiment locally
-<!-- https://github.com/ikatyang/emoji-cheat-sheet/blob/master/README.md -->
-In this section, you can set up DepFast locally for testing and verification, which is mainly for badges :green_circle: `Artifacts Available` and :green_circle: `Artifacts Evaluated - Functional`. 
-
-### 1. create a Docker instance (~30minutes)
-We run all our codes on `ubuntu 20.04` which mainly depends on several Linux libraries (i.e., boost, gcc and libyaml-cpp-dev). We provide a docker image with all required dependencies and source code for ease so you can run on any local machine supporting Docker.
-```bash
-# on any machine with Docker support
-cd ~
-git clone https://github.com/stonysystems/depfast-ae.git
-cd ~/depfast-ae
-git checkout atc_ae
-cd ~/depfast-ae/docker
-sudo docker build -t ubuntu_atc2022 .
-sudo docker run --name ubuntu_atc2022 -it ubuntu_atc2022
+build rpc
+```
+bin/rpcgen --python --cpp src/deptran/rcc_rpc.rpc && python3 add_virtual.py
 ```
 
-### 2. run minimal working examples locally (~5minutes)
-You can start DepFast instance locally (using different processes to mimic actual distributed environment) to verify the functionability of the program inside the docker container now.
-
-```bash
-# enter the docker container - outside the container
-sudo docker exec -it ubuntu_atc2022 /bin/bash
-
-# run 4 minimal experiments - inside the container: 
-python3 test_run.py
+build src code
+```
+python3 waf configure build
 ```
 
-If the test passed, the output should show result as OK, like this:
+### run
+
 ```
-mode           site      bench     concurrent     result 	 time
-none_copilot   1c1s3r1p  rw        concurrent_1   OK     	 18.17s
-none_copilot   1c1s3r1p  rw        concurrent_10  OK     	 18.17s
-none_fpga_raft 1c1s3r1p  rw        concurrent_1   OK     	 18.12s
-none_fpga_raft 1c1s3r1p  rw        concurrent_10  OK     	 18.17s
+python3 curp_test.py
 ```
 
-## Run the expriment in actual distributed environment
-In this section, we will build a actual distributed environment to reproduce our results in the paper, which is mainly for badges :green_circle: `Results Reproduced`.
 
-### 1. setup machines
-To reproduce results in the paper, we need 
- - **obtain 6 machines**: 5 servers + 1 client running on Ubuntu `20.04` or `Debain-10`
- - obtain the IP of 6 machines: `[server-1-ip]`, `[server-2-ip]`, `[server-3-ip]`, `[server-4-ip]`, `[server-5-ip]`, `[client-1-ip]`. (*each sever should have at least 4 cpu cores and client should have 16 cpu cores*)
- - ensure that 6 machines can connect to each other via `ssh` and **share the same username** which means you can connect to any other machines on any machine through `ssh ip` directly without username required
- - we also required each server has an extra mounted disk called  `/dev/sdc` for slowness experiments
+## Code structure
 
-### 2. setup environment on all machines
-Let's assume we have 6 machines, 
-- `[server-1-ip]` -> `10.0.0.13`
-- `[server-2-ip]` -> `10.0.0.14`
-- `[server-3-ip]` -> `10.0.0.15`
-- `[server-4-ip]` -> `10.0.0.55`
-- `[server-5-ip]` -> `10.0.0.58`
-- `[client-1-ip]` -> `10.0.0.37`. 
+### main functions
 
-Run all following commands on the `client-1-ip`.
-```bash
-mkdir -p ~/code
-cd ~/code
-git clone --recursive https://github.com/stonysystems/depfast-ae.git depfast
-cd ~/code/depfast
-git checkout atc_ae
+In `src/deptran` folder, for every `<protocol>`, there is a corresponding `<protocol>plus` folder contains almost same content with the `<protocol>` folder, except for some renaming and small modification on the `OnCommit` function.
 
-# config IPs
-./ip_config.sh 10.0.0.13 10.0.0.14 10.0.0.15 10.0.0.55 10.0.0.58 10.0.0.37 
+Most part of the Curp are in `src/deptran/scheduler.cc`. `OnCurpDispatch` function is the beginning of a fastpath command, and this will trigger other functions like `CurpPrepare`, `CurpAccept` and `CurpCommit` as protocol logic. `OnCurpPrepare`, `OnCurpAccept`, `OnCurpCommit` are functions react to the corresponding sent messages.
 
-# sync code to all servers
-bash ./batch_op.sh scp
-# install dependencies on all servers
-bash ./batch_op.sh dep
+`DBGet` and `DBPut` are two functions simulate application Get and Put. This two will store application level k-v table at `TxLogServer::kv_table_`.
 
-# compile
-python3 waf configure -J build
-bash ./batch_op.sh scp
-```
+`MakeNoOpCmd` and `MakeFinishCmd` are two functions used for make a No-Op and Finish cmd which has the same structure as the passed in cmd in `OnCurpDispatch` function.
 
-### 3. run all experiments in the one-click script (~8hours)
-We provide one-click runnable script to generate all results. **We strongly recommend you run this script within the `tmux` in case the task is terminated unexpectedly.**
-```bash
-# run commands on the client-1-ip machine
-cd ~/code/depfast
-bash one-click.sh
-```
+### log structure
 
-Once everything is done, figures (`figure-5: depfast_raft.pdf` and `figure-6: depfast_copilot.pdf`) reported in the paper are generated under `./data_processing/imgs`.
-```
-# ls -lh ./data_processing/imgs
-total 72K
--rw-r--r-- 1 wshen24 sudo-users 29K May 18 16:30 depfast_copilot.pdf
--rw-r--r-- 1 wshen24 sudo-users 38K May 18 16:29 depfast_raft.pdf
-```
+All the curp fastpath instances are stored in `TxLogServer::curp_log_cols_`, which is a map from `key` to `CurpPlusDataCol` structure.
+
+`CurpPlusDataCol` is the main part of the log structure. There's a `slot_id` to `CurpPlusData` map at `logs_` which stores all the instances. Try to use functions in this class to access `logs_` more and not to use `logs_` directly to avoid some unexpected behaviors.
+
+### statistics part
+
+There're some part to help output the statistics.
+
+`Distribution` is a class to help output the specific percentage position latency.
+
+Path countings and latency countings (`Distribution`) are in `TxLogServer` class and will be used for output during decomposations of the objects. Some will be called/outputed at `s_main.cc`.
+
+## Others
+
+There maybe some debug logs printed out at some debug versions. Too much debug logs will influence performace, so remove them when you need accuracy performance statistics.
+
+For the configurations, `rw_1000000` means the key-value store workload with key range `[0, 1000000)`, which is default `rw` setting. `rw_1000` and `rw_1` as smaller key range workloads are used for high contensions tests.
