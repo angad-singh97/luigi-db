@@ -476,7 +476,8 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
 #endif
     cb();
   }
-  Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_WAIT_COMMIT_TIMEOUT * 1000);
+  // Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_WAIT_COMMIT_TIMEOUT * 1000);
+  Reactor::CreateSpEvent<TimeoutEvent>(CURP_WAIT_COMMIT_TIMEOUT * 1000)->Wait();
   if (!commit_results_[cmd_id]->coordinator_replied_) {
     Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
     *commit_results_[cmd_id]->committed_ = false;
@@ -795,7 +796,8 @@ shared_ptr<Marshallable> CurpPlusData::GetCmd() {
 }
 
 void CurpPlusData::InstanceCommitTimeout() {
-  Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_INSTANCE_COMMIT_TIMEOUT * 1000);
+  // Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_INSTANCE_COMMIT_TIMEOUT * 1000);
+  Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000)->Wait();
   if (status_ != CurpPlusStatus::COMMITTED) {
     Log_info("Instance[%d, %d] timeout, about to Prepare(%d, %d, %d)", key_, ver_, key_, ver_, max_seen_ballot_);
     max_seen_ballot_++;
