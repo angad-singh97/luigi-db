@@ -47,6 +47,56 @@ There're some part to help output the statistics.
 
 Path countings and latency countings (`Distribution`) are in `TxLogServer` class and will be used for output during decomposations of the objects. Some will be called/outputed at `s_main.cc`.
 
+## Fastpath go through
+
+### Fastpath success
+
+```
+TxLogServer::OnCurpDispatch
+Communicator::CurpForwardResultToCoordinator
+TxLogServer::OnCurpForward
+TxLogServer::CurpCommit
+TxLogServer::OnCurpCommit
+```
+
+### Fastpath fail but accept success
+
+```
+TxLogServer::OnCurpDispatch
+Communicator::CurpForwardResultToCoordinator
+TxLogServer::OnCurpForward
+TxLogServer::CurpAccept
+TxLogServer::OnCurpAccept
+TxLogServer::CurpCommit
+TxLogServer::OnCurpCommit
+```
+
+## Fastpath & Original Protocol switch go through
+
+In `src/deptran/curp/coordinator.cc`.
+
+Initially start fastpath by
+```
+CoordinatorCurp::BroadcastDispatch
+```
+. If fastpath success, then
+```
+CoordinatorClassic::End
+```
+, else 
+```
+CoordinatorCurp::QueryCoordinator
+```
+. If Query success, then
+```
+CoordinatorClassic::End
+```
+, else
+```
+CoordinatorCurp::OriginalProtocol();
+```
+.
+
 ## Others
 
 There maybe some debug logs printed out at some debug versions. Too much debug logs will influence performace, so remove them when you need accuracy performance statistics.
