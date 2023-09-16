@@ -24,6 +24,8 @@ shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
 class CurpPlusData {
  private:
   TxLogServer* svr_{nullptr};
+  key_t key_;
+  ver_t ver_;
   shared_ptr<Marshallable> cmd_{nullptr};
  public:
   enum CurpPlusStatus {
@@ -37,18 +39,12 @@ class CurpPlusData {
   ballot_t max_seen_ballot_ = -1;
   ballot_t last_accepted_ballot_ = -1;
 
-  ver_t ver_;
-
   // unzip from cmd
   int32_t type_;
-  key_t key_;
+  // key_t key_;
   value_t value_;
 
-  CurpPlusData(TxLogServer* svr, ver_t ver, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
-      : svr_(svr), ver_(ver), status_(status), max_seen_ballot_(ballot) {
-    InstanceCommitTimeout();
-    UpdateCmd(cmd);
-  }
+  CurpPlusData(TxLogServer* svr, key_t key, ver_t ver, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot);
 
   void UpdateCmd(const shared_ptr<Marshallable> &cmd);
   shared_ptr<Marshallable> GetCmd();
@@ -59,33 +55,31 @@ class CurpPlusDataCol {
  private:
   size_t recent_executed_ = 0;
   TxLogServer* svr_{nullptr};
+  key_t key_;
  public:
   bool in_applying_logs_{false};
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
   map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
-  CurpPlusDataCol(TxLogServer* svr): svr_(svr){
+  CurpPlusDataCol(TxLogServer* svr, key_t key): svr_(svr), key_(key){
+    Log_info("[CURP] Create CurpPlusDataCol for key=%d", key);
     logs_[0] = nullptr;
   }
-  inline int32_t RecentVersion() {
+  int32_t RecentVersion() {
     return recent_executed_;
   }
-  inline int32_t NextVersion() {
+  int32_t NextVersion() {
     return recent_executed_ + 1;
   }
-  inline shared_ptr<CurpPlusData> RecentExecuted() {
-    return Get(RecentVersion());
+  shared_ptr<CurpPlusData> RecentExecuted() {
+    return Get(recent_executed_);
   }
-  inline shared_ptr<CurpPlusData> NextInstance() {
-    return GetOrCreate(NextVersion());
+  shared_ptr<CurpPlusData> NextInstance() {
+    return GetOrCreate(recent_executed_ + 1);
   }
-  inline shared_ptr<CurpPlusData> Get(ver_t ver) {
+  shared_ptr<CurpPlusData> Get(ver_t ver) {
     return logs_[ver];
   }
-  inline shared_ptr<CurpPlusData> GetOrCreate(ver_t ver) {
-    if (logs_[ver] == nullptr)
-      logs_[ver] = make_shared<CurpPlusData>(svr_, ver, CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
-    return logs_[ver];
-  }
+  shared_ptr<CurpPlusData> GetOrCreate(ver_t ver);
 };
 
 class Distribution {
@@ -224,6 +218,7 @@ class TxLogServer {
   // application k-v table for rw workload
   map<key_t, value_t> kv_table_;
 
+  map<pair<int, int>, bool> assigned_;
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
   deltas_t deltas_{};
@@ -408,7 +403,7 @@ class TxLogServer {
                       int* status,
                       ballot_t* max_seen_ballot,
                       ballot_t* last_accepted_ballot,
-                      shared_ptr<Marshallable>* cmd,
+                      MarshallDeputy* md_cmd,
                       const function<void()> &cb);
 
   void OnCurpAccept(const ver_t& ver,
@@ -434,6 +429,7 @@ class TxLogServer {
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
 
+  void Launch3Rockets();
  private:
   value_t DBGet(const shared_ptr<Marshallable>& cmd);
   value_t DBPut(const shared_ptr<Marshallable>& cmd);

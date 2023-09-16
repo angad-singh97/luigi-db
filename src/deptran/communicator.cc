@@ -1323,6 +1323,7 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
       fu->get_reply() >> accepted >> status >> max_seen_ballot >> cmd;
       e->FeedResponse(accepted, status, max_seen_ballot, max_seen_ballot, cmd);
     };
+    // Log_info("[CURP] async_CurpPrepare(%d, %d, %d)", key, ver, ballot);
     Future *f = proxy->async_CurpPrepare(key, ver, ballot, fuattr);
     Future::safe_release(f);
   }

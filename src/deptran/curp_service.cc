@@ -90,7 +90,8 @@ void CurpServiceImpl::CurpPrepare(const key_t& k,
                         status,
                         max_seen_ballot,
                         last_accepted_ballot,
-                        &const_cast<MarshallDeputy&>(*cmd).sp_data_,
+                        cmd,
+                        // &const_cast<MarshallDeputy&>(*cmd).sp_data_,
                         bind(&rrr::DeferredReply::reply, defer));
 }
 
