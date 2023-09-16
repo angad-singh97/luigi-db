@@ -105,17 +105,18 @@ siteid_t CurpDispatchQuorumEvent::GetCooId() {
 
 void CurpPrepareQuorumEvent::FeedResponse(bool y,
                                           int status,
-                                          ballot_t max_seen_ballot,
                                           ballot_t last_accepted_ballot,
                                           MarshallDeputy md_cmd) {
   count_++;
-  max_seen_ballot_ = max(max_seen_ballot_, max_seen_ballot);
+  // max_seen_ballot_ = max(max_seen_ballot_, max_seen_ballot);
+  shared_ptr<Marshallable> cmd = md_cmd.sp_data_;
+  shared_ptr<SimpleRWCommand> parsed_cmd = make_shared<SimpleRWCommand>(cmd);
+  if (status == CurpPlusData::CurpPlusStatus::COMMITTED) {
+    committed_cmd_ = cmd;
+  }
   if (y) {
-    shared_ptr<CmdData> cmd = dynamic_pointer_cast<CmdData>(const_cast<MarshallDeputy&>(md_cmd).sp_data_);
-    pair<int, int> cmd_id = {cmd->client_id_, cmd->cmd_id_in_client_};
-    if (status == CurpPlusData::CurpPlusStatus::COMMITTED) {
-      committed_cmd_ = cmd;
-    } else if (status == CurpPlusData::CurpPlusStatus::ACCEPTED) {
+    pair<int, int> cmd_id = parsed_cmd->cmd_id_;
+    if (status == CurpPlusData::CurpPlusStatus::ACCEPTED) {
       accepted_count_++;
       if (last_accepted_ballot > max_last_accepted_ballot_) {
         max_last_accepted_ballot_ = last_accepted_ballot;
@@ -142,11 +143,11 @@ bool CurpPrepareQuorumEvent::CommitYes() {
 }
 
 bool CurpPrepareQuorumEvent::AcceptYes() {
-  return max_seen_ballot_ <= self_ballot_ && accepted_count_ >= CurpQuorumSize(n_total_);
+  return n_voted_yes_ >= CurpQuorumSize(n_total_) && accepted_count_ > 0;
 }
 
 bool CurpPrepareQuorumEvent::FastAcceptYes() {
-  return max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
+  return n_voted_yes_ >= CurpQuorumSize(n_total_) && max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
 }
 
 bool CurpPrepareQuorumEvent::IsReady() {
@@ -1175,7 +1176,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     gettimeofday(&tp, NULL);
     dynamic_pointer_cast<VecPieceData>(cmd)->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     
-    Log_info("[CURP] async_CurpPoorDispatch of cmd<%d, %d>", sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_);
+    // Log_info("[CURP] async_CurpPoorDispatch of cmd<%d, %d>", sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_);
     auto future = proxy->async_CurpDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
     Future::safe_release(future);
   }
@@ -1317,11 +1318,10 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
     fuattr.callback = [e](Future *fu) {
       bool_t accepted;
       i32 status;
-      ballot_t max_seen_ballot;
       ballot_t last_accepted_ballot;
       MarshallDeputy cmd;
-      fu->get_reply() >> accepted >> status >> max_seen_ballot >> cmd;
-      e->FeedResponse(accepted, status, max_seen_ballot, max_seen_ballot, cmd);
+      fu->get_reply() >> accepted >> status >> last_accepted_ballot >> cmd;
+      e->FeedResponse(accepted, status, last_accepted_ballot, cmd);
     };
     // Log_info("[CURP] async_CurpPrepare(%d, %d, %d)", key, ver, ballot);
     Future *f = proxy->async_CurpPrepare(key, ver, ballot, fuattr);

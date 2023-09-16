@@ -402,7 +402,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
                                   value_t* result,
                                   siteid_t* coo_id,
                                   const function<void()> &cb) {
-  Log_info("[CURP] %d, %d OnCurpDispatch of cmd<%d, %d>", loc_id_, site_id_, client_id, cmd_id_in_client);
+  // Log_info("[CURP] %d, %d OnCurpDispatch of cmd<%d, %d>", loc_id_, site_id_, client_id, cmd_id_in_client);
   // Launch3Rockets();
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   n_fast_path_attempted_++;
@@ -447,7 +447,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   }
   *coo_id = 0;
   verify(curp_log_cols_[key]->logs_[curp_log_cols_[key]->NextVersion()] != nullptr);
-  Log_info("[CURP] About to CurpForwardResultToCoordinator, accepted=%d key=%d ver=%d result=%d branch=%d", *accepted, key, *ver, *result, branch);
+  // Log_info("[CURP] About to CurpForwardResultToCoordinator, accepted=%d key=%d ver=%d result=%d branch=%d", *accepted, key, *ver, *result, branch);
   shared_ptr<IntEvent> sq_quorum = commo()->CurpForwardResultToCoordinator(partition_id_, *accepted, *ver, cmd);
   cb();
 }
@@ -481,7 +481,7 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
   // Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_WAIT_COMMIT_TIMEOUT * 1000);
   Reactor::CreateSpEvent<TimeoutEvent>(CURP_WAIT_COMMIT_TIMEOUT * 1000)->Wait();
   if (!commit_results_[cmd_id]->coordinator_replied_) {
-    Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
+    // Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
     *commit_results_[cmd_id]->committed_ = false;
     *commit_results_[cmd_id]->commit_result_ = 0;
     commit_results_[cmd_id]->commit_callback_();
@@ -632,7 +632,6 @@ void TxLogServer::OnCurpPrepare(const key_t& key,
                                 const ballot_t& ballot,
                                 bool_t* accepted,
                                 int* status,
-                                ballot_t* max_seen_ballot,
                                 ballot_t* last_accepted_ballot,
                                 MarshallDeputy* md_cmd,
                                 const function<void()> &cb) {
@@ -650,11 +649,9 @@ void TxLogServer::OnCurpPrepare(const key_t& key,
     *accepted = false;
   }
   *status = log->status_;
-  *max_seen_ballot = log->max_seen_ballot_;
   *last_accepted_ballot = log->last_accepted_ballot_;
   md_cmd->SetMarshallable(log->GetCmd());
   cb();
-  verify(curp_log_cols_[key]->logs_[ver] != nullptr);
 }
 
 void TxLogServer::OnCurpAccept(const ver_t& ver,
@@ -692,8 +689,8 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
   if (instance->type_ == RW_BENCHMARK_NOOP) {
     // Do nothing
   } else if (instance->type_ == RW_BENCHMARK_FINISH) {
+    Log_info("finish_countdown_[%d] + %d = %d", key, instance->value_, finish_countdown_[key] + instance->value_);
     finish_countdown_[key] += instance->value_;
-    Log_info("finish_countdown_[%d]=%d", key, finish_countdown_[key]);
   } else {
     value_t result;
     if (instance->type_ == RW_BENCHMARK_R_TXN) {

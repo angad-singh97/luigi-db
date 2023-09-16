@@ -158,17 +158,17 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
   int count_ = 0;
 
   // for COMMITTED
-  shared_ptr<CmdData> committed_cmd_{nullptr};
+  shared_ptr<Marshallable> committed_cmd_{nullptr};
 
   // for ACCEPTED
   ballot_t self_ballot_;
   ballot_t max_seen_ballot_ = -1;
   int accepted_count_ = 0;
   int max_last_accepted_ballot_ = -1;
-  shared_ptr<CmdData> to_accept_cmd_{nullptr};
+  shared_ptr<Marshallable> to_accept_cmd_{nullptr};
 
   // for PREACCEPT
-  map<pair<int, int>, pair<int, shared_ptr<CmdData> > > fast_accept_;
+  map<pair<int, int>, pair<int, shared_ptr<Marshallable> > > fast_accept_;
   int max_fast_accept_count_ = 0;
   pair<int, int> max_fast_accept_id_;
  public:
@@ -179,7 +179,6 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
 
   void FeedResponse(bool y,
                     int status,
-                    ballot_t max_seen_ballot,
                     ballot_t last_accepted_ballot,
                     MarshallDeputy md_cmd);
   bool CommitYes();
@@ -190,13 +189,13 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
   ballot_t GetMaxSeenBallot() {
     return max_seen_ballot_;
   }
-  shared_ptr<CmdData> GetCommittedCmd() {
+  shared_ptr<Marshallable> GetCommittedCmd() {
     return committed_cmd_;
   }
-  shared_ptr<CmdData> GetFastAcceptedCmd() {
+  shared_ptr<Marshallable> GetFastAcceptedCmd() {
     return fast_accept_[max_fast_accept_id_].second;
   }
-  shared_ptr<CmdData> GetToAcceptCmd() {
+  shared_ptr<Marshallable> GetToAcceptCmd() {
     return to_accept_cmd_;
   }
 };

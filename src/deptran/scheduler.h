@@ -401,7 +401,6 @@ class TxLogServer {
                       const ballot_t& ballot,
                       bool_t* accepted,
                       int* status,
-                      ballot_t* max_seen_ballot,
                       ballot_t* last_accepted_ballot,
                       MarshallDeputy* md_cmd,
                       const function<void()> &cb);

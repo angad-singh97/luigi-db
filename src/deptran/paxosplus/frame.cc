@@ -95,7 +95,6 @@ MultiPaxosPlusFrame::CreateRpcServices(uint32_t site_id,
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();
   switch (config->replica_proto_) {
-    Log_info("[CURP] MultiPaxosPlusServiceImpl Created");
     case MODE_MULTI_PAXOS_PLUS:result.push_back(new MultiPaxosPlusServiceImpl(rep_sched));
     default:break;
   }
