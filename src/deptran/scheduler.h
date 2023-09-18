@@ -80,6 +80,11 @@ class CurpPlusDataCol {
     return logs_[ver];
   }
   shared_ptr<CurpPlusData> GetOrCreate(ver_t ver);
+  void Executed(ver_t ver) {
+    verify(recent_executed_ + 1 == ver);
+    recent_executed_ = ver;
+  }
+  void print();
 };
 
 class Distribution {
@@ -427,8 +432,6 @@ class TxLogServer {
   shared_ptr<CurpPlusData> GetOrCreateCurpLog(key_t key, ver_t ver);
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
-
-  void Launch3Rockets();
  private:
   value_t DBGet(const shared_ptr<Marshallable>& cmd);
   value_t DBPut(const shared_ptr<Marshallable>& cmd);

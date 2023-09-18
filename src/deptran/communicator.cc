@@ -130,7 +130,7 @@ void CurpPrepareQuorumEvent::FeedResponse(bool y,
         max_fast_accept_id_ = cmd_id;
       }
     } else {
-      verify(0);
+      verify(status == CurpPlusData::CurpPlusStatus::COMMITTED || status == CurpPlusData::CurpPlusStatus::INIT);
     }
     VoteYes();
   } else {
@@ -143,19 +143,23 @@ bool CurpPrepareQuorumEvent::CommitYes() {
 }
 
 bool CurpPrepareQuorumEvent::AcceptYes() {
-  return n_voted_yes_ >= CurpQuorumSize(n_total_) && accepted_count_ > 0;
+  return Yes() && accepted_count_ > 0;
 }
 
 bool CurpPrepareQuorumEvent::FastAcceptYes() {
-  return n_voted_yes_ >= CurpQuorumSize(n_total_) && max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
+  return Yes() && max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
 }
 
 bool CurpPrepareQuorumEvent::IsReady() {
-  return timeouted_ || CommitYes() || AcceptYes() || FastAcceptYes();
+  return timeouted_ || CommitYes() || AcceptYes() || FastAcceptYes() || Yes();
 }
 
 void CurpAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
   max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
+  if (y)
+    VoteYes();
+  else
+    VoteNo();
 }
 
 

@@ -174,7 +174,8 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
  public:
   // using QuorumEvent::QuorumEvent;
   CurpPrepareQuorumEvent(int n_total, ballot_t self_ballot)
-      : QuorumEvent(n_total, CurpQuorumSize(n_total)), self_ballot_(self_ballot) {
+      : QuorumEvent(n_total, CurpQuorumSize(n_total) - 1), self_ballot_(self_ballot) {
+        // -1 is because when broadcast prepare, itself will always reject since ballot number equal, but indeed it should be counted as accept
   }
 
   void FeedResponse(bool y,
