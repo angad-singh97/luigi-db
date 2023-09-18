@@ -79,6 +79,16 @@ string SimpleRWCommand::cmd_to_string() {
     return string("Finish v=" + to_string(value_));
   else
     verify(0);
+  // if (RW_BENCHMARK_NOOP == type_)
+  //   return string("<%d, %d> NoOp", cmd_id_.first, cmd_id_.second);
+  // else if (RW_BENCHMARK_R_TXN == type_)
+  //   return string("<%d, %d> Read k=" + to_string(key_), cmd_id_.first, cmd_id_.second);
+  // else if (RW_BENCHMARK_W_TXN == type_)
+  //   return string("<%d, %d> Write k=" + to_string(key_) + " v=" + to_string(value_), cmd_id_.first, cmd_id_.second);
+  // else if (RW_BENCHMARK_FINISH == type_)
+  //   return string("<%d, %d> Finish v=" + to_string(value_), cmd_id_.first, cmd_id_.second);
+  // else
+  //   verify(0);
 }
 
 Marshal& SimpleRWCommand::ToMarshal(Marshal& m) const {
@@ -96,6 +106,9 @@ Marshal& SimpleRWCommand::FromMarshal(Marshal& m) {
 }
 
 pair<int32_t, int32_t> SimpleRWCommand::GetCmdID(shared_ptr<Marshallable> cmd) {
+  if (cmd == nullptr) {
+    return make_pair(-32768, -32768);
+  }
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
   if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
     shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);

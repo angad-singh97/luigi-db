@@ -34,6 +34,7 @@ class CurpPlusData {
     // PREPARED = 2,
     ACCEPTED = 3,
     COMMITTED = 4,
+    EXECUTED = 5,
   };
   CurpPlusStatus status_;
   ballot_t max_seen_ballot_ = -1;
@@ -53,7 +54,7 @@ class CurpPlusData {
 
 class CurpPlusDataCol {
  private:
-  size_t recent_executed_ = 0;
+  size_t latest_executed_ver_ = 0;
   TxLogServer* svr_{nullptr};
   key_t key_;
  public:
@@ -64,26 +65,23 @@ class CurpPlusDataCol {
     Log_info("[CURP] Create CurpPlusDataCol for key=%d", key);
     logs_[0] = nullptr;
   }
-  int32_t RecentVersion() {
-    return recent_executed_;
+  int32_t LatestExecutedVer() {
+    return latest_executed_ver_;
   }
   int32_t NextVersion() {
-    return recent_executed_ + 1;
+    return latest_executed_ver_ + 1;
   }
-  shared_ptr<CurpPlusData> RecentExecuted() {
-    return Get(recent_executed_);
+  shared_ptr<CurpPlusData> RecentExecutedInstance() {
+    return Get(latest_executed_ver_);
   }
   shared_ptr<CurpPlusData> NextInstance() {
-    return GetOrCreate(recent_executed_ + 1);
+    return GetOrCreate(latest_executed_ver_ + 1);
   }
   shared_ptr<CurpPlusData> Get(ver_t ver) {
     return logs_[ver];
   }
   shared_ptr<CurpPlusData> GetOrCreate(ver_t ver);
-  void Executed(ver_t ver) {
-    verify(recent_executed_ + 1 == ver);
-    recent_executed_ = ver;
-  }
+  void Execute(ver_t ver);
   void print();
 };
 
@@ -214,7 +212,7 @@ class TxLogServer {
   Distribution cli2svr_dispatch, cli2svr_commit;
 
   // CURP coordinator reply/notify the client: cmd_id index
-  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> commit_results_;
+  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
   vector<shared_ptr<CommitNotification>> commit_timeout_list_;
   int commit_timeout_solved_count_;
 
@@ -223,6 +221,7 @@ class TxLogServer {
   // application k-v table for rw workload
   map<key_t, value_t> kv_table_;
 
+  // [CURP] TODO: discard assigned_ since it is used to debug a old bug which have been solved
   map<pair<int, int>, bool> assigned_;
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
@@ -432,8 +431,9 @@ class TxLogServer {
   shared_ptr<CurpPlusData> GetOrCreateCurpLog(key_t key, ver_t ver);
 
   UniqueCmdID GetUniqueCmdID(shared_ptr<Marshallable> cmd);
- private:
+
   value_t DBGet(const shared_ptr<Marshallable>& cmd);
+
   value_t DBPut(const shared_ptr<Marshallable>& cmd);
 };
 

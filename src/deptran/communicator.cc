@@ -111,7 +111,7 @@ void CurpPrepareQuorumEvent::FeedResponse(bool y,
   // max_seen_ballot_ = max(max_seen_ballot_, max_seen_ballot);
   shared_ptr<Marshallable> cmd = md_cmd.sp_data_;
   shared_ptr<SimpleRWCommand> parsed_cmd = make_shared<SimpleRWCommand>(cmd);
-  if (status == CurpPlusData::CurpPlusStatus::COMMITTED) {
+  if (status == CurpPlusData::CurpPlusStatus::COMMITTED || status == CurpPlusData::CurpPlusStatus::EXECUTED) {
     committed_cmd_ = cmd;
   }
   if (y) {
@@ -130,7 +130,7 @@ void CurpPrepareQuorumEvent::FeedResponse(bool y,
         max_fast_accept_id_ = cmd_id;
       }
     } else {
-      verify(status == CurpPlusData::CurpPlusStatus::COMMITTED || status == CurpPlusData::CurpPlusStatus::INIT);
+      // Do nothing
     }
     VoteYes();
   } else {
