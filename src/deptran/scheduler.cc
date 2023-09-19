@@ -277,7 +277,7 @@ TxLogServer::~TxLogServer() {
               cli2svr_commit.pct50(), cli2svr_commit.pct90(), cli2svr_commit.pct99());
   else
     Log_info("[CURP] loc_id_=%d site_id_=%d No Count / Latency Measured", loc_id_, site_id_);
-  curp_log_cols_[0]->print();
+  curp_log_cols_[0]->Print();
 }
 
 /**
@@ -772,11 +772,19 @@ void CurpPlusData::UpdateCmd(const shared_ptr<Marshallable> &cmd) {
     cmd_ = MakeNoOpCmd(svr_->partition_id_);
   } else {
     cmd_ = cmd;
+    svr_->instance_commit_timeout_pool_.AddTimeoutInstance(shared_from_this());
+    svr_->curp_log_cols_[key_]->CheckHoles(ver_);
   }
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd_);
   type_ = parsed_cmd_->type_;
   key_ = parsed_cmd_->key_;
   value_ = parsed_cmd_->value_;
+}
+
+void CurpPlusDataCol::CheckHoles(ver_t ver) {
+  for (int i = latest_executed_ver_ + 1; i < ver; i++) {
+    svr_->instance_commit_timeout_pool_.AddTimeoutInstance(GetOrCreate(i));
+  }
 }
 
 shared_ptr<Marshallable> CurpPlusData::GetCmd() {
@@ -800,9 +808,6 @@ CurpPlusData::CurpPlusData(TxLogServer* svr, key_t key, ver_t ver, CurpPlusStatu
   verify(!svr_->assigned_[make_pair(key_, ver)]);
   svr_->assigned_[make_pair(key_, ver)] = true;
   Log_info("Create instance for pos(%d, %d)", key, ver);
-  Coroutine::CreateRun([this]() { 
-    InstanceCommitTimeout();
-  });
   UpdateCmd(cmd);
 }
 
@@ -867,7 +872,7 @@ void CurpPlusDataCol::Execute(ver_t ver) {
   latest_executed_ver_ = ver;
 }
 
-void CurpPlusDataCol::print() {
+void CurpPlusDataCol::Print() {
   string str;
   for (auto log: logs_) {
     if (log.first == 0) continue;
@@ -929,18 +934,40 @@ value_t TxLogServer::DBPut(const shared_ptr<Marshallable>& cmd) {
   return 1;
 }
 
-void CurpPlusData::InstanceCommitTimeout() {
-  // Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_INSTANCE_COMMIT_TIMEOUT * 1000);
-  Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000 + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000 * 3))->Wait();
-  while (status_ != CurpPlusStatus::COMMITTED && status_ != CurpPlusStatus::EXECUTED) {
-    Log_info("Instance[%d, %d] timeout, about to Prepare(%d, %d, %d)", key_, ver_, key_, ver_, max_seen_ballot_);
-    max_seen_ballot_++;
-    svr_->CurpPrepare(key_, ver_, max_seen_ballot_);
-    // shared_ptr<CurpPrepareQuorumEvent> e = svr_->commo()->CurpBroadcastPrepare(svr_->partition_id_, );
-    // e->Wait();
+void InstanceCommitTimeoutPool::TimeoutLoop() {
+  while (true) {
     Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000 + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000 * 3))->Wait();
-    // InstanceCommitTimeout();
+    for (set<pair<double, shared_ptr<CurpPlusData>>>::iterator it = pool_.begin(); it != pool_.end(); ++it) {
+      if (it->first < SimpleRWCommand::GetCurrentMsTime()) {
+        if (it->second->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || it->second->status_ == CurpPlusData::CurpPlusStatus::EXECUTED) {
+          in_pool_.erase(it->second->GetPos());
+        } else {
+          it->second->PrepareInstance();
+          AddTimeoutInstance(it->second, true);
+          pool_.erase(it);
+        }
+      }
+    }
   }
+}
+void InstanceCommitTimeoutPool::AddTimeoutInstance(shared_ptr<CurpPlusData> instance, bool repeat_insert) {
+  if (instance->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || instance->status_ == CurpPlusData::CurpPlusStatus::EXECUTED)
+    return;
+  double trigger_ms_timeout = CURP_INSTANCE_COMMIT_TIMEOUT + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 3 * 1000) / 1000.0;
+  if (repeat_insert) {
+    pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
+    return;
+  }
+  pair<key_t, ver_t> pos = instance->GetPos();
+  if (in_pool_.count(pos) == 0) {
+    in_pool_.insert(pos);
+    pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
+  }
+}
+
+void CurpPlusData::PrepareInstance() {
+  max_seen_ballot_++;
+  svr_->CurpPrepare(key_, ver_, max_seen_ballot_);
 }
 
 } // namespace janus
