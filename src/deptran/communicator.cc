@@ -1228,7 +1228,7 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 //   return e;
 // }
 
-shared_ptr<QuorumEvent>
+shared_ptr<CurpWaitCommitQuorumEvent>
 Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
                                             siteid_t coo_id) {
   // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
@@ -1239,7 +1239,8 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
   int32_t client_id_ = vec_piece_data->at(0)->client_id_;
   int32_t cmd_id_in_client_ = vec_piece_data->at(0)->cmd_id_in_client_;
   auto par_id = vec_piece_data->at(0)->PartitionId();
-  auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<CurpWaitCommitQuorumEvent>();
 
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   // sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
@@ -1253,15 +1254,13 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
     if (pair.first == coo_id) {
       rrr::FutureAttr fuattr;
       fuattr.callback =
-          [e](Future* fu) {
+          [this, e](Future* fu) {
             bool_t committed;
-            fu->get_reply() >> committed;
-            if (committed)
-              e->VoteYes();
-            else
-              e->VoteNo();
+            value_t commit_result;
+            fu->get_reply() >> committed >> commit_result;
+            Log_info("[CURP] loc=%d CurpBroadcastWaitCommit reply committed=%d commit_result=%d", loc_id_, committed, commit_result);
+            e->FeedResponse(committed, commit_result);
           };
-      
       auto proxy = (CurpProxy *)pair.second;
       auto future = proxy->async_CurpWaitCommit(client_id_, cmd_id_in_client_, fuattr);
       Future::safe_release(future);

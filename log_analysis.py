@@ -1,4 +1,4 @@
-file_path = "curp_log"
+file_path = "curp.log"
 
 lines = []
 with open(file_path, "r") as file:
@@ -16,8 +16,8 @@ for line in lines:
         if "QueryCoordinator success" in real_line:
             keyword_range = real_line[real_line.find("QueryCoordinator success") - 20 : real_line.find("QueryCoordinator success")]
             QueryCoordinator_done.append(keyword_range[keyword_range.find("<"):keyword_range.find(">")+1])
-        if "QueryCoordinator fail, OriginalProtocol" in real_line:
-            keyword_range = real_line[real_line.find("QueryCoordinator fail, OriginalProtocol") - 20 : real_line.find("QueryCoordinator fail, OriginalProtocol")]
+        if "Original Protocol success" in real_line:
+            keyword_range = real_line[real_line.find("Original Protocol success") - 20 : real_line.find("Original Protocol success")]
             QueryCoordinator_done.append(keyword_range[keyword_range.find("<"):keyword_range.find(">")+1])
 
 for launch in QueryCoordinator_launch:

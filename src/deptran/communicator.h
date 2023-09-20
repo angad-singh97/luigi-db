@@ -154,6 +154,23 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   }
 };
 
+class CurpWaitCommitQuorumEvent : public QuorumEvent {
+ public:
+  bool get_result_ = false;
+  bool_t committed_;
+  value_t commit_result_;
+  CurpWaitCommitQuorumEvent() : QuorumEvent(1, 1) {}
+  void FeedResponse(bool_t committed, value_t commit_result) {
+    get_result_ = true;
+    committed_ = committed;
+    commit_result_ = commit_result;
+    VoteYes();
+  }
+  bool IsReady() override {
+    return get_result_;
+  }
+};
+
 class CurpPrepareQuorumEvent : public QuorumEvent {
   int count_ = 0;
 
@@ -367,7 +384,7 @@ class Communicator {
   // shared_ptr<IntEvent>
   // OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id);
 
-  shared_ptr<QuorumEvent>
+  shared_ptr<CurpWaitCommitQuorumEvent>
   CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
                               siteid_t coo_id);
 

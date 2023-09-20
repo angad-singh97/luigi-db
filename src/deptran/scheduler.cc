@@ -264,20 +264,22 @@ TxLogServer::~TxLogServer() {
     it->second = NULL;
   }
   mdb_txns_.clear();
+  // [CURP] comment this because FINISH involved and influenced the counting, so only client end counting have been outputed
   // verify(cli2svr_dispatch_count > 0 && cli2svr_commit_count > 0);
-  if (cli2svr_dispatch.count() || cli2svr_commit.count())
-    Log_info("[CURP] loc_id_=%d site_id_=%d \
-    curp_fast_path_success_count_=%d curp_coordinator_accept_count_=%d original_protocol_submit_count_=%d total=%d \
-    cli2svr_dispatch 50% = %.2f ms cli2svr_dispatch 90% = %.2f ms cli2svr_dispatch 99% = %.2f ms \
-    cli2svr_commit 50% = %.2f ms cli2svr_commit 90% = %.2f ms cli2svr_commit_max 99% = %.2f ms",
-              loc_id_, site_id_, 
-              curp_fast_path_success_count_, curp_coordinator_accept_count_, original_protocol_submit_count_,
-              curp_fast_path_success_count_ + curp_coordinator_accept_count_ + original_protocol_submit_count_,
-              cli2svr_dispatch.pct50(), cli2svr_dispatch.pct90(), cli2svr_dispatch.pct99(),
-              cli2svr_commit.pct50(), cli2svr_commit.pct90(), cli2svr_commit.pct99());
-  else
-    Log_info("[CURP] loc_id_=%d site_id_=%d No Count / Latency Measured", loc_id_, site_id_);
-  curp_log_cols_[0]->Print();
+  // if (cli2svr_dispatch.count() || cli2svr_commit.count())
+  //   Log_info("[CURP] loc_id_=%d site_id_=%d \
+  //   curp_fast_path_success_count_=%d curp_coordinator_accept_count_=%d original_protocol_submit_count_=%d total=%d \
+  //   cli2svr_dispatch 50% = %.2f ms cli2svr_dispatch 90% = %.2f ms cli2svr_dispatch 99% = %.2f ms \
+  //   cli2svr_commit 50% = %.2f ms cli2svr_commit 90% = %.2f ms cli2svr_commit_max 99% = %.2f ms",
+  //             loc_id_, site_id_, 
+  //             curp_fast_path_success_count_, curp_coordinator_accept_count_, original_protocol_submit_count_,
+  //             curp_fast_path_success_count_ + curp_coordinator_accept_count_ + original_protocol_submit_count_,
+  //             cli2svr_dispatch.pct50(), cli2svr_dispatch.pct90(), cli2svr_dispatch.pct99(),
+  //             cli2svr_commit.pct50(), cli2svr_commit.pct90(), cli2svr_commit.pct99());
+  // else
+  //   Log_info("[CURP] loc_id_=%d site_id_=%d No Count / Latency Measured", loc_id_, site_id_);
+  // if (curp_log_cols_[0] != nullptr)
+  //   curp_log_cols_[0]->Print();
 }
 
 /**
@@ -403,6 +405,12 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
                                   value_t* result,
                                   siteid_t* coo_id,
                                   const function<void()> &cb) {
+  // // used for debug
+  // *accepted = false;
+  // *ver = 0;
+  // *result = 0;
+  // *coo_id = 0;
+  
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   n_fast_path_attempted_++;
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
@@ -438,7 +446,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     *ver = curp_log_cols_[key]->NextVersion();
     branch = 1;
   } else {
-    Log_info("[CURP] %d, %d OnCurpDispatch Reject cmd<%d, %d>%s since position(%d, %d) has status %d", loc_id_, site_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str(), curp_log_cols_[key]->NextVersion(), next_instance->status_);
+    Log_info("[CURP] loc=%d OnCurpDispatch Reject cmd<%d, %d>%s since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
     if (client_id == -1) {
       int a = 1 + 1;
     }
@@ -483,7 +491,7 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
   // Reactor::CreateSpEvent<NeverEvent>()->Wait(CURP_WAIT_COMMIT_TIMEOUT * 1000);
   Reactor::CreateSpEvent<TimeoutEvent>(CURP_WAIT_COMMIT_TIMEOUT * 1000)->Wait();
   if (!executed_results_[cmd_id]->coordinator_replied_) {
-    // Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
+    Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
     *executed_results_[cmd_id]->committed_ = false;
     *executed_results_[cmd_id]->commit_result_ = 0;
     executed_results_[cmd_id]->commit_callback_();
@@ -687,7 +695,7 @@ void TxLogServer::OnCurpAccept(const ver_t& ver,
 
 void TxLogServer::OnCurpCommit(const ver_t& ver,
                               const shared_ptr<Marshallable>& cmd) {
-  Log_info("[CURP] loc=%d OnCurpCommit ver=%d cmd=[%s]", loc_id_, ver, SimpleRWCommand(cmd).cmd_to_string().c_str());
+  Log_info("[CURP] loc=%d OnCurpCommit ver=%d cmd<%d, %d>[%s]", loc_id_, ver, SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, SimpleRWCommand(cmd).cmd_to_string().c_str());
   
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   key_t key = SimpleRWCommand::GetKey(cmd);
@@ -848,6 +856,7 @@ void CurpPlusDataCol::Execute(ver_t ver) {
       svr_->executed_results_[cmd_id] = make_shared<CommitNotification>();
     svr_->executed_results_[cmd_id]->coordinator_commit_result_ = result;
     svr_->executed_results_[cmd_id]->coordinator_stored_ = true;
+    Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
 #ifdef CURP_CONFLICT_DEBUG
     Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
 #endif
@@ -857,10 +866,12 @@ void CurpPlusDataCol::Execute(ver_t ver) {
       *svr_->executed_results_[cmd_id]->commit_result_ = svr_->executed_results_[cmd_id]->coordinator_commit_result_;
       svr_->executed_results_[cmd_id]->coordinator_replied_ = true;
       svr_->executed_results_[cmd_id]->commit_callback_();
+      Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
 #ifdef CURP_CONFLICT_DEBUG
       Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
 #endif
     } else {
+      Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, svr_->executed_results_[cmd_id]->client_stored_, svr_->executed_results_[cmd_id]->coordinator_replied_);
 #ifdef CURP_CONFLICT_DEBUG
       Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, executed_results_[cmd_id]->client_stored_, executed_results_[cmd_id]->coordinator_replied_);
 #endif

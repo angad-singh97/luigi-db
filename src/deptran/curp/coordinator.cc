@@ -27,7 +27,7 @@ void CoordinatorCurp::GotoNextPhase() {
     case Phase::DISPATCH:
       verify(phase_ % n_phase == Phase::QUERY);
       if (fast_path_success_) {
-        // Log_info("[CURP] coo_id=%d fastpath success", coo_id_);
+        Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         fast_path_success_ = false;
         committed_ = true;
         phase_ += 2;
@@ -36,7 +36,7 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-        // Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+        Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         QueryCoordinator();
       }
       break;
@@ -44,7 +44,7 @@ void CoordinatorCurp::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::ORIGIN);
       if (coordinator_success_) {
         coordinator_success_ = false;
-        // ("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+        ("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         committed_ = true;
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
@@ -52,13 +52,13 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-        // Log_info("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+        Log_info("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
         OriginalProtocol();
       }
       break;
     case Phase::ORIGIN:
       verify(phase_ % n_phase == Phase::INIT_END);
-      // Log_info("[CURP] coo_id=%d Original Protocol success", coo_id_);
+      Log_info("[CURP] coo_id=%d cmd<%d, %d> Original Protocol success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
       committed_ = true;
       original_protocol_count_++;
       cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
