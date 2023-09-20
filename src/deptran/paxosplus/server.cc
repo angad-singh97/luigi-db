@@ -106,7 +106,6 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
       CurpSkipFastpath(max_executed_slot_, next_instance->committed_cmd_);
-      Log_info("[CURP] ready to app_next_");
       app_next_(*next_instance->committed_cmd_);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;

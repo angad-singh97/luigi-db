@@ -65,7 +65,9 @@ class CurpPlusDataCol {
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
   map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
   CurpPlusDataCol(TxLogServer* svr, key_t key): svr_(svr), key_(key){
+#ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Create CurpPlusDataCol for key=%d", key);
+#endif
     logs_[0] = nullptr;
   }
   int32_t LatestExecutedVer() {

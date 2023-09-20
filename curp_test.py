@@ -16,7 +16,7 @@ modes_ = [
     "none_mencius",
     "none_copilot",
     "paxos_plus",
-    "fpga_raft_plus",
+    # "fpga_raft_plus",
     "mencius_plus",
     "copilot_plus",
 ]
@@ -71,14 +71,14 @@ def run(m, s, b, c):
     res = "INIT"
     try:
         f = open(output_path, "w")
-        cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "10"]
-        print(' '.join(cmd))
+        cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "20"]
+        # print(' '.join(cmd))
         r = call(cmd, stdout=f, stderr=f, timeout=5*60)
         res = "OK" if r == 0 else "Failed"
         # res = "OK"
     except subprocess.TimeoutExpired:
         res = "Timeout"
-    except Error as e:
+    except Exception as e:
         print(e)
     t2 = time()
     print("%-15s%-10s%-15s%-15s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))

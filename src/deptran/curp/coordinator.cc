@@ -27,7 +27,9 @@ void CoordinatorCurp::GotoNextPhase() {
     case Phase::DISPATCH:
       verify(phase_ % n_phase == Phase::QUERY);
       if (fast_path_success_) {
+#ifdef CURP_FULL_LOG_DEBUG
         Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
         fast_path_success_ = false;
         committed_ = true;
         phase_ += 2;
@@ -36,7 +38,9 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
+#ifdef CURP_FULL_LOG_DEBUG
         Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
         QueryCoordinator();
       }
       break;
@@ -44,7 +48,9 @@ void CoordinatorCurp::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::ORIGIN);
       if (coordinator_success_) {
         coordinator_success_ = false;
+#ifdef CURP_FULL_LOG_DEBUG
         ("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
         committed_ = true;
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
@@ -52,13 +58,17 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
+#ifdef CURP_FULL_LOG_DEBUG
         Log_info("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
         OriginalProtocol();
       }
       break;
     case Phase::ORIGIN:
       verify(phase_ % n_phase == Phase::INIT_END);
+#ifdef CURP_FULL_LOG_DEBUG
       Log_info("[CURP] coo_id=%d cmd<%d, %d> Original Protocol success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
       committed_ = true;
       original_protocol_count_++;
       cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
@@ -113,15 +123,14 @@ void CoordinatorCurp::BroadcastDispatch() {
 }
 
 void CoordinatorCurp::QueryCoordinator() {
-  auto wait_quorum = commo_->CurpBroadcastWaitCommit(sp_vpd_, curp_coo_id_);
+  shared_ptr<CurpWaitCommitQuorumEvent> wait_quorum = commo_->CurpBroadcastWaitCommit(sp_vpd_, curp_coo_id_);
   wait_quorum->Wait();
-  if (wait_quorum->Yes()) {
+  if (wait_quorum->committed_) {
     coordinator_success_ = true;
-  } else if (wait_quorum->No()) {
-    coordinator_success_ = false;
   } else {
-    verify(0);
+    coordinator_success_ = false;
   }
+  value_t commit_result_ = wait_quorum->commit_result_;
   GotoNextPhase();
 }
 

@@ -1258,7 +1258,9 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
             bool_t committed;
             value_t commit_result;
             fu->get_reply() >> committed >> commit_result;
+#ifdef CURP_FULL_LOG_DEBUG
             Log_info("[CURP] loc=%d CurpBroadcastWaitCommit reply committed=%d commit_result=%d", loc_id_, committed, commit_result);
+#endif
             e->FeedResponse(committed, commit_result);
           };
       auto proxy = (CurpProxy *)pair.second;
