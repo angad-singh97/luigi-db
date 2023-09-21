@@ -13,6 +13,7 @@ class CoordinatorCurp : public CoordinatorClassic {
   bool coordinator_success_{false};
   shared_ptr<VecPieceData> sp_vpd_; // cmd
   siteid_t curp_coo_id_ = -1;
+  int32_t finish_countdown_;
 
   CoordinatorCurp(uint32_t coo_id,
                   int32_t benchmark,

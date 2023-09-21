@@ -56,6 +56,7 @@ abstract service Curp {
                     bool_t accepted,
                     int32_t ver,
                     int32_t result,
+                    int32_t finish_countdown,
                     siteid_t coo_id);
 
   defer CurpWaitCommit(int32_t client_id,

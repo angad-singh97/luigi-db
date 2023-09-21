@@ -403,6 +403,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
                                   bool_t* accepted,
                                   ver_t* ver,
                                   value_t* result,
+                                  int32_t* finish_countdown,
                                   siteid_t* coo_id,
                                   const function<void()> &cb) {
   // // used for debug
@@ -430,7 +431,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   if (curp_log_cols_[key] == nullptr)
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>(this, key);
   shared_ptr<CurpPlusData> next_instance = curp_log_cols_[key]->NextInstance();
-  int branch;
+  *finish_countdown = finish_countdown_[key];
   if ((next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT || SimpleRWCommand::GetCmdID(next_instance->GetCmd()) == make_pair(client_id, cmd_id_in_client))
       && finish_countdown_[key] == 0) {
     next_instance->status_ = CurpPlusData::CurpPlusStatus::PREACCEPT;
@@ -446,7 +447,6 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     }
     *accepted = true;
     *ver = curp_log_cols_[key]->NextVersion();
-    branch = 1;
   } else {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] loc=%d OnCurpDispatch Reject cmd<%d, %d>%s since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
@@ -457,12 +457,11 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     *accepted = false;
     *ver = -1;
     *result = -1;
-    branch = 2;
   }
   *coo_id = 0;
   verify(curp_log_cols_[key]->logs_[curp_log_cols_[key]->NextVersion()] != nullptr);
 #ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] About to CurpForwardResultToCoordinator, accepted=%d key=%d ver=%d result=%d branch=%d", *accepted, key, *ver, *result, branch);
+  Log_info("[CURP] About to CurpForwardResultToCoordinator, accepted=%d key=%d ver=%d result=%d", *accepted, key, *ver, *result);
 #endif
   shared_ptr<IntEvent> sq_quorum = commo()->CurpForwardResultToCoordinator(partition_id_, *accepted, *ver, cmd);
   cb();

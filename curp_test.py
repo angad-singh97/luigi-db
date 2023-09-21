@@ -11,14 +11,16 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 modes_ = [
-    "none_paxos",
-    "none_fpga_raft",
-    "none_mencius",
-    "none_copilot",
     "paxos_plus",
-    # "fpga_raft_plus",
     "mencius_plus",
     "copilot_plus",
+    "none_paxos",
+    # "none_fpga_raft",
+    "none_mencius",
+    "none_copilot",
+    
+    # "fpga_raft_plus",
+    
 ]
 sites_ = [
     "10c1s3r1p",
@@ -33,19 +35,27 @@ benchmarks_ =  [
 ]
 concurrent_ = [
     "concurrent_1",
-    "concurrent_2",
+    # "concurrent_2",
     "concurrent_3",
-    "concurrent_4",
-    "concurrent_5",
+    # "concurrent_4",
+    # "concurrent_5",
     "concurrent_6",
-    "concurrent_7",
-    "concurrent_8",
-    "concurrent_9",
+    # "concurrent_7",
+    # "concurrent_8",
+    # "concurrent_9",
     "concurrent_10",
     "concurrent_20",
     "concurrent_30",
     "concurrent_40",
     "concurrent_50",
+    "concurrent_60",
+    "concurrent_70",
+    "concurrent_80",
+    "concurrent_90",
+    "concurrent_100",
+    "concurrent_120",
+    "concurrent_150",
+    "concurrent_200",
 ]
 latency_concurrent_ = [
     "concurrent_10",
@@ -73,7 +83,7 @@ def run(m, s, b, c):
         f = open(output_path, "w")
         cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "20"]
         # print(' '.join(cmd))
-        r = call(cmd, stdout=f, stderr=f, timeout=5*60)
+        r = call(cmd, stdout=f, stderr=f, timeout=60)
         res = "OK" if r == 0 else "Failed"
         # res = "OK"
     except subprocess.TimeoutExpired:
@@ -108,10 +118,10 @@ def main():
     sites_ = args.sites
     benchmarks_ = args.benchmarks
     print("%-15s%-10s%-15s%-15s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
-    for m in modes_:
-        for b in benchmarks_:
-            for s in sites_:
-                for c in concurrent_:
+    for s in latency_sites_:
+        for c in concurrent_:
+            for m in modes_:
+                for b in benchmarks_ if "plus" in m else ["rw_1000000"]:
                     run(m, s, b, c)
     pass
 

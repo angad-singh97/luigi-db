@@ -11,6 +11,7 @@ files = os.listdir(directory_path)
 file_names = [file for file in files if os.path.isfile(os.path.join(directory_path, file))]
 
 datas = []
+rows = []
 
 for file_name in file_names:
     parts = file_name.split("-")
@@ -41,13 +42,30 @@ for file_name in file_names:
                     fastpath_count = int(line[line.find("FastPath-count =")+16:line.find("CoordinatorAccept-count")])
                     coordinatoraccept_count = int(line[line.find("CoordinatorAccept-count =")+26:line.find("OriginalProtocol-count")])
                     original_count = int(line[line.find("OriginalProtocol-count =")+25:])
-                if "loc_id_=0" in line and "curp_executed_committed_max_gap_" in line:
-                    max_gap = int(line[line.find("gap_=")+5:line.find("curp_fast_path_success_count_")])
+                # if "loc_id_=0" in line and "curp_executed_committed_max_gap_" in line:
+                #     max_gap = int(line[line.find("gap_=")+5:line.find("curp_fast_path_success_count_")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap))
+    datas.append((site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count))
+    rows.append([site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count])
 
 datas = sorted(datas, key=sorting_key)
 # print(datas)
 for data in datas:
     print(data)
+
+fields = ["site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", "fastpath_count", "coordinatoraccept_count", "original_count"]
+
+import csv 
     
+filename = "curp_results.csv"
+    
+# writing to csv file 
+with open(filename, 'w') as csvfile: 
+    # creating a csv writer object 
+    csvwriter = csv.writer(csvfile) 
+        
+    # writing the fields 
+    csvwriter.writerow(fields) 
+        
+    # writing the data rows 
+    csvwriter.writerows(rows)

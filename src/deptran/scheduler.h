@@ -396,6 +396,7 @@ class TxLogServer {
                       bool_t* accepted,
                       ver_t* ver,
                       value_t* result,
+                      int32_t* finish_countdown,
                       siteid_t* coo_id,
                       const function<void()> &cb);
 

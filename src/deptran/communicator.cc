@@ -32,9 +32,10 @@ int CurpSmallQuorumSize(int total) {
   return (CurpMaxFailure(total) + 1) / 2 + 1;
 }
 
-void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, ver_t ver, value_t result, siteid_t coo_id) {
+void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, ver_t ver, value_t result, int32_t finish_countdown, siteid_t coo_id) {
   // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
   coo_id_vec_.push_back(coo_id);
+  finish_countdown_ = max(finish_countdown_, finish_countdown);
   if (accepted) {
     VoteYes();
     responses_.push_back(ResponsePack{ver, result});
@@ -1159,9 +1160,10 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
           bool_t accepted;
           ver_t ver;
           value_t result;
+          int32_t finish_countdown;
           siteid_t coo_id;
-          fu->get_reply() >> accepted >> ver >> result >> coo_id;
-          e->FeedResponse(accepted, ver, result, coo_id);
+          fu->get_reply() >> accepted >> ver >> result >> finish_countdown >> coo_id;
+          e->FeedResponse(accepted, ver, result, finish_countdown, coo_id);
         };
     
     DepId di;
