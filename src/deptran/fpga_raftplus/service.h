@@ -17,8 +17,13 @@ class TxLogServer;
 class FpgaRaftPlusServer;
 class FpgaRaftPlusServiceImpl: public FpgaRaftPlusService, public CurpServiceImpl{
  public:
-  FpgaRaftPlusServer* sched_;
+  // FpgaRaftPlusServer* sched_;
   FpgaRaftPlusServiceImpl(TxLogServer* sched);
+
+  FpgaRaftPlusServer* sched() {
+    verify(sched_);
+    return (FpgaRaftPlusServer*)sched_;
+  }
 
   int __reg_to__(rrr::Server* svr) override {
     FpgaRaftPlusService::__reg_to__(svr);
