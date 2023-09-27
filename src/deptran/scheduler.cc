@@ -13,6 +13,8 @@
 #include "coordinator.h"
 #include "../bench/rw/workload.h"
 
+#include <gperftools/profiler.h>
+
 namespace janus {
 
 shared_ptr<Tx> TxLogServer::CreateTx(epoch_t epoch, txnid_t tid, bool
@@ -264,6 +266,12 @@ TxLogServer::~TxLogServer() {
     it->second = NULL;
   }
   mdb_txns_.clear();
+#ifdef CPU_PROFILE_SEVER
+  if (site_id_ == 0) {
+    ProfilerStop();
+    Log_info("[CURP] End Profile");
+  }
+#endif
   // [CURP] comment this because FINISH involved and influenced the counting, so only client end counting have been outputed
   // verify(cli2svr_dispatch_count > 0 && cli2svr_commit_count > 0);
   // if (cli2svr_dispatch.count() || cli2svr_commit.count())

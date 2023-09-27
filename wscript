@@ -121,6 +121,8 @@ def configure(conf):
     
     # if Options.options.curp_fast_path:
     #     conf.env.append_value("CXXFLAGS", "-DCURP_FAST_PATH")
+    # conf.env.append_value("CXXFLAGS", "-lprofiler scripts/pprof".split())
+    conf.env.append_value("LDFLAGS", "-lprofiler")
 
 def build(bld):
     _depend("src/rrr/pylib/simplerpcgen/rpcgen.py",

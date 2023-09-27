@@ -52,3 +52,5 @@ profile-results/
 curp.log
 *.log
 *.csv
+prof
+*.pdf

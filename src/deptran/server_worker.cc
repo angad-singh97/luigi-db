@@ -6,6 +6,8 @@
 #include "frame.h"
 #include "communicator.h"
 
+#include <gperftools/profiler.h>
+
 namespace janus {
 
 void ServerWorker::SetupHeartbeat() {
@@ -59,6 +61,12 @@ void ServerWorker::SetupBase() {
     rep_sched_->txn_reg_ = tx_reg_;
     rep_sched_->loc_id_ = site_info_->locale_id;
     rep_sched_->site_id_ = site_info_->id;
+#ifdef CPU_PROFILE_SEVER
+    if (rep_sched_->site_id_ == 0) {
+      ProfilerStart("server.prof");
+      Log_info("[CURP] Start to profile");
+    }
+#endif
     rep_sched_->tx_sched_ = tx_sched_;
     // [CURP] TODO: should I add this?
     rep_sched_->rep_frame_ = rep_frame_;

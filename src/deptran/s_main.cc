@@ -9,9 +9,9 @@
 #include "../rrr/reactor/event.h"
 #include "scheduler.h"
 
-#ifdef CPU_PROFILE
-# include <gperftools/profiler.h>
-#endif // ifdef CPU_PROFILE
+// #ifdef CPU_PROFILE
+#include <gperftools/profiler.h>
+// #endif // ifdef CPU_PROFILE
 
 using namespace janus;
 
@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
     client_setup_heartbeat(client_infos.size());
   }
 
-#ifdef CPU_PROFILE
+#ifdef CPU_PROFILE_MAIN
   char prof_file[1024];
   Config::GetConfig()->GetProfilePath(prof_file);
   // start to profile
@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
     Log_warn("checksum match failed...perhaps wait longer before checksum?");
   }
 #endif
-#ifdef CPU_PROFILE
+#ifdef CPU_PROFILE_MAIN
   // stop profiling
   ProfilerStop();
 #endif // ifdef CPU_PROFILE

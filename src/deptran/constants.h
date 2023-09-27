@@ -143,11 +143,16 @@ namespace janus {
 // #define TC
 // #define CURP_SEND_TC
 #define TC_LATENCY (20000)
+
 #define CURP_FAST_PATH_TIMEOUT (3)
 #define CURP_WAIT_COMMIT_TIMEOUT (10)
 #define CURP_INSTANCE_COMMIT_TIMEOUT (3)
+
 // #define SIMULATE_WAN
 // #define CURP_CONFLICT_DEBUG
-#define CURP_FULL_LOG_DEBUG
+// #define CURP_FULL_LOG_DEBUG
+
+// #define CPU_PROFILE_MAIN
+// #define CPU_PROFILE_SEVER
 
 } // namespace janus
