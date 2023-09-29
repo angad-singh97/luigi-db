@@ -9,9 +9,11 @@
 #include "../rrr/reactor/event.h"
 #include "scheduler.h"
 
-// #ifdef CPU_PROFILE
-#include <gperftools/profiler.h>
-// #endif // ifdef CPU_PROFILE
+// #define CPU_PROFILE 1
+
+#ifdef CPU_PROFILE
+# include <gperftools/profiler.h>
+#endif // ifdef CPU_PROFILE
 
 using namespace janus;
 
@@ -61,6 +63,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
   vector<ClientWorker*> workers;
 
   failover_triggers = new bool[client_sites.size()]() ;
+  int core_id = 8;
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
                                             client_sites[client_id],
@@ -71,20 +74,34 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             &failover_server_idx,
                                             &total_throughput);
     workers.push_back(worker);
-    client_threads_g.push_back(std::thread(&ClientWorker::Work, worker));
+    auto th_ = std::thread(&ClientWorker::Work, worker);
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
+    }
+    core_id ++;
+    client_threads_g.push_back(std::move(th_));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
   }
 
 }
 
+// start servers in new threads.
 void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   auto config = Config::GetConfig();
   Log_info("server enabled, number of sites: %d", server_sites.size());
   svr_workers_g.resize(server_sites.size(), ServerWorker());
   int i=0;
   vector<std::thread> setup_ths;
+  int core_id = 0;
   for (auto& site_info : server_sites) {
-    setup_ths.push_back(std::thread([&site_info, &i, &config] () {
+    auto th_ = std::thread([&site_info, &i, &config] () {
       Log_info("launching site: %x, bind address %s",
                site_info.id,
                site_info.GetBindAddress().c_str());
@@ -111,7 +128,20 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       worker.SetupCommo();
       Log_info("site %d launched!", (int)site_info.id);
       worker.launched_ = true;
-    }));
+    });
+    // for better performance, bind each server thread to a cpu core
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a server thread on core %d, site-id:%d", core_id, site_info.id);
+    }
+    core_id ++;
+    setup_ths.push_back(std::move(th_));
   }
 
   for (auto& worker : svr_workers_g) {
@@ -318,7 +348,7 @@ int main(int argc, char *argv[]) {
     client_setup_heartbeat(client_infos.size());
   }
 
-#ifdef CPU_PROFILE_MAIN
+#ifdef CPU_PROFILE
   char prof_file[1024];
   Config::GetConfig()->GetProfilePath(prof_file);
   // start to profile
@@ -376,7 +406,7 @@ int main(int argc, char *argv[]) {
     Log_warn("checksum match failed...perhaps wait longer before checksum?");
   }
 #endif
-#ifdef CPU_PROFILE_MAIN
+#ifdef CPU_PROFILE
   // stop profiling
   ProfilerStop();
 #endif // ifdef CPU_PROFILE
