@@ -34,7 +34,7 @@ class MenciusServer : public TxLogServer {
   slotid_t max_committed_slot_ = 0;
   map<slotid_t, shared_ptr<MenciusData>> logs_{};
   unordered_map<uint32_t, set<uint64_t>> skip_potentials_recd{};
-  unordered_map<uint32_t, int> uncommitted_keys_{};  // [max_executed+1, ...]
+  unordered_map<uint32_t, atomic<int>> uncommitted_keys_{};  // [max_executed+1, ...]
   unordered_map<uint32_t, int> executed_slots_{}; // used along with uncommitted_keys_
   int n_prepare_ = 0;
   int n_suggest_ = 0;

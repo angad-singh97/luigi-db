@@ -41,7 +41,7 @@ MenciusCommo::BroadcastPrepare(parid_t par_id,
   auto src_coroid = e->GetCoroId();
   auto proxies = rpc_par_proxies_[par_id];
 
-  WAN_WAIT;
+  // WAN_WAIT;
   auto leader_id = LeaderProxyForPartition(par_id).first;
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
@@ -79,19 +79,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   vector<Future*> fus;
   auto start = chrono::system_clock::now();
 
-  time_t tstart = chrono::system_clock::to_time_t(start);
-  tm * date = localtime(&tstart);
-  date->tm_hour = 0;
-  date->tm_min = 0;
-  date->tm_sec = 0;
-  auto midn = std::chrono::system_clock::from_time_t(std::mktime(date));
-
-  auto hours = chrono::duration_cast<chrono::hours>(start-midn);
-  auto minutes = chrono::duration_cast<chrono::minutes>(start-midn);
-
-  auto start_ = chrono::duration_cast<chrono::microseconds>(start-midn-hours-minutes).count();
-  WAN_WAIT;
-  
+  // WAN_WAIT;
   std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
   auto ms = dynamic_cast<MenciusServer*>(svr_workers->at((slot_id-1)%n).rep_sched_);
   auto skip_potentials_recd = ms->skip_potentials_recd;
@@ -99,28 +87,28 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
 
   // from skip_potentials_recd (received by ServerWorker) to compute the committed SKIP entries (as well alpha)
   std::vector<uint64_t> skip_commits;
-  ms->g_mutex.lock();
-  {
-    int id = ms->max_executed_slot_ + 1;
-    while (true) {
-      int cnt = 0;
-      if ((id-1)%n==(slot_id-1)%n){
-        for (int i=0;i<n;i++){
-          if(ms->skip_potentials_recd.find(i)!=ms->skip_potentials_recd.end() 
-              && ms->skip_potentials_recd.at(i).find(id)!=ms->skip_potentials_recd.at(i).end())
-            cnt++;
-        }
-        if (cnt>=(n/2+1)){
-          skip_commits.push_back(id);
-        }else{
-          break;
-        }
-      }else{
-        id+=1;
-      }
-    }
-  }
-  ms->g_mutex.unlock();
+  // ms->g_mutex.lock();
+  // {
+  //   int id = ms->max_executed_slot_ + 1;
+  //   while (true) {
+  //     int cnt = 0;
+  //     if ((id-1)%n==(slot_id-1)%n){
+  //       for (int i=0;i<n;i++){
+  //         if(ms->skip_potentials_recd.find(i)!=ms->skip_potentials_recd.end() 
+  //             && ms->skip_potentials_recd.at(i).find(id)!=ms->skip_potentials_recd.at(i).end())
+  //           cnt++;
+  //       }
+  //       if (cnt>=(n/2+1)){
+  //         skip_commits.push_back(id);
+  //       }else{
+  //         break;
+  //       }
+  //     }else{
+  //       id+=1;
+  //     }
+  //   }
+  // }
+  // ms->g_mutex.unlock();
   // the customized alpha
   int alpha = 10;
   if (skip_commits.size()<alpha){
@@ -129,16 +117,16 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
 
   // from logs_ to compute potential SKIP entries => skip_potentials
   std::vector<uint64_t> skip_potentials;
-  ms->g_mutex.lock();
-  {
-    for (slotid_t id = ms->max_executed_slot_ + 1; id <= ms->max_committed_slot_; id++) {
-      auto& sp_instance = logs_[id];
-      if(!sp_instance){ // not committed yet
-        skip_potentials.push_back(id);
-      }
-    }
-  }
-  ms->g_mutex.unlock();
+  // ms->g_mutex.lock();
+  // {
+  //   for (slotid_t id = ms->max_executed_slot_ + 1; id <= ms->max_committed_slot_; id++) {
+  //     auto& sp_instance = logs_[id];
+  //     if(!sp_instance){ // not committed yet
+  //       skip_potentials.push_back(id);
+  //     }
+  //   }
+  // }
+  // ms->g_mutex.unlock();
 
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
@@ -147,20 +135,34 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
 
     FutureAttr fuattr;
-    fuattr.callback = [e, start, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
+    // auto start2 = chrono::system_clock::now();
+    auto start2 = 0;
+    fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
       e->FeedResponse(b==ballot);
-      auto end = chrono::system_clock::now();
-      auto duration = chrono::duration_cast<chrono::microseconds>(end-start).count();
-      //Log_info("The duration of Suggest() for %d is: %d", follower_id, duration);
+      // auto end = chrono::system_clock::now();
+      // auto duration = chrono::duration_cast<chrono::microseconds>(end-start2).count();
+      //Log_info("The duration of Suggest() for %d is: %d", follower_id, duration); // 20029
       // e->deps[leader_id][src_coroid][follower_id].erase(-1);
       // e->deps[leader_id][src_coroid][follower_id].insert(coro_id);
     };
     MarshallDeputy md(cmd);
     auto start1 = chrono::system_clock::now();
     uint64_t sender = loc_id_;
+    // time_t tstart = chrono::system_clock::to_time_t(start);
+    // tm * date = localtime(&tstart);
+    // date->tm_hour = 0;
+    // date->tm_min = 0;
+    // date->tm_sec = 0;
+    // auto midn = std::chrono::system_clock::from_time_t(std::mktime(date));
+
+    // auto hours = chrono::duration_cast<chrono::hours>(start-midn);
+    // auto minutes = chrono::duration_cast<chrono::minutes>(start-midn);
+
+    // auto start_ = chrono::duration_cast<chrono::microseconds>(start-midn-hours-minutes).count();
+    auto start_ = 0;
     auto f = proxy->async_Suggest(slot_id, start_, ballot, sender, skip_commits, skip_potentials, md, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();

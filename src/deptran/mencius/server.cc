@@ -83,14 +83,14 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     return;
   }
   in_applying_logs_ = true;
+  //slotid_t tmp_max_executed_slot_ = max_executed_slot_;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
-      if (executed_slots_[id]!=1){
+    //if (executed_slots_[id]!=1){
         app_next_(*next_instance->committed_cmd_);
-        executed_slots_.erase(id);
-      }
-        
+    //  executed_slots_.erase(id);
+    //}
       Log_debug("mencius par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
       n_commit_++;
@@ -99,22 +99,22 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     }
   }
 
-  // apply the entry out of order if there is no conflict
-  for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
-    auto next_instance = GetInstance(id);
-    if (next_instance->committed_cmd_) {
-      SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
-      if (uncommitted_keys_[parsed_cmd.key_]==0){
-        executed_slots_[id]=1;
-        app_next_(*next_instance->committed_cmd_);
-      }
-    }
-  }
+  //apply the entry out of order if there is no conflict
+  // for (slotid_t id = tmp_max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
+  //   auto next_instance = GetInstance(id);
+  //   if (next_instance->committed_cmd_) {
+  //     SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
+  //     if (uncommitted_keys_[parsed_cmd.key_]==0){
+  //       executed_slots_[id]=1;
+  //       app_next_(*next_instance->committed_cmd_);
+  //     }
+  //   }
+  // }
 
   // TODO should support snapshot for freeing memory.
   // for now just free anything 1000 slots before.
   int i = min_active_slot_;
-  std::lock_guard<std::mutex> guard(g_mutex);
+  // std::lock_guard<std::mutex> guard(g_mutex);
   {
     while (i + 1000 < max_executed_slot_) {
       logs_.erase(i);

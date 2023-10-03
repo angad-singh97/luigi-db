@@ -243,7 +243,7 @@ void ClientWorker::Work() {
 #ifdef COPILOT_DEBUG
       end_time = beg_time + duration * 5 * pow(10, 2);
 #endif 
-      while (true) {
+      while (true) { // start while
         auto cur_time = Time::now(); // optimize: this call is not scalable.
         if (cur_time > end_time) {
           break;
@@ -322,11 +322,11 @@ void ClientWorker::Work() {
           coo->_inuse_ = false;
           n_pause_concurrent_[coo->coo_id_] = true;
         }, __FILE__, __LINE__);
-      }
+      } // end while
       n_ceased_client_.Set(n_ceased_client_.value_+1);
     });
     poll_mgr_->add(dynamic_pointer_cast<Job>(sp_job));
-  }
+  } // end for loop n_concurrent
   poll_mgr_->add(dynamic_pointer_cast<Job>(std::make_shared<OneTimeJob>([this](){
     Log_info("wait for all virtual clients to stop issuing new requests.");
     n_ceased_client_.WaitUntilGreaterOrEqualThan(n_concurrent_,
@@ -340,8 +340,14 @@ void ClientWorker::Work() {
     all_done_ = 1;
   })));
 
+// force stop if there is no any move in 5 seconds
+  int prev_done = 0;
   while (all_done_ == 0) {
-    Log_info("wait for finish... n_ceased_cleints: %d,  "
+    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
+      break;
+    }
+    prev_done = (int) sp_n_tx_done_.value_;
+    Log_info("wait for finish... n_ceased_clients: %d,"
               "n_issued: %d, n_done: %d, n_created_coordinator: %d, client_id: %d",
               (int) n_ceased_client_.value_, (int) n_tx_issued_,
               (int) sp_n_tx_done_.value_, (int) created_coordinators_.size(), cli_id_);
