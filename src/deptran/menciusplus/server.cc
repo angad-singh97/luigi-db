@@ -27,6 +27,7 @@ void MenciusPlusServer::OnPrepare(slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_prepare_++;
+  WAN_WAIT
   cb();
 }
 
@@ -59,6 +60,7 @@ void MenciusPlusServer::OnSuggest(const slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_suggest_++;
+  WAN_WAIT
   cb();
 }
 
@@ -88,6 +90,7 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
     if (next_instance->committed_cmd_) {
       if (executed_slots_[id]!=1){
         CurpSkipFastpath(max_executed_slot_, next_instance->committed_cmd_);
+        // WAN_WAIT
         app_next_(*next_instance->committed_cmd_);
         executed_slots_.erase(id);
       }
@@ -108,6 +111,7 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
       if (uncommitted_keys_[parsed_cmd.key_]==0){
         executed_slots_[id]=1;
         CurpSkipFastpath(max_executed_slot_, next_instance->committed_cmd_);
+        // WAN_WAIT
         app_next_(*next_instance->committed_cmd_);
       }
     }

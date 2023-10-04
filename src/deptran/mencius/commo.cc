@@ -23,6 +23,8 @@ void MenciusCommo::BroadcastPrepare(parid_t par_id,
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
   auto leader_id = LeaderProxyForPartition(par_id).first;
+
+  WAN_WAIT
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     FutureAttr fuattr;
@@ -40,9 +42,9 @@ MenciusCommo::BroadcastPrepare(parid_t par_id,
   auto e = Reactor::CreateSpEvent<MenciusPrepareQuorumEvent>(n, n/2+1);
   auto src_coroid = e->GetCoroId();
   auto proxies = rpc_par_proxies_[par_id];
-
-  // WAN_WAIT;
   auto leader_id = LeaderProxyForPartition(par_id).first;
+
+  WAN_WAIT
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     auto follower_id = p.first;
@@ -79,7 +81,6 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   vector<Future*> fus;
   auto start = chrono::system_clock::now();
 
-  // WAN_WAIT;
   std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
   auto ms = dynamic_cast<MenciusServer*>(svr_workers->at((slot_id-1)%n).rep_sched_);
   auto skip_potentials_recd = ms->skip_potentials_recd;
@@ -128,6 +129,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   // }
   // ms->g_mutex.unlock();
 
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     auto follower_id = p.first;
@@ -204,6 +206,8 @@ void MenciusCommo::BroadcastDecide(const parid_t par_id,
   int n = proxies.size();
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
   vector<Future*> fus;
+  
+  // WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     FutureAttr fuattr;

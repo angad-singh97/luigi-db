@@ -465,6 +465,7 @@ void Communicator::BroadcastDispatch(
   Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
+  WAN_WAIT;
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
 }

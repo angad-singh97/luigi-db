@@ -342,6 +342,7 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
   } else if (AllDispatchAcked()) {
     Log_debug("receive all start acks, txn_id: %llx; START PREPARE",
               txn->id_);
+    WAN_WAIT
     GotoNextPhase();
   }
 }

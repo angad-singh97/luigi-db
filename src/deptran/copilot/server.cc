@@ -255,7 +255,7 @@ finish:
   Log_debug(
       "server %d [PREPARE    ] %s : %lu -> %lu status %x ballot %ld",
       id_, toString(is_pilot), slot, *dep, *status, *max_ballot);
-
+  WAN_WAIT;
   cb();
 }
 
@@ -342,6 +342,7 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   if (cb) {
     pingpong_event_.Set(1);
     pingpong_ok_ = true;
+    WAN_WAIT;
     cb();
   }
 }
@@ -377,8 +378,10 @@ void CopilotServer::OnAccept(const uint8_t& is_pilot,
   }
 
   *max_ballot = ballot;
-  if (cb)
+  if (cb) {
     cb();
+    WAN_WAIT;
+  }
 }
 
 void CopilotServer::OnCommit(const uint8_t& is_pilot,
@@ -532,6 +535,7 @@ void CopilotServer::removeCmd(CopilotLogInfo& log_info, slotid_t slot) {
 bool CopilotServer::executeCmd(shared_ptr<CopilotData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP))
+      // WAN_WAIT
       app_next_(*ins->cmd);
     ins->status = Status::EXECUTED;
     updateMaxExecSlot(ins);

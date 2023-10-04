@@ -76,7 +76,7 @@ void FpgaRaftCommo::SendHeartbeat(parid_t par_id,
 																  uint64_t logIndex) {
   auto proxies = rpc_par_proxies_[par_id];
   vector<Future*> fus;
-	WAN_WAIT;
+	// WAN_WAIT;
   for (auto& p : proxies) {
     if (p.first != site_id)
         continue;

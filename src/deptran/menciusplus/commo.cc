@@ -23,6 +23,8 @@ void MenciusPlusCommo::BroadcastPrepare(parid_t par_id,
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
   auto leader_id = LeaderProxyForPartition(par_id).first;
+
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (MenciusPlusProxy*) p.second;
     FutureAttr fuattr;
@@ -90,7 +92,6 @@ MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
   auto minutes = chrono::duration_cast<chrono::minutes>(start-midn);
 
   auto start_ = chrono::duration_cast<chrono::microseconds>(start-midn-hours-minutes).count();
-  WAN_WAIT;
   
   std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
   auto ms = dynamic_cast<MenciusPlusServer*>(svr_workers->at((slot_id-1)%n).rep_sched_);
@@ -140,6 +141,7 @@ MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
   }
   ms->g_mutex.unlock();
 
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (MenciusPlusProxy*) p.second;
     auto follower_id = p.first;
@@ -202,6 +204,8 @@ void MenciusPlusCommo::BroadcastDecide(const parid_t par_id,
   int n = proxies.size();
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
   vector<Future*> fus;
+
+  // WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (MenciusPlusProxy*) p.second;
     FutureAttr fuattr;

@@ -256,6 +256,7 @@ finish:
       "server %d [PREPARE    ] %s : %lu -> %lu status %x ballot %ld",
       id_, toString(is_pilot), slot, *dep, *status, *max_ballot);
 
+  WAN_WAIT
   cb();
 }
 
@@ -341,6 +342,7 @@ void CopilotPlusServer::OnFastAccept(const uint8_t& is_pilot,
   if (cb) {
     pingpong_event_.Set(1);
     pingpong_ok_ = true;
+    WAN_WAIT
     cb();
   }
 }
@@ -376,8 +378,10 @@ void CopilotPlusServer::OnAccept(const uint8_t& is_pilot,
   }
 
   *max_ballot = ballot;
-  if (cb)
+  if (cb) {
+    WAN_WAIT
     cb();
+  }
 }
 
 void CopilotPlusServer::OnCommit(const uint8_t& is_pilot,
@@ -532,6 +536,7 @@ bool CopilotPlusServer::executeCmd(shared_ptr<CopilotPlusData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
       CurpSkipFastpath(0, ins->cmd); // [CURP] TODO: findout what's here
+      // WAN_WAIT
       app_next_(*ins->cmd);
     }
     ins->status = Status::EXECUTED;

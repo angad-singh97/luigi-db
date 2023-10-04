@@ -103,7 +103,7 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotProxy *)p.second;
     auto site = p.first;
@@ -114,7 +114,7 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
       ballot_t b;
       uint64_t dep;
       status_t status;
-
+      WAN_WAIT;
       fu->get_reply() >> md >> b >> dep >> status;
       bool ok = (ballot == b);
       
@@ -151,7 +151,7 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotProxy *)p.second;
     auto site = p.first;
@@ -211,7 +211,7 @@ CopilotCommo::BroadcastAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotProxy *)p.second;
     auto site = p.first;
@@ -254,6 +254,7 @@ CopilotCommo::BroadcastCommit(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CopilotFakeQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   
+  // WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotProxy*) p.second;
     auto site = p.first;

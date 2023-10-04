@@ -29,6 +29,7 @@ void PaxosServer::OnForward(shared_ptr<Marshallable> &cmd,
 
   CreateRepCoord(dep_id)->Submit(cmd);
   *coro_id = Coroutine::CurrentCoroutine()->id;
+  WAN_WAIT
   cb();
 }
 
@@ -52,6 +53,7 @@ void PaxosServer::OnPrepare(slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_prepare_++;
+  WAN_WAIT
   cb();
 }
 
@@ -82,6 +84,7 @@ void PaxosServer::OnAccept(const slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_accept_++;
+  WAN_WAIT
   cb();
 }
 
@@ -104,6 +107,7 @@ void PaxosServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
+      // WAN_WAIT
       app_next_(*next_instance->committed_cmd_);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;

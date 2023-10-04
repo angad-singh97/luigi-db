@@ -3,8 +3,8 @@ import os
 def sorting_key(item):
     return item[:4] 
 
-
-directory_path = 'tmp/'
+exptime = "2023-09-28-23:04:14"
+directory_path = os.path.join("results", exptime)
 
 files = os.listdir(directory_path)
 
@@ -16,10 +16,11 @@ rows = []
 for file_name in file_names:
     parts = file_name.split("-")
     # print(parts)
-    mode = parts[0]
-    site = parts[1]
-    workload = parts[2]
-    conc = int(parts[3][parts[3].find("_")+1:parts[3].find(".")])
+    latency = parts[0]
+    mode = parts[1]
+    site = parts[2]
+    workload = parts[3]
+    conc = int(parts[4][parts[4].find("_")+1:parts[4].find(".")])
     throughtput = None
     latency50pct = None
     latency90pct = None
@@ -45,19 +46,19 @@ for file_name in file_names:
                 # if "loc_id_=0" in line and "curp_executed_committed_max_gap_" in line:
                 #     max_gap = int(line[line.find("gap_=")+5:line.find("curp_fast_path_success_count_")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count))
-    rows.append([site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count])
+    datas.append((latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count))
+    rows.append([latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count])
 
 datas = sorted(datas, key=sorting_key)
 # print(datas)
 for data in datas:
     print(data)
 
-fields = ["site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", "fastpath_count", "coordinatoraccept_count", "original_count"]
+fields = ["latency", "site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", "fastpath_count", "coordinatoraccept_count", "original_count"]
 
 import csv 
     
-filename = "curp_results.csv"
+filename = os.path.join("results", "curp_results-" + exptime + ".csv")
     
 # writing to csv file 
 with open(filename, 'w') as csvfile: 

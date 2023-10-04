@@ -134,7 +134,7 @@ CopilotPlusCommo::BroadcastPrepare(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy *)p.second;
     auto site = p.first;
@@ -183,7 +183,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy *)p.second;
     auto site = p.first;
@@ -238,7 +238,7 @@ CopilotPlusCommo::BroadcastAccept(parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
 
-  // WAN_WAIT
+  WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy *)p.second;
     auto site = p.first;
@@ -281,6 +281,7 @@ CopilotPlusCommo::BroadcastCommit(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CopilotFakeQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   
+  // WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotPlusProxy*) p.second;
     auto site = p.first;

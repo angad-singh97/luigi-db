@@ -471,8 +471,12 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] About to CurpForwardResultToCoordinator, accepted=%d key=%d ver=%d result=%d", *accepted, key, *ver, *result);
 #endif
-  shared_ptr<IntEvent> sq_quorum = commo()->CurpForwardResultToCoordinator(partition_id_, *accepted, *ver, cmd);
+  bool_t accepted_cp = *accepted;
+  ver_t ver_cp = *ver;
+  shared_ptr<Marshallable> cmd_cp = cmd;
+  WAN_WAIT;
   cb();
+  shared_ptr<IntEvent> sq_quorum = commo()->CurpForwardResultToCoordinator(partition_id_, accepted_cp, ver_cp, cmd_cp);
 }
 
 void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
@@ -499,6 +503,7 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
 #ifdef CURP_CONFLICT_DEBUG
     Log_info("[CURP] Client Triggered commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
 #endif
+    WAN_WAIT;
     cb();
   }
   Reactor::CreateSpEvent<TimeoutEvent>(CURP_WAIT_COMMIT_TIMEOUT * 1000)->Wait();
@@ -699,6 +704,7 @@ void TxLogServer::OnCurpPrepare(const key_t& key,
   *status = log->status_;
   *last_accepted_ballot = log->last_accepted_ballot_;
   md_cmd->SetMarshallable(log->GetCmd());
+  WAN_WAIT;
   cb();
 }
 
@@ -730,6 +736,7 @@ void TxLogServer::OnCurpAccept(const ver_t& ver,
     *accepted = false;
   }
   *seen_ballot = log->max_seen_ballot_;
+  WAN_WAIT;
   cb();
 }
 
@@ -779,6 +786,7 @@ void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
   // sp_tx->commit_result->Wait();
   // *slow = coo->slow_;
   *slow = false;
+  WAN_WAIT;
   cb();
 }
 
@@ -999,7 +1007,7 @@ value_t TxLogServer::DBPut(const shared_ptr<Marshallable>& cmd) {
 
 void InstanceCommitTimeoutPool::TimeoutLoop() {
   while (true) {
-    Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000 + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000 * 3))->Wait();
+    Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000 + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000))->Wait();
     for (set<pair<double, shared_ptr<CurpPlusData>>>::iterator it = pool_.begin(); it != pool_.end(); ++it) {
       if (it->first < SimpleRWCommand::GetCurrentMsTime()) {
         if (it->second->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || it->second->status_ == CurpPlusData::CurpPlusStatus::EXECUTED) {
@@ -1016,7 +1024,7 @@ void InstanceCommitTimeoutPool::TimeoutLoop() {
 void InstanceCommitTimeoutPool::AddTimeoutInstance(shared_ptr<CurpPlusData> instance, bool repeat_insert) {
   if (instance->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || instance->status_ == CurpPlusData::CurpPlusStatus::EXECUTED)
     return;
-  double trigger_ms_timeout = CURP_INSTANCE_COMMIT_TIMEOUT + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 3 * 1000) / 1000.0;
+  double trigger_ms_timeout = CURP_INSTANCE_COMMIT_TIMEOUT + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000) / 1000.0;
   if (repeat_insert) {
     pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
     return;

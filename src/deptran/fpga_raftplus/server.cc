@@ -465,6 +465,7 @@ void FpgaRaftPlusServer::StartTimer()
 				/*if (rand() % 1000 == 0) {
 					usleep(25*1000);
 				}*/
+        WAN_WAIT
         cb();
     }
 
@@ -484,7 +485,8 @@ void FpgaRaftPlusServer::StartTimer()
         }
 
         verify(*cmt_idx != 0) ;
-        cb() ;        
+        WAN_WAIT
+        cb();        
     }
 
   void FpgaRaftPlusServer::OnCommit(const slotid_t slot_id,
@@ -505,6 +507,7 @@ void FpgaRaftPlusServer::StartTimer()
         if (next_instance->log_) {
             Log_debug("fpga-raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
             CurpSkipFastpath(executeIndex, next_instance->log_);
+            // WAN_WAIT
             app_next_(*next_instance->log_);
             executeIndex++;
         } else {
@@ -536,6 +539,7 @@ void FpgaRaftPlusServer::StartTimer()
       for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
           auto next_instance = GetFpgaRaftInstance(id);
           if (next_instance->log_) {
+              // WAN_WAIT
               app_next_(*next_instance->log_);
               Log_debug("fpga-raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
               executeIndex++;

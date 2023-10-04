@@ -27,6 +27,7 @@ void MenciusServer::OnPrepare(slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_prepare_++;
+  WAN_WAIT
   cb();
 }
 
@@ -59,6 +60,7 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_suggest_++;
+  WAN_WAIT
   cb();
 }
 
