@@ -108,7 +108,7 @@ void CoordinatorMenciusPlus::Prepare() {
 }
 
 void CoordinatorMenciusPlus::Suggest() {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(!in_suggest);
   in_suggest = true;
   // Log_info("mencius coordinator broadcasts Suggest, "
@@ -122,8 +122,8 @@ void CoordinatorMenciusPlus::Suggest() {
   //Log_info("Suggest(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);
 
   sp_quorum->Wait();
-  auto end = chrono::system_clock::now();
-  auto duration = chrono::duration_cast<chrono::microseconds>(end-start);
+  // auto end = chrono::system_clock::now();
+  // auto duration = chrono::duration_cast<chrono::microseconds>(end-start);
   //auto duration_ready = chrono::duration_cast<chrono::microseconds>(end-sp_quorum->ready_time);
   //Log_info("Duration of Wait() in Suggest() is: %d", duration.count());
   //Log_info("Duration after Ready to end of Wait() is: %d", duration_ready.count());
@@ -172,7 +172,7 @@ void CoordinatorMenciusPlus::Suggest() {
 }
 
 void CoordinatorMenciusPlus::Commit() {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // std::lock_guard<std::recursive_mutex> lock(mtx_);
   commit_callback_();
   Log_debug("mencius broadcast commit for partition: %d, slot %d",
             (int) par_id_, (int) slot_id_);
