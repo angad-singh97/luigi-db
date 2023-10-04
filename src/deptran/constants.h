@@ -139,14 +139,12 @@ namespace janus {
 // #define COPILOT_DEBUG
 // #define CURP_TIME_DEBUG
 // #define COPILOT_TIME_DEBUG
-#define FINISH_COUNTDOWN_MAX (1)
+// #define FINISH_COUNTDOWN_MAX (1)
 // #define TC
-// #define CURP_SEND_TC
-#define TC_LATENCY (20000)
 
-#define CURP_FAST_PATH_TIMEOUT (25)
-#define CURP_WAIT_COMMIT_TIMEOUT (70)
-#define CURP_INSTANCE_COMMIT_TIMEOUT (100)
+// #define CURP_FAST_PATH_TIMEOUT (25) -> Config::GetConfig()->curp_fastpath_timeout_
+// #define CURP_WAIT_COMMIT_TIMEOUT (70) -> Config::GetConfig()->curp_wait_commit_timeout_
+// #define CURP_INSTANCE_COMMIT_TIMEOUT (100) -> Config::GetConfig()->curp_instance_commit_timeout_
 
 #define SIMULATE_WAN
 // #define CURP_CONFLICT_DEBUG

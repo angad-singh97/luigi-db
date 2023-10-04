@@ -421,6 +421,13 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   // *coo_id = 0;
   
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+  // Config *cfg = Config::GetConfig();
+  // Log_info("[CURP] finish_countdown = %d", Config::GetConfig()->finish_countdown_);
+  // Log_info("[CURP] curp_fastpath_timeout_ = %d", Config::GetConfig()->curp_fastpath_timeout_);
+  // Log_info("[CURP] curp_wait_commit_timeout_ = %d", Config::GetConfig()->curp_wait_commit_timeout_);
+  // Log_info("[CURP] curp_instance_commit_timeout_ = %d", Config::GetConfig()->curp_instance_commit_timeout_);
+
   n_fast_path_attempted_++;
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -506,7 +513,7 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
     WAN_WAIT;
     cb();
   }
-  Reactor::CreateSpEvent<TimeoutEvent>(CURP_WAIT_COMMIT_TIMEOUT * 1000)->Wait();
+  Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_wait_commit_timeout_ * 1000)->Wait();
   if (!executed_results_[cmd_id]->coordinator_replied_) {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
@@ -556,7 +563,7 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     SimpleRWCommand::GetCmdID(cmd).first, 
     SimpleRWCommand::GetCmdID(cmd).second, 
     max_accepted_num >= CurpFastQuorumSize(n_replica), 
-    (time_elapses > CURP_FAST_PATH_TIMEOUT || max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica))
+    (time_elapses > Config::GetConfig()->curp_fastpath_timeout_ || max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica))
       && accepted_num >= CurpQuorumSize(n_replica),
     time_elapses
   );
@@ -569,7 +576,7 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     // [CURP] TODO: verify(cmd == max_cmd)
     CurpCommit(ver, max_cmd);
     curp_fast_path_success_count_++;
-  } else if ( (time_elapses > CURP_FAST_PATH_TIMEOUT || max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica))
+  } else if ( (time_elapses > Config::GetConfig()->curp_fastpath_timeout_ || max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica))
       && accepted_num >= CurpQuorumSize(n_replica) ) {
     // branch 2
     if (response_pack->done_) return;
@@ -577,7 +584,7 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
     CurpAccept(ver, 1, max_cmd);
   } 
-  // else if (time_elapses > CURP_FAST_PATH_TIMEOUT && response_pack->received_count_ >= CurpQuorumSize(n_replica)) {
+  // else if (time_elapses > Config::GetConfig()->curp_fastpath_timeout_ && response_pack->received_count_ >= CurpQuorumSize(n_replica)) {
   //   // Branch 3
   //   // do nothings
   //   // shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
@@ -859,7 +866,7 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Attempted to commit FIN for cmd<%d> at svr %d", cmd_id, loc_id_);
 #endif
-    auto e = commo()->CurpBroadcastDispatch(MakeFinishCmd(partition_id_, cmd_id, key, 100));
+    auto e = commo()->CurpBroadcastDispatch(MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_));
     e->Wait();
   }
 #ifdef CURP_FULL_LOG_DEBUG
@@ -1007,7 +1014,7 @@ value_t TxLogServer::DBPut(const shared_ptr<Marshallable>& cmd) {
 
 void InstanceCommitTimeoutPool::TimeoutLoop() {
   while (true) {
-    Reactor::CreateSpEvent<TimeoutEvent>(CURP_INSTANCE_COMMIT_TIMEOUT * 1000 + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000))->Wait();
+    Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_instance_commit_timeout_ * 1000 + rand() % (Config::GetConfig()->curp_instance_commit_timeout_ * 1000))->Wait();
     for (set<pair<double, shared_ptr<CurpPlusData>>>::iterator it = pool_.begin(); it != pool_.end(); ++it) {
       if (it->first < SimpleRWCommand::GetCurrentMsTime()) {
         if (it->second->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || it->second->status_ == CurpPlusData::CurpPlusStatus::EXECUTED) {
@@ -1024,7 +1031,7 @@ void InstanceCommitTimeoutPool::TimeoutLoop() {
 void InstanceCommitTimeoutPool::AddTimeoutInstance(shared_ptr<CurpPlusData> instance, bool repeat_insert) {
   if (instance->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || instance->status_ == CurpPlusData::CurpPlusStatus::EXECUTED)
     return;
-  double trigger_ms_timeout = CURP_INSTANCE_COMMIT_TIMEOUT + rand() % (CURP_INSTANCE_COMMIT_TIMEOUT * 1000) / 1000.0;
+  double trigger_ms_timeout = Config::GetConfig()->curp_instance_commit_timeout_ + rand() % (Config::GetConfig()->curp_instance_commit_timeout_ * 1000) / 1000.0;
   if (repeat_insert) {
     pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
     return;

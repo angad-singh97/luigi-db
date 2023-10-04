@@ -1150,9 +1150,6 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n));
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
@@ -1206,9 +1203,6 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
 //   MarshallDeputy md(cmd);
 
 //   auto e = Reactor::CreateSpEvent<IntEvent>();
-// #ifdef CURP_SEND_TC
-//   usleep(TC_LATENCY);
-// #endif
 //   for (auto& pair : rpc_par_proxies_[par_id]) 
 //     if (pair.first == target_site) {
 //       rrr::FutureAttr fuattr;
@@ -1249,9 +1243,6 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
   // sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
   sp_vpd->sp_vec_piece_data_ = vec_piece_data;
   MarshallDeputy md(sp_vpd);
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& pair : rpc_par_proxies_[par_id])
     if (pair.first == coo_id) {
@@ -1282,9 +1273,6 @@ Communicator::CurpForwardResultToCoordinator(parid_t par_id,
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy cmd_deputy(cmd);
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
@@ -1315,9 +1303,6 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CurpPrepareQuorumEvent>(n, ballot);
   auto proxies = rpc_par_proxies_[par_id];
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
@@ -1347,9 +1332,6 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CurpAcceptQuorumEvent>(n);
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy cmd_deputy(cmd);
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;
@@ -1376,9 +1358,6 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   auto e = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
   MarshallDeputy cmd_deputy(cmd);
-#ifdef CURP_SEND_TC
-  usleep(TC_LATENCY);
-#endif
   WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CurpProxy *)p.second;

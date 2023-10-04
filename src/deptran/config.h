@@ -79,6 +79,12 @@ class Config {
   int32_t failover_run_int_;
   int32_t failover_stop_int_;
 
+  // CURP related
+  int finish_countdown_;
+  int curp_fastpath_timeout_;
+  int curp_wait_commit_timeout_;
+  int curp_instance_commit_timeout_;
+
   // TODO remove, will cause problems.
   uint32_t num_site_;
   uint32_t start_coordinator_id_;
@@ -161,7 +167,11 @@ class Config {
          uint32_t duration,
          bool heart_beat,
          single_server_t single_server,
-         string logging_path
+         string logging_path,
+         int finish_countdown,
+         int curp_fastpath_timeout,
+         int curp_wait_commit_timeout,
+         int curp_instance_commit_timeout
   );
   int GetClientPort(std::string site_name);
 

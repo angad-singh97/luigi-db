@@ -22,9 +22,6 @@ void CurpServiceImpl::CurpDispatch(const int32_t& client_id,
 #endif
 
   // Log_info("[CURP] Received request from async_PoorDispatch");
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   // Log_info("[CURP] %d, %d received CurpPoorDispatch of cmd<%d, %d>", sched_->loc_id_, sched_->site_id_, client_id, cmd_id_in_client);
   sched_->OnCurpDispatch(client_id,
                       cmd_id_in_client,
@@ -43,9 +40,6 @@ void CurpServiceImpl::CurpWaitCommit(const int32_t& client_id,
                                       value_t* commit_result,
                                       rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   sched_->OnCurpWaitCommit(client_id,
                         cmd_id_in_client,
                         committed,
@@ -64,9 +58,6 @@ void CurpServiceImpl::CurpForward(const bool_t& accepted,
   gettimeofday(&tp, NULL);
   Log_info("[CURP] [2+] [tx=%d] on Forward %.3f", dynamic_pointer_cast<TpcCommitCommand>(const_cast<MarshallDeputy&>(cmd).sp_data_)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   sched_->OnCurpForward(accepted,
                         ver,
                         const_cast<MarshallDeputy&>(cmd).sp_data_);
@@ -81,9 +72,6 @@ void CurpServiceImpl::CurpPrepare(const key_t& k,
                                   ballot_t* last_accepted_ballot,
                                   MarshallDeputy* cmd,
                                   rrr::DeferredReply* defer) {
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   sched_->OnCurpPrepare(k,
                         ver,
                         ballot,
@@ -101,9 +89,6 @@ void CurpServiceImpl::CurpAccept(const ver_t& ver,
                                   bool_t* accepted,
                                   ballot_t* seen_ballot,
                                   rrr::DeferredReply* defer) {
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   sched_->OnCurpAccept(ver,
                         ballot,
                         const_cast<MarshallDeputy&>(md_cmd).sp_data_,
@@ -117,9 +102,6 @@ void CurpServiceImpl::CurpCommit(const ver_t& ver,
             rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   // Log_info("[CURP] CurpServiceImpl::CurpCommit site %d", sched_->site_id_);
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   sched_->OnCurpCommit(ver,
                         const_cast<MarshallDeputy&>(cmd).sp_data_);
   defer->reply();
@@ -130,9 +112,6 @@ void CurpServiceImpl::CurpCommit(const ver_t& ver,
 //                                                 bool_t* slow,
 //                                                 rrr::DeferredReply* defer)  {
 //   verify(sched_ != nullptr);
-// #ifdef TC
-//   usleep(TC_LATENCY);
-// #endif
 //   shared_ptr<Marshallable> cmd{md.sp_data_};
 //   sched_->OnOriginalSubmit(cmd, 
 //                             dep_id,
@@ -144,9 +123,6 @@ void CurpServiceImpl::CurpTest(const int32_t& a,
                                           int32_t* b,
                                           rrr::DeferredReply* defer) {
   verify(a == 42);
-#ifdef TC
-  usleep(TC_LATENCY);
-#endif
   Log_info("[CURP] received sent 42");
   *b = 24;
   defer->reply();

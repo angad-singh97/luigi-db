@@ -68,10 +68,18 @@ int Config::CreateConfig(int argc, char **argv) {
   int32_t tot_req_num           = 10000;
   int16_t n_concurrent          = 1;
 
+  // CURP related
+  int finish_countdown = 100;
+  int curp_fastpath_timeout = 3;
+  int curp_wait_commit_timeout = 10;
+  int curp_instance_commit_timeout = 3;
+  string timeouts;
+  size_t pos;
+
   int c;
   optind = 1;
   string filename;
-  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:")) != -1) {
+  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:")) != -1) {
     switch (c) {
       case 'b': // heartbeat to controller
         heart_beat = true;
@@ -136,6 +144,27 @@ int Config::CreateConfig(int argc, char **argv) {
 
         if (server_or_client != -1) return -4;
         server_or_client = 0;
+        break;
+      case 'F': // finish countdown
+        finish_countdown = strtoul(optarg, &end_ptr, 10);
+        break;
+      case 'O': // timeout: CURP_FAST_PATH_TIMEOUT - CURP_WAIT_COMMIT_TIMEOUT - CURP_INSTANCE_COMMIT_TIMEOUT
+        timeouts = string(optarg);
+
+        pos = timeouts.find("-");
+        if (pos == string::npos) return -4;
+        curp_fastpath_timeout = stoi(timeouts.substr(0, pos));
+
+        timeouts = timeouts.substr(pos + 1, string::npos);
+
+        pos = timeouts.find("-");
+        if (pos == string::npos) return -4;
+        curp_wait_commit_timeout = stoi(timeouts.substr(0, pos));
+
+        timeouts = timeouts.substr(pos + 1, string::npos);
+
+        curp_instance_commit_timeout = stoi(timeouts);
+
         break;
       case 'S': // client touch only single server
       {
@@ -204,7 +233,11 @@ int Config::CreateConfig(int argc, char **argv) {
     duration,
     heart_beat,
     single_server,
-    logging_path);
+    logging_path,
+    finish_countdown,
+    curp_fastpath_timeout,
+    curp_wait_commit_timeout,
+    curp_instance_commit_timeout);
   config_s->proc_name_ = proc_name;
   config_s->config_paths_ = config_paths;
   config_s->Load();
@@ -230,7 +263,11 @@ Config::Config(char           *ctrl_hostname,
                uint32_t        duration,
                bool            heart_beat,
                single_server_t single_server,
-               string           logging_path) :
+               string           logging_path,
+               int              finish_countdown,
+               int              curp_fastpath_timeout,
+               int              curp_wait_commit_timeout,
+               int              curp_instance_commit_timeout) :
   heart_beat_(heart_beat),
   ctrl_hostname_(ctrl_hostname),
   ctrl_port_(ctrl_port),
@@ -264,7 +301,12 @@ Config::Config(char           *ctrl_hostname,
   cid_(1),
   next_site_id_(0),
   proc_host_map_(map<string, string>()),
-  sharding_(nullptr)
+  sharding_(nullptr),
+
+  finish_countdown_(finish_countdown),
+  curp_fastpath_timeout_(curp_fastpath_timeout),
+  curp_wait_commit_timeout_(curp_wait_commit_timeout),
+  curp_instance_commit_timeout_(curp_instance_commit_timeout)
 {
 }
 
