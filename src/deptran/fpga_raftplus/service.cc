@@ -103,7 +103,7 @@ void FpgaRaftPlusServiceImpl::AppendEntries(const uint64_t& slot,
 	}*/
 
 
-  Coroutine::CreateRun([&] () {
+  // Coroutine::CreateRun([&] () {
     sched()->OnAppendEntries(slot,
                             ballot,
                             leaderCurrentTerm,
@@ -117,7 +117,7 @@ void FpgaRaftPlusServiceImpl::AppendEntries(const uint64_t& slot,
                             followerLastLogIndex,
                             std::bind(&rrr::DeferredReply::reply, defer));
 
-  });
+  // });
 	
 }
 
@@ -128,12 +128,16 @@ void FpgaRaftPlusServiceImpl::Decide(const uint64_t& slot,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
 	//Log_info("Deciding with string: %s and id: %d", dep_id.str.c_str(), dep_id.id);
-  Coroutine::CreateRun([&] () {
+
+  // Coroutine::CreateRun([&] () {
     sched()->OnCommit(slot,
                      ballot,
                      const_cast<MarshallDeputy&>(md_cmd).sp_data_);
+
+    // Running on a coroutine causes the segfault.
+    verify(defer != nullptr);
     defer->reply();
-  });
+  // });
 }
 
 
