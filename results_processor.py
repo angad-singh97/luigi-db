@@ -1,9 +1,17 @@
 import os
 
+import argparse
+
 def sorting_key(item):
     return item[:4] 
 
-exptime = "2023-10-06-07:25:39"
+
+parser = argparse.ArgumentParser(description="Description of your script.")
+parser.add_argument('exptime', type=str, help='Name of the directory to open under directory "results"')
+args = parser.parse_args()
+exptime = args.exptime
+
+# exptime = "2023-10-10-03:38:03"
 directory_path = os.path.join("results", exptime)
 
 files = os.listdir(directory_path)
@@ -30,41 +38,83 @@ for file_name in file_names:
         fastpath_timeout = None
         wait_commit_timeout = None
         instance_commit_timeout = None
+
     throughtput = None
+
+    fastpath_count = None
+    fastpath_50pct = None
+    coordinatoraccept_count = None
+    coordinatoraccept_50pct = None
+    fast_original_count = None
+    fast_original_50pct = None
+    slow_original_count = None
+    slow_original_50pct = None
+
     latency50pct = None
     latency90pct = None
     latency99pct = None
-    fastpath_count = None
-    coordinatoraccept_count = None
-    original_count = None
-    max_gap = None
+
+    # fastpath_count = None
+    # coordinatoraccept_count = None
+    # original_count = None
+
+    cpu0_medium = None
+    cpu1_medium = None
+    cpu2_medium = None
+    clientall_medium = None
+
     with open(os.path.join(directory_path, file_name), "r") as file:
         for line in file:
             if "Total throughtput is" in line:
                 throughtput = float(line[line.find("is")+3:].strip())
+            if "Fastpath" in line:
+                fastpath_count = int(line[line.find("count")+6:line.find("50pct")])
+                fastpath_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if fastpath_count > 0 else None
+            if "CoordinatorAccept" in line:
+                coordinatoraccept_count = int(line[line.find("count")+6:line.find("50pct")])
+                coordinatoraccept_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if coordinatoraccept_count > 0 else None
+            if "Fast-Original" in line:
+                fast_original_count = int(line[line.find("count")+6:line.find("50pct")])
+                fast_original_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if fast_original_count > 0 else None
+            if "Slow-Original" in line:
+                slow_original_count = int(line[line.find("count")+6:line.find("50pct")])
+                slow_original_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if slow_original_count > 0 else None
             if "Latency-50pct is" in line:
                 latency50pct = float(line[line.find("Latency-50pct is")+17:line.find("Latency-90pct is")-4])
                 latency90pct = float(line[line.find("Latency-90pct is")+17:line.find("Latency-99pct is")-4])
                 latency99pct = float(line[line.find("Latency-99pct is")+17:-4])
-            if "plus" in mode:
-                if "FastPath-count" in line:
-                    # print(line[line.find("OriginalProtocol-count =")+25:])
-                    fastpath_count = int(line[line.find("FastPath-count =")+16:line.find("CoordinatorAccept-count")])
-                    coordinatoraccept_count = int(line[line.find("CoordinatorAccept-count =")+26:line.find("OriginalProtocol-count")])
-                    original_count = int(line[line.find("OriginalProtocol-count =")+25:])
-                # if "loc_id_=0" in line and "curp_executed_committed_max_gap_" in line:
-                #     max_gap = int(line[line.find("gap_=")+5:line.find("curp_fast_path_success_count_")])
+            # if "plus" in mode:
+            #     if "FastPath-count" in line:
+            #         fastpath_count = int(line[line.find("FastPath-count =")+16:line.find("CoordinatorAccept-count")])
+            #         coordinatoraccept_count = int(line[line.find("CoordinatorAccept-count =")+26:line.find("OriginalProtocol-count")])
+            #         original_count = int(line[line.find("OriginalProtocol-count =")+25:])
+            if "cpu0" in line:
+                cpu0_medium = float(line[line.find("medium")+8:line.find("mean")])
+            if "cpu1" in line:
+                cpu1_medium = float(line[line.find("medium")+8:line.find("mean")])
+            if "cpu2" in line:
+                cpu2_medium = float(line[line.find("medium")+8:line.find("mean")])
+            if "clientall" in line:
+                clientall_medium = float(line[line.find("medium")+8:line.find("mean")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout))
-    rows.append([latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout])
+    datas.append((latency, site, workload, mode, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+                  throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
+                  fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
+                  cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium))
+    rows.append([latency, site, workload, mode, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+                  throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
+                  fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
+                  cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium])
 
 datas = sorted(datas, key=sorting_key)
 # print(datas)
 for data in datas:
     print(data)
 
-fields = ["latency", "site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", \
-          "fastpath_count", "coordinatoraccept_count", "original_count", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout"]
+fields = ["latency", "site", "workload", "mode", "conc", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout",\
+            "throughtput", "fastpath_count", "fastpath_50pct", "coordinatoraccept_count", "coordinatoraccept_50pct", "fast_original_count",\
+            "fast_original_50pct", "slow_original_count", "slow_original_50pct", "latency50pct", "latency90pct", "latency99pct", \
+            "cpu0_medium", "cpu1_medium", "cpu2_medium", "clientall_medium"]
 
 import csv 
     

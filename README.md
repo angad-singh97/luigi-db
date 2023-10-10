@@ -20,6 +20,15 @@ python3 waf configure build
 python3 curp_test.py
 ```
 
+### results process
+
+```
+python3 results_processor.py <Experiment time (directory name under results folder)>
+```
+e.g.
+```
+python3 results_processor.py 2023-10-10-03:38:03
+```
 
 ## Code structure
 
