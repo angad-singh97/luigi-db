@@ -23,11 +23,11 @@ shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
 
 class CurpPlusData : public enable_shared_from_this<CurpPlusData>{
  private:
-  TxLogServer* svr_{nullptr};
   key_t key_;
   ver_t ver_;
   shared_ptr<Marshallable> cmd_{nullptr};
  public:
+  TxLogServer* svr_{nullptr};
   enum CurpPlusStatus {
     INIT = 0,
     PREACCEPT = 1,
@@ -106,6 +106,8 @@ class Distribution {
     return data.size();
   }
   double pct(double pct) {
+    if (data.size() == 0)
+      return -1;
     sort(data.begin(), data.end());
     return data[floor(data.size() * pct)];
   }
@@ -225,6 +227,11 @@ class TxLogServer {
   int curp_fast_path_success_count_ = 0;
   int curp_coordinator_accept_count_ = 0;
   int original_protocol_submit_count_ = 0;
+
+  int curp_fastpath_timeout_count_ = 0;
+  int curp_wait_commit_timeout_count_ = 0;
+  int curp_instance_commit_timeout_trigger_prepare_count_ = 0;
+  int finish_countdown_count_ = 0;
 
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;

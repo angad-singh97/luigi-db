@@ -100,7 +100,12 @@ class Coordinator {
   /******global unique id end********/
 
   // For latency test
-  Distribution cli2cli_;
+  Distribution cli2cli_[5];
+  // 0: fastpath success, 1 RTT
+  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT)
+  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT
+  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout
+  // 4: original protocol, 2 RTT
 
   // For Curp Coordinator Count
   int fastpath_count_ = 0;

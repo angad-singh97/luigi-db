@@ -32,7 +32,9 @@ volatile double total_throughput = 0;
 int fastpath_count = 0;
 int coordinatoraccept_count = 0;
 int original_protocol_count = 0;
-Distribution cli2cli;
+Distribution cli2cli[6];
+// definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
+// 5nd element is for merge first 4
 
 void client_setup_heartbeat(int num_clients) {
   Log_info("%s", __FUNCTION__);
@@ -167,7 +169,8 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
 void client_shutdown() {
   for (const unique_ptr<ClientWorker>& client: client_workers_g) {
     client->retrive_statistic();
-    cli2cli.merge(client->cli2cli_);
+    for (int i = 0; i < 5; i++)
+      cli2cli[i].merge(client->cli2cli_[i]);
     fastpath_count += client->fastpath_count_;
     coordinatoraccept_count += client->coordinatoraccept_count_;
     original_protocol_count += client->original_protocol_count_;
@@ -176,6 +179,7 @@ void client_shutdown() {
 }
 
 void server_shutdown() {
+  Log_info("server_shutdown");
   for (auto &worker : svr_workers_g) {
     worker.ShutDown();
   }
@@ -411,8 +415,16 @@ int main(int argc, char *argv[]) {
   ProfilerStop();
 #endif // ifdef CPU_PROFILE
   client_shutdown();
-  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli.pct50(), cli2cli.pct90(), cli2cli.pct99());
-  Log_info("FastPath-count = %d CoordinatorAccept-count = %d OriginalProtocol-count = %d", fastpath_count, coordinatoraccept_count, original_protocol_count);
+  
+  for (int i = 0; i < 5; i++)
+    cli2cli[5].merge(cli2cli[i]);
+  Log_info("Fastpath count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[0].count(), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99());
+  Log_info("CoordinatorAccept count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[1].count(), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99());
+  Log_info("Fast-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[2].count(), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99());
+  Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99());
+  Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99());
+  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99());
+  // Log_info("FastPath-count = %d CoordinatorAccept-count = %d OriginalProtocol-count = %d", fastpath_count, coordinatoraccept_count, original_protocol_count);
   server_shutdown();
   // TODO, FIXME pending_future in rpc cause error.
   fflush(stderr);

@@ -21,6 +21,7 @@ void CoordinatorCurp::GotoNextPhase() {
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       verify(phase_ % n_phase == Phase::DISPATCH);
+      finish_countdown_ = 0;
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       BroadcastDispatch();
       break;
@@ -35,10 +36,9 @@ void CoordinatorCurp::GotoNextPhase() {
         phase_ += 2;
         verify(phase_ % n_phase == Phase::INIT_END);
         fastpath_count_++;
-        cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else if (finish_countdown_ > 0) {
-        finish_countdown_ = 0;
         phase_++;
         verify(phase_ % n_phase == Phase::ORIGIN);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -63,7 +63,7 @@ void CoordinatorCurp::GotoNextPhase() {
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
         coordinatoraccept_count_++;
-        cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
 #ifdef CURP_FULL_LOG_DEBUG
@@ -79,7 +79,10 @@ void CoordinatorCurp::GotoNextPhase() {
 #endif
       committed_ = true;
       original_protocol_count_++;
-      cli2cli_.append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      if (finish_countdown_ > 0)
+        cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      else
+        cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       End();
       break;
     default:

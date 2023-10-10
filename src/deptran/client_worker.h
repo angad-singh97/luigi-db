@@ -60,7 +60,7 @@ class ClientWorker {
   volatile bool* failover_server_quit_;
   volatile locid_t* failover_server_idx_;
   volatile double* total_throughput_;
-  Distribution cli2cli_;
+  Distribution cli2cli_[5];
   int fastpath_count_ = 0;
   int coordinatoraccept_count_ = 0;
   int original_protocol_count_ = 0;

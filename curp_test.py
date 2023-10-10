@@ -33,13 +33,13 @@ modes_ = [
     "none_paxos",
     "none_mencius",
     "none_copilot",
-    # "none_fpga_raft",
+    "none_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
-    # "mencius_plus",
-    # "copilot_plus",
-    # "fpga_raft_plus",
+    "mencius_plus",
+    "copilot_plus",
+    "fpga_raft_plus",
 ]
 sites_ = [
     "12c1s3r1p",
@@ -95,22 +95,27 @@ latency_concurrent_ = [
     "concurrent_30000",
 ]
 finish_countdown_ = [
-    1,
+    # 1,
     10,
-    100,
+    # 100,
 ]
 fast_path_timeout_ = [
-    5,
-    25
+    # 5,
+    # 25,
+    1000000,
 ]
 wait_commit_timeout_ = [
-    i for i in range(5, 100, 20)
+    # i for i in range(5, 100, 20)
+    45,
+    # 65,
+    85,
 ]
 instance_commit_timeout_ = [
-    i for i in range(5, 100, 20)
+    # i for i in range(5, 100, 20)
+    1000,
 ]
 
-def run(latency, m, s, b, c, fc=0, to1=0, to2=0, to3=1000):
+def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
@@ -159,7 +164,7 @@ def timeout_finetune():
 
     exp_count = len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
-    # exp_count += len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_)
+    exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(benchmarks_)
     estimate_minute = exp_count // 2
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
@@ -176,11 +181,38 @@ def timeout_finetune():
                             for to2 in wait_commit_timeout_:
                                 for to3 in instance_commit_timeout_:
                                     run(20, m, s, b, c, fc, to1, to2, to3)
-    # for s in sites_:
-    #     for m in modes_:
-    #         for c in latency_concurrent_:
-    #             for b in benchmarks_:
-    #                 run(20, m, s, b, c)
+    for s in sites_:
+        for m in modes_:
+            for c in latency_concurrent_:
+                for b in benchmarks_:
+                    run(20, m, s, b, c)
+
+def test_all():
+    exp_count = len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
+        * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
+    exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(benchmarks_)
+    estimate_minute = exp_count // 2
+    estimate_hour = estimate_minute // 60
+    estimate_minute -= estimate_hour * 60
+    print("Number of total experiments is", exp_count)
+    print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
+
+    print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
+    for s in sites_:
+        for m in curp_modes_:
+            for c in latency_concurrent_:
+                for b in benchmarks_:
+                    for fc in finish_countdown_:
+                        for to1 in fast_path_timeout_:
+                            for to2 in wait_commit_timeout_:
+                                for to3 in instance_commit_timeout_:
+                                    run(20, m, s, b, c, fc, to1, to2, to3)
+    for s in sites_:
+        for m in modes_:
+            for c in latency_concurrent_:
+                for b in benchmarks_:
+                    run(20, m, s, b, c)
+
 
 def main():
     global modes_
@@ -206,7 +238,8 @@ def main():
     # sites_ = args.sites
     # benchmarks_ = args.benchmarks
 
-    timeout_finetune()
+    # timeout_finetune()
+    test_all()
 
 if __name__ == "__main__":
     main()

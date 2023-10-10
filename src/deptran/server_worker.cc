@@ -298,7 +298,9 @@ void ServerWorker::ShutDown() {
 //   delete rep_frame_;
 // //  thread_pool_g->release();
 //   svr_poll_mgr_->release();
+  Log_info("Deleting......");
   if (rep_sched_) delete rep_sched_;
+  Log_info("Deleted one.");
 }
 
 int ServerWorker::DbChecksum() {

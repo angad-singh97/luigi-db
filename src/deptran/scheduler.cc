@@ -272,6 +272,8 @@ TxLogServer::~TxLogServer() {
     Log_info("[CURP] End Profile");
   }
 #endif
+  Log_info("svr%d fastpath_timeout_count %d wait_commit_timeout_count %d instance_commit_timeout_trigger_prepare_count %d finish_countdown_count %d", 
+    loc_id_, curp_fastpath_timeout_count_, curp_wait_commit_timeout_count_, curp_instance_commit_timeout_trigger_prepare_count_, finish_countdown_count_);
   // [CURP] comment this because FINISH involved and influenced the counting, so only client end counting have been outputed
   // verify(cli2svr_dispatch_count > 0 && cli2svr_commit_count > 0);
   // if (cli2svr_dispatch.count() || cli2svr_commit.count())
@@ -515,6 +517,7 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
   }
   Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_wait_commit_timeout_ * 1000)->Wait();
   if (!executed_results_[cmd_id]->coordinator_replied_) {
+    curp_wait_commit_timeout_count_++;
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
 #endif
@@ -539,10 +542,10 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
   }
   shared_ptr<ResponseData> response_pack = nullptr;
   if (curp_response_storage_[make_pair(key, ver)] == nullptr) {
-      curp_response_storage_[make_pair(key, ver)] = make_shared<ResponseData>();
-      response_pack = curp_response_storage_[make_pair(key, ver)];
-      response_pack->first_seen_time_ = SimpleRWCommand::GetCurrentMsTime();
-      response_pack->pos_of_this_pack = make_pair(key, ver);
+    curp_response_storage_[make_pair(key, ver)] = make_shared<ResponseData>();
+    response_pack = curp_response_storage_[make_pair(key, ver)];
+    response_pack->first_seen_time_ = SimpleRWCommand::GetCurrentMsTime();
+    response_pack->pos_of_this_pack = make_pair(key, ver);
   } else {
     response_pack = curp_response_storage_[make_pair(key, ver)];
   }
@@ -579,6 +582,8 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
   } else if ( (time_elapses > Config::GetConfig()->curp_fastpath_timeout_ || max_accepted_num + (n_replica - response_pack->received_count_) < CurpFastQuorumSize(n_replica))
       && accepted_num >= CurpQuorumSize(n_replica) ) {
     // branch 2
+    if (time_elapses > Config::GetConfig()->curp_fastpath_timeout_)
+      curp_fastpath_timeout_count_++;
     if (response_pack->done_) return;
     response_pack->done_ = true;
     shared_ptr<Marshallable> max_cmd = response_pack->GetMaxCmd();
@@ -909,6 +914,7 @@ void CurpPlusDataCol::Execute(ver_t ver) {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] loc=%d finish_countdown_[%d] + %d = %d", svr_->loc_id_, key_, instance->value_, svr_->finish_countdown_[key_] + instance->value_);
 #endif
+    svr_->finish_countdown_count_++;
     svr_->finish_countdown_[key_] += instance->value_;
   } else {
     value_t result;
@@ -1020,6 +1026,7 @@ void InstanceCommitTimeoutPool::TimeoutLoop() {
         if (it->second->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || it->second->status_ == CurpPlusData::CurpPlusStatus::EXECUTED) {
           in_pool_.erase(it->second->GetPos());
         } else {
+          it->second->svr_->curp_instance_commit_timeout_trigger_prepare_count_++;
           it->second->PrepareInstance();
           AddTimeoutInstance(it->second, true);
           pool_.erase(it);
