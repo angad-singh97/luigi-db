@@ -3,7 +3,7 @@ import os
 def sorting_key(item):
     return item[:4] 
 
-exptime = "2023-09-28-23:04:14"
+exptime = "2023-10-06-07:25:39"
 directory_path = os.path.join("results", exptime)
 
 files = os.listdir(directory_path)
@@ -20,7 +20,16 @@ for file_name in file_names:
     mode = parts[1]
     site = parts[2]
     workload = parts[3]
-    conc = int(parts[4][parts[4].find("_")+1:parts[4].find(".")])
+    conc = int(parts[4][parts[4].find("_")+1:])
+    finish_countdown = parts[5]
+    fastpath_timeout = parts[6]
+    wait_commit_timeout = parts[7]
+    instance_commit_timeout = parts[8][:parts[8].find(".")]
+    if "plus" not in mode:
+        finish_countdown = None
+        fastpath_timeout = None
+        wait_commit_timeout = None
+        instance_commit_timeout = None
     throughtput = None
     latency50pct = None
     latency90pct = None
@@ -46,15 +55,16 @@ for file_name in file_names:
                 # if "loc_id_=0" in line and "curp_executed_committed_max_gap_" in line:
                 #     max_gap = int(line[line.find("gap_=")+5:line.find("curp_fast_path_success_count_")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count))
-    rows.append([latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count])
+    datas.append((latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout))
+    rows.append([latency, site, workload, mode, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout])
 
 datas = sorted(datas, key=sorting_key)
 # print(datas)
 for data in datas:
     print(data)
 
-fields = ["latency", "site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", "fastpath_count", "coordinatoraccept_count", "original_count"]
+fields = ["latency", "site", "workload", "mode", "conc", "throughtput", "latency50pct", "latency90pct", "latency99pct", \
+          "fastpath_count", "coordinatoraccept_count", "original_count", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout"]
 
 import csv 
     
