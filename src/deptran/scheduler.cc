@@ -865,17 +865,22 @@ shared_ptr<Marshallable> CurpPlusData::GetCmd() {
 }
 
 void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd) {
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP-FIN] cmd<-1, %d> Try to skipfastpath", cmd_id);
+#endif
   original_protocol_submit_count_++;
   key_t key = SimpleRWCommand::GetKey(cmd);
   while (finish_countdown_[key] == 0) {
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] Attempted to commit FIN for cmd<%d> at svr %d", cmd_id, loc_id_);
+    Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d",
+      SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_);
 #endif
     auto e = commo()->CurpBroadcastDispatch(MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_));
     e->Wait();
   }
 #ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] Success skip fastpath for cmd<%d> at svr %d", cmd_id, loc_id_);
+  Log_info("[CURP-FIN] Success skip fastpath forcmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",
+    SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_, finish_countdown_[key] - 1);
 #endif
   finish_countdown_[key]--;
 }
@@ -915,6 +920,9 @@ void CurpPlusDataCol::Execute(ver_t ver) {
     Log_info("[CURP] loc=%d finish_countdown_[%d] + %d = %d", svr_->loc_id_, key_, instance->value_, svr_->finish_countdown_[key_] + instance->value_);
 #endif
     svr_->finish_countdown_count_++;
+#ifdef CURP_FULL_LOG_DEBUG
+    Log_info("[CURP-FIN] countdown increased to %d", svr_->finish_countdown_[key_] + instance->value_);
+#endif
     svr_->finish_countdown_[key_] += instance->value_;
   } else {
     value_t result;

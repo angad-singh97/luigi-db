@@ -90,6 +90,7 @@ class CoordinatorClassic : public Coordinator {
   void Restart() override;
 
   virtual void DispatchAsync();
+  void CurpDispatchAsync();
   virtual void DispatchAsync(bool last);
   virtual void DispatchAck(phase_t phase,
                            int res,

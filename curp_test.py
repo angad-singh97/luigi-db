@@ -184,7 +184,7 @@ def timeout_finetune():
     for s in sites_:
         for m in modes_:
             for c in latency_concurrent_:
-                for b in benchmarks_:
+                for b in ["rw_1000000"]:
                     run(20, m, s, b, c)
 
 def test_all():
@@ -210,7 +210,7 @@ def test_all():
     for s in sites_:
         for m in modes_:
             for c in latency_concurrent_:
-                for b in benchmarks_:
+                for b in ["rw_1000000"]:
                     run(20, m, s, b, c)
 
 

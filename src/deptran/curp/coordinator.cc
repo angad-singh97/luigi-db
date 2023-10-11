@@ -147,8 +147,8 @@ void CoordinatorCurp::QueryCoordinator() {
 }
 
 void CoordinatorCurp::OriginalProtocol() {
-  DispatchAsync();
-  GotoNextPhase();
+  CurpDispatchAsync();
+  // GotoNextPhase();
 }
 
 } // namespace janus

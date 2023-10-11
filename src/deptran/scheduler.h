@@ -233,6 +233,8 @@ class TxLogServer {
   int curp_instance_commit_timeout_trigger_prepare_count_ = 0;
   int finish_countdown_count_ = 0;
 
+  int curp_unique_original_cmd_id_ = 0;
+
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
 

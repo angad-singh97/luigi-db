@@ -89,7 +89,7 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
       // if (executed_slots_[id]!=1){
-        CurpSkipFastpath(max_executed_slot_, next_instance->committed_cmd_);
+        CurpSkipFastpath(curp_unique_original_cmd_id_++, next_instance->committed_cmd_);
         // WAN_WAIT
         app_next_(*next_instance->committed_cmd_);
       //   executed_slots_.erase(id);

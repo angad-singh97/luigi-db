@@ -535,8 +535,10 @@ void CopilotPlusServer::removeCmd(CopilotPlusLogInfo& log_info, slotid_t slot) {
 bool CopilotPlusServer::executeCmd(shared_ptr<CopilotPlusData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
-      CurpSkipFastpath(0, ins->cmd); // [CURP] TODO: findout what's here
-      // WAN_WAIT
+      CurpSkipFastpath(curp_unique_original_cmd_id_++, ins->cmd);
+#ifdef CURP_FULL_LOG_DEBUG
+      Log_info("[CURP-FIN] app_next_ cmd<%d, %d>", SimpleRWCommand::GetCmdID(ins->cmd).first, SimpleRWCommand::GetCmdID(ins->cmd).second);
+#endif
       app_next_(*ins->cmd);
     }
     ins->status = Status::EXECUTED;

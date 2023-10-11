@@ -506,8 +506,7 @@ void FpgaRaftPlusServer::StartTimer()
         auto next_instance = GetFpgaRaftInstance(id);
         if (next_instance->log_) {
             Log_debug("fpga-raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
-            CurpSkipFastpath(executeIndex, next_instance->log_);
-            // WAN_WAIT
+            CurpSkipFastpath(curp_unique_original_cmd_id_++, next_instance->log_);
             app_next_(*next_instance->log_);
             executeIndex++;
         } else {
