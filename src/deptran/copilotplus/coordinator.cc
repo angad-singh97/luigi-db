@@ -47,6 +47,7 @@ void CopilotPlusCoordinator::Submit(shared_ptr<Marshallable> &cmd,
                                 const std::function<void()> &exe_callback) {
   // Log_info("[copilot+] [4+] enter CopilotPlusCoordinator::Submit");
   verify(IsPilot() || IsCopilot());  // only pilot or copilot can initiate command submission
+  // Log_info("[CURP-Submit]");
   done_ = false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(!cmd_now_);

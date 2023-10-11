@@ -27,6 +27,7 @@ class CurpServiceImpl : virtual public CurpService{
                     ver_t* ver,
                     int32_t* result,
                     int32_t* finish_countdown,
+                    int32_t* key_hotness,
                     siteid_t* coo_id,
                     rrr::DeferredReply* defer) override;
 

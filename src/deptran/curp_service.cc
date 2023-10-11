@@ -9,6 +9,7 @@ void CurpServiceImpl::CurpDispatch(const int32_t& client_id,
                                     ver_t* ver,
                                     int32_t* result,
                                     int32_t* finish_countdown,
+                                    int32_t* key_hotness,
                                     siteid_t* coo_id,
                                     rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
@@ -30,6 +31,7 @@ void CurpServiceImpl::CurpDispatch(const int32_t& client_id,
                       ver,
                       result,
                       finish_countdown,
+                      key_hotness,
                       coo_id,
                       bind(&rrr::DeferredReply::reply, defer));
 }

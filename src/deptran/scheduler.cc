@@ -414,6 +414,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
                                   ver_t* ver,
                                   value_t* result,
                                   int32_t* finish_countdown,
+                                  int32_t* key_hotness,
                                   siteid_t* coo_id,
                                   const function<void()> &cb) {
   // // used for debug
@@ -468,13 +469,14 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] loc=%d OnCurpDispatch Reject cmd<%d, %d>%s since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
 #endif
-    if (client_id == -1) {
-      int a = 1 + 1;
-    }
+    // if (client_id == -1) {
+    //   int a = 1 + 1;
+    // }
     *accepted = false;
     *ver = -1;
     *result = -1;
   }
+  *key_hotness = curp_key_hotness_[key];
   *coo_id = 0;
   verify(curp_log_cols_[key]->logs_[curp_log_cols_[key]->NextVersion()] != nullptr);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -768,6 +770,9 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
   instance->UpdateCmd(cmd);
   instance->status_ = CurpPlusData::CurpPlusStatus::COMMITTED;
 
+  // update hotness
+  curp_key_hotness_[key]++;
+
   struct timeval tp;
   gettimeofday(&tp, NULL);
   double sent_time = (dynamic_pointer_cast<VecPieceData>(instance->GetCmd()))->time_sent_from_client_;
@@ -960,6 +965,9 @@ void CurpPlusDataCol::Execute(ver_t ver) {
   }
     
   instance->status_ = CurpPlusData::CurpPlusStatus::EXECUTED;
+
+  // update hotness
+  svr_->curp_key_hotness_[key_]--;
 
   latest_executed_ver_ = ver;
 }

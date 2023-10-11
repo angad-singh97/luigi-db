@@ -101,6 +101,7 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
 
   vector<siteid_t> coo_id_vec_;
   int32_t finish_countdown_ = 0;
+  int32_t key_hotness_ = 0;
 
   // int judgement_ = -1, tmp1 = -1, tmp2 = -1;
  public:
@@ -108,7 +109,7 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
     : QuorumEvent(n_total, quorum) {}
   // TODO: FeedResponse add result?
   // void FeedResponse(bool_t accepted, Position pos, value_t result, siteid_t coo_id);
-  void FeedResponse(bool_t accepted, ver_t ver, value_t result, int32_t finish_countdown, siteid_t coo_id);
+  void FeedResponse(bool_t accepted, ver_t ver, value_t result, int32_t finish_countdown, int32_t key_hotness, siteid_t coo_id);
   bool FastYes();
   bool FastNo();
   bool IsReady() override;
@@ -121,6 +122,9 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   siteid_t GetCooId();
   int32_t GetFinishCountdown() {
     return finish_countdown_;
+  }
+  int32_t GetKeyHotness() {
+    return key_hotness_;
   }
   // string Print() {
   //   string ret;

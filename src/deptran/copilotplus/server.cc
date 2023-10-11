@@ -409,6 +409,7 @@ void CopilotPlusServer::OnCommit(const uint8_t& is_pilot,
   
   ins->cmd = cmd;
   ins->status = Status::COMMITED;
+  // Log_info("[CURP-Commit]");
 #ifdef WAIT_AT_UNCOMMIT
   ins->cmit_evt.Set(1);
 #endif
@@ -542,6 +543,7 @@ bool CopilotPlusServer::executeCmd(shared_ptr<CopilotPlusData>& ins) {
       app_next_(*ins->cmd);
     }
     ins->status = Status::EXECUTED;
+    // Log_info("[CURP-Execute]");
     updateMaxExecSlot(ins);
     return true;
   } else {

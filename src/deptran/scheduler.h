@@ -235,6 +235,8 @@ class TxLogServer {
 
   int curp_unique_original_cmd_id_ = 0;
 
+  map<key_t, int> curp_key_hotness_;
+
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
 
@@ -406,6 +408,7 @@ class TxLogServer {
                       ver_t* ver,
                       value_t* result,
                       int32_t* finish_countdown,
+                      int32_t* key_hotness,
                       siteid_t* coo_id,
                       const function<void()> &cb);
 

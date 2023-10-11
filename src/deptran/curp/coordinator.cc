@@ -21,7 +21,6 @@ void CoordinatorCurp::GotoNextPhase() {
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       verify(phase_ % n_phase == Phase::DISPATCH);
-      finish_countdown_ = 0;
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       BroadcastDispatch();
       break;
@@ -38,7 +37,7 @@ void CoordinatorCurp::GotoNextPhase() {
         fastpath_count_++;
         cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
-      } else if (finish_countdown_ > 0) {
+      } else if (fast_original_path_) {
         phase_++;
         verify(phase_ % n_phase == Phase::ORIGIN);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -79,7 +78,7 @@ void CoordinatorCurp::GotoNextPhase() {
 #endif
       committed_ = true;
       original_protocol_count_++;
-      if (finish_countdown_ > 0)
+      if (fast_original_path_)
         cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       else
         cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
@@ -131,6 +130,9 @@ void CoordinatorCurp::BroadcastDispatch() {
   }
   curp_coo_id_ = e->GetCooId();
   finish_countdown_ = e->GetFinishCountdown();
+  key_hotness_ = e->GetKeyHotness();
+  fast_original_path_ = finish_countdown_ > 0 || key_hotness_ > 1;
+  // Log_info("[CURP] finish_countdown_ = %d key_hotness_ = %d", finish_countdown_, key_hotness_);
   GotoNextPhase();
 }
 

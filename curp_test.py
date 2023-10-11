@@ -87,16 +87,16 @@ latency_concurrent_ = [
     # "concurrent_750",
     "concurrent_1000",
     "concurrent_2000",
-    "concurrent_4000",
-    "concurrent_9000",
+    # "concurrent_4000",
+    # "concurrent_9000",
     # "concurrent_10000",
-    "concurrent_16000",
+    # "concurrent_16000",
     # "concurrent_22000",
-    "concurrent_30000",
+    # "concurrent_30000",
 ]
 finish_countdown_ = [
     # 1,
-    10,
+    # 10,
     100,
 ]
 fast_path_timeout_ = [
@@ -108,7 +108,7 @@ wait_commit_timeout_ = [
     # i for i in range(5, 100, 20)
     45,
     # 65,
-    85,
+    # 85,
 ]
 instance_commit_timeout_ = [
     # i for i in range(5, 100, 20)
