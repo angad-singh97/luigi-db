@@ -47,7 +47,7 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
     value_ = kv_map[1].get_i32();
   } else if (vector0->type_ == RW_BENCHMARK_FINISH) {
     type_ = vector0->type_;
-    key_ = 0;
+    key_ = kv_map[0].get_i32();
     value_ = kv_map[1].get_i32();
   } else if (vector0->type_ == RW_BENCHMARK_NOOP) {
     type_ = vector0->type_;
@@ -76,7 +76,7 @@ string SimpleRWCommand::cmd_to_string() {
   else if (RW_BENCHMARK_W_TXN == type_)
     return string("Write k=" + to_string(key_) + " v=" + to_string(value_));
   else if (RW_BENCHMARK_FINISH == type_)
-    return string("Finish v=" + to_string(value_));
+    return string("Finish k=" + to_string(key_) + " v=" + to_string(value_));
   else
     verify(0);
   // if (RW_BENCHMARK_NOOP == type_)
