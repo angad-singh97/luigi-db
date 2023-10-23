@@ -84,6 +84,7 @@ class Config {
   int curp_fastpath_timeout_;
   int curp_wait_commit_timeout_;
   int curp_instance_commit_timeout_;
+  int curp_fastpath_possibility_rate_;
 
   // TODO remove, will cause problems.
   uint32_t num_site_;
@@ -171,7 +172,8 @@ class Config {
          int finish_countdown,
          int curp_fastpath_timeout,
          int curp_wait_commit_timeout,
-         int curp_instance_commit_timeout
+         int curp_instance_commit_timeout,
+         int curp_fastpath_possibility_rate
   );
   int GetClientPort(std::string site_name);
 

@@ -414,6 +414,8 @@ void CopilotPlusServer::OnCommit(const uint8_t& is_pilot,
   ins->cmit_evt.Set(1);
 #endif
 
+  CurpPreSkipFastpath(ins->cmd);
+
   auto& log_info = log_infos_[is_pilot];
   auto& another_log_info = log_infos_[REVERSE(is_pilot)];
   updateMaxCmtdSlot(log_info, slot);
@@ -536,10 +538,10 @@ void CopilotPlusServer::removeCmd(CopilotPlusLogInfo& log_info, slotid_t slot) {
 bool CopilotPlusServer::executeCmd(shared_ptr<CopilotPlusData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
-      CurpSkipFastpath(curp_unique_original_cmd_id_++, ins->cmd);
 #ifdef CURP_FULL_LOG_DEBUG
-      Log_info("[CURP-FIN] app_next_ cmd<%d, %d>", SimpleRWCommand::GetCmdID(ins->cmd).first, SimpleRWCommand::GetCmdID(ins->cmd).second);
+      Log_info("[CURP-FIN] app_next_ cmd<%d, %d> cmd<%d, %d>", -1, curp_unique_original_cmd_id_, SimpleRWCommand::GetCmdID(ins->cmd).first, SimpleRWCommand::GetCmdID(ins->cmd).second);
 #endif
+      CurpSkipFastpath(curp_unique_original_cmd_id_++, ins->cmd);
       app_next_(*ins->cmd);
     }
     ins->status = Status::EXECUTED;

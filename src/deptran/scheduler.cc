@@ -450,7 +450,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>(this, key);
   shared_ptr<CurpPlusData> next_instance = curp_log_cols_[key]->NextInstance();
   *finish_countdown = finish_countdown_[key];
-  if ((next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT || SimpleRWCommand::GetCmdID(next_instance->GetCmd()) == make_pair(client_id, cmd_id_in_client))
+  if ((next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT || cmd_id_in_client != -1 && SimpleRWCommand::GetCmdID(next_instance->GetCmd()) == make_pair(client_id, cmd_id_in_client))
       && finish_countdown_[key] == 0) {
     next_instance->status_ = CurpPlusData::CurpPlusStatus::PREACCEPT;
     next_instance->max_seen_ballot_ = 0;
@@ -469,9 +469,6 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] loc=%d OnCurpDispatch Reject cmd<%d, %d>%s since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
 #endif
-    // if (client_id == -1) {
-    //   int a = 1 + 1;
-    // }
     *accepted = false;
     *ver = -1;
     *result = -1;
@@ -779,6 +776,11 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
   double current_time = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
   cli2svr_commit.append(current_time - sent_time);
 
+  // if (curp_in_applying_logs_) {
+  //   return;
+  // }
+  // curp_in_applying_logs_ = true;
+
   if (curp_log_cols_[key]->NextVersion() == ver) {
     while (instance->status_ == CurpPlusData::CurpPlusStatus::COMMITTED) {
       curp_log_cols_[key]->Execute(ver);
@@ -786,6 +788,7 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
     }
   }
 
+  // curp_in_applying_logs_ = false;
 }
 
 // [CURP] TODO: discard this
@@ -869,6 +872,26 @@ shared_ptr<Marshallable> CurpPlusData::GetCmd() {
   return cmd_;
 }
 
+void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
+  if (loc_id_ != 0) return;
+
+  key_t key = SimpleRWCommand::GetKey(cmd);
+
+  if (curp_in_commit_finish_[key])
+    return;
+  curp_in_commit_finish_[key] = true;
+
+  while (finish_countdown_[key] == 0) {
+    shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, -1, key, Config::GetConfig()->finish_countdown_);
+    verify(SimpleRWCommand::GetKey(fin) == key);
+    auto e = commo()->CurpBroadcastDispatch(fin);
+    e->Wait();
+  }
+
+  curp_in_commit_finish_[key] = false;
+}
+
+
 void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd) {
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP-FIN] cmd<-1, %d> Try to skipfastpath", cmd_id);
@@ -877,14 +900,18 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
   key_t key = SimpleRWCommand::GetKey(cmd);
   while (finish_countdown_[key] == 0) {
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d",
-      SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_);
+    Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> key=%d at svr %d",
+      SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_);
 #endif
-    auto e = commo()->CurpBroadcastDispatch(MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_));
-    e->Wait();
+    // shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_);
+    // verify(SimpleRWCommand::GetKey(fin) == key);
+    // auto e = commo()->CurpBroadcastDispatch(fin);
+    // e->Wait();
+    auto timeout_e = Reactor::CreateSpEvent<TimeoutEvent>(20 * 1000); // [CURP] TODO: make this adaptive
+    timeout_e->Wait();
   }
 #ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP-FIN] Success skip fastpath forcmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",
+  Log_info("[CURP-FIN] Success skip fastpath for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",
     SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_, finish_countdown_[key] - 1);
 #endif
   finish_countdown_[key]--;

@@ -240,6 +240,9 @@ class TxLogServer {
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
 
+  // CURP commit finish in advance
+  map<key_t, bool> curp_in_commit_finish_;
+
   // CURP coordinator reply/notify the client: cmd_id index
   map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
   vector<shared_ptr<CommitNotification>> commit_timeout_list_;
@@ -456,6 +459,8 @@ class TxLogServer {
                         const rrr::i64& dep_id,
                         bool_t* slow,
                         const function<void()> &cb);
+
+  void CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd);
 
   void CurpSkipFastpath(int cmd_id, shared_ptr<Marshallable> &cmd);
 

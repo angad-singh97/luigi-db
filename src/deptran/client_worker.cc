@@ -173,6 +173,7 @@ Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
   coo->commo_ = commo_;
   coo->forward_status_ = forward_requests_to_leader_ ? FORWARD_TO_LEADER : NONE;
   coo->offset_ = offset_id;
+  coo->client_worker_ = this;
   Log_debug("coordinator %d created at site %d: forward %d",
             coo->coo_id_,
             this->my_site_.id,

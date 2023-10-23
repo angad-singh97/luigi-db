@@ -69,6 +69,9 @@ class ClientWorker {
   bool failover_trigger_loc{false};
   bool failover_pause_start{false};
 
+  int curp_fastpath_p_ = 1024;
+  int curp_fastpath_q_ = 1024;
+
  public:
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
       ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,

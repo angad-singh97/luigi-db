@@ -16,6 +16,9 @@ class CoordinatorCurp : public CoordinatorClassic {
   int32_t finish_countdown_;
   int32_t key_hotness_;
   bool fast_original_path_ = false;
+  // int fastpath_p_ = 1024;
+  // int fastpath_q_ = 1024;
+  bool go_to_fastpath_;
 
   CoordinatorCurp(uint32_t coo_id,
                   int32_t benchmark,

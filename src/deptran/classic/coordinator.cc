@@ -219,11 +219,11 @@ void CoordinatorClassic::DispatchAsync() {
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
   ReadyPiecesData cmds_by_par;
-  if (curp_stored_cmd_) {
-    cmds_by_par = cmds_by_par_;
-  } else {
+  // if (curp_stored_cmd_) {
+  //   cmds_by_par = cmds_by_par_;
+  // } else {
     cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  }
+  // }
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
@@ -260,6 +260,7 @@ void CoordinatorClassic::DispatchAsync() {
 }
 
 // [Ze] The Only difference between this and DispatchAsync is that this function do not need n_dispatch_, since it just redispatch
+// And GetReadyPiecesData
 void CoordinatorClassic::CurpDispatchAsync() {
   Log_debug("commo Broadcast to the server on client worker");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -269,11 +270,11 @@ void CoordinatorClassic::CurpDispatchAsync() {
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
   ReadyPiecesData cmds_by_par;
-  if (curp_stored_cmd_) {
+  // if (curp_stored_cmd_) {
     cmds_by_par = cmds_by_par_;
-  } else {
-    cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  }
+  // } else {
+  //   cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  // }
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;

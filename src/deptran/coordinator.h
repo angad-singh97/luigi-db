@@ -7,7 +7,7 @@
 #include "msg.h"
 #include "communicator.h"
 #include "scheduler.h"
-// #include "client_worker.h"
+#include "client_worker.h"
 
 namespace janus {
 class ClientControlServiceImpl;
@@ -69,6 +69,7 @@ class Coordinator {
   shared_ptr<TxnRegistry> txn_reg_{nullptr};
   Communicator* commo_ = nullptr;
   Frame* frame_ = nullptr;
+  ClientWorker* client_worker_ = nullptr;
 
   txid_t ongoing_tx_id_{0};
   ForwardRequestState forward_status_ = NONE;

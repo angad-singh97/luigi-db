@@ -496,6 +496,8 @@ void FpgaRaftPlusServer::StartTimer()
 		struct timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 
+    CurpPreSkipFastpath(cmd);
+
     // This prevents the log entry from being applied twice
     if (in_applying_logs_) {
       return;

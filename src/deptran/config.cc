@@ -73,13 +73,14 @@ int Config::CreateConfig(int argc, char **argv) {
   int curp_fastpath_timeout = 3;
   int curp_wait_commit_timeout = 10;
   int curp_instance_commit_timeout = 3;
+  int curp_fastpath_possibility_rate = -1; // 0: 0;    1: 1;   -1: adaptive
   string timeouts;
   size_t pos;
 
   int c;
   optind = 1;
   string filename;
-  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:")) != -1) {
+  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:m:")) != -1) {
     switch (c) {
       case 'b': // heartbeat to controller
         heart_beat = true;
@@ -166,6 +167,9 @@ int Config::CreateConfig(int argc, char **argv) {
         curp_instance_commit_timeout = stoi(timeouts);
 
         break;
+      case 'm': // fastpath possibility mode
+        curp_fastpath_possibility_rate = strtoul(optarg, &end_ptr, 10);
+        break;
       case 'S': // client touch only single server
       {
         // TODO remove
@@ -237,7 +241,8 @@ int Config::CreateConfig(int argc, char **argv) {
     finish_countdown,
     curp_fastpath_timeout,
     curp_wait_commit_timeout,
-    curp_instance_commit_timeout);
+    curp_instance_commit_timeout,
+    curp_fastpath_possibility_rate);
   config_s->proc_name_ = proc_name;
   config_s->config_paths_ = config_paths;
   config_s->Load();
@@ -267,7 +272,8 @@ Config::Config(char           *ctrl_hostname,
                int              finish_countdown,
                int              curp_fastpath_timeout,
                int              curp_wait_commit_timeout,
-               int              curp_instance_commit_timeout) :
+               int              curp_instance_commit_timeout,
+               int              curp_fastpath_possibility_rate) :
   heart_beat_(heart_beat),
   ctrl_hostname_(ctrl_hostname),
   ctrl_port_(ctrl_port),
@@ -306,7 +312,8 @@ Config::Config(char           *ctrl_hostname,
   finish_countdown_(finish_countdown),
   curp_fastpath_timeout_(curp_fastpath_timeout),
   curp_wait_commit_timeout_(curp_wait_commit_timeout),
-  curp_instance_commit_timeout_(curp_instance_commit_timeout)
+  curp_instance_commit_timeout_(curp_instance_commit_timeout),
+  curp_fastpath_possibility_rate_(curp_fastpath_possibility_rate)
 {
 }
 

@@ -2,6 +2,7 @@
 #include "frame.h"
 #include "benchmark_control_rpc.h"
 #include "../RW_command.h"
+#include "../../rrr/misc/rand.hpp"
 
 namespace janus {
 
@@ -20,13 +21,32 @@ void CoordinatorCurp::GotoNextPhase() {
   int current_phase = phase_ % n_phase;
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
-      verify(phase_ % n_phase == Phase::DISPATCH);
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
-      BroadcastDispatch();
+      
+      // Log_info("%d/%d result %d", fastpath_p_, fastpath_q_, go_to_fastpath_);
+      // go_to_fastpath_ = false;
+      if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 0)
+        go_to_fastpath_ = false;
+      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 1)
+        go_to_fastpath_ = true;
+      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == -1)
+        go_to_fastpath_ = RandomGenerator::rand(1, client_worker_->curp_fastpath_q_) <= client_worker_->curp_fastpath_p_;
+      else
+        verify(0);
+
+      if (go_to_fastpath_) {
+        verify(phase_ % n_phase == Phase::DISPATCH);
+        BroadcastDispatch();
+      } else {
+        phase_ += 2;
+        verify(phase_ % n_phase == Phase::ORIGIN);
+        DispatchAsync();
+      }
       break;
     case Phase::DISPATCH:
       verify(phase_ % n_phase == Phase::QUERY);
       if (fast_path_success_) {
+        client_worker_->curp_fastpath_p_ = min(client_worker_->curp_fastpath_p_ * 2, client_worker_->curp_fastpath_q_);
 #ifdef CURP_FULL_LOG_DEBUG
         Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
@@ -38,6 +58,7 @@ void CoordinatorCurp::GotoNextPhase() {
         cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else if (fast_original_path_) {
+        client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
         phase_++;
         verify(phase_ % n_phase == Phase::ORIGIN);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -45,6 +66,7 @@ void CoordinatorCurp::GotoNextPhase() {
 #endif
         OriginalProtocol();
       } else {
+        client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
 #ifdef CURP_FULL_LOG_DEBUG
         Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
@@ -78,7 +100,9 @@ void CoordinatorCurp::GotoNextPhase() {
 #endif
       committed_ = true;
       original_protocol_count_++;
-      if (fast_original_path_)
+      if (!go_to_fastpath_)
+        cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      else if (fast_original_path_)
         cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       else
         cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
@@ -95,7 +119,7 @@ void CoordinatorCurp::BroadcastDispatch() {
   n_pd = 100;
   auto cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
   cmds_by_par_ = cmds_by_par;
-  curp_stored_cmd_ = true;
+  // curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
@@ -132,6 +156,7 @@ void CoordinatorCurp::BroadcastDispatch() {
   finish_countdown_ = e->GetFinishCountdown();
   key_hotness_ = e->GetKeyHotness();
   fast_original_path_ = finish_countdown_ > 0 || key_hotness_ > 1;
+  fast_original_path_ = true;
   // Log_info("[CURP] finish_countdown_ = %d key_hotness_ = %d", finish_countdown_, key_hotness_);
   GotoNextPhase();
 }
