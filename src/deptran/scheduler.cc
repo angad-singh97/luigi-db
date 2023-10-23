@@ -431,7 +431,6 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   // Log_info("[CURP] curp_wait_commit_timeout_ = %d", Config::GetConfig()->curp_wait_commit_timeout_);
   // Log_info("[CURP] curp_instance_commit_timeout_ = %d", Config::GetConfig()->curp_instance_commit_timeout_);
 
-  n_fast_path_attempted_++;
   shared_ptr<SimpleRWCommand> parsed_cmd_ = make_shared<SimpleRWCommand>(cmd);
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] loc=%d, OnCurpDispatch of cmd<%d, %d>%s", loc_id_, client_id, cmd_id_in_client, parsed_cmd_->cmd_to_string().c_str());
@@ -789,25 +788,6 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
   }
 
   // curp_in_applying_logs_ = false;
-}
-
-// [CURP] TODO: discard this
-void TxLogServer::OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
-                                    const rrr::i64& dep_id,
-                                    bool_t* slow,
-                                    const function<void()> &cb) {
-  // Log_info("enter OnOriginalSubmit");
-  original_protocol_submit_count_++;
-  auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_));
-  shared_ptr<Coordinator> coo{CreateRepCoord(dep_id)};
-  coo->svr_workers_g = svr_workers_g;
-  coo->Submit(cmd);
-  // [CURP] TODO: deal with slow
-  // sp_tx->commit_result->Wait();
-  // *slow = coo->slow_;
-  *slow = false;
-  WAN_WAIT;
-  cb();
 }
 
 shared_ptr<Marshallable> MakeFinishCmd(parid_t par_id, int cmd_id, key_t key, value_t value) {

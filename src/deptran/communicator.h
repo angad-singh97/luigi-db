@@ -135,7 +135,6 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   //   return "{" + ret + "}";
   // }
  private:
-  // [CURP] TODO: put in .cc file
   int FindMax(){
     if (responses_.size() == 0) {
       return 0;

@@ -99,9 +99,7 @@ int32_t RwWorkload::GetId(uint32_t cid) {
   // Log_info("[CURP] GetId %d", cid);
   int32_t id;
   if (fix_id_ == -1) {
-    // [CURP] TODO: need to change back to random
     // Log_info("[CURP] id range is (0, %d)", rw_benchmark_para_.n_table_ - 1);
-    // id = RandomGenerator::rand(0, 999);
     if (Config::GetConfig()->range_ == -1)
       id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
     else

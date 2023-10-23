@@ -109,18 +109,6 @@ void CurpServiceImpl::CurpCommit(const ver_t& ver,
   defer->reply();
 }
 
-// void CurpServiceImpl::OriginalSubmit(const MarshallDeputy& md,
-//                                                 const rrr::i64& dep_id,
-//                                                 bool_t* slow,
-//                                                 rrr::DeferredReply* defer)  {
-//   verify(sched_ != nullptr);
-//   shared_ptr<Marshallable> cmd{md.sp_data_};
-//   sched_->OnOriginalSubmit(cmd, 
-//                             dep_id,
-//                             slow,
-//                             bind(&rrr::DeferredReply::reply, defer));
-// }
-
 void CurpServiceImpl::CurpTest(const int32_t& a,
                                           int32_t* b,
                                           rrr::DeferredReply* defer) {

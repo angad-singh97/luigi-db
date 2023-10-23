@@ -71,32 +71,14 @@ void ServerWorker::SetupBase() {
     // [CURP] TODO: should I add this?
     rep_sched_->rep_frame_ = rep_frame_;
 
-    // curp_rep_frame_ = Frame::GetFrame(MODE_CURP_PLUS);
-    // curp_rep_frame_->site_info_ = site_info_;
-    // curp_rep_sched_ = curp_rep_frame_->CreateScheduler();
-    // curp_rep_sched_->txn_reg_ = tx_reg_;
-    // curp_rep_sched_->loc_id_ = site_info_->locale_id;
-    // curp_rep_sched_->site_id_ = site_info_->id;
-    // curp_rep_sched_->tx_sched_ = tx_sched_;
-
     tx_sched_->rep_frame_ = rep_frame_;
     tx_sched_->rep_sched_ = rep_sched_;
-
-    // tx_sched_->curp_rep_frame_ = curp_rep_frame_;
-    // tx_sched_->curp_rep_sched_ = curp_rep_sched_;
-
-    // // link rep_sched_ with curp_rep_sched_
-    // rep_sched_->curp_rep_sched_ = curp_rep_sched_;
-    // curp_rep_sched_->rep_sched_ = rep_sched_;
   }
   // add callbacks to execute commands to rep_sched_
   if (rep_sched_ && tx_sched_) {
     rep_sched_->RegLearnerAction(std::bind(&TxLogServer::Next,
                                            tx_sched_,
                                            std::placeholders::_1));
-    // curp_rep_sched_->RegLearnerAction(std::bind(&TxLogServer::Next,
-    //                                             tx_sched_,
-    //                                             std::placeholders::_1));
   }
 }
 

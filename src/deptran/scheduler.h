@@ -396,8 +396,6 @@ class TxLogServer {
   // int n_prepare_ = 0;
   // int n_accept_ = 0;
   // int n_commit_ = 0;
-  int n_fast_path_attempted_ = 0;
-  int n_fast_path_failed_ = 0;
   // bool curp_in_applying_logs_{false};
 
   InstanceCommitTimeoutPool instance_commit_timeout_pool_;
@@ -454,11 +452,6 @@ class TxLogServer {
 
   void OnCurpCommit(const ver_t& ver,
                     const shared_ptr<Marshallable>& cmd);
-
-  void OnOriginalSubmit(shared_ptr<Marshallable> &cmd,
-                        const rrr::i64& dep_id,
-                        bool_t* slow,
-                        const function<void()> &cb);
 
   void CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd);
 
