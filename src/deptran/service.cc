@@ -56,6 +56,11 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   uint64_t* coro_id,
                                   rrr::DeferredReply* defer) {
   // usleep(20000);
+
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered ClassicServiceImpl::Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
+#endif
+
 #ifdef CURP_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);

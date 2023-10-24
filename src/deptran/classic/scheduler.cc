@@ -86,6 +86,10 @@ bool SchedulerClassic::Dispatch(cmdid_t cmd_id,
                                 struct DepId dep_id,
                                 shared_ptr<Marshallable> cmd,
                                 TxnOutput& ret_output) {
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered SchedulerClassic::Dispatch", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
+  
   auto sp_vec_piece =
       dynamic_pointer_cast<VecPieceData>(cmd)->sp_vec_piece_data_;
   verify(sp_vec_piece);
@@ -231,6 +235,10 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 //  sp_tx->inuse = true;
 //
   //always true
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered SchedulerClassic::OnCommit, Config::GetConfig()->IsReplicated()=%d",
+    SimpleRWCommand::GetCmdID(sp_tx->cmd_).first, SimpleRWCommand::GetCmdID(sp_tx->cmd_).second, Config::GetConfig()->IsReplicated());
+#endif
   if (Config::GetConfig()->IsReplicated()) {
     auto cmd = std::make_shared<TpcCommitCommand>();
     cmd->tx_id_ = tx_id;
@@ -258,6 +266,9 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     
 		slow_ = coo->slow_;
   } else {
+#ifdef CURP_FULL_LOG_DEBUG
+  verify(0);
+#endif
     if (commit_or_abort == SUCCESS) {
       DoCommit(*sp_tx);
     } else if (commit_or_abort == REJECT) {

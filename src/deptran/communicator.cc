@@ -468,6 +468,9 @@ void Communicator::BroadcastDispatch(
 #endif
 
   WAN_WAIT;
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
+#endif
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
 }

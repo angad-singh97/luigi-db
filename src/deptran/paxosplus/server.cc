@@ -66,6 +66,9 @@ void PaxosPlusServer::OnAccept(const slotid_t slot_id,
                            uint64_t* coro_id,
                            const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] Paxos OnAccept cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
   Log_debug("multi-paxos scheduler accept for slot_id: %llx", slot_id);
 
   auto instance = GetInstance(slot_id);
@@ -92,6 +95,9 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
                            const ballot_t ballot,
                            shared_ptr<Marshallable> &cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] Paxos OnCommit cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
   // Log_info("[CURP] PaxosPlus OnCommit");
   Log_debug("multi-paxos scheduler decide for slot: %lx", slot_id);
   auto instance = GetInstance(slot_id);
@@ -101,6 +107,9 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   }
   verify(slot_id > max_executed_slot_);
 
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] About to CurpPreSkipFastpath cmd<%d, %d>", SimpleRWCommand::GetCmdID(instance->committed_cmd_).first, SimpleRWCommand::GetCmdID(instance->committed_cmd_).second);
+#endif
   CurpPreSkipFastpath(instance->committed_cmd_);
 
   // This prevents the log entry from being applied twice
@@ -111,6 +120,9 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
+#ifdef CURP_FULL_LOG_DEBUG
+      Log_info("[CURP] About to CurpSkipFastpath cmd<%d, %d>", SimpleRWCommand::GetCmdID(next_instance->committed_cmd_).first, SimpleRWCommand::GetCmdID(next_instance->committed_cmd_).second);
+#endif
       CurpSkipFastpath(curp_unique_original_cmd_id_++, next_instance->committed_cmd_);
       // WAN_WAIT
       app_next_(*next_instance->committed_cmd_);

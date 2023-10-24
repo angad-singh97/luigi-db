@@ -857,17 +857,29 @@ void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
 
   key_t key = SimpleRWCommand::GetKey(cmd);
 
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] CurpPreSkipFastpath for cmd<%d, %d> since curp_in_commit_finish_[%d] is True", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, key);
+#endif
   if (curp_in_commit_finish_[key])
     return;
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] curp_in_commit_finish_[%d] turned True for cmd<%d, %d>", key, SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
   curp_in_commit_finish_[key] = true;
 
   while (finish_countdown_[key] == 0) {
+#ifdef CURP_FULL_LOG_DEBUG
+    Log_info("[CURP] Attempted to precommit FIN for cmd<%d, %d> key=%d at svr %d",
+      SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, key, loc_id_);
+#endif
     shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, -1, key, Config::GetConfig()->finish_countdown_);
     verify(SimpleRWCommand::GetKey(fin) == key);
     auto e = commo()->CurpBroadcastDispatch(fin);
     e->Wait();
   }
-
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] curp_in_commit_finish_[%d] turned False for cmd<%d, %d>", key, SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
   curp_in_commit_finish_[key] = false;
 }
 
@@ -878,17 +890,20 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
 #endif
   original_protocol_submit_count_++;
   key_t key = SimpleRWCommand::GetKey(cmd);
-  while (finish_countdown_[key] == 0) {
+  for (int loop_count = 0; finish_countdown_[key] == 0; loop_count++) {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> key=%d at svr %d",
       SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_);
 #endif
-    // shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_);
-    // verify(SimpleRWCommand::GetKey(fin) == key);
-    // auto e = commo()->CurpBroadcastDispatch(fin);
-    // e->Wait();
-    auto timeout_e = Reactor::CreateSpEvent<TimeoutEvent>(20 * 1000); // [CURP] TODO: make this adaptive
-    timeout_e->Wait();
+    if (loop_count > 1) {
+      shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_);
+      verify(SimpleRWCommand::GetKey(fin) == key);
+      auto e = commo()->CurpBroadcastDispatch(fin);
+      e->Wait();
+    } else {
+      auto timeout_e = Reactor::CreateSpEvent<TimeoutEvent>(20 * 1000); // [CURP] TODO: make this adaptive
+      timeout_e->Wait();
+    }
   }
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP-FIN] Success skip fastpath for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",

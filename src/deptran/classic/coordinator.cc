@@ -266,6 +266,10 @@ void CoordinatorClassic::CurpDispatchAsync() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
 
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered CurpDispatchAsync", cmd_->client_id_, cmd_->cmd_id_in_client_);
+#endif
+
   int cnt = 0;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
@@ -288,6 +292,10 @@ void CoordinatorClassic::CurpDispatchAsync() {
       sp_vec_piece->push_back(c);
     }
     // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
+
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> before BroadcastDispatch", cmd_->client_id_, cmd_->cmd_id_in_client_);
+#endif
 
 #ifndef SKIP_TXN_SERVER
     // Log_info("SKIP_TXN_SERVER off");
@@ -677,6 +685,9 @@ void CoordinatorClassic::End() {
   tx_reply_buf.tx_id_ = ongoing_tx_id_;
   Log_debug("call reply for tx_id: %"
                 PRIx64, ongoing_tx_id_);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] callback for cmd<%d, %d>", tx_data->client_id_, tx_data->cmd_id_in_client_);
+#endif
   tx_data->callback_(tx_reply_buf);
   ongoing_tx_id_ = 0;
   delete tx_data;

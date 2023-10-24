@@ -33,7 +33,9 @@ void CoordinatorMultiPaxosPlus::Submit(shared_ptr<Marshallable>& cmd,
     Log_info("i am not the leader; site %d; locale %d",
               frame_->site_info_->id, loc_id_);
   }
-
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] Paxos Submit cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(!in_submission_);
   verify(cmd_ == nullptr);
@@ -119,6 +121,9 @@ void CoordinatorMultiPaxosPlus::Prepare() {
 
 void CoordinatorMultiPaxosPlus::Accept() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  #ifdef CURP_FULL_LOG_DEBUG
+    Log_info("[CURP] Paxos Accept cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second);
+  #endif
   verify(!in_accept);
   in_accept = true;
   Log_debug("multi-paxos coordinator broadcasts accept, "
@@ -182,6 +187,9 @@ void CoordinatorMultiPaxosPlus::Accept() {
 
 void CoordinatorMultiPaxosPlus::Commit() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] Paxos Commit cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second);
+#endif
   commit_callback_();
   Log_debug("multi-paxos broadcast commit for partition: %d, slot %d",
             (int) par_id_, (int) slot_id_);

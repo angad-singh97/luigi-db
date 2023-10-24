@@ -317,6 +317,9 @@ void ClientWorker::Work() {
             success++;
           }
           sp_n_tx_done_.Set(sp_n_tx_done_.value_+1);
+#ifdef CURP_FULL_LOG_DEBUG
+          Log_info("[CURP] sp_n_tx_done_ increased to %d n_tx_issued_=%d", sp_n_tx_done_.value_, n_tx_issued_);
+#endif
           num_try.fetch_add(coo->n_retry_);
           coo->sp_ev_done_.reset();
           coo->sp_ev_commit_.reset();
@@ -336,6 +339,9 @@ void ClientWorker::Work() {
     Log_info("wait for all outstanding requests to finish.");
     // TODO uncomment this, otherwise many requests are still outstanding there.
     sp_n_tx_done_.WaitUntilGreaterOrEqualThan(n_tx_issued_);
+#ifdef CURP_FULL_LOG_DEBUG
+    Log_info("[CURP] sp_n_tx_done_=%d n_tx_issued_=%d", sp_n_tx_done_.value_, n_tx_issued_);
+#endif
     // for debug purpose
 //    Reactor::CreateSpEvent<NeverEvent>()->Wait(5*1000*1000);
     *failover_server_quit_ = true;
@@ -345,9 +351,9 @@ void ClientWorker::Work() {
 // force stop if there is no any move in 5 seconds
   int prev_done = 0;
   while (all_done_ == 0) {
-    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
-      break;
-    }
+    // if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
+    //   break;
+    // }
     prev_done = (int) sp_n_tx_done_.value_;
     Log_info("wait for finish... n_ceased_clients: %d,"
               "n_issued: %d, n_done: %d, n_created_coordinator: %d, client_id: %d",
@@ -579,6 +585,9 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
       coo->sp_ev_done_->Set(1);
       delete req;
     };
+#ifdef CURP_FULL_LOG_DEBUG
+    Log_info("[CURP] Request generated for cmd<%d, %d>", req->client_id_, req->cmd_id_in_client_);
+#endif
     coo->DoTxAsync(*req); // coo -> CoordinatorNone
   };
   task();
