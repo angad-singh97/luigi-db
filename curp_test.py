@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S"))
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z?")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -41,13 +41,21 @@ curp_modes_ = [
     "copilot_plus",
     "fpga_raft_plus",
 ]
+fastpath_modes_ = [
+    -1, # adaptive
+    0,  # 0 possibility attempt fastpath
+    1,  # 1 possibility attempt fastpath
+]
 sites_ = [
     "12c1s3r1p",
 ]
 benchmarks_ =  [
     "rw_1",
     "rw_1000",
-    "rw_1000000"
+    "rw_1000000",
+    "rw_zipf_1",
+    "rw_zipf_0.9",
+    "rw_zipf_0.75",
 ]
 concurrent_ = [
     "concurrent_1",
@@ -116,7 +124,7 @@ instance_commit_timeout_ = [
     1000,
 ]
 
-def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=-1):
+def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
@@ -193,7 +201,7 @@ def timeout_finetune():
                     run(20, m, s, b, c)
 
 def test_all():
-    exp_count = len([-1, 0, 1]) * len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
+    exp_count = len(fastpath_modes_) * len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
     exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(["rw_1000000"])
     estimate_minute = exp_count // 2
@@ -203,7 +211,7 @@ def test_all():
     print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
 
     print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
-    for fp in [-1, 0, 1]:
+    for fp in fastpath_modes_:
         for s in sites_:
             for m in curp_modes_:
                 for c in latency_concurrent_:

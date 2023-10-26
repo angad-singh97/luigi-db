@@ -33,7 +33,7 @@ for file_name in file_names:
     fastpath_timeout = parts[6]
     wait_commit_timeout = parts[7]
     instance_commit_timeout = parts[8]
-    fastpash_mode = parts[9][:parts[9].find(".")]
+    fastpash_mode = "adapative" if parts[9][:parts[9].find(".")] == "" else parts[9][1:parts[9].find(".")-1]
     if "plus" not in mode:
         finish_countdown = None
         fastpath_timeout = None
