@@ -59,6 +59,8 @@ class FpgaRaftServer : public TxLogServer {
 	bool heartbeat_ = false;
 	enum { STOPPED, RUNNING } status_;
 	pthread_t loop_th_;
+
+  // Distribution client2follower_;
   
 	bool RequestVote() ;
   void RequestVote2FPGA() ;
@@ -190,14 +192,14 @@ class FpgaRaftServer : public TxLogServer {
 				}
 			}
 
-			struct KeyValue key_values[kv_vector.size()];
-			std::copy(kv_vector.begin(), kv_vector.end(), key_values);
+			// struct KeyValue key_values[kv_vector.size()];
+			// std::copy(kv_vector.begin(), kv_vector.end(), key_values);
 
-			auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
+			// auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
 			
-			struct timespec begin, end;
-			//clock_gettime(CLOCK_MONOTONIC, &begin);
-      de->Wait();
+			// struct timespec begin, end;
+			// //clock_gettime(CLOCK_MONOTONIC, &begin);
+      // de->Wait();
 			//clock_gettime(CLOCK_MONOTONIC, &end);
 			//Log_info("Time of Write: %d", end.tv_nsec - begin.tv_nsec);
     } else {

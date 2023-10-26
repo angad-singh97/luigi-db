@@ -130,6 +130,23 @@ double SimpleRWCommand::GetCurrentMsTime() {
   return tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
 }
 
+double SimpleRWCommand::GetCommandMsTime(shared_ptr<Marshallable> cmd) {
+  shared_ptr<VecPieceData> cmd_cast{nullptr};
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    cmd_cast = dynamic_pointer_cast<VecPieceData>(tpc_cmd->cmd_);
+  } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+  } else {
+    verify(0);
+  }
+  return cmd_cast->time_sent_from_client_;
+}
+
+double SimpleRWCommand::GetCommandMsTimeElaps(shared_ptr<Marshallable> cmd) {
+  return GetCurrentMsTime() - GetCommandMsTime(cmd);
+}
+
 key_t SimpleRWCommand::GetKey(shared_ptr<Marshallable> cmd) {
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
   if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {

@@ -15,6 +15,12 @@ CoordinatorFpgaRaft::CoordinatorFpgaRaft(uint32_t coo_id,
     : Coordinator(coo_id, benchmark, ccsi, thread_id) {
 }
 
+CoordinatorFpgaRaft::~CoordinatorFpgaRaft() {
+  // Log_info("coordinator loc_id_=%d, client2leader_ 50pct: %.2f 90pct: %.2f 99pct: %.2f", loc_id_, client2leader_.pct50(), client2leader_.pct90(), client2leader_.pct99());
+  // Log_info("coordinator loc_id_=%d, client2test_point_ 50pct: %.2f 90pct: %.2f 99pct: %.2f", loc_id_, client2test_point_.pct50(), client2test_point_.pct90(), client2test_point_.pct99());
+  // Log_info("coordinator loc_id_=%d, client2leader_send_ 50pct: %.2f 90pct: %.2f 99pct: %.2f", loc_id_, client2leader_send_.pct50(), client2leader_send_.pct90(), client2leader_send_.pct99());
+}
+
 bool CoordinatorFpgaRaft::IsLeader() {
    return this->sch_->IsLeader() ;
 }
@@ -41,6 +47,7 @@ void CoordinatorFpgaRaft::Forward(shared_ptr<Marshallable>& cmd,
 void CoordinatorFpgaRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
+  // client2leader_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
   if (!IsLeader()) {
     //Log_fatal("i am not the leader; site %d; locale %d",
     //          frame_->site_info_->id, loc_id_);
@@ -78,8 +85,10 @@ void CoordinatorFpgaRaft::AppendEntries() {
 
     /* TODO: get prevLogTerm based on the logs */
     uint64_t prevLogTerm = this->sch_->currentTerm;
+    // client2test_point_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd_));
 		this->sch_->SetLocalAppend(cmd_, &prevLogTerm, &prevLogIndex, slot_id_, curr_ballot_) ;
 		
+    // client2leader_send_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd_));
 
     auto sp_quorum = commo()->BroadcastAppendEntries(par_id_,
                                                      this->sch_->site_id_,

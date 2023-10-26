@@ -26,12 +26,15 @@ class CoordinatorFpgaRaft : public Coordinator {
   bool in_accept = false; // debug
   bool in_append_entries = false; // debug
   uint64_t minIndex = 0;
+
+  // Distribution client2leader_, client2leader_send_, client2test_point_;
  public:
   shared_ptr<Marshallable> cmd_{nullptr};
   CoordinatorFpgaRaft(uint32_t coo_id,
                         int32_t benchmark,
                         ClientControlServiceImpl *ccsi,
                         uint32_t thread_id);
+  ~CoordinatorFpgaRaft();
   ballot_t curr_ballot_ = 1; // TODO
   uint32_t n_replica_ = 0;   // TODO
   slotid_t slot_id_ = 0;

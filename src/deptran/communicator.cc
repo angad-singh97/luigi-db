@@ -10,7 +10,7 @@
 #include "procedure.h"
 #include "rcc_rpc.h"
 #include <typeinfo>
-
+#include "RW_command.h"
 
 namespace janus {
 
@@ -445,9 +445,7 @@ void Communicator::BroadcastDispatch(
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
 
   // Record Time
-  struct timeval tp;
-  gettimeofday(&tp, NULL);
-  sp_vpd->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
+  sp_vpd->time_sent_from_client_ = SimpleRWCommand::GetCurrentMsTime();
 
   MarshallDeputy md(sp_vpd); // ????
 

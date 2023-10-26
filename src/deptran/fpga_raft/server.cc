@@ -88,6 +88,7 @@ FpgaRaftServer::~FpgaRaftServer() {
 		stop_ = true ;
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, 
     n_commit_);
+    // Log_info("site par %d, loc %d: client2follower 50pct: %.2f 90pct: %.2f 99pct: %.2f", partition_id_, loc_id_, client2follower_.pct50(), client2follower_.pct90(), client2follower_.pct99());
 }
 
 void FpgaRaftServer::RequestVote2FPGA() {
@@ -388,6 +389,7 @@ void FpgaRaftServer::StartTimer()
 
         std::lock_guard<std::recursive_mutex> lock(mtx_);
         //StartTimer() ;
+        // client2follower_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
         
         Log_debug("fpga-raft scheduler on append entries for "
                 "slot_id: %llx, loc: %d, PrevLogIndex: %d",
@@ -448,12 +450,12 @@ void FpgaRaftServer::StartTimer()
 							struct KeyValue key_values[kv_vector.size()];
 							std::copy(kv_vector.begin(), kv_vector.end(), key_values);
 
-							auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
-							de->Wait();
+							// auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
+							// de->Wait();
             } else {
 							int value = -1;
-							auto de = IO::write(filename, &value, sizeof(int), 1);
-              de->Wait();
+							// auto de = IO::write(filename, &value, sizeof(int), 1);
+              // de->Wait();
             }
         }
         else {
