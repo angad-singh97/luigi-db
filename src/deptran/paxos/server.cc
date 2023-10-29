@@ -68,6 +68,10 @@ void PaxosServer::OnAccept(const slotid_t slot_id,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("multi-paxos scheduler accept for slot_id: %llx", slot_id);
 
+#ifdef LATENCY_DEBUG
+  client2follower_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
+
   auto instance = GetInstance(slot_id);
   
   //TODO: might need to optimize this. we can vote yes on duplicates at least for now

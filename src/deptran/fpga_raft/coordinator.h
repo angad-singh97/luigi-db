@@ -27,7 +27,6 @@ class CoordinatorFpgaRaft : public Coordinator {
   bool in_append_entries = false; // debug
   uint64_t minIndex = 0;
 
-  // Distribution client2leader_, client2leader_send_, client2test_point_;
  public:
   shared_ptr<Marshallable> cmd_{nullptr};
   CoordinatorFpgaRaft(uint32_t coo_id,

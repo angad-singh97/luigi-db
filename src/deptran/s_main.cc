@@ -35,6 +35,9 @@ int original_protocol_count = 0;
 Distribution cli2cli[6];
 // definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
 // 5nd element is for merge first 4
+#ifdef LATENCY_DEBUG
+  Distribution client2leader, client2leader_send, client2test_point;
+#endif
 
 void client_setup_heartbeat(int num_clients) {
   Log_info("%s", __FUNCTION__);
@@ -171,6 +174,11 @@ void client_shutdown() {
     client->retrive_statistic();
     for (int i = 0; i < 5; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
+#ifdef LATENCY_DEBUG
+    client2leader.merge(client->client2leader_);
+    client2test_point.merge(client->client2test_point_);
+    client2leader_send.merge(client->client2leader_send_);
+#endif
     fastpath_count += client->fastpath_count_;
     coordinatoraccept_count += client->coordinatoraccept_count_;
     original_protocol_count += client->original_protocol_count_;
@@ -424,6 +432,11 @@ int main(int argc, char *argv[]) {
   Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99());
   Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99());
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99());
+#ifdef LATENCY_DEBUG
+  Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
+  Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());
+  Log_info("client2leader_send 50pct %.2f 90pct %.2f 99pct %.2f", client2leader_send.pct50(), client2leader_send.pct90(), client2leader_send.pct99());
+#endif
   // Log_info("FastPath-count = %d CoordinatorAccept-count = %d OriginalProtocol-count = %d", fastpath_count, coordinatoraccept_count, original_protocol_count);
   server_shutdown();
   // TODO, FIXME pending_future in rpc cause error.

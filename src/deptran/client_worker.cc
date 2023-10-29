@@ -26,6 +26,12 @@ void ClientWorker::retrive_statistic() {
     fastpath_count_ += c->fastpath_count_;
     coordinatoraccept_count_ += c->coordinatoraccept_count_;
     original_protocol_count_ += c->original_protocol_count_;
+#ifdef LATENCY_DEBUG
+    Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
+    client2leader_.merge(c->client2leader_);
+    client2leader_send_.merge(c->client2leader_send_);
+    client2test_point_.merge(c->client2test_point_);
+#endif
   }
   // Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli_.pct50(), cli2cli_.pct90(), cli2cli_.pct99());
 }

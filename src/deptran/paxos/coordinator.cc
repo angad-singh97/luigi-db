@@ -29,6 +29,9 @@ void CoordinatorMultiPaxos::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
   // Log_info("[CURP] Paxos Submit");
+#ifdef LATENCY_DEBUG
+  client2leader_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
   if (!IsLeader()) {
     //change back to fatal
     Log_info("i am not the leader; site %d; locale %d",
@@ -126,6 +129,9 @@ void CoordinatorMultiPaxos::Accept() {
                 "par_id_: %lx, slot_id: %llx",
             par_id_, slot_id_);
   auto start = chrono::system_clock::now();
+#ifdef LATENCY_DEBUG
+  client2leader_send_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd_));
+#endif
   auto sp_quorum = commo()->BroadcastAccept(par_id_, slot_id_, curr_ballot_, cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
