@@ -4,6 +4,7 @@
 #include "../frame.h"
 #include "../constants.h"
 #include "commo.h"
+#include "server.h"
 
 namespace janus {
 
@@ -11,6 +12,7 @@ class MultiPaxosPlusFrame : public Frame {
  private:
   slotid_t slot_hint_ = 1;
  public:
+  PaxosPlusServer *sch_ = nullptr;
   MultiPaxosPlusFrame(int mode);
   MultiPaxosPlusCommo *commo_ = nullptr;
   Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;

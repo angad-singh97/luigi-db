@@ -27,7 +27,7 @@ void ClientWorker::retrive_statistic() {
     coordinatoraccept_count_ += c->coordinatoraccept_count_;
     original_protocol_count_ += c->original_protocol_count_;
 #ifdef LATENCY_DEBUG
-    Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
+    // Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
     client2leader_.merge(c->client2leader_);
     client2leader_send_.merge(c->client2leader_send_);
     client2test_point_.merge(c->client2test_point_);

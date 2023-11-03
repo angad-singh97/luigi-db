@@ -4,11 +4,13 @@
 #include "../coordinator.h"
 #include "../classic/tpc_command.h"
 #include "../frame.h"
+#include "server.h"
 #include <chrono>
 
 namespace janus {
 
 class MultiPaxosPlusCommo;
+class PaxosPlusServer;
 class CoordinatorMultiPaxosPlus : public Coordinator {
  public:
   enum Phase { INIT_END = 0, PREPARE = 1, ACCEPT = 2, COMMIT = 3 };
@@ -26,6 +28,7 @@ class CoordinatorMultiPaxosPlus : public Coordinator {
   bool in_accept = false; // debug
   bool in_forward = false; //debug
   shared_ptr<Marshallable> cmd_{nullptr};
+  PaxosPlusServer *sch_ = nullptr;
   CoordinatorMultiPaxosPlus(uint32_t coo_id,
                         int32_t benchmark,
                         ClientControlServiceImpl *ccsi,

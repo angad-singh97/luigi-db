@@ -239,6 +239,11 @@ class TxLogServer {
 
   // CURP Timestamp debug
   Distribution cli2svr_dispatch, cli2svr_commit;
+#ifdef LATENCY_DEBUG
+  Distribution cli2preskip_begin_, cli2preskip_end_, cli2skip_begin_, cli2skip_end_;
+  Distribution cli2leader_recv_, cli2leader_send_, cli2follower_recv_, cli2follower_send_, cli2commit_send_, cli2oncommit_;
+  Distribution preskip_attemp_;
+#endif
 
   // CURP commit finish in advance
   map<key_t, bool> curp_in_commit_finish_;

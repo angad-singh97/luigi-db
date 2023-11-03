@@ -61,9 +61,9 @@ void CoordinatorFpgaRaftPlus::Submit(shared_ptr<Marshallable>& cmd,
 
 void CoordinatorFpgaRaftPlus::AppendEntries() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
-    verify(!in_append_entries);
+    verify(!in_append_entries); // [CURP] Ze: I commented this, but not sure whether this will cause problem
     // verify(this->sch_->IsLeader()); TODO del it yidawu
-    in_append_entries = true;
+    in_append_entries = true; // [CURP] Ze: I commented this, but not sure whether this will cause problem
     Log_debug("fpga-raft coordinator broadcasts append entries, "
                   "par_id_: %lx, slot_id: %llx, lastLogIndex: %d",
               par_id_, slot_id_, this->sch_->lastLogIndex);
@@ -93,7 +93,7 @@ void CoordinatorFpgaRaftPlus::AppendEntries() {
                                                      /* ents, */
                                                      this->sch_->commitIndex,
                                                      cmd_);
-
+    // sch_->CurpPreSkipFastpath(cmd_);
 		struct timespec start_;
 		clock_gettime(CLOCK_MONOTONIC, &start_);
     sp_quorum->Wait();
@@ -143,7 +143,7 @@ void CoordinatorFpgaRaftPlus::AppendEntries() {
 		//Log_info("slow?: %d", slow_);
     if (sp_quorum->Yes()) {
         minIndex = sp_quorum->minIndex;
-				//Log_info("%d vs %d", minIndex, this->sch_->commitIndex);
+				Log_info("%d vs %d", minIndex, this->sch_->commitIndex);
         verify(minIndex >= this->sch_->commitIndex) ;
         committed_ = true;
         Log_debug("fpga-raft append commited loc:%d minindex:%d", loc_id_, minIndex ) ;

@@ -69,6 +69,9 @@ void PaxosPlusServer::OnAccept(const slotid_t slot_id,
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] Paxos OnAccept cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
+#ifdef LATENCY_DEBUG
+  cli2follower_recv_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
   Log_debug("multi-paxos scheduler accept for slot_id: %llx", slot_id);
 
   auto instance = GetInstance(slot_id);
@@ -87,6 +90,9 @@ void PaxosPlusServer::OnAccept(const slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_accept_++;
+#ifdef LATENCY_DEBUG
+  cli2follower_send_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
   WAN_WAIT
   cb();
 }
@@ -97,6 +103,9 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] Paxos OnCommit cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
+#ifdef LATENCY_DEBUG
+  cli2oncommit_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
 #endif
   // Log_info("[CURP] PaxosPlus OnCommit");
   Log_debug("multi-paxos scheduler decide for slot: %lx", slot_id);
@@ -110,7 +119,7 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] About to CurpPreSkipFastpath cmd<%d, %d>", SimpleRWCommand::GetCmdID(instance->committed_cmd_).first, SimpleRWCommand::GetCmdID(instance->committed_cmd_).second);
 #endif
-  CurpPreSkipFastpath(instance->committed_cmd_);
+  // CurpPreSkipFastpath(instance->committed_cmd_);
 
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {

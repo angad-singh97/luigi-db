@@ -65,15 +65,18 @@ Coordinator *MultiPaxosPlusFrame::CreateCoordinator(cooid_t coo_id,
   coo->slot_id_ = slot_hint_++;
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);
   coo->loc_id_ = this->site_info_->locale_id;
+  verify(this->sch_ != nullptr);
+  coo->sch_ = this->sch_;
   verify(coo->n_replica_ != 0); // TODO
   Log_debug("create new multi-paxos coord, coo_id: %d", (int) coo->coo_id_);
   return coo;
 }
 
 TxLogServer *MultiPaxosPlusFrame::CreateScheduler() {
-  TxLogServer *sch = nullptr;
+  PaxosPlusServer *sch = nullptr;
   sch = new PaxosPlusServer();
   sch->frame_ = this;
+  this->sch_ = sch;
   return sch;
 }
 

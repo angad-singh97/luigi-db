@@ -25,6 +25,7 @@ void CoordinatorMenciusPlus::Submit(shared_ptr<Marshallable>& cmd,
   }
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // sch_->CurpPreSkipFastpath(cmd);
   verify(!in_submission_);
   verify(cmd_ == nullptr);
 //  verify(cmd.self_cmd_ != nullptr);

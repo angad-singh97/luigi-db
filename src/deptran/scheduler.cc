@@ -290,6 +290,12 @@ TxLogServer::~TxLogServer() {
   //   Log_info("[CURP] loc_id_=%d site_id_=%d No Count / Latency Measured", loc_id_, site_id_);
   // if (curp_log_cols_[0] != nullptr)
   //   curp_log_cols_[0]->Print();
+#ifdef LATENCY_DEBUG
+  Log_info("loc_id=%d cli2preskip_begin_ %.2f cli2preskip_end_ %.2f cli2skip_begin_ %.2f cli2skip_end_ %.2f", loc_id_, cli2preskip_begin_.pct50(), cli2preskip_end_.pct50(), cli2skip_begin_.pct50(), cli2skip_end_.pct50());
+  Log_info("loc_id=%d cli2leader_recv_ %.2f cli2leader_send_ %.2f cli2follower_recv_ %.2f cli2follower_send_ %.2f cli2commit_send_ %.2f cli2oncommit_ %.2f",
+            loc_id_, cli2leader_recv_.pct50(), cli2leader_send_.pct50(), cli2follower_recv_.pct50(), cli2follower_send_.pct50(), cli2commit_send_.pct50(), cli2oncommit_.pct50());
+  Log_info("loc_id=%d preskip_attemp_ %.2f", loc_id_, preskip_attemp_.pct50());
+#endif
 }
 
 /**
@@ -855,6 +861,10 @@ shared_ptr<Marshallable> CurpPlusData::GetCmd() {
 void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
   if (loc_id_ != 0) return;
 
+#ifdef LATENCY_DEBUG
+  cli2preskip_begin_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
+
   key_t key = SimpleRWCommand::GetKey(cmd);
 
 #ifdef CURP_FULL_LOG_DEBUG
@@ -867,24 +877,36 @@ void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
 #endif
   curp_in_commit_finish_[key] = true;
 
+  int attemp = 0;
   while (finish_countdown_[key] == 0) {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Attempted to precommit FIN for cmd<%d, %d> key=%d at svr %d",
       SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, key, loc_id_);
 #endif
+    attemp++;
     shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, -1, key, Config::GetConfig()->finish_countdown_);
     verify(SimpleRWCommand::GetKey(fin) == key);
     auto e = commo()->CurpBroadcastDispatch(fin);
     e->Wait();
   }
+#ifdef LATENCY_DEBUG
+  preskip_attemp_.append(attemp);
+#endif
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] curp_in_commit_finish_[%d] turned False for cmd<%d, %d>", key, SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
   curp_in_commit_finish_[key] = false;
+
+#ifdef LATENCY_DEBUG
+  cli2preskip_end_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
 }
 
 
 void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd) {
+#ifdef LATENCY_DEBUG
+  cli2skip_begin_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP-FIN] cmd<-1, %d> Try to skipfastpath", cmd_id);
 #endif
@@ -910,6 +932,9 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
     SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_, finish_countdown_[key] - 1);
 #endif
   finish_countdown_[key]--;
+#ifdef LATENCY_DEBUG
+  cli2skip_end_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
+#endif
 }
 
 CurpPlusData::CurpPlusData(TxLogServer* svr, key_t key, ver_t ver, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
