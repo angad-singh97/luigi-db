@@ -74,13 +74,14 @@ int Config::CreateConfig(int argc, char **argv) {
   int curp_wait_commit_timeout = 10;
   int curp_instance_commit_timeout = 3;
   int curp_fastpath_possibility_rate = -1; // 0: 0;    1: 1;   -1: adaptive
+  int curp_execution_in_advance_enabled = 1; // 0: disabled;  1: enabled
   string timeouts;
   size_t pos;
 
   int c;
   optind = 1;
   string filename;
-  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:m:")) != -1) {
+  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:m:a:")) != -1) {
     switch (c) {
       case 'b': // heartbeat to controller
         heart_beat = true;
@@ -170,6 +171,9 @@ int Config::CreateConfig(int argc, char **argv) {
       case 'm': // fastpath possibility mode
         curp_fastpath_possibility_rate = strtoul(optarg, &end_ptr, 10);
         break;
+      case 'a': // execution in advance optimization: 0 for false, 1 for true
+        curp_execution_in_advance_enabled = strtoul(optarg, &end_ptr, 10);
+        break;
       case 'S': // client touch only single server
       {
         // TODO remove
@@ -242,7 +246,8 @@ int Config::CreateConfig(int argc, char **argv) {
     curp_fastpath_timeout,
     curp_wait_commit_timeout,
     curp_instance_commit_timeout,
-    curp_fastpath_possibility_rate);
+    curp_fastpath_possibility_rate,
+    curp_execution_in_advance_enabled);
   config_s->proc_name_ = proc_name;
   config_s->config_paths_ = config_paths;
   config_s->Load();
@@ -269,11 +274,12 @@ Config::Config(char           *ctrl_hostname,
                bool            heart_beat,
                single_server_t single_server,
                string           logging_path,
-               int              finish_countdown,
+               int              curp_finish_countdown,
                int              curp_fastpath_timeout,
                int              curp_wait_commit_timeout,
                int              curp_instance_commit_timeout,
-               int              curp_fastpath_possibility_rate) :
+               int              curp_fastpath_possibility_rate,
+               int              curp_execution_in_advance_enabled) :
   heart_beat_(heart_beat),
   ctrl_hostname_(ctrl_hostname),
   ctrl_port_(ctrl_port),
@@ -309,11 +315,12 @@ Config::Config(char           *ctrl_hostname,
   proc_host_map_(map<string, string>()),
   sharding_(nullptr),
 
-  finish_countdown_(finish_countdown),
+  curp_finish_countdown_(curp_finish_countdown),
   curp_fastpath_timeout_(curp_fastpath_timeout),
   curp_wait_commit_timeout_(curp_wait_commit_timeout),
   curp_instance_commit_timeout_(curp_instance_commit_timeout),
-  curp_fastpath_possibility_rate_(curp_fastpath_possibility_rate)
+  curp_fastpath_possibility_rate_(curp_fastpath_possibility_rate),
+  curp_execution_in_advance_enabled_(curp_execution_in_advance_enabled)
 {
 }
 

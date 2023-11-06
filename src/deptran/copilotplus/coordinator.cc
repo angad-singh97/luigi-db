@@ -183,7 +183,8 @@ void CopilotPlusCoordinator::FastAccept() {
                                                 cmd_now_);
   // sq_quorum->id_ = dep_id_;
   // Log_debug("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
-  sch_->CurpPreSkipFastpath(cmd_now_);
+  if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+    sch_->CurpPreSkipFastpath(cmd_now_);
   sq_quorum->Wait();
   fac = Time::now(true) - begin;
 #ifdef DO_FINALIZE

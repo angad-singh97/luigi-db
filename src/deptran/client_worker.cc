@@ -357,7 +357,7 @@ void ClientWorker::Work() {
 // force stop if there is no any move in 5 seconds
   int prev_done = 0;
   while (all_done_ == 0) {
-    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
+    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 0) {
       break;
     }
     prev_done = (int) sp_n_tx_done_.value_;

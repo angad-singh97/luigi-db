@@ -93,7 +93,8 @@ void CoordinatorFpgaRaftPlus::AppendEntries() {
                                                      /* ents, */
                                                      this->sch_->commitIndex,
                                                      cmd_);
-    // sch_->CurpPreSkipFastpath(cmd_);
+    if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+      sch_->CurpPreSkipFastpath(cmd_);
 		struct timespec start_;
 		clock_gettime(CLOCK_MONOTONIC, &start_);
     sp_quorum->Wait();

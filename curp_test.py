@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z?")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z1")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -31,20 +31,24 @@ TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
     "none_paxos",
-    # "none_mencius",
+    "none_mencius",
     "none_copilot",
-    "none_fpga_raft",
+    # "none_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
-    # "mencius_plus",
+    "mencius_plus",
     "copilot_plus",
-    "fpga_raft_plus",
+    # "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    -1, # adaptive
+    # -1, # adaptive
     0,  # 0 possibility attempt fastpath
-    1,  # 1 possibility attempt fastpath
+    # 1,  # 1 possibility attempt fastpath
+]
+commit_finish_in_advance_ = [
+    0,
+    1
 ]
 sites_ = [
     "12c1s3r1p",
@@ -54,8 +58,8 @@ benchmarks_ =  [
     "rw_1000",
     "rw_1000000",
     "rw_zipf_1",
-    "rw_zipf_0.9",
-    "rw_zipf_0.75",
+    # "rw_zipf_0.9",
+    # "rw_zipf_0.75",
 ]
 concurrent_ = [
     "concurrent_1",
@@ -124,18 +128,18 @@ instance_commit_timeout_ = [
     1000,
 ]
 
-def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0):
+def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0, cfia=1):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
 
-    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-(' + str(fp) + ')' + ".res")
+    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-(' + str(fp) + ')' + '-' + str(cfia) + ".res")
     t1 = time()
     res = "INIT"
     try:
         with open(output_path, "w") as f:
-            cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "20", "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
+            cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "20", "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp), "-a", str(cfia)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
@@ -168,42 +172,42 @@ def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0):
     t2 = time()
     print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
 
-def timeout_finetune():
-    benchmarks_ = ["rw_1000000"]
-    finish_countdown_ = [10]
-    fast_path_timeout_ = [5]
-    wait_commit_timeout_ = [45]
-    instance_commit_timeout_ = [45]
+# def timeout_finetune():
+#     benchmarks_ = ["rw_1000000"]
+#     finish_countdown_ = [10]
+#     fast_path_timeout_ = [5]
+#     wait_commit_timeout_ = [45]
+#     instance_commit_timeout_ = [45]
 
-    exp_count = len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
-        * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
-    exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(["rw_1000000"])
-    estimate_minute = exp_count // 2
-    estimate_hour = estimate_minute // 60
-    estimate_minute -= estimate_hour * 60
-    print("Number of total experiments is", exp_count)
-    print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
+#     exp_count = len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
+#         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
+#     exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(["rw_1000000"])
+#     estimate_minute = exp_count // 2
+#     estimate_hour = estimate_minute // 60
+#     estimate_minute -= estimate_hour * 60
+#     print("Number of total experiments is", exp_count)
+#     print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
 
-    print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
-    for s in sites_:
-        for m in curp_modes_:
-            for c in latency_concurrent_:
-                for b in benchmarks_:
-                    for fc in finish_countdown_:
-                        for to1 in fast_path_timeout_:
-                            for to2 in wait_commit_timeout_:
-                                for to3 in instance_commit_timeout_:
-                                    run(20, m, s, b, c, fc, to1, to2, to3)
-    for s in sites_:
-        for m in modes_:
-            for c in latency_concurrent_:
-                for b in ["rw_1000000"]:
-                    run(20, m, s, b, c)
+#     print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
+#     for s in sites_:
+#         for m in curp_modes_:
+#             for c in latency_concurrent_:
+#                 for b in benchmarks_:
+#                     for fc in finish_countdown_:
+#                         for to1 in fast_path_timeout_:
+#                             for to2 in wait_commit_timeout_:
+#                                 for to3 in instance_commit_timeout_:
+#                                     run(20, m, s, b, c, fc, to1, to2, to3)
+#     for s in sites_:
+#         for m in modes_:
+#             for c in latency_concurrent_:
+#                 for b in ["rw_1000000"]:
+#                     run(20, m, s, b, c)
 
 def test_all():
-    exp_count = len(fastpath_modes_) * len(sites_) * len(curp_modes_) * len(latency_concurrent_) * len(benchmarks_) * len(finish_countdown_) \
-        * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_)
-    exp_count += len(sites_) * len(modes_) * len(latency_concurrent_) * len(["rw_1000000"])
+    exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) * len(commit_finish_in_advance_) \
+        * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_) * len(latency_concurrent_)
+    exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
     estimate_minute = exp_count // 2
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
@@ -211,20 +215,22 @@ def test_all():
     print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
 
     print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
-    for fp in fastpath_modes_:
-        for s in sites_:
-            for m in curp_modes_:
-                for c in latency_concurrent_:
-                    for b in benchmarks_:
+    
+    for s in sites_:
+        for m in curp_modes_:
+            for b in benchmarks_:
+                for fp in fastpath_modes_:
+                    for cfia in commit_finish_in_advance_:
                         for fc in finish_countdown_:
                             for to1 in fast_path_timeout_:
                                 for to2 in wait_commit_timeout_:
                                     for to3 in instance_commit_timeout_:
-                                        run(20, m, s, b, c, fc, to1, to2, to3, fp)
+                                        for c in latency_concurrent_:
+                                            run(20, m, s, b, c, fc, to1, to2, to3, fp, cfia)
     for s in sites_:
         for m in modes_:
-            for c in latency_concurrent_:
-                for b in ["rw_1000000"]:
+            for b in ["rw_1000000"]:
+                for c in latency_concurrent_:
                     run(20, m, s, b, c)
 
 

@@ -81,7 +81,8 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
   }
   verify(slot_id > max_executed_slot_);
 
-  CurpPreSkipFastpath(instance->committed_cmd_);
+  if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+    CurpPreSkipFastpath(instance->committed_cmd_);
 
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {

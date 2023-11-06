@@ -414,7 +414,8 @@ void CopilotPlusServer::OnCommit(const uint8_t& is_pilot,
   ins->cmit_evt.Set(1);
 #endif
 
-  // CurpPreSkipFastpath(ins->cmd);
+  if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+    CurpPreSkipFastpath(ins->cmd);
 
   auto& log_info = log_infos_[is_pilot];
   auto& another_log_info = log_infos_[REVERSE(is_pilot)];

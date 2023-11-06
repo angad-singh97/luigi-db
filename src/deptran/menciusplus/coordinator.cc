@@ -25,7 +25,6 @@ void CoordinatorMenciusPlus::Submit(shared_ptr<Marshallable>& cmd,
   }
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  // sch_->CurpPreSkipFastpath(cmd);
   verify(!in_submission_);
   verify(cmd_ == nullptr);
 //  verify(cmd.self_cmd_ != nullptr);
@@ -118,6 +117,8 @@ void CoordinatorMenciusPlus::Suggest() {
   auto start = chrono::system_clock::now();
   commo()->svr_workers_g = svr_workers_g;
   auto sp_quorum = commo()->BroadcastSuggest(par_id_, slot_id_, curr_ballot_, cmd_);
+  if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+    sch_->CurpPreSkipFastpath(cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
   //Log_info("Suggest(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);

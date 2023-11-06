@@ -5,10 +5,12 @@
 #include "../classic/tpc_command.h"
 #include "../frame.h"
 #include <chrono>
+#include "server.h"
 
 namespace janus {
 
 class MenciusPlusCommo;
+class MenciusPlusServer;
 class CoordinatorMenciusPlus : public Coordinator {
  public:
   enum Phase { INIT_END = 0, PREPARE = 1, SUGGEST = 2, COMMIT = 3 };
@@ -32,6 +34,7 @@ class CoordinatorMenciusPlus : public Coordinator {
   uint32_t n_replica_ = 0;   // TODO
   slotid_t slot_id_ = 0;
   slotid_t *slot_hint_ = nullptr;
+  MenciusPlusServer *sch_ = nullptr;
 
   uint32_t n_replica() {
     verify(n_replica_ > 0);

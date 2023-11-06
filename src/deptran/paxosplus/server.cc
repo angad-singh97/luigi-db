@@ -119,7 +119,8 @@ void PaxosPlusServer::OnCommit(const slotid_t slot_id,
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] About to CurpPreSkipFastpath cmd<%d, %d>", SimpleRWCommand::GetCmdID(instance->committed_cmd_).first, SimpleRWCommand::GetCmdID(instance->committed_cmd_).second);
 #endif
-  // CurpPreSkipFastpath(instance->committed_cmd_);
+  if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+    CurpPreSkipFastpath(instance->committed_cmd_);
 
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {

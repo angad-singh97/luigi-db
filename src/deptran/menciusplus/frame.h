@@ -4,14 +4,17 @@
 #include "../frame.h"
 #include "../constants.h"
 #include "commo.h"
+#include "server.h"
 
 namespace janus {
 
+class MenciusPlusServer;
 class MenciusPlusFrame : public Frame {
  private:
   slotid_t slot_hint_ = 1;
   slotid_t slot_id_ = 0;
  public:
+  MenciusPlusServer *sch_ = nullptr;
   MenciusPlusFrame(int mode);
   MenciusPlusCommo *commo_ = nullptr;
   Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;

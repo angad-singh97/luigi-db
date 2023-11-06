@@ -432,7 +432,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
   // Config *cfg = Config::GetConfig();
-  // Log_info("[CURP] finish_countdown = %d", Config::GetConfig()->finish_countdown_);
+  // Log_info("[CURP] finish_countdown = %d", Config::GetConfig()->curp_finish_countdown_);
   // Log_info("[CURP] curp_fastpath_timeout_ = %d", Config::GetConfig()->curp_fastpath_timeout_);
   // Log_info("[CURP] curp_wait_commit_timeout_ = %d", Config::GetConfig()->curp_wait_commit_timeout_);
   // Log_info("[CURP] curp_instance_commit_timeout_ = %d", Config::GetConfig()->curp_instance_commit_timeout_);
@@ -884,7 +884,7 @@ void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
       SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, key, loc_id_);
 #endif
     attemp++;
-    shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, -1, key, Config::GetConfig()->finish_countdown_);
+    shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     verify(SimpleRWCommand::GetKey(fin) == key);
     auto e = commo()->CurpBroadcastDispatch(fin);
     e->Wait();
@@ -918,7 +918,7 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
       SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_);
 #endif
     if (loop_count > 1) {
-      shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->finish_countdown_);
+      shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->curp_finish_countdown_);
       verify(SimpleRWCommand::GetKey(fin) == key);
       auto e = commo()->CurpBroadcastDispatch(fin);
       e->Wait();
