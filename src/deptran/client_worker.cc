@@ -357,9 +357,9 @@ void ClientWorker::Work() {
 // force stop if there is no any move in 5 seconds
   int prev_done = 0;
   while (all_done_ == 0) {
-    // if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
-    //   break;
-    // }
+    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 1000) {
+      break;
+    }
     prev_done = (int) sp_n_tx_done_.value_;
     Log_info("wait for finish... n_ceased_clients: %d,"
               "n_issued: %d, n_done: %d, n_created_coordinator: %d, client_id: %d",
