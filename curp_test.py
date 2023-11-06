@@ -33,13 +33,13 @@ modes_ = [
     "none_paxos",
     "none_mencius",
     "none_copilot",
-    # "none_fpga_raft",
+    "none_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
     "mencius_plus",
     "copilot_plus",
-    # "fpga_raft_plus",
+    "fpga_raft_plus",
 ]
 fastpath_modes_ = [
     # -1, # adaptive
