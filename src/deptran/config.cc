@@ -73,7 +73,7 @@ int Config::CreateConfig(int argc, char **argv) {
   int curp_fastpath_timeout = 3;
   int curp_wait_commit_timeout = 10;
   int curp_instance_commit_timeout = 3;
-  int curp_fastpath_possibility_rate = -1; // 0: 0;    1: 1;   -1: adaptive
+  int curp_fastpath_possibility_rate = 2; // 0: 0;    1: 1;   2: adaptive
   int curp_execution_in_advance_enabled = 1; // 0: disabled;  1: enabled
   string timeouts;
   size_t pos;

@@ -134,7 +134,7 @@ def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0, cfia=1):
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
 
-    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-(' + str(fp) + ')' + '-' + str(cfia) + ".res")
+    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(cfia) + ".res")
     t1 = time()
     res = "INIT"
     try:

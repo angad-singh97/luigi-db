@@ -29,7 +29,7 @@ void CoordinatorCurp::GotoNextPhase() {
         go_to_fastpath_ = false;
       else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 1)
         go_to_fastpath_ = true;
-      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == -1)
+      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 2)
         go_to_fastpath_ = RandomGenerator::rand(1, client_worker_->curp_fastpath_q_) <= client_worker_->curp_fastpath_p_;
       else
         verify(0);
