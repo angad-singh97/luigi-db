@@ -180,11 +180,13 @@ void CopilotPlusCoordinator::FastAccept() {
                                                 is_pilot_, slot_id_,
                                                 curr_ballot_,
                                                 dep_,
-                                                cmd_now_);
+                                                cmd_now_,
+                                                sch_->CurpAttemptCommitFinish(cmd_now_),
+                                                sch_);
   // sq_quorum->id_ = dep_id_;
   // Log_debug("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
-  if (Config::GetConfig()->curp_execution_in_advance_enabled_)
-    sch_->CurpPreSkipFastpath(cmd_now_);
+  // if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+  //   sch_->CurpPreSkipFastpath(cmd_now_);
   sq_quorum->Wait();
   fac = Time::now(true) - begin;
 #ifdef DO_FINALIZE

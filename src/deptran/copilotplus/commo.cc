@@ -176,7 +176,9 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
                                   slotid_t slot_id,
                                   ballot_t ballot,
                                   uint64_t dep,
-                                  shared_ptr<Marshallable> cmd) {
+                                  shared_ptr<Marshallable> cmd,
+                                  uint64_t curp_need_finish,
+                                  TxLogServer *sch) {
   // Log_info("[copilot+] [BroadcastFastAccept+]");
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CopilotPlusFastAcceptQuorumEvent>(n, CurpFastQuorumSize(n));
@@ -194,13 +196,17 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
     if (1==0/*site == loc_id_*/) { //[TODO: recover it to site == loc_id_]
       ballot_t b;
       slotid_t sgst_dep;
+      bool_t finish_accept;
+      uint64_t finish_ver;
       static_cast<CopilotPlusServer *>(rep_sched_)->OnFastAccept(
-        is_pilot, slot_id, ballot, dep, cmd, di, &b, &sgst_dep, nullptr);
+        is_pilot, slot_id, ballot, dep, cmd, di, curp_need_finish, &b, &sgst_dep, &finish_accept, &finish_ver, nullptr);
       e->FeedResponse(true, true);
       e->FeedRetDep(dep);
+      pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+      sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
     } else {
       FutureAttr fuattr;
-      fuattr.callback = [e, dep, ballot, site](Future *fu) {
+      fuattr.callback = [e, dep, ballot, site, cmd, sch](Future *fu) {
         ballot_t b;
         slotid_t sgst_dep;
         fu->get_reply() >> b >> sgst_dep;
@@ -211,12 +217,18 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
         }
 
         e->RemoveXid(site);
+
+        bool_t finish_accept = 0;
+        uint64_t finish_ver = 0;
+        fu->get_reply() >> finish_accept >> finish_ver;
+        pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+        sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
       };
 
       verify(cmd);
       MarshallDeputy md(cmd);
       // Log_info("[copilot+] [BroadcastFastAccept in] before async_FastAccept");
-      Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
+      Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, curp_need_finish, fuattr);
       e->AddXid(site, f->get_xid());
       Future::safe_release(f);
       // Log_info("[copilot+] [BroadcastFastAccept in] after async_FastAccept");

@@ -381,9 +381,12 @@ void FpgaRaftPlusServer::StartTimer()
                                      const uint64_t leaderCommitIndex,
 																		 const struct DepId dep_id,
                                      shared_ptr<Marshallable> &cmd,
+                                     const uint64_t& commit_finish,
                                      uint64_t *followerAppendOK,
                                      uint64_t *followerCurrentTerm,
                                      uint64_t *followerLastLogIndex,
+                                     bool_t* finish_accept,
+                                     uint64_t* finish_ver,
                                      const function<void()> &cb) {
 
         std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -465,6 +468,7 @@ void FpgaRaftPlusServer::StartTimer()
 				/*if (rand() % 1000 == 0) {
 					usleep(25*1000);
 				}*/
+        OnCurpAttemptCommitFinish(cmd, commit_finish, finish_accept, finish_ver);
         WAN_WAIT
         cb();
     }
@@ -496,8 +500,8 @@ void FpgaRaftPlusServer::StartTimer()
 		struct timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 
-    if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
-      CurpPreSkipFastpath(cmd);
+    // if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+    //   CurpPreSkipFastpath(cmd);
 
     // This prevents the log entry from being applied twice
     if (in_applying_logs_) {

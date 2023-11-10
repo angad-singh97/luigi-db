@@ -81,9 +81,12 @@ void FpgaRaftPlusServiceImpl::AppendEntries(const uint64_t& slot,
                                         const uint64_t& leaderCommitIndex,
 																				const DepId& dep_id,
                                         const MarshallDeputy& md_cmd,
+                                        const uint64_t& commit_finish,
                                         uint64_t *followerAppendOK,
                                         uint64_t *followerCurrentTerm,
                                         uint64_t *followerLastLogIndex,
+                                        bool_t* finish_accept,
+                                        uint64_t* finish_ver,
                                         rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
 	//Log_info("CreateRunning2");
@@ -112,9 +115,12 @@ void FpgaRaftPlusServiceImpl::AppendEntries(const uint64_t& slot,
                             leaderCommitIndex,
 														dep_id,
                             const_cast<MarshallDeputy&>(md_cmd).sp_data_,
+                            commit_finish,
                             followerAppendOK,
                             followerCurrentTerm,
                             followerLastLogIndex,
+                            finish_accept,
+                            finish_ver,
                             std::bind(&rrr::DeferredReply::reply, defer));
 
   // });

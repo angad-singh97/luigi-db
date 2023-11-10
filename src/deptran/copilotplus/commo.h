@@ -134,7 +134,9 @@ friend class CopilotPlusProxy;
                       slotid_t slot_id,
                       ballot_t ballot,
                       uint64_t dep,
-                      shared_ptr<Marshallable> cmd);
+                      shared_ptr<Marshallable> cmd,
+                      uint64_t curp_need_finish,
+                      TxLogServer *sch);
 
   shared_ptr<CopilotAcceptQuorumEvent>
   BroadcastAccept(parid_t par_id,

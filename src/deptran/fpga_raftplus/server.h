@@ -267,9 +267,12 @@ class FpgaRaftPlusServer : public TxLogServer {
                        const uint64_t leaderCommitIndex,
 											 const struct DepId dep_id,
                        shared_ptr<Marshallable> &cmd,
+                       const uint64_t& commit_finish,
                        uint64_t *followerAppendOK,
                        uint64_t *followerCurrentTerm,
                        uint64_t *followerLastLogIndex,
+                       bool_t* finish_accept,
+                       uint64_t* finish_ver,
                        const function<void()> &cb);
 
   void OnCommit(const slotid_t slot_id,

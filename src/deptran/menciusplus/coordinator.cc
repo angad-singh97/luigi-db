@@ -116,9 +116,9 @@ void CoordinatorMenciusPlus::Suggest() {
   //           par_id_, slot_id_);
   auto start = chrono::system_clock::now();
   commo()->svr_workers_g = svr_workers_g;
-  auto sp_quorum = commo()->BroadcastSuggest(par_id_, slot_id_, curr_ballot_, cmd_);
-  if (Config::GetConfig()->curp_execution_in_advance_enabled_)
-    sch_->CurpPreSkipFastpath(cmd_);
+  auto sp_quorum = commo()->BroadcastSuggest(par_id_, slot_id_, curr_ballot_, cmd_, sch_->CurpAttemptCommitFinish(cmd_), sch_);
+  // if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+  //   sch_->CurpPreSkipFastpath(cmd_);
   sp_quorum->id_ = dep_id_;
 	//Log_info("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
   //Log_info("Suggest(): dep_id:%d, slot_id:%d, site: %d", dep_id_, slot_id_, frame_->site_info_->id);

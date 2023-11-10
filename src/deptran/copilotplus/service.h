@@ -50,8 +50,11 @@ class CopilotPlusServiceImpl : public CopilotPlusService, public CurpServiceImpl
                   const uint64_t& dep,
                   const MarshallDeputy& cmd,
                   const struct DepId& dep_id,
+                  const uint64_t& commit_finish,
                   ballot_t* max_ballot,
                   uint64_t* ret_dep,
+                  bool_t* finish_accept,
+                  uint64_t* finish_ver,
                   rrr::DeferredReply* defer) override;
 
   void Accept(const uint8_t& is_pilot,

@@ -60,7 +60,9 @@ class MenciusPlusCommo : public Communicator {
   BroadcastSuggest(parid_t par_id,
                   slotid_t slot_id,
                   ballot_t ballot,
-                  shared_ptr<Marshallable> cmd);
+                  shared_ptr<Marshallable> cmd,
+                  uint64_t curp_need_finish,
+                  TxLogServer *sch);
   void BroadcastSuggest(parid_t par_id,
                        slotid_t slot_id,
                        ballot_t ballot,

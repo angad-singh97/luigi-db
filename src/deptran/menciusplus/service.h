@@ -45,8 +45,11 @@ class MenciusPlusServiceImpl : public MenciusPlusService, public CurpServiceImpl
               const std::vector<uint64_t>& skip_commits, 
               const std::vector<uint64_t>& skip_potentials,
               const MarshallDeputy& cmd,
+              const uint64_t& commit_finish,
               ballot_t* max_ballot,
               uint64_t* coro_id,
+              bool_t* finish_accept,
+              uint64_t* finish_ver,
               rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,

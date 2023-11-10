@@ -39,8 +39,11 @@ void MenciusPlusServer::OnSuggest(const slotid_t slot_id,
                            const std::vector<uint64_t>& skip_commits, 
                            const std::vector<uint64_t>& skip_potentials,
                            shared_ptr<Marshallable> &cmd,
+                           const uint64_t& commit_finish,
                            ballot_t *max_ballot,
                            uint64_t* coro_id,
+                           bool_t* finish_accept,
+                           uint64_t* finish_ver,
                            const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   //Log_info("mencius scheduler suggest for slot_id: %llu", slot_id);
@@ -60,6 +63,7 @@ void MenciusPlusServer::OnSuggest(const slotid_t slot_id,
   *coro_id = Coroutine::CurrentCoroutine()->id;
   *max_ballot = instance->max_ballot_seen_;
   n_suggest_++;
+  OnCurpAttemptCommitFinish(cmd, commit_finish, finish_accept, finish_ver);
   WAN_WAIT
   cb();
 }
@@ -81,8 +85,8 @@ void MenciusPlusServer::OnCommit(const slotid_t slot_id,
   }
   verify(slot_id > max_executed_slot_);
 
-  if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
-    CurpPreSkipFastpath(instance->committed_cmd_);
+  // if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+  //   CurpPreSkipFastpath(instance->committed_cmd_);
 
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {

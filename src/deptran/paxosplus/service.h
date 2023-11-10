@@ -44,11 +44,14 @@ class MultiPaxosPlusServiceImpl : public MultiPaxosPlusService, public CurpServi
                rrr::DeferredReply* defer) override;
 
   void Accept(const uint64_t& slot,
-	          const uint64_t& time,
+              const uint64_t& time,
               const ballot_t& ballot,
               const MarshallDeputy& cmd,
+              const uint64_t& commit_finish,
               ballot_t* max_ballot,
               uint64_t* coro_id,
+              bool_t* finish_accept,
+              uint64_t* finish_ver,
               rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,

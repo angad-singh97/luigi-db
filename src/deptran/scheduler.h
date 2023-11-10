@@ -21,6 +21,8 @@ struct UniqueCmdID {
 shared_ptr<Marshallable> MakeFinishCmd(parid_t par_id, int cmd_id, key_t key, value_t value);
 shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
 
+class CurpDispatchQuorumEvent;
+
 class CurpPlusData : public enable_shared_from_this<CurpPlusData>{
  private:
   key_t key_;
@@ -168,17 +170,33 @@ struct CommitNotification {
   double receive_time_ = -1;
 };
 
-class InstanceCommitTimeoutPool {
+class CurpInstanceCommitTimeoutPool {
  public:
   set<pair<key_t, ver_t>> in_pool_;
   set<pair<double, shared_ptr<CurpPlusData>>> pool_;
-  InstanceCommitTimeoutPool() {
+  CurpInstanceCommitTimeoutPool() {
     Coroutine::CreateRun([this]() { 
       TimeoutLoop();
     });
   }
   void TimeoutLoop();
   void AddTimeoutInstance(shared_ptr<CurpPlusData> instance, bool repeat_insert = false);
+};
+
+class CurpCoordinatorCommitFinishTimeoutPool {
+  public:
+    TxLogServer *sch_ = nullptr;
+    // <key> exist in this pool iff there exist a Finish symbol related to <key> in process (either in wait_for_commit_events_pool_)
+    set<key_t> in_pool_;
+    // This pool manages all QuorumEvents that commits Finish along with original protocol, key is original protocol cmd_id
+    map<pair<int32_t, int32_t>, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>> wait_for_commit_events_pool_;
+    CurpCoordinatorCommitFinishTimeoutPool(TxLogServer *sch): sch_(sch) {
+      Coroutine::CreateRun([this]() { 
+        TimeoutLoop();
+      });
+    };
+    void TimeoutLoop();
+    void DealWith(pair<int32_t, int32_t> cmd_id);
 };
 
 class TxnRegistry;
@@ -214,7 +232,7 @@ class TxLogServer {
   shared_ptr<TxnRegistry> txn_reg_{nullptr};
   parid_t partition_id_{};
   std::recursive_mutex mtx_{};
-  // std::mutex mtx2_{};
+  std::recursive_mutex curp_mtx_{};
 
   bool epoch_enabled_{false};
   EpochMgr epoch_mgr_{};
@@ -403,7 +421,8 @@ class TxLogServer {
   // int n_commit_ = 0;
   // bool curp_in_applying_logs_{false};
 
-  InstanceCommitTimeoutPool instance_commit_timeout_pool_;
+  CurpInstanceCommitTimeoutPool curp_instance_commit_timeout_pool_;
+  CurpCoordinatorCommitFinishTimeoutPool curp_coordinator_commit_finish_timeout_pool_;
 
   map<pair<key_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
 
@@ -461,6 +480,17 @@ class TxLogServer {
   void CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd);
 
   void CurpSkipFastpath(int cmd_id, shared_ptr<Marshallable> &cmd);
+
+  uint64_t CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd);
+
+  void CurpAttemptCommitFinishReply(pair<int32_t, int32_t> cmd_id,
+                                    bool_t &finish_accept,
+                                    uint64_t &finish_ver);
+
+  void OnCurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd,
+                                const uint64_t& commit_finish,
+                                bool_t* finish_accept,
+                                uint64_t* finish_ver);
 
   shared_ptr<CurpPlusData> GetCurpLog(key_t key, ver_t ver);
 

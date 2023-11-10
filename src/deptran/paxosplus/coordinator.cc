@@ -144,9 +144,9 @@ void CoordinatorMultiPaxosPlus::Accept() {
     sch_->cli2leader_send_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd_));
 #endif
     auto sp_quorum =
-        commo()->BroadcastAccept(par_id_, slot_id_, curr_ballot_, cmd_);
-    if (Config::GetConfig()->curp_execution_in_advance_enabled_)
-        sch_->CurpPreSkipFastpath(cmd_);
+        commo()->BroadcastAccept(par_id_, slot_id_, curr_ballot_, cmd_, sch_->CurpAttemptCommitFinish(cmd_), sch_);
+    // if (Config::GetConfig()->curp_execution_in_advance_enabled_)
+    //     sch_->CurpPreSkipFastpath(cmd_);
     sp_quorum->id_ = dep_id_;
     // Log_info("current coroutine's dep_id: %d",
     // Coroutine::CurrentCoroutine()->dep_id_);

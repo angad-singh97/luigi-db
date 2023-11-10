@@ -33,11 +33,14 @@ void MultiPaxosPlusServiceImpl::Prepare(const uint64_t& slot,
 }
 
 void MultiPaxosPlusServiceImpl::Accept(const uint64_t& slot,
-		                   const uint64_t& time,
+		                               const uint64_t& time,
                                    const ballot_t& ballot,
                                    const MarshallDeputy& md_cmd,
+                                   const uint64_t& commit_finish,
                                    ballot_t* max_ballot,
                                    uint64_t* coro_id,
+                                   bool_t* finish_accept,
+                                   uint64_t* finish_ver,
                                    rrr::DeferredReply* defer) {
   auto start = chrono::system_clock::now();
 
@@ -57,11 +60,14 @@ void MultiPaxosPlusServiceImpl::Accept(const uint64_t& slot,
 
   auto coro = Coroutine::CreateRun([&] () {
     sched()->OnAccept(slot,
-		     time,
+		                 time,
                      ballot,
                      const_cast<MarshallDeputy&>(md_cmd).sp_data_,
+                     commit_finish,
                      max_ballot,
                      coro_id,
+                     finish_accept,
+                     finish_ver,
                      std::bind(&rrr::DeferredReply::reply, defer));
 
   });

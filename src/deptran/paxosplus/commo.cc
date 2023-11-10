@@ -88,7 +88,9 @@ shared_ptr<PaxosPlusAcceptQuorumEvent>
 MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
                                  slotid_t slot_id,
                                  ballot_t ballot,
-                                 shared_ptr<Marshallable> cmd) {
+                                 shared_ptr<Marshallable> cmd,
+                                 uint64_t curp_need_finish,
+                                 TxLogServer *sch) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<PaxosPlusAcceptQuorumEvent>(n, n/2+1);
 //  auto e = Reactor::CreateSpEvent<PaxosPlusAcceptQuorumEvent>(n, n);
@@ -118,11 +120,18 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
 
     FutureAttr fuattr;
-    fuattr.callback = [e, start, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
+    fuattr.callback = [e, start, ballot, leader_id, src_coroid, follower_id, cmd, sch] (Future* fu) {
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
       e->FeedResponse(b==ballot);
+
+      bool_t finish_accept = 0;
+      uint64_t finish_ver = 0;
+      fu->get_reply() >> finish_accept >> finish_ver;
+      pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+      sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+
       auto end = chrono::system_clock::now();
       auto duration = chrono::duration_cast<chrono::microseconds>(end-start).count();
       //Log_info("The duration of Accept() for %d is: %d", follower_id, duration);
@@ -131,7 +140,7 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
     };
     MarshallDeputy md(cmd);
     auto start1 = chrono::system_clock::now();
-    auto f = proxy->async_Accept(slot_id, start_, ballot, md, fuattr);
+    auto f = proxy->async_Accept(slot_id, start_, ballot, md, curp_need_finish, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();
     //Log_info("Time for Async_Accept() for %d is: %d", follower_id, duration);
@@ -140,26 +149,26 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
   return e;
 }
 
-void MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
-                                      slotid_t slot_id,
-                                      ballot_t ballot,
-                                      shared_ptr<Marshallable> cmd,
-                                      const function<void(Future*)>& cb) {
-  verify(0); // deprecated function
-  auto proxies = rpc_par_proxies_[par_id];
-  auto leader_id = LeaderProxyForPartition(par_id).first;
-  vector<Future*> fus;
-  for (auto& p : proxies) {
-    auto proxy = (MultiPaxosPlusProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = cb;
-    MarshallDeputy md(cmd);
-    uint64_t time = 0; // compiles the code
-    auto f = proxy->async_Accept(slot_id, time,ballot, md, fuattr);
-    Future::safe_release(f);
-  }
-//  verify(0);
-}
+// void MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
+//                                       slotid_t slot_id,
+//                                       ballot_t ballot,
+//                                       shared_ptr<Marshallable> cmd,
+//                                       const function<void(Future*)>& cb) {
+//   verify(0); // deprecated function
+//   auto proxies = rpc_par_proxies_[par_id];
+//   auto leader_id = LeaderProxyForPartition(par_id).first;
+//   vector<Future*> fus;
+//   for (auto& p : proxies) {
+//     auto proxy = (MultiPaxosPlusProxy*) p.second;
+//     FutureAttr fuattr;
+//     fuattr.callback = cb;
+//     MarshallDeputy md(cmd);
+//     uint64_t time = 0; // compiles the code
+//     auto f = proxy->async_Accept(slot_id, time,ballot, md, fuattr);
+//     Future::safe_release(f);
+//   }
+// //  verify(0);
+// }
 
 void MultiPaxosPlusCommo::BroadcastDecide(const parid_t par_id,
                                       const slotid_t slot_id,

@@ -266,8 +266,11 @@ void CopilotPlusServer::OnFastAccept(const uint8_t& is_pilot,
                                  const uint64_t& dep,
                                  shared_ptr<Marshallable>& cmd,
                                  const struct DepId& dep_id,
+                                 const uint64_t& commit_finish,
                                  ballot_t* max_ballot,
                                  uint64_t* ret_dep,
+                                 bool_t* finish_accept,
+                                 uint64_t* finish_ver,
                                  const function<void()> &cb) {
   // TODO: deal with ballot
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -338,7 +341,7 @@ void CopilotPlusServer::OnFastAccept(const uint8_t& is_pilot,
   *ret_dep = suggest_dep;
   // Log_info("[copilot+] OnFastAccept max_ballot=%d ret_dep=%d", ballot, suggest_dep);
   // Log_info("[copilot+] OnFastAccept callback exist=%d", cb != nullptr);
-
+  OnCurpAttemptCommitFinish(cmd, commit_finish, finish_accept, finish_ver);
   if (cb) {
     pingpong_event_.Set(1);
     pingpong_ok_ = true;
@@ -414,8 +417,8 @@ void CopilotPlusServer::OnCommit(const uint8_t& is_pilot,
   ins->cmit_evt.Set(1);
 #endif
 
-  if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
-    CurpPreSkipFastpath(ins->cmd);
+  // if (!Config::GetConfig()->curp_execution_in_advance_enabled_)
+  //   CurpPreSkipFastpath(ins->cmd);
 
   auto& log_info = log_infos_[is_pilot];
   auto& another_log_info = log_infos_[REVERSE(is_pilot)];

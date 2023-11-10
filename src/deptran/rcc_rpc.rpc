@@ -38,9 +38,12 @@ abstract service MultiPaxosPlus {
   defer Accept(uint64_t slot,
                uint64_t time,
                ballot_t ballot,
-               MarshallDeputy cmd |
+               MarshallDeputy cmd,
+               uint64_t commit_finish |
                ballot_t max_ballot,
-               uint64_t coro_id);
+               uint64_t coro_id,
+               bool_t finish_accept,
+               uint64_t finish_ver);
 
   defer Decide(uint64_t slot,
                ballot_t ballot,
@@ -130,9 +133,12 @@ abstract service MenciusPlus {
                uint64_t sender,
                vector<uint64_t> skip_commits,
                vector<uint64_t> skip_potentials,
-               MarshallDeputy cmd |
+               MarshallDeputy cmd,
+               uint64_t commit_finish |
                ballot_t max_ballot,
-               uint64_t coro_id);
+               uint64_t coro_id,
+               bool_t finish_accept,
+               uint64_t finish_ver);
 
   defer Decide(uint64_t slot,
                ballot_t ballot,
@@ -220,10 +226,13 @@ abstract service FpgaRaftPlus {
                       uint64_t leaderPrevLogTerm,
                       uint64_t leaderCommitIndex,
 											DepId dep_id,
-                      MarshallDeputy cmd |
+                      MarshallDeputy cmd,
+                      uint64_t commit_finish |
                       uint64_t followerAppendOK,
                       uint64_t followerCurrentTerm,
-                      uint64_t followerLastLogIndex);
+                      uint64_t followerLastLogIndex,
+                      bool_t finish_accept,
+                      uint64_t finish_ver);
  
 	defer AppendEntries2(uint64_t slot,
                       ballot_t ballot,
@@ -295,9 +304,12 @@ abstract service CopilotPlus {
                    ballot_t ballot,
                    uint64_t dep,
                    MarshallDeputy cmd,
-                   DepId dep_id |
+                   DepId dep_id,
+                   uint64_t commit_finish |
                    ballot_t max_ballot,
-                   uint64_t ret_dep);
+                   uint64_t ret_dep,
+                   bool_t finish_accept,
+                   uint64_t finish_ver);
 
   defer Accept(uint8_t is_pilot,
                uint64_t slot,

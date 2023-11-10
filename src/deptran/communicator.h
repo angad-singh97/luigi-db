@@ -29,6 +29,7 @@ static void _wan_wait() {
 class Coordinator;
 class ClassicProxy;
 class ClientControlProxy;
+class TxLogServer;
 
 typedef std::pair<siteid_t, ClassicProxy*> SiteProxyPair;
 typedef std::pair<siteid_t, ClientControlProxy*> ClientSiteProxyPair;
@@ -115,8 +116,6 @@ class CurpDispatchQuorumEvent: public QuorumEvent {
   bool IsReady() override;
   //TODO: put in .cc file
   ResponsePack GetMax() {
-    // [CURP] should be rm or only called when fastpath success
-    verify(0);
     return max_response_;
   }
   siteid_t GetCooId();

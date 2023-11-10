@@ -201,7 +201,9 @@ friend class FpgaRaftPlusProxy;
                          uint64_t prevLogIndex,
                          uint64_t prevLogTerm,
                          uint64_t commitIndex,
-                         shared_ptr<Marshallable> cmd);
+                         shared_ptr<Marshallable> cmd,
+                         uint64_t curp_need_finish,
+                         TxLogServer *sch);
   void BroadcastAppendEntries(parid_t par_id,
                               slotid_t slot_id,
 															i64 dep_id,

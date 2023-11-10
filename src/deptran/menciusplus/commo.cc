@@ -69,7 +69,9 @@ shared_ptr<MenciusPlusSuggestQuorumEvent>
 MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
                                  slotid_t slot_id,
                                  ballot_t ballot,
-                                 shared_ptr<Marshallable> cmd) {
+                                 shared_ptr<Marshallable> cmd,
+                                 uint64_t curp_need_finish,
+                                 TxLogServer *sch) {
   //Log_info("invoke BroadcastSuggest, slot_id:%d", slot_id);
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<MenciusPlusSuggestQuorumEvent>(n, n/2+1);
@@ -139,11 +141,17 @@ MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
     FutureAttr fuattr;
     // auto start2 = chrono::system_clock::now();
     auto start2 = 0;
-    fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
+    fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id, cmd, sch] (Future* fu) {
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
       e->FeedResponse(b==ballot);
+
+      bool_t finish_accept = 0;
+      uint64_t finish_ver = 0;
+      fu->get_reply() >> finish_accept >> finish_ver;
+      pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+      sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
       // auto end = chrono::system_clock::now();
       // auto duration = chrono::duration_cast<chrono::microseconds>(end-start2).count();
       //Log_info("The duration of Suggest() for %d is: %d", follower_id, duration); // 20029
@@ -165,7 +173,7 @@ MenciusPlusCommo::BroadcastSuggest(parid_t par_id,
 
     // auto start_ = chrono::duration_cast<chrono::microseconds>(start-midn-hours-minutes).count();
     auto start_ = 0;
-    auto f = proxy->async_Suggest(slot_id, start_, ballot, sender, skip_commits, skip_potentials, md, fuattr);
+    auto f = proxy->async_Suggest(slot_id, start_, ballot, sender, skip_commits, skip_potentials, md, curp_need_finish, fuattr);
     auto end1 = chrono::system_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end1-start1).count();
     Future::safe_release(f);

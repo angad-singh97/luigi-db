@@ -28,8 +28,11 @@ void MenciusPlusServiceImpl::Suggest(const uint64_t& slot,
                                    const std::vector<uint64_t>& skip_commits, 
                                    const std::vector<uint64_t>& skip_potentials,
                                    const MarshallDeputy& md_cmd,
+                                   const uint64_t& commit_finish,
                                    ballot_t* max_ballot,
                                    uint64_t* coro_id,
+                                   bool_t* finish_accept,
+                                   uint64_t* finish_ver,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   // auto start = chrono::system_clock::now();
@@ -81,8 +84,11 @@ void MenciusPlusServiceImpl::Suggest(const uint64_t& slot,
                      skip_commits,
                      skip_potentials,
                      const_cast<MarshallDeputy&>(md_cmd).sp_data_,
+                     commit_finish,
                      max_ballot,
                      coro_id,
+                     finish_accept,
+                     finish_ver,
                      std::bind(&rrr::DeferredReply::reply, defer));
 
   });

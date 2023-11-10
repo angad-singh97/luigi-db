@@ -40,8 +40,11 @@ void CopilotPlusServiceImpl::FastAccept(const uint8_t& is_pilot,
                                     const uint64_t& dep,
                                     const MarshallDeputy& cmd,
                                     const struct DepId& dep_id,
+                                    const uint64_t& commit_finish,
                                     ballot_t* max_ballot,
                                     uint64_t* ret_dep,
+                                    bool_t* finish_accept,
+                                    uint64_t* finish_ver,
                                     rrr::DeferredReply* defer) {
   // Log_info("[copilot+] CopilotPlusServiceImpl::FastAccept");
   // auto coro = Coroutine::CreateRun([&]() {
@@ -50,8 +53,11 @@ void CopilotPlusServiceImpl::FastAccept(const uint8_t& is_pilot,
                          dep,
                          const_cast<MarshallDeputy&>(cmd).sp_data_,
                          dep_id,
+                         commit_finish,
                          max_ballot,
                          ret_dep,
+                         finish_accept,
+                         finish_ver,
                          bind(&rrr::DeferredReply::reply, defer));
   // });
 }

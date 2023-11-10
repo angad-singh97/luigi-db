@@ -132,6 +132,7 @@ void FpgaRaftPlusCommo::SendAppendEntriesAgain(siteid_t site_id,
                                         commitIndex,
 																				di,
                                         md, 
+                                        0,
                                         fuattr);
     Future::safe_release(f);
   }
@@ -149,7 +150,9 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
                                       uint64_t prevLogIndex,
                                       uint64_t prevLogTerm,
                                       uint64_t commitIndex,
-                                      shared_ptr<Marshallable> cmd) {
+                                      shared_ptr<Marshallable> cmd,
+                                      uint64_t curp_need_finish,
+                                      TxLogServer *sch) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<FpgaRaftPlusAppendQuorumEvent>(n, n/2 + 1);
   auto proxies = rpc_par_proxies_[par_id];
@@ -192,7 +195,7 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
-    fuattr.callback = [this, e, isLeader, currentTerm, follower_id, n, ip, begin] (Future* fu) {
+    fuattr.callback = [this, e, isLeader, currentTerm, follower_id, n, ip, begin, cmd, sch] (Future* fu) {
       uint64_t accept = 0;
       uint64_t term = 0;
       uint64_t index = 0;
@@ -210,6 +213,12 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
 			
       bool y = ((accept == 1) && (isLeader) && (currentTerm == term));
       e->FeedResponse(y, index, ip);
+
+      bool_t finish_accept = 0;
+      uint64_t finish_ver = 0;
+      fu->get_reply() >> finish_accept >> finish_ver;
+      pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+      sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
     };
     MarshallDeputy md(cmd);
 		verify(md.sp_data_ != nullptr);
@@ -225,6 +234,7 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
                                         commitIndex,
 																				di,
                                         md, 
+                                        curp_need_finish,
                                         fuattr);
     Future::safe_release(f);
   }
@@ -261,6 +271,7 @@ void FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
                                         commitIndex,
 																				di,
                                         md, 
+                                        0,
                                         fuattr);
     Future::safe_release(f);
   }

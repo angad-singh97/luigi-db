@@ -76,9 +76,12 @@ class FpgaRaftPlusServiceImpl: public FpgaRaftPlusService, public CurpServiceImp
                      const uint64_t& leaderCommitIndex,
 										 const DepId& dep_id,
                      const MarshallDeputy& cmd,
+                     const uint64_t& commit_finish,
                      uint64_t *followerAppendOK,
                      uint64_t *followerCurrentTerm,
                      uint64_t *followerLastLogIndex,
+                     bool_t* finish_accept,
+                     uint64_t* finish_ver,
                      rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,
