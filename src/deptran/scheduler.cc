@@ -940,7 +940,7 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
 void CurpCoordinatorCommitFinishTimeoutPool::TimeoutLoop() {
   while (true) {
     Reactor::CreateSpEvent<TimeoutEvent>(10 * 1000)->Wait();
-    for (map<pair<int32_t, int32_t>, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>>::iterator it = wait_for_commit_events_pool_.begin(), cur_it; it != wait_for_commit_events_pool_.end(); ) {
+    for (unordered_map<int64_t, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>>::iterator it = wait_for_commit_events_pool_.begin(), cur_it; it != wait_for_commit_events_pool_.end(); ) {
       cur_it = it;
       it++;
       DealWith(cur_it->first);
@@ -948,7 +948,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::TimeoutLoop() {
   }
 }
 
-void CurpCoordinatorCommitFinishTimeoutPool::DealWith(pair<int32_t, int32_t> cmd_id) {
+void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
   // std::lock_guard<std::recursive_mutex> lock(sch_->curp_mtx_);
   key_t key = wait_for_commit_events_pool_[cmd_id].first;
   shared_ptr<CurpDispatchQuorumEvent> e = wait_for_commit_events_pool_[cmd_id].second;
@@ -981,7 +981,7 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
   if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.in_pool_.end()) {
     curp_coordinator_commit_finish_timeout_pool_.in_pool_.insert(key);
     int n = Config::GetConfig()->GetPartitionSize(partition_id_);
-    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[cmd_id]
+    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[(((int64_t)cmd_id.first) << 31) & cmd_id.second]
      = make_pair(key, Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n)));
     return Config::GetConfig()->curp_finish_countdown_;
   }
@@ -993,10 +993,10 @@ void TxLogServer::CurpAttemptCommitFinishReply(pair<int32_t, int32_t> cmd_id,
                                                 bool_t &finish_accept,
                                                 uint64_t &finish_ver) {
   // Log_info("CurpAttemptCommitFinishReply for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find(cmd_id);
+  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find((((int64_t)cmd_id.first) << 31) & cmd_id.second);
   if (it != curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.end()) {
     it->second.second->FeedResponse(finish_accept, finish_ver, 0, 0, 0, 0);
-    curp_coordinator_commit_finish_timeout_pool_.DealWith(cmd_id);
+    curp_coordinator_commit_finish_timeout_pool_.DealWith((((int64_t)cmd_id.first) << 31) & cmd_id.second);
   }
 }
 

@@ -51,7 +51,7 @@ sites_ = [
 ]
 benchmarks_ =  [
     "rw_1",
-    "rw_1000",
+    # "rw_1000",
     "rw_1000000",
     "rw_zipf_1",
     # "rw_zipf_0.9",
@@ -174,7 +174,7 @@ def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
-        sleep(running_time)
+        sleep(running_time * 0.5)
         res = "Timeout"
     except Exception as e:
         print(e)
@@ -217,7 +217,7 @@ def test_all():
     exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) * len(running_time_) \
         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_) * len(latency_concurrent_)
     exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_) * len(running_time_)
-    estimate_minute = exp_count * 10
+    estimate_minute = exp_count * 5
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
     print("Number of total experiments is", exp_count)

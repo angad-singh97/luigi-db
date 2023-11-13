@@ -34,7 +34,7 @@ for file_name in file_names:
     wait_commit_timeout = parts[7]
     instance_commit_timeout = parts[8]
     fastpash_mode = "adapative" if parts[9] == "2" else parts[9]
-    commit_finish_in_advance = parts[10][:parts[10].find(".")]
+    duration = parts[10][:parts[10].find(".")]
     if "plus" not in mode:
         finish_countdown = None
         fastpath_timeout = None
@@ -42,6 +42,7 @@ for file_name in file_names:
         instance_commit_timeout = None
 
     throughtput = None
+    mid_throughtput = None
 
     fastpath_count = None
     fastpath_50pct = None
@@ -69,6 +70,8 @@ for file_name in file_names:
         for line in file:
             if "Total throughtput is" in line:
                 throughtput = float(line[line.find("is")+3:].strip())
+            if "Mid throughput is" in line:
+                mid_throughtput = float(line[line.find("is")+3:].strip())
             if "Fastpath" in line:
                 fastpath_count = int(line[line.find("count")+6:line.find("50pct")])
                 fastpath_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if fastpath_count > 0 else None
@@ -99,12 +102,12 @@ for file_name in file_names:
             if "clientall" in line:
                 clientall_medium = float(line[line.find("medium")+8:line.find("mean")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((latency, site, mode, workload, fastpash_mode, commit_finish_in_advance, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
-                  throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
+    datas.append((latency, site, mode, workload, fastpash_mode, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+                  throughtput, mid_throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
                   fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
                   cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium))
-    rows.append([latency, site, mode, workload, fastpash_mode, commit_finish_in_advance, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
-                  throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
+    rows.append([latency, site, mode, workload, fastpash_mode, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+                  throughtput, mid_throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
                   fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
                   cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium])
 
@@ -113,8 +116,8 @@ datas = sorted(datas, key=sorting_key)
 for data in datas:
     print(data)
 
-fields = ["latency", "site", "mode", "workload", "fastpash_mode", "commit_finish_in_advance", "conc", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout",\
-            "throughtput", "fastpath_count", "fastpath_50pct", "coordinatoraccept_count", "coordinatoraccept_50pct", "fast_original_count",\
+fields = ["latency", "site", "mode", "workload", "fastpash_mode", "duration", "conc", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout",\
+            "throughtput", "mid_throughtput", "fastpath_count", "fastpath_50pct", "coordinatoraccept_count", "coordinatoraccept_50pct", "fast_original_count",\
             "fast_original_50pct", "slow_original_count", "slow_original_50pct", "latency50pct", "latency90pct", "latency99pct", \
             "cpu0_medium", "cpu1_medium", "cpu2_medium", "clientall_medium"]
 

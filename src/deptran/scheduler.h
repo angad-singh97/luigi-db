@@ -189,14 +189,14 @@ class CurpCoordinatorCommitFinishTimeoutPool {
     // <key> exist in this pool iff there exist a Finish symbol related to <key> in process (either in wait_for_commit_events_pool_)
     set<key_t> in_pool_;
     // This pool manages all QuorumEvents that commits Finish along with original protocol, key is original protocol cmd_id
-    map<pair<int32_t, int32_t>, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>> wait_for_commit_events_pool_;
+    unordered_map<int64_t, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>> wait_for_commit_events_pool_{};
     CurpCoordinatorCommitFinishTimeoutPool(TxLogServer *sch): sch_(sch) {
       Coroutine::CreateRun([this]() { 
         TimeoutLoop();
       });
     };
     void TimeoutLoop();
-    void DealWith(pair<int32_t, int32_t> cmd_id);
+    void DealWith(int64_t cmd_id);
 };
 
 class TxnRegistry;
