@@ -193,7 +193,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 #ifdef SKIP
     if (site == 1) continue;
 #endif
-    if (1==0/*site == loc_id_*/) { //[TODO: recover it to site == loc_id_]
+    if (site == loc_id_) { //[TODO: recover it to site == loc_id_]
       ballot_t b;
       slotid_t sgst_dep;
       bool_t finish_accept;
