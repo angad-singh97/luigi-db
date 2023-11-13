@@ -46,10 +46,6 @@ fastpath_modes_ = [
     0,  # 0 possibility attempt fastpath
     # 1,  # 1 possibility attempt fastpath
 ]
-commit_finish_in_advance_ = [
-    0,
-    # 1
-]
 sites_ = [
     "12c1s3r1p",
 ]
@@ -107,6 +103,19 @@ latency_concurrent_ = [
     # "concurrent_22000",
     # "concurrent_30000",
 ]
+running_time_ = [
+    # 10,
+    # 20,
+    # 30,
+    # 60,
+    # 120,
+    # 240,
+    300,
+    # 480,
+    # 960,
+    # 1800,
+    # 3600,
+]
 finish_countdown_ = [
     # 1,
     # 10,
@@ -128,32 +137,32 @@ instance_commit_timeout_ = [
     1000,
 ]
 
-def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0, cfia=1):
+def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000, fp=0):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
 
-    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(cfia) + ".res")
+    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
     t1 = time()
     res = "INIT"
     try:
         with open(output_path, "w") as f:
-            cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", "20", "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp), "-a", str(cfia)]
+            cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
             # res = "OK" if r == 0 else "Failed"
 
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
-            sleep(10)
+            sleep(running_time // 2)
             cpu_usage = [[], [], [], []]
             for _ in range(10):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
                 for cpu_id in range(3):
                     cpu_usage[cpu_id].append(cpu_percent[cpu_id])
                 cpu_usage[3].append(np.sum(cpu_percent[3:]))
-            process.wait(timeout=120)
+            process.wait(timeout= max(120, running_time * 1.5))
             f.write("\n")
             for cpu_id in range(3):
                 text = "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
@@ -165,7 +174,7 @@ def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0, cfia=1):
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
-        sleep(10)
+        sleep(running_time)
         res = "Timeout"
     except Exception as e:
         print(e)
@@ -205,10 +214,10 @@ def run(latency, m, s, b, c, fc=0, to1=1000000, to2=0, to3=1000, fp=0, cfia=1):
 #                     run(20, m, s, b, c)
 
 def test_all():
-    exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) * len(commit_finish_in_advance_) \
+    exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) * len(running_time_) \
         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_) * len(latency_concurrent_)
-    exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
-    estimate_minute = exp_count // 2
+    exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_) * len(running_time_)
+    estimate_minute = exp_count * 10
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
     print("Number of total experiments is", exp_count)
@@ -216,22 +225,23 @@ def test_all():
 
     print("%-15s%-10s%-15s%-20s%-6s \t %-5s" % ("mode", "site", "bench", "concurrent", "result", "time"))
     
-    for s in sites_:
-        for m in curp_modes_:
-            for b in benchmarks_:
-                for fp in fastpath_modes_:
-                    for cfia in commit_finish_in_advance_:
+    for rt in running_time_:
+        for s in sites_:
+            for m in curp_modes_:
+                for b in benchmarks_:
+                    for fp in fastpath_modes_:
                         for fc in finish_countdown_:
                             for to1 in fast_path_timeout_:
                                 for to2 in wait_commit_timeout_:
                                     for to3 in instance_commit_timeout_:
                                         for c in latency_concurrent_:
-                                            run(20, m, s, b, c, fc, to1, to2, to3, fp, cfia)
-    for s in sites_:
-        for m in modes_:
-            for b in ["rw_1000000"]:
-                for c in latency_concurrent_:
-                    run(20, m, s, b, c)
+                                            run(20, m, s, b, c, rt, fc, to1, to2, to3, fp)
+    for rt in running_time_:
+        for s in sites_:
+            for m in modes_:
+                for b in ["rw_1000000"]:
+                    for c in latency_concurrent_:
+                        run(20, m, s, b, c, rt)
 
 
 def main():

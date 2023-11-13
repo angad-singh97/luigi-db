@@ -22,6 +22,7 @@ void CoordinatorCurp::GotoNextPhase() {
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
+      dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
       
       // Log_info("%d/%d result %d", fastpath_p_, fastpath_q_, go_to_fastpath_);
       // go_to_fastpath_ = false;
@@ -55,7 +56,8 @@ void CoordinatorCurp::GotoNextPhase() {
         phase_ += 2;
         verify(phase_ % n_phase == Phase::INIT_END);
         fastpath_count_++;
-        cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
+          cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else if (fast_original_path_) {
         client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
@@ -84,7 +86,8 @@ void CoordinatorCurp::GotoNextPhase() {
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
         coordinatoraccept_count_++;
-        cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
+          cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
 #ifdef CURP_FULL_LOG_DEBUG
@@ -100,12 +103,14 @@ void CoordinatorCurp::GotoNextPhase() {
 #endif
       committed_ = true;
       original_protocol_count_++;
-      if (!go_to_fastpath_)
-        cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-      else if (fast_original_path_)
-        cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-      else
-        cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
+        if (!go_to_fastpath_)
+          cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        else if (fast_original_path_)
+          cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        else
+          cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      }
       End();
       break;
     default:

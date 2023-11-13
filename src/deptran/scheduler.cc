@@ -957,6 +957,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(pair<int32_t, int32_t> cmd
     sch_->OnCurpCommit(e->GetMax().ver_, finish);
     sch_->commo()->CurpBroadcastCommit(sch_->partition_id_, e->GetMax().ver_, finish, sch_->loc_id_);
     in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
+    wait_for_commit_events_pool_.erase(cmd_id);
   } else if (e->FastNo() || e->timeouted_) {
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     while (sch_->finish_countdown_[key] == 0) {
@@ -968,6 +969,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(pair<int32_t, int32_t> cmd
       }
     }
     in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
+    wait_for_commit_events_pool_.erase(cmd_id);
   }
 }
 
@@ -975,6 +977,7 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
   key_t key = SimpleRWCommand::GetKey(cmd);
   pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
   // Log_info("CurpAttemptCommitFinish for cmd<%d, %d>", cmd_id.first, cmd_id.second);
+  // if (false) {
   if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.in_pool_.end()) {
     curp_coordinator_commit_finish_timeout_pool_.in_pool_.insert(key);
     int n = Config::GetConfig()->GetPartitionSize(partition_id_);

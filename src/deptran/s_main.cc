@@ -432,6 +432,7 @@ int main(int argc, char *argv[]) {
   Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99());
   Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99());
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99());
+  Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());

@@ -23,6 +23,8 @@ class CoordinatorClassic : public Coordinator {
 
   // For latency test
   double dispatch_time_ = -1;
+  // For mid 1/3 sampling
+  double dispatch_duration_3_times_ = -1;
 
   // For original protocol use after curp fastpath
   ReadyPiecesData cmds_by_par_;
