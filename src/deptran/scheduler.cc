@@ -981,7 +981,7 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
   if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.in_pool_.end()) {
     curp_coordinator_commit_finish_timeout_pool_.in_pool_.insert(key);
     int n = Config::GetConfig()->GetPartitionSize(partition_id_);
-    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[(((int64_t)cmd_id.first) << 31) & cmd_id.second]
+    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[(((int64_t)cmd_id.first) << 31) | cmd_id.second]
      = make_pair(key, Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n)));
     return Config::GetConfig()->curp_finish_countdown_;
   }
@@ -993,10 +993,10 @@ void TxLogServer::CurpAttemptCommitFinishReply(pair<int32_t, int32_t> cmd_id,
                                                 bool_t &finish_accept,
                                                 uint64_t &finish_ver) {
   // Log_info("CurpAttemptCommitFinishReply for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find((((int64_t)cmd_id.first) << 31) & cmd_id.second);
+  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find((((int64_t)cmd_id.first) << 31) | cmd_id.second);
   if (it != curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.end()) {
     it->second.second->FeedResponse(finish_accept, finish_ver, 0, 0, 0, 0);
-    curp_coordinator_commit_finish_timeout_pool_.DealWith((((int64_t)cmd_id.first) << 31) & cmd_id.second);
+    curp_coordinator_commit_finish_timeout_pool_.DealWith((((int64_t)cmd_id.first) << 31) | cmd_id.second);
   }
 }
 
