@@ -953,12 +953,14 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
   key_t key = wait_for_commit_events_pool_[cmd_id].first;
   shared_ptr<CurpDispatchQuorumEvent> e = wait_for_commit_events_pool_[cmd_id].second;
   if (e->FastYes()) {
+    // Log_info("CurpCoordinatorCommitFinish FastYes for cmd<%lld, %lld>", cmd_id >> 31, cmd_id & ((1ll << 31) - 1));
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     sch_->OnCurpCommit(e->GetMax().ver_, finish);
     sch_->commo()->CurpBroadcastCommit(sch_->partition_id_, e->GetMax().ver_, finish, sch_->loc_id_);
     in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
     wait_for_commit_events_pool_.erase(cmd_id);
   } else if (e->FastNo() || e->timeouted_) {
+    // Log_info("CurpCoordinatorCommitFinish FastNo or Timeout for cmd<%lld, %lld>", cmd_id >> 31, cmd_id & ((1ll << 31) - 1));
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     while (sch_->finish_countdown_[key] == 0) {
       shared_ptr<CurpDispatchQuorumEvent> new_e = sch_->commo()->CurpBroadcastDispatch(finish);

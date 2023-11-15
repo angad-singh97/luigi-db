@@ -189,6 +189,12 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
         // fix the 1c1s1p bug
         // Log_info("leader_site_id %d", leader_site_id);
         e->FeedResponse(true, prevLogIndex + 1, ip);
+
+        bool_t finish_accept = 0;
+        uint64_t finish_ver = 0;
+        sch->OnCurpAttemptCommitFinish(cmd, curp_need_finish, &finish_accept, &finish_ver);
+        pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+        sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
         continue;
     }
     FutureAttr fuattr;
