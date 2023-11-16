@@ -957,7 +957,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     sch_->OnCurpCommit(e->GetMax().ver_, finish);
     sch_->commo()->CurpBroadcastCommit(sch_->partition_id_, e->GetMax().ver_, finish, sch_->loc_id_);
-    in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
+    commit_finish_in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
     wait_for_commit_events_pool_.erase(cmd_id);
   } else if (e->FastNo() || e->timeouted_) {
     // Log_info("CurpCoordinatorCommitFinish FastNo or Timeout for cmd<%lld, %lld>", cmd_id >> 31, cmd_id & ((1ll << 31) - 1));
@@ -970,7 +970,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
         sch_->commo()->CurpBroadcastCommit(sch_->partition_id_, new_e->GetMax().ver_, finish, sch_->loc_id_);
       }
     }
-    in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
+    commit_finish_in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
     wait_for_commit_events_pool_.erase(cmd_id);
   }
 }
@@ -980,10 +980,10 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
   pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
   // Log_info("CurpAttemptCommitFinish for cmd<%d, %d>", cmd_id.first, cmd_id.second);
   // if (false) {
-  if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.in_pool_.end()) {
-    curp_coordinator_commit_finish_timeout_pool_.in_pool_.insert(key);
+  if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.end()) {
+    curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.insert(key);
     int n = Config::GetConfig()->GetPartitionSize(partition_id_);
-    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[(((int64_t)cmd_id.first) << 31) | cmd_id.second]
+    curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[SimpleRWCommand::CombineInt32(cmd_id)]
      = make_pair(key, Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n)));
     return Config::GetConfig()->curp_finish_countdown_;
   }
@@ -995,10 +995,10 @@ void TxLogServer::CurpAttemptCommitFinishReply(pair<int32_t, int32_t> cmd_id,
                                                 bool_t &finish_accept,
                                                 uint64_t &finish_ver) {
   // Log_info("CurpAttemptCommitFinishReply for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find((((int64_t)cmd_id.first) << 31) | cmd_id.second);
+  auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find(SimpleRWCommand::CombineInt32(cmd_id));
   if (it != curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.end()) {
     it->second.second->FeedResponse(finish_accept, finish_ver, 0, 0, 0, 0);
-    curp_coordinator_commit_finish_timeout_pool_.DealWith((((int64_t)cmd_id.first) << 31) | cmd_id.second);
+    curp_coordinator_commit_finish_timeout_pool_.DealWith(SimpleRWCommand::CombineInt32(cmd_id));
   }
 }
 
@@ -1176,10 +1176,10 @@ value_t TxLogServer::DBPut(const shared_ptr<Marshallable>& cmd) {
 void CurpInstanceCommitTimeoutPool::TimeoutLoop() {
   while (true) {
     Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_instance_commit_timeout_ * 1000 + rand() % (Config::GetConfig()->curp_instance_commit_timeout_ * 1000))->Wait();
-    for (set<pair<double, shared_ptr<CurpPlusData>>>::iterator it = pool_.begin(), cur_it; it != pool_.end(); ) {
+    for (set<pair<double, shared_ptr<CurpPlusData>>>::iterator it = curp_instance_commit_pool_.begin(), cur_it; it != curp_instance_commit_pool_.end(); ) {
       if (it->first < SimpleRWCommand::GetCurrentMsTime()) {
         if (it->second->status_ == CurpPlusData::CurpPlusStatus::COMMITTED || it->second->status_ == CurpPlusData::CurpPlusStatus::EXECUTED) {
-          in_pool_.erase(it->second->GetPos());
+          curp_instance_commit_in_pool_.erase(SimpleRWCommand::CombineInt32(it->second->GetPos()));
           it++;
         } else {
           it->second->svr_->curp_instance_commit_timeout_trigger_prepare_count_++;
@@ -1187,7 +1187,7 @@ void CurpInstanceCommitTimeoutPool::TimeoutLoop() {
           AddTimeoutInstance(it->second, true);
           cur_it = it;
           it++;
-          pool_.erase(cur_it);
+          curp_instance_commit_pool_.erase(cur_it);
         }
       } else {
         ++it;
@@ -1200,13 +1200,13 @@ void CurpInstanceCommitTimeoutPool::AddTimeoutInstance(shared_ptr<CurpPlusData> 
     return;
   double trigger_ms_timeout = Config::GetConfig()->curp_instance_commit_timeout_ + rand() % (Config::GetConfig()->curp_instance_commit_timeout_ * 1000) / 1000.0;
   if (repeat_insert) {
-    pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
+    curp_instance_commit_pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
     return;
   }
   pair<key_t, ver_t> pos = instance->GetPos();
-  if (in_pool_.count(pos) == 0) {
-    in_pool_.insert(pos);
-    pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
+  if (curp_instance_commit_in_pool_.count(SimpleRWCommand::CombineInt32(pos)) == 0) {
+    curp_instance_commit_in_pool_.insert(SimpleRWCommand::CombineInt32(pos));
+    curp_instance_commit_pool_.insert(make_pair(SimpleRWCommand::GetCurrentMsTime() + trigger_ms_timeout, instance));
   }
 }
 

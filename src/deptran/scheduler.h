@@ -172,8 +172,8 @@ struct CommitNotification {
 
 class CurpInstanceCommitTimeoutPool {
  public:
-  set<pair<key_t, ver_t>> in_pool_;
-  set<pair<double, shared_ptr<CurpPlusData>>> pool_;
+  unordered_set<int64_t> curp_instance_commit_in_pool_;
+  set<pair<double, shared_ptr<CurpPlusData>>> curp_instance_commit_pool_; // [CURP] TODO: This may can be optimized
   CurpInstanceCommitTimeoutPool() {
     Coroutine::CreateRun([this]() { 
       TimeoutLoop();
@@ -187,7 +187,7 @@ class CurpCoordinatorCommitFinishTimeoutPool {
   public:
     TxLogServer *sch_ = nullptr;
     // <key> exist in this pool iff there exist a Finish symbol related to <key> in process (either in wait_for_commit_events_pool_)
-    set<key_t> in_pool_;
+    unordered_set<key_t> commit_finish_in_pool_;
     // This pool manages all QuorumEvents that commits Finish along with original protocol, key is original protocol cmd_id
     unordered_map<int64_t, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>> wait_for_commit_events_pool_{};
     CurpCoordinatorCommitFinishTimeoutPool(TxLogServer *sch): sch_(sch) {

@@ -33,13 +33,13 @@ modes_ = [
     "none_paxos",
     # "none_mencius",
     # "none_copilot",
-    # "none_fpga_raft",
+    "none_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
     # "mencius_plus",
     # "copilot_plus",
-    # "fpga_raft_plus",
+    "fpga_raft_plus",
 ]
 fastpath_modes_ = [
     # -1, # adaptive
@@ -50,10 +50,10 @@ sites_ = [
     "12c1s3r1p",
 ]
 benchmarks_ =  [
-    "rw_1",
     # "rw_1000",
     "rw_1000000",
     "rw_zipf_1",
+    "rw_1",
     # "rw_zipf_0.9",
     # "rw_zipf_0.75",
 ]

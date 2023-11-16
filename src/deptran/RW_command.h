@@ -22,6 +22,12 @@ class SimpleRWCommand: public Marshallable {
   static double GetCommandMsTime(shared_ptr<Marshallable> cmd);
   static double GetCommandMsTimeElaps(shared_ptr<Marshallable> cmd);
   static key_t GetKey(shared_ptr<Marshallable> cmd);
+  static int64_t CombineInt32(pair<int32_t, int32_t> a) {
+    return (((int64_t)a.first) << 31) | a.second;
+  }
+  static pair<int32_t, int32_t> GetInt32(int64_t a) {
+    return make_pair(a >> 31, a & ((1ll << 31) - 1));
+  }
 };
 
 }
