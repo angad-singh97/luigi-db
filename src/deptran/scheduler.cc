@@ -478,7 +478,7 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     *ver = -1;
     *result = -1;
   }
-  *key_hotness = curp_key_hotness_[key];
+  *key_hotness = 0; // [CURP] TODO: this need to be discard
   *coo_id = 0;
   verify(curp_log_cols_[key]->logs_[curp_log_cols_[key]->NextVersion()] != nullptr);
 #ifdef CURP_FULL_LOG_DEBUG
@@ -771,9 +771,6 @@ void TxLogServer::OnCurpCommit(const ver_t& ver,
 
   instance->UpdateCmd(cmd);
   instance->status_ = CurpPlusData::CurpPlusStatus::COMMITTED;
-
-  // update hotness
-  curp_key_hotness_[key]++;
 
   struct timeval tp;
   gettimeofday(&tp, NULL);
@@ -1105,10 +1102,16 @@ void CurpPlusDataCol::Execute(ver_t ver) {
     
   instance->status_ = CurpPlusData::CurpPlusStatus::EXECUTED;
 
-  // update hotness
-  svr_->curp_key_hotness_[key_]--;
-
   latest_executed_ver_ = ver;
+
+  // garbage collection
+  pair<key_t, ver_t> to_erase_ = svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_];
+  if (to_erase_.second > 0) // ver starts from 1
+    svr_->curp_log_cols_[to_erase_.first]->logs_.erase(to_erase_.second);
+  svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_] = make_pair(key_, ver);
+  svr_->curp_executed_garbage_collection_pointer_++;
+  if (svr_->curp_executed_garbage_collection_pointer_ >= 5000)
+    svr_->curp_executed_garbage_collection_pointer_ = 0;
 }
 
 void CurpPlusDataCol::Print() {

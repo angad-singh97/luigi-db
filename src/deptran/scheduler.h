@@ -65,7 +65,7 @@ class CurpPlusDataCol {
  public:
   bool in_applying_logs_{false};
   // use this log from position 1, position 0 is intentionally left blank to match the usage of "slot" & "slotid_t"
-  map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
+  unordered_map<slotid_t, shared_ptr<CurpPlusData>> logs_{};
   CurpPlusDataCol(TxLogServer* svr, key_t key): svr_(svr), key_(key){
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Create CurpPlusDataCol for key=%d", key);
@@ -241,43 +241,6 @@ class TxLogServer {
   bool in_upgrade_epoch_{false};
   const int EPOCH_DURATION = 5;
 
-  // CURP countings
-  int curp_fast_path_success_count_ = 0;
-  int curp_coordinator_accept_count_ = 0;
-  int original_protocol_submit_count_ = 0;
-
-  int curp_fastpath_timeout_count_ = 0;
-  int curp_wait_commit_timeout_count_ = 0;
-  int curp_instance_commit_timeout_trigger_prepare_count_ = 0;
-  int finish_countdown_count_ = 0;
-
-  int curp_unique_original_cmd_id_ = 0;
-
-  map<key_t, int> curp_key_hotness_;
-
-  // CURP Timestamp debug
-  Distribution cli2svr_dispatch, cli2svr_commit;
-#ifdef LATENCY_DEBUG
-  Distribution cli2preskip_begin_, cli2preskip_end_, cli2skip_begin_, cli2skip_end_;
-  Distribution cli2leader_recv_, cli2leader_send_, cli2follower_recv_, cli2follower_send_, cli2commit_send_, cli2oncommit_;
-  Distribution preskip_attemp_;
-#endif
-
-  // CURP commit finish in advance
-  map<key_t, bool> curp_in_commit_finish_;
-
-  // CURP coordinator reply/notify the client: cmd_id index
-  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
-  vector<shared_ptr<CommitNotification>> commit_timeout_list_;
-  int commit_timeout_solved_count_;
-
-  map<key_t, int> finish_countdown_;
-
-  // application k-v table for rw workload
-  map<key_t, value_t> kv_table_;
-
-  // [CURP] TODO: discard assigned_ since it is used to debug a old bug which have been solved
-  map<pair<int, int>, bool> assigned_;
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
   deltas_t deltas_{};
@@ -414,17 +377,48 @@ class TxLogServer {
 
   // below are about CURP
 
-  map<key_t, shared_ptr<CurpPlusDataCol>> curp_log_cols_{};
-  // [CURP] TODO: this need to be used
-  // int n_prepare_ = 0;
-  // int n_accept_ = 0;
-  // int n_commit_ = 0;
-  // bool curp_in_applying_logs_{false};
-
+  unordered_map<key_t, shared_ptr<CurpPlusDataCol>> curp_log_cols_{};
+  pair<key_t, ver_t> curp_executed_garbage_collection_[5000];
+  int curp_executed_garbage_collection_pointer_ = 0;
   CurpInstanceCommitTimeoutPool curp_instance_commit_timeout_pool_;
   CurpCoordinatorCommitFinishTimeoutPool curp_coordinator_commit_finish_timeout_pool_;
-
   map<pair<key_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
+
+  // CURP countings
+  int curp_fast_path_success_count_ = 0;
+  int curp_coordinator_accept_count_ = 0;
+  int original_protocol_submit_count_ = 0;
+
+  int curp_fastpath_timeout_count_ = 0;
+  int curp_wait_commit_timeout_count_ = 0;
+  int curp_instance_commit_timeout_trigger_prepare_count_ = 0;
+  int finish_countdown_count_ = 0;
+
+  int curp_unique_original_cmd_id_ = 0;
+
+  // CURP Timestamp debug
+  Distribution cli2svr_dispatch, cli2svr_commit;
+#ifdef LATENCY_DEBUG
+  Distribution cli2preskip_begin_, cli2preskip_end_, cli2skip_begin_, cli2skip_end_;
+  Distribution cli2leader_recv_, cli2leader_send_, cli2follower_recv_, cli2follower_send_, cli2commit_send_, cli2oncommit_;
+  Distribution preskip_attemp_;
+#endif
+
+  // CURP commit finish in advance
+  unordered_map<key_t, bool> curp_in_commit_finish_;
+
+  // CURP coordinator reply/notify the client: cmd_id index
+  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
+  vector<shared_ptr<CommitNotification>> commit_timeout_list_;
+  int commit_timeout_solved_count_;
+
+  unordered_map<key_t, int> finish_countdown_;
+
+  // application k-v table for rw workload
+  unordered_map<key_t, value_t> kv_table_;
+
+  // [CURP] TODO: discard assigned_ since it is used to debug a old bug which have been solved
+  map<pair<int, int>, bool> assigned_;
 
   void OnCurpDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,
