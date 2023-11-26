@@ -18,8 +18,9 @@ struct UniqueCmdID {
   int32_t cmd_id_;
 };
 
+// [CURP] TODO: discard cmd_id
 shared_ptr<Marshallable> MakeFinishCmd(parid_t par_id, int cmd_id, key_t key, value_t value);
-shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id);
+shared_ptr<Marshallable> MakeNoOpCmd(parid_t par_id, key_t key = -1);
 
 class CurpDispatchQuorumEvent;
 
@@ -174,10 +175,11 @@ class CurpInstanceCommitTimeoutPool {
  public:
   unordered_set<int64_t> curp_instance_commit_in_pool_;
   set<pair<double, shared_ptr<CurpPlusData>>> curp_instance_commit_pool_; // [CURP] TODO: This may can be optimized
+  bool timeout_loop_started_ = false;
   CurpInstanceCommitTimeoutPool() {
-    Coroutine::CreateRun([this]() { 
-      TimeoutLoop();
-    });
+    // Coroutine::CreateRun([this]() { 
+    //   TimeoutLoop();
+    // });
   }
   void TimeoutLoop();
   void AddTimeoutInstance(shared_ptr<CurpPlusData> instance, bool repeat_insert = false);
@@ -190,10 +192,11 @@ class CurpCoordinatorCommitFinishTimeoutPool {
     unordered_set<key_t> commit_finish_in_pool_;
     // This pool manages all QuorumEvents that commits Finish along with original protocol, key is original protocol cmd_id
     unordered_map<int64_t, pair<key_t, shared_ptr<CurpDispatchQuorumEvent>>> wait_for_commit_events_pool_{};
+    bool timeout_loop_started_ = false;
     CurpCoordinatorCommitFinishTimeoutPool(TxLogServer *sch): sch_(sch) {
-      Coroutine::CreateRun([this]() { 
-        TimeoutLoop();
-      });
+      // Coroutine::CreateRun([this]() { 
+      //   TimeoutLoop();
+      // });
     };
     void TimeoutLoop();
     void DealWith(int64_t cmd_id);
@@ -420,6 +423,11 @@ class TxLogServer {
   // [CURP] TODO: discard assigned_ since it is used to debug a old bug which have been solved
   map<pair<int, int>, bool> assigned_;
 
+  double first_print_structure_size_time_ = 0;
+  double last_print_structure_size_time_ = 0;
+
+  int curp_double_commit_count_ = 0;
+
   void OnCurpDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,
                       const shared_ptr<Marshallable>& cmd,
@@ -495,6 +503,9 @@ class TxLogServer {
   value_t DBGet(const shared_ptr<Marshallable>& cmd);
 
   value_t DBPut(const shared_ptr<Marshallable>& cmd);
+
+  // This used for garbage collection / evaluation data structure grows over time
+  void PrintStructureSize();
 };
 
 } // namespace janus

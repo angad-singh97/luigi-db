@@ -33,6 +33,8 @@ class PaxosPlusServer : public TxLogServer {
   int n_commit_ = 0;
   bool in_applying_logs_{false};
 
+  // bool tested_ = false;
+
   PaxosPlusServer() {
   }
 

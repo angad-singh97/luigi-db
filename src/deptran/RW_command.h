@@ -15,6 +15,7 @@ class SimpleRWCommand: public Marshallable {
   // SimpleRWCommand(const SimpleRWCommand &o);
   SimpleRWCommand(shared_ptr<Marshallable> cmd);
   std::string cmd_to_string();
+  bool same_as(SimpleRWCommand &other);
   Marshal& ToMarshal(Marshal& m) const override;
   Marshal& FromMarshal(Marshal& m) override;
   static pair<int32_t, int32_t> GetCmdID(shared_ptr<Marshallable> cmd);

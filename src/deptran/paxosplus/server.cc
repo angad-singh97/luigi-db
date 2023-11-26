@@ -69,6 +69,19 @@ void PaxosPlusServer::OnAccept(const slotid_t slot_id,
                                 uint64_t* finish_ver,
                                 const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+  // if (!tested_) {
+  //   Coroutine::CreateRun([this]() { 
+  //     while (true) {
+  //       Log_info("CurpInstanceCommitTimeoutPool start");
+  //       Reactor::CreateSpEvent<TimeoutEvent>(100 * 1000)->Wait();
+  //       Log_info("Finish Wait");
+  //     }
+  //   });
+  //   tested_ = true;
+  // }
+  
+
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] Paxos OnAccept cmd<%d, %d>", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif

@@ -192,13 +192,13 @@ class CurpPrepareQuorumEvent : public QuorumEvent {
 
   // for PREACCEPT
   map<pair<int, int>, pair<int, shared_ptr<Marshallable> > > fast_accept_;
-  int max_fast_accept_count_ = 0;
+  
   pair<int, int> max_fast_accept_id_;
  public:
+  int max_fast_accept_count_ = 0; // [CURP] TODO: put in private
   // using QuorumEvent::QuorumEvent;
   CurpPrepareQuorumEvent(int n_total, ballot_t self_ballot)
-      : QuorumEvent(n_total, CurpQuorumSize(n_total) - 1), self_ballot_(self_ballot) {
-        // -1 is because when broadcast prepare, itself will always reject since ballot number equal, but indeed it should be counted as accept
+      : QuorumEvent(n_total, CurpQuorumSize(n_total) ), self_ballot_(self_ballot) {
   }
 
   void FeedResponse(bool y,
@@ -404,7 +404,8 @@ class Communicator {
   CurpBroadcastPrepare(parid_t par_id,
                       key_t key,
                       ver_t ver,
-                      ballot_t ballot);
+                      ballot_t ballot,
+                      uint32_t self_loc);
 
   shared_ptr<CurpAcceptQuorumEvent>
   CurpBroadcastAccept(parid_t par_id,

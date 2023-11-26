@@ -130,6 +130,9 @@ void CurpPrepareQuorumEvent::FeedResponse(bool y,
       fast_accept_[cmd_id].second = cmd;
       if (fast_accept_[cmd_id].first > max_fast_accept_count_) {
         max_fast_accept_count_ = fast_accept_[cmd_id].first;
+#ifdef CURP_REPEAR_COMMIT_DEBUG
+        Log_info("FeedResponse [%s] max_fast_accept_count_ updated to %d", parsed_cmd->cmd_to_string().c_str(), max_fast_accept_count_);
+#endif
         max_fast_accept_id_ = cmd_id;
       }
     } else {
@@ -1303,7 +1306,8 @@ shared_ptr<CurpPrepareQuorumEvent>
 Communicator::CurpBroadcastPrepare(parid_t par_id,
                   key_t key,
                   ver_t ver,
-                  ballot_t ballot) {
+                  ballot_t ballot,
+                  uint32_t self_loc) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<CurpPrepareQuorumEvent>(n, ballot);
   auto proxies = rpc_par_proxies_[par_id];
@@ -1312,12 +1316,13 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
     auto proxy = (CurpProxy *)p.second;
     auto site = p.first;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future *fu) {
+    fuattr.callback = [e, site, self_loc](Future *fu) {
       bool_t accepted;
       i32 status;
       ballot_t last_accepted_ballot;
       MarshallDeputy cmd;
       fu->get_reply() >> accepted >> status >> last_accepted_ballot >> cmd;
+      accepted = accepted || (site == self_loc);
       e->FeedResponse(accepted, status, last_accepted_ballot, cmd);
     };
     // Log_info("[CURP] async_CurpPrepare(%d, %d, %d)", key, ver, ballot);

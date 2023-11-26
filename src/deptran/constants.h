@@ -150,6 +150,7 @@ namespace janus {
 // #define CURP_CONFLICT_DEBUG
 // #define CURP_FULL_LOG_DEBUG
 // #define LATENCY_DEBUG
+// #define CURP_REPEAR_COMMIT_DEBUG
 
 // #define CPU_PROFILE_MAIN
 // #define CPU_PROFILE_SEVER

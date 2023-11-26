@@ -51,7 +51,7 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
     value_ = kv_map[1].get_i32();
   } else if (vector0->type_ == RW_BENCHMARK_NOOP) {
     type_ = vector0->type_;
-    key_ = 0;
+    key_ = kv_map[0].get_i32();
     value_ = 0;
   } else {
     verify(0);
@@ -70,13 +70,13 @@ string SimpleRWCommand::cmd_to_string() {
   //Log_info("[copilot+] enter cmd_to_string of %p", (void*)(this));
   //Log_info("[copilot+] cmd_type=%d", type_);
   if (RW_BENCHMARK_NOOP == type_)
-    return string("NoOp");
+    return string("NoOp k=" + to_string(key_));
   else if (RW_BENCHMARK_R_TXN == type_)
-    return string("Read k=" + to_string(key_));
+    return string("<" + to_string(cmd_id_.first) + ", " + to_string(cmd_id_.second) + ">" + "Read k=" + to_string(key_));
   else if (RW_BENCHMARK_W_TXN == type_)
-    return string("Write k=" + to_string(key_) + " v=" + to_string(value_));
+    return string("<" + to_string(cmd_id_.first) + ", " + to_string(cmd_id_.second) + ">" + "Write k=" + to_string(key_) + " v=" + to_string(value_));
   else if (RW_BENCHMARK_FINISH == type_)
-    return string("Finish k=" + to_string(key_) + " v=" + to_string(value_));
+    return string("<" + to_string(cmd_id_.first) + ", " + to_string(cmd_id_.second) + ">" + "Finish k=" + to_string(key_) + " v=" + to_string(value_));
   else
     verify(0);
   // if (RW_BENCHMARK_NOOP == type_)
@@ -90,6 +90,13 @@ string SimpleRWCommand::cmd_to_string() {
   // else
   //   verify(0);
 }
+
+
+bool SimpleRWCommand::same_as(SimpleRWCommand &other) {
+  return type_ == other.type_ && key_ == other.key_ && value_ == other.value_ &&
+          (cmd_id_ == other.cmd_id_ || type_ == RW_BENCHMARK_FINISH);
+}
+
 
 Marshal& SimpleRWCommand::ToMarshal(Marshal& m) const {
   m << type_;

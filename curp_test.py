@@ -31,18 +31,18 @@ TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
     "none_paxos",
-    # "none_mencius",
-    # "none_copilot",
+    "none_mencius",
+    "none_copilot",
     "none_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
-    # "mencius_plus",
-    # "copilot_plus",
+    "mencius_plus",
+    "copilot_plus",
     "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    # -1, # adaptive
+    2, # adaptive
     0,  # 0 possibility attempt fastpath
     # 1,  # 1 possibility attempt fastpath
 ]
@@ -106,11 +106,11 @@ latency_concurrent_ = [
 running_time_ = [
     # 10,
     # 20,
-    # 30,
-    # 60,
-    # 120,
+    30,
+    60,
+    120,
     # 240,
-    300,
+    # 300,
     # 480,
     # 960,
     # 1800,
@@ -214,10 +214,10 @@ def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000
 #                     run(20, m, s, b, c)
 
 def test_all():
-    exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) * len(running_time_) \
+    exp_count = len(sites_) * len(curp_modes_) * len(fastpath_modes_) *  len(benchmarks_) * len(finish_countdown_) \
         * len(fast_path_timeout_) * len(wait_commit_timeout_) * len(instance_commit_timeout_) * len(latency_concurrent_)
-    exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_) * len(running_time_)
-    estimate_minute = exp_count * 5
+    exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
+    estimate_minute = exp_count * sum(running_time_) // 60
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
     print("Number of total experiments is", exp_count)
@@ -236,8 +236,6 @@ def test_all():
                                     for to3 in instance_commit_timeout_:
                                         for c in latency_concurrent_:
                                             run(20, m, s, b, c, rt, fc, to1, to2, to3, fp)
-    for rt in running_time_:
-        for s in sites_:
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
