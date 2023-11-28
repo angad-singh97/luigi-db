@@ -725,10 +725,11 @@ void TxLogServer::CurpCommit(ver_t ver,
     key_t key = cur_cmd.key_;
     SimpleRWCommand last_commit_cmd = SimpleRWCommand(curp_log_cols_[key]->logs_[ver]->GetCmd());
     // int next_ver = ver + 1;
-    // verify(cur_cmd.same_as(last_commit_cmd)); // [CURP] TODO: recover this
+    verify(cur_cmd.same_as(last_commit_cmd));
     curp_double_commit_count_++;
     return;
   }
+#ifdef CURP_CONFLICT_DEBUG
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
   if (cmd->kind_ == MarshallDeputy::CMD_NOOP) {
     // Commit No-Op, do nothing
@@ -742,8 +743,6 @@ void TxLogServer::CurpCommit(ver_t ver,
   } else {
     verify(0);
   }
-#ifdef CURP_CONFLICT_DEBUG
-  
   if (cmd->kind_ == MarshallDeputy::CMD_NOOP) {
     Log_info("[CURP] [CurpCommit] svr %d Commit No-Op pos(%d, %d)", loc_id_, SimpleRWCommand::GetKey(cmd), ver);
   } else {
@@ -969,6 +968,7 @@ void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
 
 
 void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd) {
+  // Log_info("CurpSkipFastpath");
 #ifdef LATENCY_DEBUG
   cli2skip_begin_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
 #endif
@@ -977,20 +977,28 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
 #endif
   original_protocol_submit_count_++;
   key_t key = SimpleRWCommand::GetKey(cmd);
-  for (int loop_count = 0; finish_countdown_[key] == 0; loop_count++) {
+  if (finish_countdown_[key] == 0) {
+    // Coroutine::CreateRun([this, key, cmd_id]() { 
+      for (int loop_count = 0; finish_countdown_[key] == 0; loop_count++) {
+        // Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> k=%d at svr %d at %.2f ms",
+          // SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_, SimpleRWCommand::GetCurrentMsTime());
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> key=%d at svr %d",
-      SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_);
+        Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> key=%d at svr %d",
+          SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_);
 #endif
-    if (loop_count > 1) {
-      shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->curp_finish_countdown_);
-      verify(SimpleRWCommand::GetKey(fin) == key);
-      auto e = commo()->CurpBroadcastDispatch(fin);
-      e->Wait();
-    } else {
-      auto timeout_e = Reactor::CreateSpEvent<TimeoutEvent>(20 * 1000); // [CURP] TODO: make this adaptive
-      timeout_e->Wait();
-    }
+        if (loop_count > 1) {
+          // Log_info("[CURP] REALLY Attempted to CommitFinish for cmd<%d, %d> i.e. cmd<-1, %d> k=%d at svr %d at %.2f ms",
+          // SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_, SimpleRWCommand::GetCurrentMsTime());
+          shared_ptr<Marshallable> fin = MakeFinishCmd(partition_id_, cmd_id, key, Config::GetConfig()->curp_finish_countdown_);
+          verify(SimpleRWCommand::GetKey(fin) == key);
+          auto e = commo()->CurpBroadcastDispatch(fin);
+          e->Wait();
+        } else {
+          auto timeout_e = Reactor::CreateSpEvent<TimeoutEvent>(20 * 1000); // [CURP] TODO: make this adaptive
+          timeout_e->Wait();
+        }
+      }
+    // });
   }
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP-FIN] Success skip fastpath for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",
@@ -1019,11 +1027,13 @@ void CurpCoordinatorCommitFinishTimeoutPool::TimeoutLoop() {
 void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
   // std::lock_guard<std::recursive_mutex> lock(sch_->curp_mtx_);
   key_t key = wait_for_commit_events_pool_[cmd_id].first;
+  // Log_info("DealWith k=%d at %.2f ms", key, SimpleRWCommand::GetCurrentMsTime());
   shared_ptr<CurpDispatchQuorumEvent> e = wait_for_commit_events_pool_[cmd_id].second;
   if (e == nullptr) return;
   if (e->FastYes()) {
     // Log_info("CurpCoordinatorCommitFinish FastYes for cmd<%lld, %lld>", cmd_id >> 31, cmd_id & ((1ll << 31) - 1));
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
+    // Log_info("Commit [%s] at %.2f ms", SimpleRWCommand(finish).cmd_to_string().c_str(), SimpleRWCommand::GetCurrentMsTime());
     sch_->OnCurpCommit(e->GetMax().ver_, finish);
     sch_->commo()->CurpBroadcastCommit(sch_->partition_id_, e->GetMax().ver_, finish, sch_->loc_id_);
     commit_finish_in_pool_.erase(wait_for_commit_events_pool_[cmd_id].first);
@@ -1050,6 +1060,9 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
 }
 
 uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
+  // only server on loc_0, the coordinator, takes charge of this
+  // if (loc_id_ != 0)
+  //   return 0;
   if (!curp_coordinator_commit_finish_timeout_pool_.timeout_loop_started_) {
     curp_coordinator_commit_finish_timeout_pool_.timeout_loop_started_ = true;
     Coroutine::CreateRun([this]() { 
@@ -1074,6 +1087,8 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
 void TxLogServer::CurpAttemptCommitFinishReply(pair<int32_t, int32_t> cmd_id,
                                                 bool_t &finish_accept,
                                                 uint64_t &finish_ver) {
+  // if (loc_id_ != 0)
+  //   return;
   // Log_info("CurpAttemptCommitFinishReply for cmd<%d, %d>", cmd_id.first, cmd_id.second);
   auto it = curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.find(SimpleRWCommand::CombineInt32(cmd_id));
   if (it != curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_.end()) {
@@ -1325,6 +1340,8 @@ void CurpInstanceCommitTimeoutPool::AddTimeoutInstance(shared_ptr<CurpPlusData> 
 
 void CurpPlusData::PrepareInstance() {
   max_seen_ballot_++;
+  if (max_seen_ballot_ < 2)
+    max_seen_ballot_ = 2;
   svr_->CurpPrepare(key_, ver_, max_seen_ballot_);
 }
 
