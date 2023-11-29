@@ -127,6 +127,7 @@ void CoordinatorMultiPaxosPlus::Prepare() {
 }
 
 void CoordinatorMultiPaxosPlus::Accept() {
+    // Log_info("Paxos Accept [%s]", SimpleRWCommand(cmd_).cmd_to_string().c_str());
     std::lock_guard<std::recursive_mutex> lock(mtx_);
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Paxos Accept cmd<%d, %d>",
@@ -205,6 +206,9 @@ void CoordinatorMultiPaxosPlus::Accept() {
 }
 
 void CoordinatorMultiPaxosPlus::Commit() {
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+    Log_info("Paxos Commit [%s] at %.2f", SimpleRWCommand(cmd_).cmd_to_string().c_str(), SimpleRWCommand::GetCurrentMsTime());
+#endif
     std::lock_guard<std::recursive_mutex> lock(mtx_);
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Paxos Commit cmd<%d, %d>",

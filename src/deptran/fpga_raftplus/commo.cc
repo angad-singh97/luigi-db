@@ -188,13 +188,17 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
 	if (p.first == leader_site_id) {
         // fix the 1c1s1p bug
         // Log_info("leader_site_id %d", leader_site_id);
-        e->FeedResponse(true, prevLogIndex + 1, ip);
 
         bool_t finish_accept = 0;
         uint64_t finish_ver = 0;
         sch->OnCurpAttemptCommitFinish(cmd, curp_need_finish, &finish_accept, &finish_ver);
         pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
         sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+      Log_info("About to FeedResponse for cmd<%d, %d> at %.2f", cmd_id.first, cmd_id.second, SimpleRWCommand::GetCurrentMsTime());
+#endif
+        e->FeedResponse(true, prevLogIndex + 1, ip);
         continue;
     }
     FutureAttr fuattr;
@@ -218,13 +222,17 @@ FpgaRaftPlusCommo::BroadcastAppendEntries(parid_t par_id,
 			//Log_info("time of reply on server %d: %ld", follower_id, (end.tv_sec - begin.tv_sec)*1000000000 + end.tv_nsec - begin.tv_nsec);
 			
       bool y = ((accept == 1) && (isLeader) && (currentTerm == term));
-      e->FeedResponse(y, index, ip);
-
+      
       bool_t finish_accept = 0;
       uint64_t finish_ver = 0;
       fu->get_reply() >> finish_accept >> finish_ver;
       pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
       sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+      Log_info("About to FeedResponse for cmd<%d, %d> at %.2f", cmd_id.first, cmd_id.second, SimpleRWCommand::GetCurrentMsTime());
+#endif
+      e->FeedResponse(y, index, ip);
     };
     MarshallDeputy md(cmd);
 		verify(md.sp_data_ != nullptr);

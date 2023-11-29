@@ -175,6 +175,9 @@ void CoordinatorMenciusPlus::Suggest() {
 
 void CoordinatorMenciusPlus::Commit() {
   // std::lock_guard<std::recursive_mutex> lock(mtx_);
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+    Log_info("Mencius Commit [%s] at %.2f", SimpleRWCommand(cmd_).cmd_to_string().c_str(), SimpleRWCommand::GetCurrentMsTime());
+#endif
   commit_callback_();
   Log_debug("mencius broadcast commit for partition: %d, slot %d",
             (int) par_id_, (int) slot_id_);

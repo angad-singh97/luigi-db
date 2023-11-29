@@ -278,6 +278,9 @@ void CopilotPlusCoordinator::Accept() {
 
 void CopilotPlusCoordinator::Commit() {
   // Log_info("[copilot+] [Commit+]");
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+    Log_info("Copilot Commit [%s] at %.2f", SimpleRWCommand(cmd_now_).cmd_to_string().c_str(), SimpleRWCommand::GetCurrentMsTime());
+#endif
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   static_cast<CopilotPlusFrame*>(frame_)->n_commit_++;
   verify(current_phase_ == Phase::COMMIT);

@@ -200,10 +200,14 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
       uint64_t finish_ver;
       static_cast<CopilotPlusServer *>(rep_sched_)->OnFastAccept(
         is_pilot, slot_id, ballot, dep, cmd, di, curp_need_finish, &b, &sgst_dep, &finish_accept, &finish_ver, nullptr);
-      e->FeedResponse(true, true);
-      e->FeedRetDep(dep);
       pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
       sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+      
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+      Log_info("About to FeedResponse for cmd<%d, %d> at %.2f", cmd_id.first, cmd_id.second, SimpleRWCommand::GetCurrentMsTime());
+#endif
+      e->FeedResponse(true, true);
+      e->FeedRetDep(dep);
     } else {
       FutureAttr fuattr;
       fuattr.callback = [e, dep, ballot, site, cmd, sch](Future *fu) {
@@ -211,6 +215,17 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
         slotid_t sgst_dep;
         fu->get_reply() >> b >> sgst_dep;
         bool ok = (ballot == b);
+
+        bool_t finish_accept = 0;
+        uint64_t finish_ver = 0;
+        fu->get_reply() >> finish_accept >> finish_ver;
+        pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
+        sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+      Log_info("About to FeedResponse for cmd<%d, %d> at %.2f", cmd_id.first, cmd_id.second, SimpleRWCommand::GetCurrentMsTime());
+#endif
+
         e->FeedResponse(ok, sgst_dep == dep);
         if (ok) {
           e->FeedRetDep(sgst_dep);
@@ -218,11 +233,7 @@ CopilotPlusCommo::BroadcastFastAccept(parid_t par_id,
 
         e->RemoveXid(site);
 
-        bool_t finish_accept = 0;
-        uint64_t finish_ver = 0;
-        fu->get_reply() >> finish_accept >> finish_ver;
-        pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
-        sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+        
       };
 
       verify(cmd);

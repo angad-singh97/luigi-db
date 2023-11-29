@@ -124,13 +124,18 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
-      e->FeedResponse(b==ballot);
 
+      // curp part
       bool_t finish_accept = 0;
       uint64_t finish_ver = 0;
       fu->get_reply() >> finish_accept >> finish_ver;
       pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
       sch->CurpAttemptCommitFinishReply(cmd_id, finish_accept, finish_ver);
+
+#ifdef CURP_AVOID_CurpSkipFastpath_DEBUG
+      Log_info("About to FeedResponse for cmd<%d, %d> at %.2f", cmd_id.first, cmd_id.second, SimpleRWCommand::GetCurrentMsTime());
+#endif
+      e->FeedResponse(b==ballot);
 
       auto end = chrono::system_clock::now();
       auto duration = chrono::duration_cast<chrono::microseconds>(end-start).count();
