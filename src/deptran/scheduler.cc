@@ -521,41 +521,41 @@ void TxLogServer::OnCurpWaitCommit(const int32_t& client_id,
                                     bool_t* committed,
                                     value_t* commit_result,
                                     const function<void()> &cb) {
-  // verify(0);
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  pair<int32_t, int32_t> cmd_id = make_pair(client_id, cmd_id_in_client);
-  if (executed_results_[cmd_id] == nullptr)
-    executed_results_[cmd_id] = make_shared<CommitNotification>();
-  executed_results_[cmd_id]->committed_ = committed;
-  executed_results_[cmd_id]->commit_result_ = commit_result;
-  executed_results_[cmd_id]->commit_callback_ = cb;
-  executed_results_[cmd_id]->client_stored_ = true;
-  executed_results_[cmd_id]->receive_time_ = SimpleRWCommand::GetCurrentMsTime();
-  commit_timeout_list_.push_back(executed_results_[cmd_id]);
-#ifdef CURP_CONFLICT_DEBUG
-  Log_info("[CURP] Client Stored commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
-#endif
-  if (executed_results_[cmd_id]->coordinator_stored_ && !executed_results_[cmd_id]->coordinator_replied_) {
-   *committed = executed_results_[cmd_id]->coordinator_commit_result_;
-   executed_results_[cmd_id]->coordinator_replied_ = true;
-#ifdef CURP_CONFLICT_DEBUG
-    Log_info("[CURP] Client Triggered commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
-#endif
-    WAN_WAIT;
-    cb();
-  }
-  Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_wait_commit_timeout_ * 1000)->Wait();
-  if (!executed_results_[cmd_id]->coordinator_replied_) {
-    curp_wait_commit_timeout_count_++;
-#ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
-#endif
-    *executed_results_[cmd_id]->committed_ = false;
-    *executed_results_[cmd_id]->commit_result_ = 0;
-    executed_results_[cmd_id]->commit_callback_();
-    executed_results_[cmd_id]->coordinator_replied_ = true;
-    // original_protocol_submit_count_++;
-  }
+  verify(0);
+//   std::lock_guard<std::recursive_mutex> lock(mtx_);
+//   pair<int32_t, int32_t> cmd_id = make_pair(client_id, cmd_id_in_client);
+//   if (executed_results_[cmd_id] == nullptr)
+//     executed_results_[cmd_id] = make_shared<CommitNotification>();
+//   executed_results_[cmd_id]->committed_ = committed;
+//   executed_results_[cmd_id]->commit_result_ = commit_result;
+//   executed_results_[cmd_id]->commit_callback_ = cb;
+//   executed_results_[cmd_id]->client_stored_ = true;
+//   executed_results_[cmd_id]->receive_time_ = SimpleRWCommand::GetCurrentMsTime();
+//   commit_timeout_list_.push_back(executed_results_[cmd_id]);
+// #ifdef CURP_CONFLICT_DEBUG
+//   Log_info("[CURP] Client Stored commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
+// #endif
+//   if (executed_results_[cmd_id]->coordinator_stored_ && !executed_results_[cmd_id]->coordinator_replied_) {
+//    *committed = executed_results_[cmd_id]->coordinator_commit_result_;
+//    executed_results_[cmd_id]->coordinator_replied_ = true;
+// #ifdef CURP_CONFLICT_DEBUG
+//     Log_info("[CURP] Client Triggered commit callback for cmd<%d, %d>", client_id, cmd_id_in_client);
+// #endif
+//     WAN_WAIT;
+//     cb();
+//   }
+//   Reactor::CreateSpEvent<TimeoutEvent>(Config::GetConfig()->curp_wait_commit_timeout_ * 1000)->Wait();
+//   if (!executed_results_[cmd_id]->coordinator_replied_) {
+//     curp_wait_commit_timeout_count_++;
+// #ifdef CURP_FULL_LOG_DEBUG
+//     Log_info("[CURP] cmd<%d, %d> WaitCommitTimeout, about to original protocol", cmd_id.first, cmd_id.second);
+// #endif
+//     *executed_results_[cmd_id]->committed_ = false;
+//     *executed_results_[cmd_id]->commit_result_ = 0;
+//     executed_results_[cmd_id]->commit_callback_();
+//     executed_results_[cmd_id]->coordinator_replied_ = true;
+//     // original_protocol_submit_count_++;
+//   }
 }
 
 void TxLogServer::OnCurpForward(const bool_t& accepted,
@@ -570,13 +570,14 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     return;
   }
   shared_ptr<ResponseData> response_pack = nullptr;
-  if (curp_response_storage_[make_pair(key, ver)] == nullptr) {
-    curp_response_storage_[make_pair(key, ver)] = make_shared<ResponseData>();
-    response_pack = curp_response_storage_[make_pair(key, ver)];
+  int64_t slot_id = SimpleRWCommand::CombineInt32(key, ver);
+  if (curp_response_storage_[slot_id] == nullptr) {
+    curp_response_storage_[slot_id] = make_shared<ResponseData>();
+    response_pack = curp_response_storage_[slot_id];
     response_pack->first_seen_time_ = SimpleRWCommand::GetCurrentMsTime();
-    response_pack->pos_of_this_pack = make_pair(key, ver);
+    // response_pack->pos_of_this_pack = make_pair(key, ver);
   } else {
-    response_pack = curp_response_storage_[make_pair(key, ver)];
+    response_pack = curp_response_storage_[slot_id];
   }
   response_pack->received_count_++;
   pair<int, int> accepted_and_max_accepted = response_pack->append_response(cmd);
@@ -648,6 +649,8 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
   //   // in CURP_FAST_PATH_TIMEOUT and got no replies afterwards, need to create a timeout event judge branch 2 and branch 3 once CURP_FAST_PATH_TIMEOUT
   //   // verify(0);
   // }
+  if (response_pack->received_count_ == Config::GetConfig()->GetPartitionSize(par_id_))
+    curp_response_storage_.erase(slot_id);
 }
 
 void TxLogServer::CurpPrepare(key_t key,
@@ -1136,10 +1139,10 @@ void TxLogServer::OnCurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd,
 
 CurpPlusData::CurpPlusData(TxLogServer* svr, key_t key, ver_t ver, CurpPlusStatus status, const shared_ptr<Marshallable> &cmd, ballot_t ballot)
   : svr_(svr), key_(key), ver_(ver), status_(status), max_seen_ballot_(ballot) {
-// #ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
+#ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
   verify(!svr_->assigned_[make_pair(key, ver)]);
   svr_->assigned_[make_pair(key, ver)] = true;
-// #endif
+#endif
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] Create instance for pos(%d, %d)", key, ver);
 #endif
@@ -1150,13 +1153,13 @@ CurpPlusData::CurpPlusData(TxLogServer* svr, key_t key, ver_t ver, CurpPlusStatu
 
 shared_ptr<CurpPlusData> CurpPlusDataCol::GetOrCreate(ver_t ver) {
   if (logs_[ver] == nullptr) {
-// #ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
+#ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
     verify(!svr_->assigned_[make_pair(key_, ver)]);
-// #endif
+#endif
     logs_[ver] = make_shared<CurpPlusData>(svr_, key_, ver, CurpPlusData::CurpPlusStatus::INIT, nullptr, 0);
-// #ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
+#ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
     svr_->assigned_[make_pair(key_, ver)] = true;
-// #endif
+#endif
   }
   verify(logs_[ver] != nullptr);
   return logs_[ver];
@@ -1188,44 +1191,44 @@ void CurpPlusDataCol::Execute(ver_t ver) {
     } else {
       verify(0);
     }
-    pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(instance->GetCmd());
+//     pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(instance->GetCmd());
 
-    // store execute result
-    if (svr_->executed_results_[cmd_id] == nullptr)
-      svr_->executed_results_[cmd_id] = make_shared<CommitNotification>();
-    svr_->executed_results_[cmd_id]->coordinator_commit_result_ = result;
-    svr_->executed_results_[cmd_id]->coordinator_stored_ = true;
-#ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-#endif
+//     // store execute result
+//     if (svr_->executed_results_[cmd_id] == nullptr)
+//       svr_->executed_results_[cmd_id] = make_shared<CommitNotification>();
+//     svr_->executed_results_[cmd_id]->coordinator_commit_result_ = result;
+//     svr_->executed_results_[cmd_id]->coordinator_stored_ = true;
+// #ifdef CURP_FULL_LOG_DEBUG
+//     Log_info("[CURP] Server Stored commit result for cmd<%d, %d>", cmd_id.first, cmd_id.second);
+// #endif
 
-    // reply execute result if asked
-    if (svr_->executed_results_[cmd_id]->client_stored_ && !svr_->executed_results_[cmd_id]->coordinator_replied_) {
-      *svr_->executed_results_[cmd_id]->commit_result_ = svr_->executed_results_[cmd_id]->coordinator_commit_result_;
-      svr_->executed_results_[cmd_id]->coordinator_replied_ = true;
-      svr_->executed_results_[cmd_id]->commit_callback_();
-#ifdef CURP_FULL_LOG_DEBUG
-      Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
-#endif
-    } else { 
-#ifdef CURP_FULL_LOG_DEBUG
-      Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, svr_->executed_results_[cmd_id]->client_stored_, svr_->executed_results_[cmd_id]->coordinator_replied_);
-#endif
-    }
+//     // reply execute result if asked
+//     if (svr_->executed_results_[cmd_id]->client_stored_ && !svr_->executed_results_[cmd_id]->coordinator_replied_) {
+//       *svr_->executed_results_[cmd_id]->commit_result_ = svr_->executed_results_[cmd_id]->coordinator_commit_result_;
+//       svr_->executed_results_[cmd_id]->coordinator_replied_ = true;
+//       svr_->executed_results_[cmd_id]->commit_callback_();
+// #ifdef CURP_FULL_LOG_DEBUG
+//       Log_info("[CURP] Server Triggered commit callback for cmd<%d, %d>", cmd_id.first, cmd_id.second);
+// #endif
+//     } else { 
+// #ifdef CURP_FULL_LOG_DEBUG
+//       Log_info("[CURP] Server Fail to Trigger commit callback for cmd<%d, %d> for judgement stored=%d replied=%d", cmd_id.first, cmd_id.second, svr_->executed_results_[cmd_id]->client_stored_, svr_->executed_results_[cmd_id]->coordinator_replied_);
+// #endif
+//     }
   }
     
   instance->status_ = CurpPlusData::CurpPlusStatus::EXECUTED;
 
   latest_executed_ver_ = ver;
 
-  // // garbage collection
-  // pair<key_t, ver_t> to_erase_ = svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_];
-  // if (to_erase_.second > 0) // ver starts from 1
-  //   svr_->curp_log_cols_[to_erase_.first]->logs_.erase(to_erase_.second);
-  // svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_] = make_pair(key_, ver);
-  // svr_->curp_executed_garbage_collection_pointer_++;
-  // if (svr_->curp_executed_garbage_collection_pointer_ >= 100000)
-  //   svr_->curp_executed_garbage_collection_pointer_ = 0;
+  // garbage collection
+  pair<key_t, ver_t> to_erase_ = svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_];
+  if (to_erase_.second > 0) // ver starts from 1
+    svr_->curp_log_cols_[to_erase_.first]->logs_.erase(to_erase_.second);
+  svr_->curp_executed_garbage_collection_[svr_->curp_executed_garbage_collection_pointer_] = make_pair(key_, ver);
+  svr_->curp_executed_garbage_collection_pointer_++;
+  if (svr_->curp_executed_garbage_collection_pointer_ >= 100000)
+    svr_->curp_executed_garbage_collection_pointer_ = 0;
 }
 
 void CurpPlusDataCol::Print() {
@@ -1373,7 +1376,7 @@ void TxLogServer::PrintStructureSize() {
   // curp_in_commit_finish_
   Log_info("[Structure Size] curp_in_commit_finish_ %d", curp_in_commit_finish_.size());
   // executed_results_
-  Log_info("[Structure Size] executed_results_ %d", executed_results_.size());
+  // Log_info("[Structure Size] executed_results_ %d", executed_results_.size());
   // commit_timeout_list_
   Log_info("[Structure Size] commit_timeout_list_ %d", commit_timeout_list_.size());
   // finish_countdown_
@@ -1381,9 +1384,9 @@ void TxLogServer::PrintStructureSize() {
   // kv_table_
   Log_info("[Structure Size] kv_table_ %d", kv_table_.size());
   // assigned_
-// #ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
+#ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
   Log_info("[Structure Size] assigned_ %d", assigned_.size());
-// #endif
+#endif
 }
 
 

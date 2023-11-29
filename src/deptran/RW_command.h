@@ -26,6 +26,9 @@ class SimpleRWCommand: public Marshallable {
   static int64_t CombineInt32(pair<int32_t, int32_t> a) {
     return (((int64_t)a.first) << 31) | a.second;
   }
+  static int64_t CombineInt32(int32_t a, int32_t b) {
+    return (((int64_t)a) << 31) | b;
+  }
   static pair<int32_t, int32_t> GetInt32(int64_t a) {
     return make_pair(a >> 31, a & ((1ll << 31) - 1));
   }

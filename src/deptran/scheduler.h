@@ -126,7 +126,7 @@ class Distribution {
 };
 
 struct ResponseData {
-  pair<ver_t, ver_t> pos_of_this_pack;
+  // pair<ver_t, ver_t> pos_of_this_pack;
   map<pair<int, int>, vector<shared_ptr<Marshallable> > >responses_;
   shared_ptr<Marshallable> max_cmd_{nullptr};
   int received_count_ = 0, accept_count_ = 0, max_accept_count_ = 0;
@@ -385,7 +385,7 @@ class TxLogServer {
   int curp_executed_garbage_collection_pointer_ = 0;
   CurpInstanceCommitTimeoutPool curp_instance_commit_timeout_pool_;
   CurpCoordinatorCommitFinishTimeoutPool curp_coordinator_commit_finish_timeout_pool_;
-  map<pair<key_t, ver_t>, shared_ptr<ResponseData>> curp_response_storage_;
+  unordered_map<int64_t, shared_ptr<ResponseData>> curp_response_storage_;
 
   // CURP countings
   int curp_fast_path_success_count_ = 0;
@@ -411,7 +411,7 @@ class TxLogServer {
   unordered_map<key_t, bool> curp_in_commit_finish_;
 
   // CURP coordinator reply/notify the client: cmd_id index
-  map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
+  // map<pair<int32_t, int32_t>, shared_ptr<CommitNotification>> executed_results_;
   vector<shared_ptr<CommitNotification>> commit_timeout_list_;
   int commit_timeout_solved_count_;
 
@@ -421,9 +421,9 @@ class TxLogServer {
   unordered_map<key_t, value_t> kv_table_;
 
   // [CURP] TODO: discard assigned_ since it is used to debug a old bug which have been solved
-// #ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
+#ifdef CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
   map<pair<int, int>, bool> assigned_;
-// #endif
+#endif
 
   double first_print_structure_size_time_ = 0;
   double last_print_structure_size_time_ = 0;
