@@ -291,6 +291,13 @@ TxLogServer::~TxLogServer() {
   // if (curp_log_cols_[0] != nullptr)
   //   curp_log_cols_[0]->Print();
   Log_info("loc_id=%d curp_double_commit_count_=%d", loc_id_, curp_double_commit_count_);
+  // string fast_path_status = "";
+  int fastpath_off = 0;
+  for (auto it = finish_countdown_.begin(); it != finish_countdown_.end(); it++) {
+    // fast_path_status += to_string(it->first) + " " + (it->second == 0 ? "Y" : "N") + ", ";
+    if (it->second > 0) fastpath_off++;
+  }
+  Log_info("loc_id=%d fastpath off (%d/%d)", loc_id_, fastpath_off, Config::GetConfig()->curp_finish_block_num_);
 #ifdef LATENCY_DEBUG
   Log_info("loc_id=%d cli2preskip_begin_ %.2f cli2preskip_end_ %.2f cli2skip_begin_ %.2f cli2skip_end_ %.2f", loc_id_, cli2preskip_begin_.pct50(), cli2preskip_end_.pct50(), cli2skip_begin_.pct50(), cli2skip_end_.pct50());
   Log_info("loc_id=%d cli2leader_recv_ %.2f cli2leader_send_ %.2f cli2follower_recv_ %.2f cli2follower_send_ %.2f cli2commit_send_ %.2f cli2oncommit_ %.2f",
@@ -465,12 +472,12 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
   if (curp_log_cols_[key] == nullptr)
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>(this, key);
   shared_ptr<CurpPlusData> next_instance = curp_log_cols_[key]->NextInstance();
-  *finish_countdown = finish_countdown_[key];
+  *finish_countdown = finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_];
   if ((next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT 
     || parsed_cmd_->type_ == RW_BENCHMARK_FINISH && next_instance->type_ == RW_BENCHMARK_FINISH
     || cmd_id_in_client != -1 && SimpleRWCommand::GetCmdID(next_instance->GetCmd()) == make_pair(client_id, cmd_id_in_client)
     )
-      && finish_countdown_[key] == 0) {
+      && finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0) {
     next_instance->status_ = CurpPlusData::CurpPlusStatus::PREACCEPT;
     next_instance->max_seen_ballot_ = 0;
     next_instance->UpdateCmd(cmd);
@@ -485,14 +492,14 @@ void TxLogServer::OnCurpDispatch(const int32_t& client_id,
     *accepted = true;
     *ver = curp_log_cols_[key]->NextVersion();
 #ifdef CURP_REPEAR_COMMIT_DEBUG
-    Log_info("[CURP] loc=%d OnCurpDispatch PreAccept [%s] since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
+    Log_info("[CURP] loc=%d OnCurpDispatch PreAccept [%s] since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_]);
 #endif
   } else {
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] loc=%d OnCurpDispatch Reject [%s] since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key]);
+    Log_info("[CURP] loc=%d OnCurpDispatch Reject [%s] since position(%d, %d) has status %d finish_countdown_[%d]=%d", loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, key, finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_]);
 #endif
     // Log_info("[CURP] loc=%d OnCurpDispatch Reject [%s] since position(%d, %d) has status %d [%s] finish_countdown_[%d]=%d",
-      // loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, SimpleRWCommand(next_instance->GetCmd()).cmd_to_string().c_str(), key, finish_countdown_[key]);
+      // loc_id_, parsed_cmd_->cmd_to_string().c_str(), key, curp_log_cols_[key]->NextVersion(), next_instance->status_, SimpleRWCommand(next_instance->GetCmd()).cmd_to_string().c_str(), key, finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_]);
     *accepted = false;
     *ver = -1;
     *result = -1;
@@ -949,7 +956,7 @@ void TxLogServer::CurpPreSkipFastpath(shared_ptr<Marshallable> &cmd) {
   curp_in_commit_finish_[key] = true;
 
   int attemp = 0;
-  while (finish_countdown_[key] == 0) {
+  while (finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0) {
 #ifdef CURP_FULL_LOG_DEBUG
     Log_info("[CURP] Attempted to precommit FIN for cmd<%d, %d> key=%d at svr %d",
       SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, key, loc_id_);
@@ -986,9 +993,9 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
 #endif
   original_protocol_submit_count_++;
   key_t key = SimpleRWCommand::GetKey(cmd);
-  if (finish_countdown_[key] == 0) {
+  if (finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0) {
     // Coroutine::CreateRun([this, key, cmd_id]() { 
-      for (int loop_count = 0, wait_time = 10; finish_countdown_[key] == 0; loop_count++, wait_time *= 2) {
+      for (int loop_count = 0, wait_time = 10; finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0; loop_count++, wait_time *= 2) {
         // Log_info("[CURP] Attempted to commit FIN for cmd<%d, %d> i.e. cmd<-1, %d> k=%d at svr %d at %.2f ms",
           // SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, key, loc_id_, SimpleRWCommand::GetCurrentMsTime());
 #ifdef CURP_FULL_LOG_DEBUG
@@ -1011,9 +1018,9 @@ void TxLogServer::CurpSkipFastpath(int32_t cmd_id, shared_ptr<Marshallable> &cmd
   }
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP-FIN] Success skip fastpath for cmd<%d, %d> i.e. cmd<-1, %d> at svr %d, countdown decreased to %d",
-    SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_, finish_countdown_[key] - 1);
+    SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, cmd_id, loc_id_, finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] - 1);
 #endif
-  finish_countdown_[key]--;
+  finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_]--;
 #ifdef LATENCY_DEBUG
   cli2skip_end_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
 #endif
@@ -1052,7 +1059,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
     shared_ptr<Marshallable> finish = MakeFinishCmd(sch_->partition_id_, -1, key, Config::GetConfig()->curp_finish_countdown_);
     // int attempt_cnt = 0;
     double send_gap_ms = 10;
-    while (sch_->finish_countdown_[key] == 0) {
+    while (sch_->finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0) {
       // Log_info("key=%d, attemp_count=%d", key, ++attempt_cnt);
       shared_ptr<CurpDispatchQuorumEvent> new_e = sch_->commo()->CurpBroadcastDispatch(finish);
       new_e->Wait();
@@ -1084,7 +1091,7 @@ uint64_t TxLogServer::CurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd) {
   key_t key = SimpleRWCommand::GetKey(cmd);
   pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd);
   // if (false) {
-  if (finish_countdown_[key] == 0 && curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.end()) {
+  if (finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0 && curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.find(key) == curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.end()) {
     curp_coordinator_commit_finish_timeout_pool_.commit_finish_in_pool_.insert(key);
     int n = Config::GetConfig()->GetPartitionSize(partition_id_);
     curp_coordinator_commit_finish_timeout_pool_.wait_for_commit_events_pool_[SimpleRWCommand::CombineInt32(cmd_id)]
@@ -1124,7 +1131,7 @@ void TxLogServer::OnCurpAttemptCommitFinish(shared_ptr<Marshallable> &cmd,
   if (curp_log_cols_[key] == nullptr)
     curp_log_cols_[key] = make_shared<CurpPlusDataCol>(this, key);
   shared_ptr<CurpPlusData> next_instance = curp_log_cols_[key]->NextInstance();
-  if (next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT && finish_countdown_[key] == 0) {
+  if (next_instance->status_ == CurpPlusData::CurpPlusStatus::INIT && finish_countdown_[key / Config::GetConfig()->curp_finish_block_size_] == 0) {
     next_instance->status_ = CurpPlusData::CurpPlusStatus::PREACCEPT;
     next_instance->max_seen_ballot_ = 0;
     shared_ptr<Marshallable> finish_cmd = MakeFinishCmd(partition_id_, -1, key, commit_finish);
@@ -1175,13 +1182,13 @@ void CurpPlusDataCol::Execute(ver_t ver) {
     // Do nothing
   } else if (instance->type_ == RW_BENCHMARK_FINISH) {
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] loc=%d finish_countdown_[%d] + %d = %d", svr_->loc_id_, key_, instance->value_, svr_->finish_countdown_[key_] + instance->value_);
+    Log_info("[CURP] loc=%d finish_countdown_[%d] + %d = %d", svr_->loc_id_, key_, instance->value_, svr_->finish_countdown_[key_ / Config::GetConfig()->curp_finish_block_size_] + instance->value_);
 #endif
     svr_->finish_countdown_count_++;
 #ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP-FIN] countdown increased to %d", svr_->finish_countdown_[key_] + instance->value_);
+    Log_info("[CURP-FIN] countdown increased to %d", svr_->finish_countdown_[key_ / Config::GetConfig()->curp_finish_block_size_] + instance->value_);
 #endif
-    svr_->finish_countdown_[key_] += instance->value_;
+    svr_->finish_countdown_[key_ / Config::GetConfig()->curp_finish_block_size_] += instance->value_;
   } else {
     value_t result;
     if (instance->type_ == RW_BENCHMARK_R_TXN) {

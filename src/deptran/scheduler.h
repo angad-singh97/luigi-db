@@ -9,6 +9,7 @@
 #include "rcc/tx.h"
 #include "classic/tpc_command.h"
 #include "RW_command.h"
+#include "config.h"
 
 namespace janus {
 
