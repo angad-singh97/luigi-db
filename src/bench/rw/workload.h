@@ -20,6 +20,7 @@ extern char RW_BENCHMARK_TABLE[];
 class RwWorkload : public Workload {
  public:
   void RegisterPrecedures() override;
+  std::mt19937 rand_gen_{};
   map<cooid_t, int32_t> key_ids_ = {};
   RwWorkload(Config *config);
   virtual void GetTxRequest(TxRequest* req, uint32_t cid) override;

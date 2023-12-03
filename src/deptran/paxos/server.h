@@ -8,6 +8,7 @@
 #include "coordinator.h"
 #include <chrono>
 #include <ctime>
+#include "../RW_command.h"
 
 namespace janus {
 class Command;
@@ -32,12 +33,20 @@ class PaxosServer : public TxLogServer {
   int n_commit_ = 0;
   bool in_applying_logs_{false};
 
+#ifdef CHECK_KEY_DISTRIBUTION
+  KeyDistribution key_distribution_;
+#endif
+
 #ifdef LATENCY_DEBUG
   Distribution client2follower_;
 #endif
 
   ~PaxosServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
+#ifdef CHECK_KEY_DISTRIBUTION
+    if (loc_id_ == 0)
+      key_distribution_.Print();
+#endif
 #ifdef LATENCY_DEBUG
     Log_info("site par %d, loc %d: client2follower 50pct: %.2f 90pct: %.2f 99pct: %.2f", partition_id_, loc_id_, client2follower_.pct50(), client2follower_.pct90(), client2follower_.pct99());
 #endif

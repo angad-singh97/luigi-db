@@ -1,6 +1,7 @@
 #include "deptran/__dep__.h"
 #include "bench/tpcc/workload.h"
 #include "workload.h"
+#include "../tpca/zipf.h"
 
 namespace janus {
 char RW_BENCHMARK_TABLE[] = "history";
@@ -98,21 +99,15 @@ int32_t RwWorkload::GetId(uint32_t cid) {
   // verify(cid < 1000000);
   // Log_info("[CURP] GetId %d", cid);
   int32_t id;
-  if (fix_id_ == -1) {
-    // Log_info("[CURP] id range is (0, %d)", rw_benchmark_para_.n_table_ - 1);
-    if (Config::GetConfig()->range_ == -1)
-      id = RandomGenerator::rand(0, rw_benchmark_para_.n_table_ - 1);
-    else
-      id = RandomGenerator::rand(0, Config::GetConfig()->range_ - 1);
-    // id = 0;
-    // std::lock_guard<std::recursive_mutex> lock(mtx_);
-    // int cli_id = (cid >> 16) - 3, coo_id = cid & ((1 << 16) - 1);
-    // verify(cli_id >= 0 && cli_id <= 2 && coo_id >= 0 && coo_id <= 99);
-    // int scaler_cid = cli_id * 100 + coo_id;
-    // id = scaler_cid * 1000 + non_conflict_counter[scaler_cid];
-    // if (++non_conflict_counter[scaler_cid] >= 1000)
-    //   non_conflict_counter[scaler_cid] = 0;
-    // Log_info("[CURP] Generate %d for cid %d", id, scaler_cid);
+  auto& dist = Config::GetConfig()->dist_;
+  static int32_t key_range = Config::GetConfig()->range_ == -1 ? rw_benchmark_para_.n_table_ : Config::GetConfig()->range_;
+  if (dist == "zipf") {
+    static auto alpha = Config::GetConfig()->coeffcient_;
+    static ZipfDist d(alpha, key_range);
+    id = d(rand_gen_);
+  } else if (fix_id_ == -1) {
+    // Log_info("[CURP] id range is (0, %d)", key_range - 1);
+    id = RandomGenerator::rand(0, key_range - 1);
   } else {
     auto it = this->key_ids_.find(cid);
     if (it == key_ids_.end()) {

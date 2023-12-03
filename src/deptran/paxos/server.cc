@@ -112,6 +112,10 @@ void PaxosServer::OnCommit(const slotid_t slot_id,
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
       // WAN_WAIT
+#ifdef CHECK_KEY_DISTRIBUTION
+      if (loc_id_ == 0)
+        key_distribution_.Insert(SimpleRWCommand::GetKey(next_instance->committed_cmd_));
+#endif
       app_next_(*next_instance->committed_cmd_);
       Log_debug("multi-paxos par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
