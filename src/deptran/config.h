@@ -86,8 +86,6 @@ class Config {
   int curp_instance_commit_timeout_;
   int curp_fastpath_possibility_rate_;
   int curp_execution_in_advance_enabled_;
-  int curp_finish_block_num_;
-  int curp_finish_block_size_;
 
   // TODO remove, will cause problems.
   uint32_t num_site_;
