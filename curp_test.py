@@ -52,8 +52,8 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1000",
     "rw_1000000",
-    "rw_zipf_1",
-    "rw_1",
+    # "rw_zipf_1",
+    # "rw_1",
     # "rw_zipf_0.9",
     # "rw_zipf_0.75",
 ]
@@ -106,11 +106,11 @@ latency_concurrent_ = [
 running_time_ = [
     # 10,
     # 20,
-    30,
-    60,
+    # 30,
+    # 60,
     120,
     # 240,
-    # 300,
+    300,
     # 480,
     # 960,
     # 1800,
@@ -155,7 +155,7 @@ def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000
             # res = "OK" if r == 0 else "Failed"
 
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
-            sleep(running_time // 2)
+            # sleep(running_time // 2)
             cpu_usage = [[], [], [], []]
             for _ in range(10):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
@@ -174,7 +174,7 @@ def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
-        sleep(running_time * 0.5)
+        sleep(running_time * 2)
         res = "Timeout"
     except Exception as e:
         print(e)
