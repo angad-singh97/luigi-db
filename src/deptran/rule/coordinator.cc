@@ -23,17 +23,6 @@ void CoordinatorRule::GotoNextPhase() {
     case Phase::INIT_END:
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
-      
-      // Log_info("%d/%d result %d", fastpath_p_, fastpath_q_, go_to_fastpath_);
-      // go_to_fastpath_ = false;
-      if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 0)
-        go_to_fastpath_ = false;
-      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 1)
-        go_to_fastpath_ = true;
-      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 2)
-        go_to_fastpath_ = RandomGenerator::rand(1, client_worker_->curp_fastpath_q_) <= client_worker_->curp_fastpath_p_;
-      else
-        verify(0);
 
       if (go_to_fastpath_) {
         verify(phase_ % n_phase == Phase::DISPATCH);
@@ -48,9 +37,6 @@ void CoordinatorRule::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::QUERY);
       if (fast_path_success_) {
         client_worker_->curp_fastpath_p_ = min(client_worker_->curp_fastpath_p_ * 2, client_worker_->curp_fastpath_q_);
-#ifdef CURP_FULL_LOG_DEBUG
-        Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
         fast_path_success_ = false;
         committed_ = true;
         phase_ += 2;
@@ -63,15 +49,9 @@ void CoordinatorRule::GotoNextPhase() {
         client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
         phase_++;
         verify(phase_ % n_phase == Phase::ORIGIN);
-#ifdef CURP_FULL_LOG_DEBUG
-        Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
         OriginalProtocol();
       } else {
         client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
-#ifdef CURP_FULL_LOG_DEBUG
-        Log_info("[CURP] coo_id=%d cmd<%d, %d> fastpath fail, QueryCoordinator", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
         QueryCoordinator();
       }
       break;
@@ -79,9 +59,6 @@ void CoordinatorRule::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::ORIGIN);
       if (coordinator_success_) {
         coordinator_success_ = false;
-#ifdef CURP_FULL_LOG_DEBUG
-        ("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
         committed_ = true;
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
@@ -90,17 +67,11 @@ void CoordinatorRule::GotoNextPhase() {
           cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-#ifdef CURP_FULL_LOG_DEBUG
-        Log_info("[CURP] coo_id=%d cmd<%d, %d> QueryCoordinator fail, OriginalProtocol", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
         OriginalProtocol();
       }
       break;
     case Phase::ORIGIN:
       verify(phase_ % n_phase == Phase::INIT_END);
-#ifdef CURP_FULL_LOG_DEBUG
-      Log_info("[CURP] coo_id=%d cmd<%d, %d> Original Protocol success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
-#endif
       committed_ = true;
       original_protocol_count_++;
       if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {

@@ -191,4 +191,17 @@ void KeyDistribution::Print() {
   }
 }
 
+bool Witness::push_back(key_t key, int64_t cmd_id) {
+  if (content.count(key) == 0) {
+    content[key] = cmd_id;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void Witness::remove(key_t key) {
+  verify(content.erase(key) == 1);
+}
+
 }

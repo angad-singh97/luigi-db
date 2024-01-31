@@ -20,6 +20,7 @@
 #include "copilotplus/coordinator.h"
 #include "copilotplus/commo.h"
 #include "curp/coordinator.h"
+#include "rule/commo.h"
 #include "rule/coordinator.h"
 
 #include "bench/tpcc_real_dist/sharding.h"
@@ -318,6 +319,9 @@ TxData* Frame::CreateTxnCommand(TxRequest& req, shared_ptr<TxnRegistry> reg) {
 Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
   Log_info("enter CreateCommo");
   switch (mode_) {
+    case MODE_RULE:
+      commo_ = new CommunicatorRule(pollmgr);
+      break;
     case MODE_NONE_COPILOT:
       commo_ = new CommunicatorNoneCopilot(pollmgr);
       break;

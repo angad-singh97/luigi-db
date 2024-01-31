@@ -42,4 +42,11 @@ class KeyDistribution {
   void Print();
 };
 
+class Witness {
+  unordered_map<key_t, int64_t> content;
+ public:
+  bool push_back(key_t key, int64_t cmd_id);
+  void remove(key_t key);
+};
+
 }
