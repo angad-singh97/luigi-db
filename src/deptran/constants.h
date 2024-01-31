@@ -83,6 +83,7 @@ namespace janus {
 #define MODE_BRQ    (0x10)
 #define MODE_JANUS    (0x10)
 #define MODE_CURP    (0x11)
+#define MODE_RULE    (0x15)
 #define MODE_FEBRUUS    (0x20)
 #define MODE_MDCC   (0x12)
 #define MODE_TROAD    (0x03)
