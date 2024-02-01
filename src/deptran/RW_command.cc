@@ -191,7 +191,10 @@ void KeyDistribution::Print() {
   }
 }
 
-bool Witness::push_back(key_t key, int64_t cmd_id) {
+bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  key_t key = parsed_cmd.key_;
+  int64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   if (content.count(key) == 0) {
     content[key] = cmd_id;
     return true;
@@ -200,8 +203,8 @@ bool Witness::push_back(key_t key, int64_t cmd_id) {
   }
 }
 
-void Witness::remove(key_t key) {
-  verify(content.erase(key) == 1);
+void Witness::remove(const shared_ptr<Marshallable>& cmd) {
+  verify(content.erase(SimpleRWCommand::GetKey(cmd)) == 1);
 }
 
 }

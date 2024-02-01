@@ -508,6 +508,18 @@ class TxLogServer {
 
   // This used for garbage collection / evaluation data structure grows over time
   void PrintStructureSize();
+
+  // below are about rule
+
+  Witness witness_;
+
+  void OnRuleDispatch(const shared_ptr<Marshallable>& cmd,
+                      bool_t* accepted,
+                      value_t* result,
+                      const function<void()> &cb);
+
+  void RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd);
+
 };
 
 } // namespace janus

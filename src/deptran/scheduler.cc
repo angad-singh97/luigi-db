@@ -1389,5 +1389,24 @@ void TxLogServer::PrintStructureSize() {
 #endif
 }
 
+// below are about rule
+
+void TxLogServer::OnRuleDispatch(const shared_ptr<Marshallable>& cmd,
+                    bool_t* accepted,
+                    value_t* result,
+                    const function<void()> &cb) {
+  if (witness_.push_back(cmd)) {
+    *accepted = true;
+    // [RULE] TODO: return speculative result
+    result = 0;
+  } else {
+    *accepted = false;
+  }
+  cb();
+}
+
+void TxLogServer::RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd) {
+  witness_.remove(cmd);
+}
 
 } // namespace janus

@@ -45,8 +45,8 @@ class KeyDistribution {
 class Witness {
   unordered_map<key_t, int64_t> content;
  public:
-  bool push_back(key_t key, int64_t cmd_id);
-  void remove(key_t key);
+  bool push_back(const shared_ptr<Marshallable>& cmd);
+  void remove(const shared_ptr<Marshallable>& cmd);
 };
 
 }
