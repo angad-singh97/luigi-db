@@ -7,7 +7,7 @@ namespace janus
 
 class CommunicatorRule : public Communicator {
 public:
-    uint32_t n_pending_rpc_[2] = {0,0};
+    unordered_map<int, uint32_t> n_pending_rpc_;
     const uint32_t max_pending_rpc_ = 200;
     SharedIntEvent dispatch_quota{};
 
@@ -16,8 +16,12 @@ public:
         dispatch_quota.value_ = 3 * max_pending_rpc_;
     }
 
+    std::vector<int> LeadersForPartition(parid_t par_id) const;
+
+    SiteProxyPair FindSiteProxyPair(parid_t par_id, int replica_id) const;
+
     std::vector<SiteProxyPair>
-    PilotProxyForPartition(parid_t par_id) const;
+    LeaderProxyForPartition(parid_t par_id) const;
 
     void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                            Coordinator *coo,
