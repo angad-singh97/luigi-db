@@ -251,6 +251,7 @@ class Config {
   uint32_t get_start_coordinator_id();
   int32_t benchmark();
   uint32_t GetNumPartition();
+  int32_t get_num_leaders(parid_t partition_id);
   uint32_t get_scale_factor();
   int32_t get_max_retry();
   single_server_t get_single_server();

@@ -74,6 +74,10 @@ class SchedulerClassic: public TxLogServer {
 
   virtual int OnEarlyAbort(txid_t tx_id);
 
+  virtual void OnRuleSpeculativeExecute(shared_ptr<Marshallable> cmd,
+                                        bool_t* accepted,
+                                        int32_t* result) override;
+
   virtual void DoCommit(Tx& tx_box);
 
   virtual void DoAbort(Tx& tx_box);

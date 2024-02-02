@@ -23,10 +23,13 @@ public:
     std::vector<SiteProxyPair>
     LeaderProxyForPartition(parid_t par_id) const;
 
+    shared_ptr<RuleSpeculativeExecuteQuorumEvent>
+    BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                                Coordinator *coo);
+
     void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                            Coordinator *coo,
                            const std::function<void(int res, TxnOutput &)> &callback) override;
-
 };
     
 } // namespace janus

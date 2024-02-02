@@ -931,6 +931,24 @@ int Config::GetPartitionSize(parid_t partition_id) {
   verify(0);
 }
 
+int32_t Config::get_num_leaders(parid_t partition_id) {
+  switch (replica_proto_) {
+    case MODE_FPGA_RAFT:
+      return 1;
+      break;
+    case MODE_COPILOT:
+      return 2;
+      break;
+    case MODE_MENCIUS:
+      return GetPartitionSize(partition_id);
+      break;
+    default:
+      Log_fatal("Rule mode do not support for this replica protocol now");
+      return 0;
+      break;
+  }
+}
+
 std::vector<Config::SiteInfo>
 Config::SitesByLocaleId(uint32_t locale_id, SiteInfoType type) {
   std::vector<SiteInfo> result;

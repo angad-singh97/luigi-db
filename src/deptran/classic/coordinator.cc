@@ -240,6 +240,7 @@ void CoordinatorClassic::DispatchAsync() {
 
 #ifndef SKIP_TXN_SERVER
     // Log_info("SKIP_TXN_SERVER off");
+    
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,

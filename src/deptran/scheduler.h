@@ -345,6 +345,10 @@ class TxLogServer {
                  mdb::Table *tbl
   );
 
+  virtual void OnRuleSpeculativeExecute(shared_ptr<Marshallable> cmd,
+                                        bool_t* accepted,
+                                        int32_t* result) {}
+
   virtual bool Dispatch(cmdid_t cmd_id,
                         shared_ptr<Marshallable> cmd,
                         TxnOutput& ret_output) {

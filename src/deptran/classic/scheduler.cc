@@ -218,6 +218,25 @@ int SchedulerClassic::OnEarlyAbort(txnid_t tx_id) {
   return 0;
 }
 
+void SchedulerClassic::OnRuleSpeculativeExecute(shared_ptr<Marshallable> cmd,
+                                                bool_t* accepted,
+                                                int32_t* result) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered SchedulerClassic::OnCommit, Config::GetConfig()->IsReplicated()=%d",
+    SimpleRWCommand::GetCmdID(sp_tx->cmd_).first, SimpleRWCommand::GetCmdID(sp_tx->cmd_).second, Config::GetConfig()->IsReplicated());
+#endif
+  if (Config::GetConfig()->IsReplicated()) {
+    shared_ptr<Coordinator> coo{CreateRepCoord(0)}; // not sure whether should be 0
+    coo->svr_workers_g = svr_workers_g;
+    coo->Submit(cmd);
+  } else {
+    verify(0);
+  }
+  return;
+}
+
 int SchedulerClassic::OnCommit(txnid_t tx_id,
 															 struct DepId dep_id,
 															 int commit_or_abort) {

@@ -48,6 +48,11 @@ class ClassicServiceImpl : public ClassicService {
 	void ReElect(bool_t* success,
 							 DeferredReply* defer) override;
 
+  void RuleSpeculativeExecute(const MarshallDeputy& md,
+                              bool_t* accepted,
+                              int32_t* result,
+                              rrr::DeferredReply* defer) override;
+
   void Dispatch(const i64& cmd_id,
 								const DepId& dep_id,
                 const MarshallDeputy& cmd,

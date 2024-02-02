@@ -48,6 +48,16 @@ void ClassicServiceImpl::ReElect(bool_t* success,
 	*success = dtxn_sched()->RequestVote();
 	defer->reply();
 }
+
+void ClassicServiceImpl::RuleSpeculativeExecute(const MarshallDeputy& md,
+                                                bool_t* accepted,
+                                                int32_t* result,
+                                                rrr::DeferredReply* defer) {
+  shared_ptr<Marshallable> sp = md.sp_data_;
+  dtxn_sched()->OnRuleSpeculativeExecute(sp, accepted, result);
+  defer->reply();
+}
+
 void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 																	const DepId& dep_id,
                                   const MarshallDeputy& md,

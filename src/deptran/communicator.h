@@ -74,6 +74,31 @@ class GetLeaderQuorumEvent : public QuorumEvent {
   }
 };
 
+/************************RULE begin*********************************/
+
+class RuleSpeculativeExecuteQuorumEvent: public QuorumEvent {
+  bool has_result_ = false;
+  value_t result_;
+ public:
+  RuleSpeculativeExecuteQuorumEvent(int n_total, int quorum)
+    : QuorumEvent(n_total, quorum) {}
+  void FeedResponse(bool y, locid_t result) {
+    if (y) {
+      if (has_result_) {
+        verify(result == result_);
+      } else {
+        has_result_ = true;
+        result_ = result;
+      }
+      VoteYes();
+    } else {
+      VoteNo();
+    }
+  }
+};
+
+/************************RULE end*********************************/
+
 /************************CURP begin*********************************/
 int CurpMaxFailure(int total);
 int CurpFastQuorumSize(int total);
