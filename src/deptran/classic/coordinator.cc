@@ -245,6 +245,7 @@ void CoordinatorClassic::DispatchAsync() {
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
+                                         cmd_ver_,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -304,6 +305,7 @@ void CoordinatorClassic::CurpDispatchAsync() {
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
+                                         -1,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -367,12 +369,14 @@ bool CoordinatorClassic::AllDispatchAcked() {
   return ret1;
 }
 
-void CoordinatorClassic::DispatchAck(phase_t phase,
+void CoordinatorClassic::DispatchAck(int cmd_ver,
+                                     phase_t phase,
                                      int res,
                                      TxnOutput& outputs) {
   //Log_info("Is this being called");
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
-  if (phase != phase_) return;
+  if (cmd_ver != cmd_ver_) return;
+  // if (phase != phase_) return;
   auto* txn = (TxData*) cmd_;
   if (res == REJECT) {
     aborted_ = true;

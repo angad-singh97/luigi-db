@@ -107,6 +107,7 @@ void CoordinatorFebruus::DispatchAsync() {
                                this,
                                std::bind(&CoordinatorFebruus::DispatchAck,
                                          this,
+                                         -1,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -127,7 +128,8 @@ void CoordinatorFebruus::DispatchAsync() {
 //  return ret1;
 //}
 
-void CoordinatorFebruus::DispatchAck(phase_t phase,
+void CoordinatorFebruus::DispatchAck(int cmd_ver,
+                                     phase_t phase,
                                      int ret,
                                      TxnOutput& outputs) {
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);

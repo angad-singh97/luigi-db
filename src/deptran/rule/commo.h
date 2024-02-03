@@ -24,12 +24,8 @@ public:
     LeaderProxyForPartition(parid_t par_id) const;
 
     shared_ptr<RuleSpeculativeExecuteQuorumEvent>
-    BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                                Coordinator *coo);
+    BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data);
 
-    void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                           Coordinator *coo,
-                           const std::function<void(int res, TxnOutput &)> &callback) override;
 };
     
 } // namespace janus

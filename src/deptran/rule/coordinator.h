@@ -8,17 +8,13 @@ namespace janus {
 
 class CoordinatorRule : public CoordinatorClassic {
  public:
-  enum Phase {INIT_END=0, DISPATCH=1, QUERY=2, ORIGIN=3};
+  enum Phase {INIT_END=0, DISPATCHED=1, WAITING_ORIGIN=2};
   bool fast_path_success_{false};
   bool coordinator_success_{false};
   shared_ptr<VecPieceData> sp_vpd_; // cmd
-  siteid_t curp_coo_id_ = -1;
-  int32_t finish_countdown_;
-  int32_t key_hotness_;
-  bool fast_original_path_ = false;
-  // int fastpath_p_ = 1024;
-  // int fastpath_q_ = 1024;
-  bool go_to_fastpath_;
+
+  value_t result_;
+  int cmd_term_ = 0;
 
   CoordinatorRule(uint32_t coo_id,
                   int32_t benchmark,
@@ -29,9 +25,7 @@ class CoordinatorRule : public CoordinatorClassic {
     //   fastpath_count_, coordinatoraccept_count_, original_protocol_count_, cli2cli_->pct50(), cli2cli_->pct90(), cli2cli_->pct99());
   }
   void GotoNextPhase() override;
-  void BroadcastDispatch();
-  void QueryCoordinator();
-  void OriginalProtocol();
+  void BroadcastRuleSpeculativeExecute();
 };
 
 } // namespace janus

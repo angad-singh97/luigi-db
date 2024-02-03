@@ -55,8 +55,7 @@ CommunicatorRule::LeaderProxyForPartition(parid_t par_id) const {
 }
 
 shared_ptr<RuleSpeculativeExecuteQuorumEvent>
-CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
-                            Coordinator *coo) {
+CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data) {
   verify(!vec_piece_data->empty());
   auto par_id = vec_piece_data->at(0)->PartitionId();
   
@@ -101,53 +100,6 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
   e->Wait();
 
   return e;
-}
-
-void CommunicatorRule::BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece,
-                                                Coordinator *coo,
-                                                const std::function<void(int res, TxnOutput &)> &callback) {
-  cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
-  verify(!sp_vec_piece->empty());
-  auto par_id = sp_vec_piece->at(0)->PartitionId();
-
-  auto pair_proxies = LeaderProxyForPartition(par_id);
-  Log_debug("send dispatch to site %d, %d", pair_proxies[0].first,
-            pair_proxies[1].first);
-  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
-  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
-  MarshallDeputy md(sp_vpd);
-
-  struct DepId di;
-  di.id = cmd_id;
-  di.str = __func__;
-
-  dispatch_quota.WaitUntilGreaterOrEqualThan(0);
-
-  bool send = false;
-
-  for (auto leader_id: LeadersForPartition(par_id)) {
-    rrr::FutureAttr fuattr;
-    fuattr.callback = [coo, this, callback, leader_id](Future *fu) {
-      int32_t ret;
-      TxnOutput outputs;
-      fu->get_reply() >> ret >> outputs;
-      n_pending_rpc_[leader_id]--;
-      verify(n_pending_rpc_[leader_id] >= 0);
-      dispatch_quota.Set(dispatch_quota.value_ + 1);
-      callback(ret, outputs);
-    };
-
-    if (n_pending_rpc_[leader_id] < max_pending_rpc_) {
-      auto future =
-          pair_proxies[leader_id].second->async_Dispatch(cmd_id, di, md, fuattr);
-      Future::safe_release(future);
-      n_pending_rpc_[leader_id]++;
-      dispatch_quota.Set(dispatch_quota.value_ - 1);
-      send = true;
-    }
-  }
-
-  verify(send);
 }
     
 } // namespace janus

@@ -95,6 +95,9 @@ class RuleSpeculativeExecuteQuorumEvent: public QuorumEvent {
       VoteNo();
     }
   }
+  value_t GetResult() {
+    return result_;
+  }
 };
 
 /************************RULE end*********************************/

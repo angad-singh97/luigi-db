@@ -3,6 +3,7 @@
 #include "benchmark_control_rpc.h"
 #include "../RW_command.h"
 #include "../../rrr/misc/rand.hpp"
+#include "commo.h"
 
 namespace janus {
 
@@ -21,75 +22,36 @@ void CoordinatorRule::GotoNextPhase() {
   int current_phase = phase_ % n_phase;
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
-      dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
-      dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
+      // dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
+      // dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
 
-      if (go_to_fastpath_) {
-        verify(phase_ % n_phase == Phase::DISPATCH);
-        BroadcastDispatch();
-      } else {
-        phase_ += 2;
-        verify(phase_ % n_phase == Phase::ORIGIN);
-        DispatchAsync();
-      }
+      cmd_term_++;
+      phase_++;
+      verify(phase_ % n_phase == Phase::DISPATCHED);
+      DispatchAsync();
+      BroadcastRuleSpeculativeExecute();
       break;
-    case Phase::DISPATCH:
-      verify(phase_ % n_phase == Phase::QUERY);
+    case Phase::DISPATCHED:
       if (fast_path_success_) {
-        client_worker_->curp_fastpath_p_ = min(client_worker_->curp_fastpath_p_ * 2, client_worker_->curp_fastpath_q_);
-        fast_path_success_ = false;
-        committed_ = true;
         phase_ += 2;
         verify(phase_ % n_phase == Phase::INIT_END);
-        fastpath_count_++;
-        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
-          cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-        End();
-      } else if (fast_original_path_) {
-        client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
-        phase_++;
-        verify(phase_ % n_phase == Phase::ORIGIN);
-        OriginalProtocol();
-      } else {
-        client_worker_->curp_fastpath_p_ = max(client_worker_->curp_fastpath_p_ / 2, 1);
-        QueryCoordinator();
-      }
-      break;
-    case Phase::QUERY:
-      verify(phase_ % n_phase == Phase::ORIGIN);
-      if (coordinator_success_) {
-        coordinator_success_ = false;
-        committed_ = true;
-        phase_++;
-        verify(phase_ % n_phase == Phase::INIT_END);
-        coordinatoraccept_count_++;
-        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
-          cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        // if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
+        //   cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
       } else {
-        OriginalProtocol();
+        phase_++;
+        verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
       }
-      break;
-    case Phase::ORIGIN:
+    case Phase::WAITING_ORIGIN:
+      phase_ ++;
       verify(phase_ % n_phase == Phase::INIT_END);
-      committed_ = true;
-      original_protocol_count_++;
-      if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
-        if (!go_to_fastpath_)
-          cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-        else if (fast_original_path_)
-          cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-        else
-          cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-      }
       End();
-      break;
     default:
       verify(0);
   }
 }
 
-void CoordinatorRule::BroadcastDispatch() {
+void CoordinatorRule::BroadcastRuleSpeculativeExecute() {
   auto txn = (TxData*) cmd_;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
@@ -99,7 +61,7 @@ void CoordinatorRule::BroadcastDispatch() {
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
-  shared_ptr<CurpDispatchQuorumEvent> e;
+  shared_ptr<RuleSpeculativeExecuteQuorumEvent> e;
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
     auto& cmds = pair.second;
@@ -117,41 +79,19 @@ void CoordinatorRule::BroadcastDispatch() {
     shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
     sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
     sp_vpd_ = sp_vpd;
-    e = commo()->CurpBroadcastDispatch(sp_vpd);
+    e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
   // Log_info("[CURP] After Wait");
-  if (e->FastYes()) {
+  if (e->Yes()) {
     fast_path_success_ = true;
-  } else if (e->FastNo() || e->timeouted_) {
+  } else if (e->No() || e->timeouted_) {
     fast_path_success_ = false;
   } else {
     verify(0);
   }
-  curp_coo_id_ = e->GetCooId();
-  finish_countdown_ = e->GetFinishCountdown();
-  key_hotness_ = e->GetKeyHotness();
-  fast_original_path_ = finish_countdown_ > 0 || key_hotness_ > 1;
-  fast_original_path_ = true;
-  // Log_info("[CURP] finish_countdown_ = %d key_hotness_ = %d", finish_countdown_, key_hotness_);
+  result_ = e->GetResult();
   GotoNextPhase();
-}
-
-void CoordinatorRule::QueryCoordinator() {
-  shared_ptr<CurpWaitCommitQuorumEvent> wait_quorum = commo_->CurpBroadcastWaitCommit(sp_vpd_, curp_coo_id_);
-  wait_quorum->Wait();
-  if (wait_quorum->committed_) {
-    coordinator_success_ = true;
-  } else {
-    coordinator_success_ = false;
-  }
-  value_t commit_result_ = wait_quorum->commit_result_;
-  GotoNextPhase();
-}
-
-void CoordinatorRule::OriginalProtocol() {
-  CurpDispatchAsync();
-  // GotoNextPhase();
 }
 
 } // namespace janus
