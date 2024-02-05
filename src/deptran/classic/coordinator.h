@@ -28,9 +28,13 @@ class CoordinatorClassic : public Coordinator {
   // For Rule SpeculativeExecute & Dispatch 2 replies
   int cmd_ver_ = 0;
 
-  // For original protocol use after curp fastpath
+  // For original protocol use after curp fastpath OR rule use after original protocol
   ReadyPiecesData cmds_by_par_;
+  // For rule use after original protocol
+  unordered_map<parid_t, shared_ptr<vector<shared_ptr<SimpleCommand>>>> sp_vec_piece_by_par_;
   // bool curp_stored_cmd_{false};
+  // For rule 
+  bool dispatch_ack_{false};
 
   CoordinatorClassic(uint32_t coo_id,
                      int benchmark,

@@ -405,10 +405,14 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
                   " n_started_: %d, n_pieces: %d",
               txn->id_, txn->n_pieces_dispatched_, txn->GetNPieceAll());
     DispatchAsync();
+    if (cmd_ver != cmd_ver_) return;
   } else if (AllDispatchAcked()) {
     Log_debug("receive all start acks, txn_id: %llx; START PREPARE",
               txn->id_);
     WAN_WAIT
+    dispatch_ack_ = true;
+    // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d cmd_ver=%d current_phase=%d [End of DispatchAck]", coo_id_, thread_id_, cmd_ver_, cmd_ver, phase % 3);
+    if (cmd_ver != cmd_ver_) return;
     GotoNextPhase();
   }
 }

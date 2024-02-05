@@ -14,7 +14,6 @@ class CoordinatorRule : public CoordinatorClassic {
   shared_ptr<VecPieceData> sp_vpd_; // cmd
 
   value_t result_;
-  int cmd_term_ = 0;
 
   CoordinatorRule(uint32_t coo_id,
                   int32_t benchmark,
@@ -25,7 +24,8 @@ class CoordinatorRule : public CoordinatorClassic {
     //   fastpath_count_, coordinatoraccept_count_, original_protocol_count_, cli2cli_->pct50(), cli2cli_->pct90(), cli2cli_->pct99());
   }
   void GotoNextPhase() override;
-  void BroadcastRuleSpeculativeExecute();
+  void BroadcastRuleSpeculativeExecute(int cmd_ver);
+  void DispatchAsync() override;
 };
 
 } // namespace janus

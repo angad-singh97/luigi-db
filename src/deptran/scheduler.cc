@@ -1391,18 +1391,16 @@ void TxLogServer::PrintStructureSize() {
 
 // below are about rule
 
-void TxLogServer::OnRuleDispatch(const shared_ptr<Marshallable>& cmd,
+void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
                     bool_t* accepted,
-                    value_t* result,
-                    const function<void()> &cb) {
+                    value_t* result) {
   if (witness_.push_back(cmd)) {
     *accepted = true;
     // [RULE] TODO: return speculative result
-    result = 0;
+    *result = 0;
   } else {
     *accepted = false;
   }
-  cb();
 }
 
 void TxLogServer::RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd) {
