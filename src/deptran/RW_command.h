@@ -42,11 +42,26 @@ class KeyDistribution {
   void Print();
 };
 
-class Witness {
-  unordered_map<key_t, int64_t> content;
+// Below are for Rule
+
+class RevoveryCandidates {
+  int minimal_ = 0, maximal_ = -1;
+  unordered_map<int64_t, int> candidates_;
  public:
+  void push_back(int64_t cmd_id);
+  bool remove(int64_t cmd_id);
+  size_t size();
+  int64_t id_of_candidate_to_recover();
+};
+
+class Witness {
+  bool belongs_to_leader_{false}; // i.e. This server can propose value
+  unordered_map<key_t, RevoveryCandidates> candidates_;
+ public:
+  // return whether meet conflict, but not whether push_back success
   bool push_back(const shared_ptr<Marshallable>& cmd);
   void remove(const shared_ptr<Marshallable>& cmd);
+  void set_belongs_to_leader();
 };
 
 }

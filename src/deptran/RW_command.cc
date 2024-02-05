@@ -191,20 +191,62 @@ void KeyDistribution::Print() {
   }
 }
 
+// Below are for Rule
+
+void RevoveryCandidates::push_back(int64_t cmd_id) {
+  maximal_++;
+  candidates_[cmd_id] = maximal_;
+}
+
+bool RevoveryCandidates::remove(int64_t cmd_id) {
+  if (candidates_.count(cmd_id) == 0) {
+    return false;
+  } else {
+    verify(candidates_[cmd_id] == minimal_);
+    candidates_.erase(cmd_id);
+    minimal_++;
+    return true;
+  }
+}
+
+size_t RevoveryCandidates::size() {
+  return candidates_.size();
+}
+
+int64_t RevoveryCandidates::id_of_candidate_to_recover() {
+  if (size() == 0)
+    return -1;
+  for (auto pair: candidates_) {
+    if (pair.second == minimal_)
+      return pair.first;
+  }
+  return -1;
+}
+
 bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   key_t key = parsed_cmd.key_;
   int64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
-  if (content.count(key) == 0) {
-    content[key] = cmd_id;
+  if (candidates_[key].size() == 0) {
+    // exist conflict
+    candidates_[key].push_back(cmd_id);
     return true;
   } else {
+    // not exist conflict, candidates_[key].size() >= 1
+    if (belongs_to_leader_) {
+      candidates_[key].push_back(cmd_id);
+    }
     return false;
   }
 }
 
 void Witness::remove(const shared_ptr<Marshallable>& cmd) {
-  verify(content.erase(SimpleRWCommand::GetKey(cmd)) == 1);
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
+}
+
+void Witness::set_belongs_to_leader() {
+  belongs_to_leader_ = true;
 }
 
 }
