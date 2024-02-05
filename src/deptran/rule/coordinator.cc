@@ -22,8 +22,8 @@ void CoordinatorRule::GotoNextPhase() {
   int current_phase = phase_ % n_phase;
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
-      // dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
-      // dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
+      dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
+      dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
       verify(phase_ % n_phase == Phase::DISPATCHED);
       fast_path_success_ = false;
       dispatch_ack_ = false;
@@ -38,8 +38,14 @@ void CoordinatorRule::GotoNextPhase() {
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
-        // if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
-        //   cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
+          verify(!(fast_path_success_ && dispatch_ack_));
+          if (fast_path_success_)
+            cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+          else
+            cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        }
+          
         cmd_ver_++;
         End();
       } else {
@@ -51,6 +57,8 @@ void CoordinatorRule::GotoNextPhase() {
       committed_ = true;
       verify(phase_ % n_phase == Phase::INIT_END);
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before WAITING_ORIGIN end]", coo_id_, thread_id_, cmd_ver_, current_phase);
+      if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) 
+          cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       cmd_ver_++;
       End();
       break;
