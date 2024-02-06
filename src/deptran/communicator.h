@@ -79,25 +79,18 @@ class GetLeaderQuorumEvent : public QuorumEvent {
 class RuleSpeculativeExecuteQuorumEvent: public QuorumEvent {
   bool has_result_ = false;
   value_t result_;
+  int num_leader_{0};
+  int n_leader_yes_{0};
+  int n_leader_no_{0};
  public:
-  RuleSpeculativeExecuteQuorumEvent(int n_total, int quorum)
-    : QuorumEvent(n_total, quorum) {}
-  void FeedResponse(bool y, locid_t result) {
-    if (y) {
-      if (has_result_) {
-        verify(result == result_);
-      } else {
-        has_result_ = true;
-        result_ = result;
-      }
-      VoteYes();
-    } else {
-      VoteNo();
-    }
+  RuleSpeculativeExecuteQuorumEvent(int n_total, int quorum, int num_leader)
+    : QuorumEvent(n_total, quorum) {
+      num_leader_ = num_leader;
   }
-  value_t GetResult() {
-    return result_;
-  }
+  void FeedResponse(bool y, bool is_leader, value_t result);
+  bool Yes() override;
+  bool No() override;
+  value_t GetResult();
 };
 
 /************************RULE end*********************************/
@@ -446,6 +439,10 @@ class Communicator {
                       ver_t ver,
                       shared_ptr<Marshallable> md_cmd,
                       uint16_t ban_site);
+
+  void RuleBroadcastWitnessGC(parid_t par_id,
+                              shared_ptr<Marshallable> cmd,
+                              uint16_t ban_site);
 
 };
 

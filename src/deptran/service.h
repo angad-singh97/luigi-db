@@ -51,7 +51,11 @@ class ClassicServiceImpl : public ClassicService {
   void RuleSpeculativeExecute(const MarshallDeputy& md,
                               bool_t* accepted,
                               int32_t* result,
+                              bool_t* is_leader,
                               rrr::DeferredReply* defer) override;
+
+  void RuleWitnessGC(const MarshallDeputy& md,
+                     rrr::DeferredReply* defer);
 
   void Dispatch(const i64& cmd_id,
 								const DepId& dep_id,

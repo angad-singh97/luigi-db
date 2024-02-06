@@ -87,6 +87,10 @@ class CopilotServer : public TxLogServer {
 
   void Setup();
 
+  bool IsLeader() override {
+    return isPilot_ || isCopilot_;
+  }
+
   // Wait for Ping-Pong signal from another pilot, or timeout and proceed to FastAccept
   void WaitForPingPong();
   bool WillWait(int& time_to_wait) const;

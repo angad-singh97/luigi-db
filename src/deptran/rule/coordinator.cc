@@ -45,7 +45,6 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
-          
         cmd_ver_++;
         End();
       } else {

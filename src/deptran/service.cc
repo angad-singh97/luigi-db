@@ -52,9 +52,17 @@ void ClassicServiceImpl::ReElect(bool_t* success,
 void ClassicServiceImpl::RuleSpeculativeExecute(const MarshallDeputy& md,
                                                 bool_t* accepted,
                                                 int32_t* result,
+                                                bool_t* is_leader,
                                                 rrr::DeferredReply* defer) {
   shared_ptr<Marshallable> sp = md.sp_data_;
-  dtxn_sched()->OnRuleSpeculativeExecute(sp, accepted, result);
+  dtxn_sched()->OnRuleSpeculativeExecute(sp, accepted, result, is_leader);
+  defer->reply();
+}
+
+void ClassicServiceImpl::RuleWitnessGC(const MarshallDeputy& md,
+                                        rrr::DeferredReply* defer) {
+  shared_ptr<Marshallable> sp = md.sp_data_;
+  dtxn_sched()->OnRuleWitnessGC(sp);
   defer->reply();
 }
 

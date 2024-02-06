@@ -516,7 +516,10 @@ class TxLogServer {
   // For Rule usage
   void OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
                                 bool_t* accepted,
-                                value_t* result);
+                                value_t* result,
+                                bool_t* is_leader);
+
+  void OnRuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
   void RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd);
 

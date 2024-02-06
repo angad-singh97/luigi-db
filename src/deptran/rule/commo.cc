@@ -63,8 +63,9 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
   sp_vpd->sp_vec_piece_data_ = vec_piece_data;
   MarshallDeputy md(sp_vpd);
 
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
   int n_leaders = Config::GetConfig()->get_num_leaders(par_id);
-  auto e = Reactor::CreateSpEvent<RuleSpeculativeExecuteQuorumEvent>(n_leaders, n_leaders);
+  auto e = Reactor::CreateSpEvent<RuleSpeculativeExecuteQuorumEvent>(n, SimpleRWCommand::RuleSuperMajority(n), n_leaders);
   WAN_WAIT;
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
@@ -72,8 +73,9 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
         [e, this](Future* fu) {
           bool_t accepted;
           value_t result;
-          fu->get_reply() >> accepted >> result;
-          e->FeedResponse(accepted, result);
+          bool_t is_leader;
+          fu->get_reply() >> accepted >> result >> is_leader;
+          e->FeedResponse(accepted, result, is_leader);
         };
     
     DepId di;

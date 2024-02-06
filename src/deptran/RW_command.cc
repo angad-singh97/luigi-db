@@ -240,13 +240,13 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   }
 }
 
-void Witness::remove(const shared_ptr<Marshallable>& cmd) {
+bool Witness::remove(const shared_ptr<Marshallable>& cmd) {
   SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-  candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
+  return candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
 }
 
-void Witness::set_belongs_to_leader() {
-  belongs_to_leader_ = true;
+void Witness::set_belongs_to_leader(bool belongs_to_leader) {
+  belongs_to_leader_ = belongs_to_leader;
 }
 
 }

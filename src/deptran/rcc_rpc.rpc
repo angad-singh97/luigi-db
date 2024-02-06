@@ -338,7 +338,9 @@ abstract service Classic {
 	defer ReElect(| bool_t success);
   defer RuleSpeculativeExecute(MarshallDeputy md |
                                bool_t accepted,
-                               int32_t result);
+                               int32_t result,
+                               bool_t is_leader);
+  defer RuleWitnessGC(MarshallDeputy md);
   defer Dispatch(i64 tid, DepId dep_id, MarshallDeputy cmd |
                  i32 res, TxnOutput output, uint64_t coro_id);
   defer Prepare(i64 tid, 

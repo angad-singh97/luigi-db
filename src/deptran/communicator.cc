@@ -14,6 +14,42 @@
 
 namespace janus {
 
+/************************RULE begin*********************************/
+
+void RuleSpeculativeExecuteQuorumEvent::FeedResponse(bool y, bool is_leader, value_t result) {
+  if (y) {
+    if (has_result_) {
+      verify(result == result_);
+    } else {
+      has_result_ = true;
+      result_ = result;
+    }
+    if (is_leader)
+      n_leader_yes_++;
+    VoteYes();
+  } else {
+    if (is_leader)
+      n_leader_no_++;
+    VoteNo();
+  }
+}
+
+bool RuleSpeculativeExecuteQuorumEvent::Yes() {
+  return n_voted_yes_ >= quorum_ && n_leader_yes_ >= num_leader_;
+}
+
+bool RuleSpeculativeExecuteQuorumEvent::No() {
+  // if ((n_voted_no_ > (n_total_ - quorum_)) || (n_leader_no_ > 0))
+  //   Log_info("RuleSpeculativeExecuteQuorumEventNo: %d %d", n_voted_no_, n_leader_no_);
+  return (n_voted_no_ > (n_total_ - quorum_)) || (n_leader_no_ > 0);
+}
+
+value_t RuleSpeculativeExecuteQuorumEvent::GetResult() {
+  return result_;
+}
+
+/************************RULE end*********************************/
+
 /************************CURP begin*********************************/
 
 int CurpMaxFailure(int total) {
@@ -1380,6 +1416,26 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
     }
   }
   return e;
+}
+
+void Communicator::RuleBroadcastWitnessGC(parid_t par_id,
+                                          shared_ptr<Marshallable> cmd,
+                                          uint16_t ban_site) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto proxies = rpc_par_proxies_[par_id];
+  MarshallDeputy cmd_deputy(cmd);
+  WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = p.second;
+    auto site = p.first;
+    if (site != ban_site) {
+      FutureAttr fuattr;
+      fuattr.callback = [](Future *fu) {};
+      // Log_info("[CURP] Broadcast Commit to site %d", site);
+      Future *f = proxy->async_RuleWitnessGC(cmd_deputy, fuattr);
+      Future::safe_release(f);
+    }
+  }
 }
 
 } // namespace janus

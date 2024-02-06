@@ -41,8 +41,16 @@ class MenciusServer : public TxLogServer {
   int n_commit_ = 0;
   bool in_applying_logs_{false};
 
+  MenciusServer() {
+    witness_.set_belongs_to_leader(true);
+  }
+
   ~MenciusServer() {
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_suggest_, n_commit_);
+  }
+
+  bool IsLeader() override {
+    return true;
   }
 
   shared_ptr<MenciusData> GetInstance(slotid_t id) {

@@ -1393,7 +1393,8 @@ void TxLogServer::PrintStructureSize() {
 
 void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
                     bool_t* accepted,
-                    value_t* result) {
+                    value_t* result,
+                    bool_t* is_leader) {
   if (witness_.push_back(cmd)) {
     *accepted = true;
     // [RULE] TODO: return speculative result
@@ -1401,10 +1402,16 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
   } else {
     *accepted = false;
   }
+  *is_leader = IsLeader();
+}
+
+void TxLogServer::OnRuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
+  witness_.remove(cmd);
 }
 
 void TxLogServer::RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd) {
-  witness_.remove(cmd);
+  if (witness_.remove(cmd))
+    commo()->RuleBroadcastWitnessGC(partition_id_, cmd, loc_id_);
 }
 
 } // namespace janus

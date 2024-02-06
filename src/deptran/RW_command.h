@@ -32,6 +32,13 @@ class SimpleRWCommand: public Marshallable {
   static pair<int32_t, int32_t> GetInt32(int64_t a) {
     return make_pair(a >> 31, a & ((1ll << 31) - 1));
   }
+  static int MaxFailure(int n) {
+    return (n - 1) / 2;
+  }
+  static int RuleSuperMajority(int n) {
+    int f = MaxFailure(n);
+    return f + (f + 1) / 2 + 1;
+  }
 };
 
 class KeyDistribution {
@@ -48,6 +55,7 @@ class RevoveryCandidates {
   int minimal_ = 0, maximal_ = -1;
   unordered_map<int64_t, int> candidates_;
  public:
+  RevoveryCandidates() {}
   void push_back(int64_t cmd_id);
   bool remove(int64_t cmd_id);
   size_t size();
@@ -56,12 +64,13 @@ class RevoveryCandidates {
 
 class Witness {
   bool belongs_to_leader_{false}; // i.e. This server can propose value
+  // unordered_map<key_t, unordered_map<int64_t, int>> candidates_;
   unordered_map<key_t, RevoveryCandidates> candidates_;
  public:
   // return whether meet conflict, but not whether push_back success
   bool push_back(const shared_ptr<Marshallable>& cmd);
-  void remove(const shared_ptr<Marshallable>& cmd);
-  void set_belongs_to_leader();
+  bool remove(const shared_ptr<Marshallable>& cmd);
+  void set_belongs_to_leader(bool belongs_to_leader);
 };
 
 }
