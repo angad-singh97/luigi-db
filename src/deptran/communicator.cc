@@ -16,7 +16,7 @@ namespace janus {
 
 /************************RULE begin*********************************/
 
-void RuleSpeculativeExecuteQuorumEvent::FeedResponse(bool y, bool is_leader, value_t result) {
+void RuleSpeculativeExecuteQuorumEvent::FeedResponse(bool y, value_t result, bool is_leader) {
   if (y) {
     if (has_result_) {
       verify(result == result_);

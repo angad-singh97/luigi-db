@@ -87,7 +87,7 @@ class RuleSpeculativeExecuteQuorumEvent: public QuorumEvent {
     : QuorumEvent(n_total, quorum) {
       num_leader_ = num_leader;
   }
-  void FeedResponse(bool y, bool is_leader, value_t result);
+  void FeedResponse(bool y, value_t result, bool is_leader);
   bool Yes() override;
   bool No() override;
   value_t GetResult();
