@@ -30,7 +30,8 @@ void CoordinatorRule::GotoNextPhase() {
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
       DispatchAsync();
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before BroadcastRuleSpeculativeExecute]", coo_id_, thread_id_, cmd_ver_, current_phase);
-      BroadcastRuleSpeculativeExecute(cmd_ver_);
+      if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 1)
+        BroadcastRuleSpeculativeExecute(cmd_ver_);
       break;
     case Phase::DISPATCHED:
       if (fast_path_success_ || dispatch_ack_) {

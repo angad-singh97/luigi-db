@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z1")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -47,20 +47,20 @@ curp_modes_ = [
     "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    2, # adaptive
+    # 2, # adaptive
     0,  # 0 possibility attempt fastpath
-    # 1,  # 1 possibility attempt fastpath
+    1,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s3r1p",
 ]
 benchmarks_ =  [
-    "rw_1000",
+    # "rw_1000",
     "rw_1000000",
-    "rw_zipf_1",
-    "rw_1",
+    # "rw_zipf_1",
+    # "rw_1",
     # "rw_zipf_0.9",
-    "rw_zipf_0.75",
+    # "rw_zipf_0.75",
 ]
 concurrent_ = [
     "concurrent_1",
@@ -142,7 +142,7 @@ instance_commit_timeout_ = [
     1000,
 ]
 
-def run(latency, m, s, b, c, running_time=20, fc=0, to1=1000000, to2=0, to3=1000, fp=0):
+def run(latency, m, s, b, c, running_time=20, fp=0, fc=0, to1=1000000, to2=0, to3=1000):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
@@ -240,14 +240,14 @@ def test_curp():
                                 for to2 in wait_commit_timeout_:
                                     for to3 in instance_commit_timeout_:
                                         for c in latency_concurrent_:
-                                            run(20, m, s, b, c, rt, fc, to1, to2, to3, fp)
+                                            run(20, m, s, b, c, rt, fp, fc, to1, to2, to3)
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
                         run(20, m, s, b, c, rt)
 
 def test_rule():
-    exp_count = len(sites_) * len(rule_modes_) * len(benchmarks_) * len(latency_concurrent_)
+    exp_count = len(sites_) * len(rule_modes_) * len(benchmarks_) * len(latency_concurrent_) * len(fastpath_modes_)
     exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
     estimate_minute = exp_count * sum(running_time_) // 60
     estimate_hour = estimate_minute // 60
@@ -261,8 +261,9 @@ def test_rule():
         for s in sites_:
             for m in rule_modes_:
                 for b in benchmarks_:
-                    for c in latency_concurrent_:
-                        run(20, m, s, b, c, rt)
+                    for fp in fastpath_modes_:
+                        for c in latency_concurrent_:
+                            run(20, m, s, b, c, rt, fp)
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:

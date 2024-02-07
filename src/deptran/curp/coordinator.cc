@@ -26,11 +26,11 @@ void CoordinatorCurp::GotoNextPhase() {
       
       // Log_info("%d/%d result %d", fastpath_p_, fastpath_q_, go_to_fastpath_);
       // go_to_fastpath_ = false;
-      if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 0)
+      if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 0)
         go_to_fastpath_ = false;
-      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 1)
+      else if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 1)
         go_to_fastpath_ = true;
-      else if (Config::GetConfig()->curp_fastpath_possibility_rate_ == 2)
+      else if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 2)
         go_to_fastpath_ = RandomGenerator::rand(1, client_worker_->curp_fastpath_q_) <= client_worker_->curp_fastpath_p_;
       else
         verify(0);
