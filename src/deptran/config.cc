@@ -73,7 +73,7 @@ int Config::CreateConfig(int argc, char **argv) {
   int curp_fastpath_timeout = 3;
   int curp_wait_commit_timeout = 10;
   int curp_instance_commit_timeout = 3;
-  int curp_or_rule_fastpath_mode = 2; // 0: 0;    1: 1;   2: adaptive
+  int curp_or_rule_fastpath_rate = 101; // [0, 100]   101: adaptive
   int curp_execution_in_advance_enabled = 1; // 0: disabled;  1: enabled
   string timeouts;
   size_t pos;
@@ -169,7 +169,7 @@ int Config::CreateConfig(int argc, char **argv) {
 
         break;
       case 'm': // fastpath possibility mode
-        curp_or_rule_fastpath_mode = strtoul(optarg, &end_ptr, 10);
+        curp_or_rule_fastpath_rate = strtoul(optarg, &end_ptr, 10);
         break;
       case 'a': // execution in advance optimization: 0 for false, 1 for true
         curp_execution_in_advance_enabled = strtoul(optarg, &end_ptr, 10);
@@ -246,7 +246,7 @@ int Config::CreateConfig(int argc, char **argv) {
     curp_fastpath_timeout,
     curp_wait_commit_timeout,
     curp_instance_commit_timeout,
-    curp_or_rule_fastpath_mode,
+    curp_or_rule_fastpath_rate,
     curp_execution_in_advance_enabled);
   config_s->proc_name_ = proc_name;
   config_s->config_paths_ = config_paths;
@@ -278,7 +278,7 @@ Config::Config(char           *ctrl_hostname,
                int              curp_fastpath_timeout,
                int              curp_wait_commit_timeout,
                int              curp_instance_commit_timeout,
-               int              curp_or_rule_fastpath_mode,
+               int              curp_or_rule_fastpath_rate,
                int              curp_execution_in_advance_enabled) :
   heart_beat_(heart_beat),
   ctrl_hostname_(ctrl_hostname),
@@ -319,7 +319,7 @@ Config::Config(char           *ctrl_hostname,
   curp_fastpath_timeout_(curp_fastpath_timeout),
   curp_wait_commit_timeout_(curp_wait_commit_timeout),
   curp_instance_commit_timeout_(curp_instance_commit_timeout),
-  curp_or_rule_fastpath_mode_(curp_or_rule_fastpath_mode),
+  curp_or_rule_fastpath_rate_(curp_or_rule_fastpath_rate),
   curp_execution_in_advance_enabled_(curp_execution_in_advance_enabled)
 {
 }

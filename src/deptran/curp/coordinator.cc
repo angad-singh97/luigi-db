@@ -26,14 +26,15 @@ void CoordinatorCurp::GotoNextPhase() {
       
       // Log_info("%d/%d result %d", fastpath_p_, fastpath_q_, go_to_fastpath_);
       // go_to_fastpath_ = false;
-      if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 0)
-        go_to_fastpath_ = false;
-      else if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 1)
-        go_to_fastpath_ = true;
-      else if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 2)
+      if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
+        // fixed percentage
+        go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
+      } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
+        // adaptive
         go_to_fastpath_ = RandomGenerator::rand(1, client_worker_->curp_fastpath_q_) <= client_worker_->curp_fastpath_p_;
-      else
+      } else {
         verify(0);
+      }
 
       if (go_to_fastpath_) {
         verify(phase_ % n_phase == Phase::DISPATCH);

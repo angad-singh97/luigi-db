@@ -47,9 +47,13 @@ curp_modes_ = [
     "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    # 2, # adaptive
+    # 101, # adaptive
     0,  # 0 possibility attempt fastpath
-    1,  # 1 possibility attempt fastpath
+    5,
+    10,
+    25,
+    50,
+    100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s3r1p",
@@ -57,7 +61,7 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1000",
     "rw_1000000",
-    # "rw_zipf_1",
+    "rw_zipf_1",
     # "rw_1",
     # "rw_zipf_0.9",
     # "rw_zipf_0.75",

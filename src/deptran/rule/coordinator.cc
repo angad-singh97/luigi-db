@@ -30,12 +30,22 @@ void CoordinatorRule::GotoNextPhase() {
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
       DispatchAsync();
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before BroadcastRuleSpeculativeExecute]", coo_id_, thread_id_, cmd_ver_, current_phase);
-      if (Config::GetConfig()->curp_or_rule_fastpath_mode_ == 1)
-        BroadcastRuleSpeculativeExecute(cmd_ver_);
+      // BroadcastRuleSpeculativeExecute(cmd_ver_);
+      if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
+        // fixed percentage
+        if (RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_) {
+          BroadcastRuleSpeculativeExecute(cmd_ver_);
+        }
+      } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
+        verify(0);
+      } else {
+        verify(0);
+      }
       break;
     case Phase::DISPATCHED:
       if (fast_path_success_ || dispatch_ack_) {
         committed_ = true;
+        // verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
