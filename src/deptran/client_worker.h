@@ -67,6 +67,8 @@ class ClientWorker {
   int fastpath_count_ = 0;
   int coordinatoraccept_count_ = 0;
   int original_protocol_count_ = 0;
+  int fastpath_attempted_count_ = 0;
+  int fastpath_successed_count_ = 0;
   locid_t cur_leader_{0}; // init leader is 0
   bool failover_wait_leader_{false};
   bool failover_trigger_loc{false};

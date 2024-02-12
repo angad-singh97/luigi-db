@@ -117,6 +117,15 @@ class Coordinator {
   int coordinatoraccept_count_ = 0;
   int original_protocol_count_ = 0;
 
+  // For Rule Coordinator Count
+  int fastpath_attempted_count_ = 0;
+  int fastpath_successed_count_ = 0;
+
+  // For Curp && Rule
+  // int fastpath_p_ = 1024;
+  // int fastpath_q_ = 1024;
+  bool go_to_fastpath_;
+
 #ifdef TXN_STAT
   typedef struct txn_stat_t {
     uint64_t                             n_serv_tch;

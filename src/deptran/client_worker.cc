@@ -26,6 +26,8 @@ void ClientWorker::retrive_statistic() {
     fastpath_count_ += c->fastpath_count_;
     coordinatoraccept_count_ += c->coordinatoraccept_count_;
     original_protocol_count_ += c->original_protocol_count_;
+    fastpath_attempted_count_ += c->fastpath_attempted_count_;
+    fastpath_successed_count_ += c->fastpath_successed_count_;
 #ifdef LATENCY_DEBUG
     // Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
     client2leader_.merge(c->client2leader_);

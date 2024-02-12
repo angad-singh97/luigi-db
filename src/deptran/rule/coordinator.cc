@@ -33,17 +33,23 @@ void CoordinatorRule::GotoNextPhase() {
       // BroadcastRuleSpeculativeExecute(cmd_ver_);
       if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
         // fixed percentage
-        if (RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_) {
-          BroadcastRuleSpeculativeExecute(cmd_ver_);
-        }
+        go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
       } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
         verify(0);
       } else {
         verify(0);
       }
+      if (go_to_fastpath_) {
+        fastpath_attempted_count_++;
+        BroadcastRuleSpeculativeExecute(cmd_ver_);
+      } else {
+        // Do nothing
+      }
       break;
     case Phase::DISPATCHED:
       if (fast_path_success_ || dispatch_ack_) {
+        if (fast_path_success_)
+          fastpath_successed_count_++;
         committed_ = true;
         // verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
         phase_++;
