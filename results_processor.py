@@ -33,7 +33,7 @@ for file_name in file_names:
     fastpath_timeout = parts[6]
     wait_commit_timeout = parts[7]
     instance_commit_timeout = parts[8]
-    fastpash_mode = "adapative" if parts[9] == "2" else parts[9]
+    fastpath_rate = "adapative" if parts[9] == "101" else parts[9]
     duration = parts[10][:parts[10].find(".")]
     if "plus" not in mode:
         finish_countdown = None
@@ -52,6 +52,8 @@ for file_name in file_names:
     fast_original_50pct = None
     slow_original_count = None
     slow_original_50pct = None
+    original_protocol_count = None
+    original_protocol_50pct = None
 
     latency50pct = None
     latency90pct = None
@@ -84,6 +86,9 @@ for file_name in file_names:
             if "Slow-Original" in line:
                 slow_original_count = int(line[line.find("count")+6:line.find("50pct")])
                 slow_original_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if slow_original_count > 0 else None
+            if "Original-Protocol" in line:
+                original_protocol_count = int(line[line.find("count")+6:line.find("50pct")])
+                original_protocol_50pct = float(line[line.find("50pct")+6:line.find("90pct")]) if original_protocol_count > 0 else None
             if "Latency-50pct is" in line:
                 latency50pct = float(line[line.find("Latency-50pct is")+17:line.find("Latency-90pct is")-4])
                 latency90pct = float(line[line.find("Latency-90pct is")+17:line.find("Latency-99pct is")-4])
@@ -102,24 +107,24 @@ for file_name in file_names:
             if "clientall" in line:
                 clientall_medium = float(line[line.find("medium")+8:line.find("mean")])
     # print(mode, site, workload, conc, throughtput, latency50pct, latency90pct, latency99pct, fastpath_count, coordinatoraccept_count, original_count, max_gap)
-    datas.append((latency, site, mode, workload, fastpash_mode, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+    datas.append((latency, site, mode, workload, fastpath_rate, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
                   throughtput, mid_throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
-                  fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
-                  cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium))
-    rows.append([latency, site, mode, workload, fastpash_mode, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
+                  fast_original_50pct, slow_original_count, slow_original_50pct, original_protocol_count, original_protocol_50pct,\
+                  latency50pct, latency90pct, latency99pct, cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium))
+    rows.append([latency, site, mode, workload, fastpath_rate, duration, conc, finish_countdown, fastpath_timeout, wait_commit_timeout, instance_commit_timeout,\
                   throughtput, mid_throughtput, fastpath_count, fastpath_50pct, coordinatoraccept_count, coordinatoraccept_50pct, fast_original_count,\
-                  fast_original_50pct, slow_original_count, slow_original_50pct, latency50pct, latency90pct, latency99pct, \
-                  cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium])
+                  fast_original_50pct, slow_original_count, slow_original_50pct, original_protocol_count, original_protocol_50pct,\
+                  latency50pct, latency90pct, latency99pct, cpu0_medium, cpu1_medium, cpu2_medium, clientall_medium])
 
 datas = sorted(datas, key=sorting_key)
 # print(datas)
 for data in datas:
     print(data)
 
-fields = ["latency", "site", "mode", "workload", "fastpash_mode", "duration", "conc", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout",\
+fields = ["latency", "site", "mode", "workload", "fastpath_rate", "duration", "conc", "finish_countdown", "fastpath_timeout", "wait_commit_timeout", "instance_commit_timeout",\
             "throughtput", "mid_throughtput", "fastpath_count", "fastpath_50pct", "coordinatoraccept_count", "coordinatoraccept_50pct", "fast_original_count",\
-            "fast_original_50pct", "slow_original_count", "slow_original_50pct", "latency50pct", "latency90pct", "latency99pct", \
-            "cpu0_medium", "cpu1_medium", "cpu2_medium", "clientall_medium"]
+            "fast_original_50pct", "slow_original_count", "slow_original_50pct", "original_protocol_count", "original_protocol_50pct",\
+            "latency50pct", "latency90pct", "latency99pct", "cpu0_medium", "cpu1_medium", "cpu2_medium", "clientall_medium"]
 
 import csv 
     
