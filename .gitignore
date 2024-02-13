@@ -54,3 +54,4 @@ curp.log
 *.csv
 prof
 *.pdf
+!curp_scripts/*.pdf
