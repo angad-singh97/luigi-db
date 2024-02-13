@@ -40,7 +40,9 @@ void CoordinatorRule::GotoNextPhase() {
         verify(0);
       }
       if (go_to_fastpath_) {
-        fastpath_attempted_count_++;
+        if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
+          fastpath_attempted_count_++;
+        }
         BroadcastRuleSpeculativeExecute(cmd_ver_);
       } else {
         // Do nothing
@@ -48,8 +50,6 @@ void CoordinatorRule::GotoNextPhase() {
       break;
     case Phase::DISPATCHED:
       if (fast_path_success_ || dispatch_ack_) {
-        if (fast_path_success_)
-          fastpath_successed_count_++;
         committed_ = true;
         // verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
         phase_++;
@@ -57,8 +57,10 @@ void CoordinatorRule::GotoNextPhase() {
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           // verify(!(fast_path_success_ && dispatch_ack_));
-          if (fast_path_success_)
+          if (fast_path_success_) {
+            fastpath_successed_count_++;
             cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+          }
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
