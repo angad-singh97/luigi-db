@@ -39,8 +39,11 @@ class ZipfDist {
     }
     zdist[N-1].cum_prob = 1.0;
 #ifdef CHECK_KEY_DISTRIBUTION
-    for (int i = 0; i <= 100; i++) {
-      Log_info("k = %d pct = %.2f accu_pct = %.2f", i, zdist[i].prob * 100, zdist[i].cum_prob * 100);
+    for (int i = 0; i < 10; i++) {
+      Log_info("k = %d pct = %.5f accu_pct = %.5f", i, zdist[i].prob * 100, zdist[i].cum_prob * 100);
+    }
+    for (int i = 100; i <= 1000000; i *= 10) {
+      Log_info("k = %d pct = %.5f accu_pct = %.5f", i - 1, zdist[i - 1].prob * 100, zdist[i - 1].cum_prob * 100);
     }
 #endif
   }

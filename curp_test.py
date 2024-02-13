@@ -51,7 +51,6 @@ fastpath_modes_ = [
     0,  # 0 possibility attempt fastpath
     5,
     10,
-    25,
     50,
     100,  # 1 possibility attempt fastpath
 ]
@@ -61,7 +60,12 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1000",
     "rw_1000000",
-    "rw_zipf_1",
+    # "rw_zipf_1",
+    # "rw_zipf_0.9",
+    # "rw_zipf_0.8",
+    # "rw_zipf_0.7",
+    # "rw_zipf_0.6",
+    # "rw_zipf_0.5",
     # "rw_1",
     # "rw_zipf_0.9",
     # "rw_zipf_0.75",

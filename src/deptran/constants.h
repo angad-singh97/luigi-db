@@ -154,7 +154,7 @@ namespace janus {
 // #define CURP_REPEAR_COMMIT_DEBUG
 // #define CURP_AVOID_CurpSkipFastpath_DEBUG
 // #define CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
-// #define CHECK_KEY_DISTRIBUTION
+#define CHECK_KEY_DISTRIBUTION
 
 // #define CPU_PROFILE_MAIN
 // #define CPU_PROFILE_SEVER

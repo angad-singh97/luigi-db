@@ -123,6 +123,14 @@ class Distribution {
   double pct99() {
     return pct(0.99);
   }
+  double ave() {
+    if (data.size() == 0)
+      return -1;
+    double sum = 0;
+    for (int i = 0; i < data.size(); i++)
+      sum += data[i];
+    return sum / data.size();
+  }
 };
 
 struct ResponseData {
