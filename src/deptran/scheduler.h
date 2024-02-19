@@ -134,8 +134,8 @@ class Distribution {
 };
 
 class Frequency {
- public:
   vector<int> keys_;
+ public:
   void append(double x) {
     keys_.push_back(x);
   }
@@ -161,6 +161,39 @@ class Frequency {
       ss << std::fixed << std::setprecision(6) << -*it * 100.0 / count() << ", ";
     }
     return ss.str();
+  }
+};
+
+class RecentAverage {
+  vector<double> data_;
+  int size_, pointer_ = 0;
+  double sum = 0;
+  bool filled_once_ = false;
+ public:
+  RecentAverage(int size): size_(size) {
+    // intentionally left blank
+  }
+  void append(double x) {
+    if (!filled_once_) {
+      data_.push_back(x);
+      pointer_++;
+    } else {
+      sum -= data_[pointer_];
+      data_[++pointer_] = x;
+    }
+    sum += x;
+    if (pointer_ == size_) {
+      pointer_ = 0;
+      filled_once_ = true;
+    }
+  }
+  bool filled_once() {
+    return filled_once_;
+  }
+  double ave() {
+    // Log_info("RecentAverage ave %d %d", filled_once_, pointer_);
+    verify(filled_once_ || pointer_ > 0);
+    return filled_once_ ? sum / size_ : sum / pointer_;
   }
 };
 

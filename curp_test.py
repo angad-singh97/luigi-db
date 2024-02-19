@@ -47,7 +47,7 @@ curp_modes_ = [
     "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    # 101, # adaptive
+    101, # adaptive
     0,  # 0 possibility attempt fastpath
     5,
     10,

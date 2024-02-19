@@ -121,6 +121,7 @@ class Coordinator {
   // For Rule Coordinator Count
   int fastpath_attempted_count_ = 0;
   int fastpath_successed_count_ = 0;
+  RecentAverage recent_fastpath_success_ = RecentAverage(1000);
 
   // For Curp && Rule
   // int fastpath_p_ = 1024;
