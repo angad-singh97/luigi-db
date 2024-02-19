@@ -96,23 +96,23 @@ class CurpPlusDataCol {
 };
 
 class Distribution {
+  vector<double> data_;
  public:
-  vector<double> data;
   void append(double x) {
-    data.push_back(x);
+    data_.push_back(x);
   }
   void merge(Distribution &o) {
     for (int i = 0; i < o.count(); i++)
-      data.push_back(o.data[i]);
+      data_.push_back(o.data_[i]);
   }
   size_t count() {
-    return data.size();
+    return data_.size();
   }
   double pct(double pct) {
-    if (data.size() == 0)
+    if (data_.size() == 0)
       return -1;
-    sort(data.begin(), data.end());
-    return data[floor(data.size() * pct)];
+    sort(data_.begin(), data_.end());
+    return data_[floor(data_.size() * pct)];
   }
   double pct50() {
     return pct(0.5);
@@ -124,12 +124,43 @@ class Distribution {
     return pct(0.99);
   }
   double ave() {
-    if (data.size() == 0)
+    if (data_.size() == 0)
       return -1;
     double sum = 0;
-    for (int i = 0; i < data.size(); i++)
-      sum += data[i];
-    return sum / data.size();
+    for (int i = 0; i < data_.size(); i++)
+      sum += data_[i];
+    return sum / data_.size();
+  }
+};
+
+class Frequency {
+ public:
+  vector<int> keys_;
+  void append(double x) {
+    keys_.push_back(x);
+  }
+  void merge(Frequency &o) {
+    for (int i = 0; i < o.count(); i++)
+      keys_.push_back(o.keys_[i]);
+  }
+  size_t count() {
+    return keys_.size();
+  }
+  string top_keys_pcts() {
+    unordered_map<int, int> count_map;
+    for (auto k: keys_) {
+      count_map[k]++;
+    }
+    set<int> frequency;
+    for (auto it: count_map) {
+      frequency.insert(-it.second);
+    }
+    std::stringstream ss;
+    int i = 0;
+    for (set<int>::iterator it = frequency.begin(); it != frequency.end() && i < 10; it++, i++) {
+      ss << std::fixed << std::setprecision(6) << -*it * 100.0 / count() << ", ";
+    }
+    return ss.str();
   }
 };
 

@@ -154,6 +154,7 @@ void CoordinatorRule::DispatchAsync() {
       c->id_ = next_pie_id();
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
+      frequency_.append(SimpleRWCommand::GetKey(c));
     }
     sp_vec_piece_by_par_[par_id] = sp_vec_piece;
     commo()->BroadcastDispatch(sp_vec_piece,

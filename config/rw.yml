@@ -7,6 +7,7 @@ bench:
     write: 1
   population: # intial number of records in each table
     history: 1000000
+  range: 1000000
 
 schema: # table information
   - name: history

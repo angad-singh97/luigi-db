@@ -52,6 +52,7 @@ void RwWorkload::RegisterPrecedures() {
 }
 
 RwWorkload::RwWorkload(Config *config) : Workload(config) {
+  rand_gen_.seed((int)std::time(0) + (uint64_t)pthread_self());
 }
 
 void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {

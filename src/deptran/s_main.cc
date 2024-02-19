@@ -35,6 +35,7 @@ int original_protocol_count = 0;
 int fastpath_attempted_count = 0;
 int fastpath_successed_count = 0;
 Distribution cli2cli[6];
+Frequency frequency;
 // definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
 // 5nd element is for merge first 4
 #ifdef LATENCY_DEBUG
@@ -176,6 +177,7 @@ void client_shutdown() {
     client->retrive_statistic();
     for (int i = 0; i < 5; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
+    frequency.merge(client->frequency_);
 #ifdef LATENCY_DEBUG
     client2leader.merge(client->client2leader_);
     client2test_point.merge(client->client2test_point_);
@@ -439,6 +441,7 @@ int main(int argc, char *argv[]) {
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
   Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f", fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count);
+  Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());
