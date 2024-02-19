@@ -19,7 +19,7 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
   } else if (Config::GetConfig()->replica_proto_ == MODE_COPILOT) {
     margin_success_rate_ = 0.713;
   } else if (Config::GetConfig()->replica_proto_ == MODE_MENCIUS) {
-    margin_success_rate_ = 0.900;
+    margin_success_rate_ = 0.930;
   } else {
     verify(0);
   }
@@ -77,8 +77,9 @@ void CoordinatorRule::GotoNextPhase() {
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           // verify(!(fast_path_success_ && dispatch_ack_));
-          if (fast_path_success_) {
+          if (fast_path_success_)
             fastpath_successed_count_++;
+          if (go_to_fastpath_) {
             cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
           }
           else
