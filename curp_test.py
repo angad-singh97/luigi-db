@@ -117,8 +117,6 @@ latency_concurrent_ = [
     # "concurrent_30000",
 ]
 running_time_ = [
-    # 10,
-    # 20,
     30,
     # 60,
     # 120,
@@ -170,11 +168,12 @@ def run(latency, m, s, b, c, running_time=20, fp=0, fc=0, to1=1000000, to2=0, to
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
             # sleep(running_time // 2)
             cpu_usage = [[], [], [], []]
-            for _ in range(10):
+            for _ in range(20):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
-                for cpu_id in range(3):
-                    cpu_usage[cpu_id].append(cpu_percent[cpu_id])
-                cpu_usage[3].append(np.sum(cpu_percent[3:]))
+                if _ >= 10:
+                    for cpu_id in range(3):
+                        cpu_usage[cpu_id].append(cpu_percent[cpu_id])
+                    cpu_usage[3].append(np.sum(cpu_percent[3:]))
             process.wait(timeout= max(120, running_time * 1.5))
             f.write("\n")
             for cpu_id in range(3):
