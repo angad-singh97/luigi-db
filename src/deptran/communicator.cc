@@ -1418,24 +1418,4 @@ Communicator::CurpBroadcastCommit(parid_t par_id,
   return e;
 }
 
-void Communicator::RuleBroadcastWitnessGC(parid_t par_id,
-                                          shared_ptr<Marshallable> cmd,
-                                          uint16_t ban_site) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy cmd_deputy(cmd);
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = p.second;
-    auto site = p.first;
-    if (site != ban_site) {
-      FutureAttr fuattr;
-      fuattr.callback = [](Future *fu) {};
-      // Log_info("[CURP] Broadcast Commit to site %d", site);
-      Future *f = proxy->async_RuleWitnessGC(cmd_deputy, fuattr);
-      Future::safe_release(f);
-    }
-  }
-}
-
 } // namespace janus

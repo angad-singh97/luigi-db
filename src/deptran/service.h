@@ -54,9 +54,6 @@ class ClassicServiceImpl : public ClassicService {
                               bool_t* is_leader,
                               rrr::DeferredReply* defer) override;
 
-  void RuleWitnessGC(const MarshallDeputy& md,
-                     rrr::DeferredReply* defer);
-
   void Dispatch(const i64& cmd_id,
 								const DepId& dep_id,
                 const MarshallDeputy& cmd,

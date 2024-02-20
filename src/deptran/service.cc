@@ -59,13 +59,6 @@ void ClassicServiceImpl::RuleSpeculativeExecute(const MarshallDeputy& md,
   defer->reply();
 }
 
-void ClassicServiceImpl::RuleWitnessGC(const MarshallDeputy& md,
-                                        rrr::DeferredReply* defer) {
-  shared_ptr<Marshallable> sp = md.sp_data_;
-  dtxn_sched()->OnRuleWitnessGC(sp);
-  defer->reply();
-}
-
 void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 																	const DepId& dep_id,
                                   const MarshallDeputy& md,

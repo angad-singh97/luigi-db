@@ -439,11 +439,6 @@ class Communicator {
                       ver_t ver,
                       shared_ptr<Marshallable> md_cmd,
                       uint16_t ban_site);
-
-  void RuleBroadcastWitnessGC(parid_t par_id,
-                              shared_ptr<Marshallable> cmd,
-                              uint16_t ban_site);
-
 };
 
 } // namespace janus

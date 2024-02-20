@@ -1405,13 +1405,8 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
   *is_leader = IsLeader();
 }
 
-void TxLogServer::OnRuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
+void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   witness_.remove(cmd);
-}
-
-void TxLogServer::RuleOriginalProtocolCommit(const shared_ptr<Marshallable>& cmd) {
-  if (witness_.remove(cmd))
-    commo()->RuleBroadcastWitnessGC(partition_id_, cmd, loc_id_);
 }
 
 } // namespace janus
