@@ -52,7 +52,13 @@ void RwWorkload::RegisterPrecedures() {
 }
 
 RwWorkload::RwWorkload(Config *config) : Workload(config) {
-  rand_gen_.seed((int)std::time(0) + (uint64_t)pthread_self());
+  std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> time_since_epoch = now.time_since_epoch();
+  double seconds_since_epoch = time_since_epoch.count();
+  // rand_gen_.seed((int)std::time(0) + (uint64_t)pthread_self());
+  rand_gen_.seed((uint64_t)(seconds_since_epoch * 10000000000) + (uint64_t)pthread_self());
+  // Log_info("seed %d %d %d %.10f", (int)std::time(0), (uint64_t)pthread_self(), (int)std::time(0) + (uint64_t)pthread_self(), seconds_since_epoch);
+  Log_info("seed %llu %llu %llu", (uint64_t)(seconds_since_epoch * 10000000000), (uint64_t)pthread_self(), (uint64_t)(seconds_since_epoch * 10000000000) + (uint64_t)pthread_self());
 }
 
 void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
@@ -122,6 +128,7 @@ int32_t RwWorkload::GetId(uint32_t cid) {
       id = it->second;
     }
   }
+  frequency_.append(id);
   return id;
 }
 } // namespace janus

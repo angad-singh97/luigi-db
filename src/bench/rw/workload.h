@@ -2,6 +2,7 @@
 #define RW_BENCHMARK_PIE_H_
 
 #include "deptran/workload.h"
+#include "../../deptran/scheduler.h"
 
 namespace janus {
 
@@ -25,10 +26,14 @@ class RwWorkload : public Workload {
   RwWorkload(Config *config);
   virtual void GetTxRequest(TxRequest* req, uint32_t cid) override;
   // [CURP] used for non-conflict key test
-  
   int non_conflict_counter[300] = {};
   std::recursive_mutex mtx_{};
 
+  // For Frequency check
+  Frequency frequency_;
+  ~RwWorkload() {
+    Log_info("Generated Frequency: %s", frequency_.top_keys_pcts().c_str());
+  }
  protected:
   int32_t GetId(uint32_t cid);
   void GenerateWriteRequest(TxRequest *req, uint32_t cid);

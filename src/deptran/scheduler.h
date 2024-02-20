@@ -151,14 +151,14 @@ class Frequency {
     for (auto k: keys_) {
       count_map[k]++;
     }
-    set<int> frequency;
+    set<pair<int, int>> frequency;
     for (auto it: count_map) {
-      frequency.insert(-it.second);
+      frequency.insert(make_pair(-it.second, it.first));
     }
     std::stringstream ss;
     int i = 0;
-    for (set<int>::iterator it = frequency.begin(); it != frequency.end() && i < 10; it++, i++) {
-      ss << std::fixed << std::setprecision(6) << -*it * 100.0 / count() << ", ";
+    for (set<pair<int, int>>::iterator it = frequency.begin(); it != frequency.end() && i < 10; it++, i++) {
+      ss << std::fixed << std::setprecision(6) << -it->first * 100.0 / count() << " (" << it->second << "), ";
     }
     return ss.str();
   }
