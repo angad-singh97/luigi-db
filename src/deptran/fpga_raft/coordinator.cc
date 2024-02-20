@@ -5,6 +5,7 @@
 #include "commo.h"
 
 #include "server.h"
+#include "../RW_command.h"
 
 namespace janus {
 
@@ -173,6 +174,8 @@ void CoordinatorFpgaRaft::AppendEntries() {
 
 void CoordinatorFpgaRaft::Commit() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // Log_info("About to commit slot %d <%d, %d> key %d", slot_id_,
+  //   SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second, SimpleRWCommand::GetKey(cmd_));
   commit_callback_();
   Log_debug("fpga-raft broadcast commit for partition: %d, slot %d",
             (int) par_id_, (int) slot_id_);

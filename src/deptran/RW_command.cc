@@ -197,16 +197,18 @@ void KeyDistribution::Print() {
 
 // Below are for Rule
 
-void RevoveryCandidates::push_back(int64_t cmd_id) {
+void RevoveryCandidates::push_back(uint64_t cmd_id) {
   maximal_++;
   candidates_[cmd_id] = maximal_;
 }
 
-bool RevoveryCandidates::remove(int64_t cmd_id) {
+bool RevoveryCandidates::remove(uint64_t cmd_id) {
   if (candidates_.count(cmd_id) == 0) {
     return false;
   } else {
-    verify(candidates_[cmd_id] == minimal_);
+    // [JetPack] This cannot be ensured yet since we implement fastpath with 2 RPC, which will cause a network reorder of two conflict commands.
+    // This need to be ensured by combine the 2 RPCs to 1.
+    // verify(candidates_[cmd_id] == minimal_);
     candidates_.erase(cmd_id);
     minimal_++;
     return true;
@@ -217,7 +219,7 @@ size_t RevoveryCandidates::size() {
   return candidates_.size();
 }
 
-int64_t RevoveryCandidates::id_of_candidate_to_recover() {
+uint64_t RevoveryCandidates::id_of_candidate_to_recover() {
   if (size() == 0)
     return -1;
   for (auto pair: candidates_) {
@@ -230,7 +232,7 @@ int64_t RevoveryCandidates::id_of_candidate_to_recover() {
 bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   key_t key = parsed_cmd.key_;
-  int64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+  uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   if (candidates_[key].size() == 0) {
     // exist conflict
     candidates_[key].push_back(cmd_id);

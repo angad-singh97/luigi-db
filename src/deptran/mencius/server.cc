@@ -90,6 +90,7 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
     //if (executed_slots_[id]!=1){
+        RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
     //  executed_slots_.erase(id);
     //}

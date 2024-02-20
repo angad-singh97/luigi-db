@@ -271,7 +271,7 @@ class CurpCoordinatorCommitFinishTimeoutPool {
       // });
     };
     void TimeoutLoop();
-    void DealWith(int64_t cmd_id);
+    void DealWith(uint64_t cmd_id);
 };
 
 class TxnRegistry;

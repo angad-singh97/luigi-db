@@ -23,14 +23,17 @@ class SimpleRWCommand: public Marshallable {
   static double GetCommandMsTime(shared_ptr<Marshallable> cmd);
   static double GetCommandMsTimeElaps(shared_ptr<Marshallable> cmd);
   static key_t GetKey(shared_ptr<Marshallable> cmd);
-  static int64_t CombineInt32(pair<int32_t, int32_t> a) {
-    return (((int64_t)a.first) << 31) | a.second;
+  static uint64_t CombineInt32(pair<uint32_t, uint32_t> a) {
+    return (((uint64_t)a.first) << 31) | a.second;
+    // return (((uint64_t)a.first) * 1000000000) + a.second;
   }
-  static int64_t CombineInt32(int32_t a, int32_t b) {
-    return (((int64_t)a) << 31) | b;
+  static uint64_t CombineInt32(uint32_t a, uint32_t b) {
+    return (((uint64_t)a) << 31) | b;
+    // return (((uint64_t)a) * 1000000000) + b;
   }
-  static pair<int32_t, int32_t> GetInt32(int64_t a) {
+  static pair<uint32_t, uint32_t> GetInt32(uint64_t a) {
     return make_pair(a >> 31, a & ((1ll << 31) - 1));
+    // return make_pair(a / 1000000000, a % 1000000000);
   }
   static int MaxFailure(int n) {
     return (n - 1) / 2;
@@ -53,20 +56,23 @@ class KeyDistribution {
 
 class RevoveryCandidates {
   int minimal_ = 0, maximal_ = -1;
-  unordered_map<int64_t, int> candidates_;
+  unordered_map<uint64_t, int> candidates_;
  public:
   RevoveryCandidates() {}
-  void push_back(int64_t cmd_id);
-  bool remove(int64_t cmd_id);
+  void push_back(uint64_t cmd_id);
+  bool remove(uint64_t cmd_id);
   size_t size();
-  int64_t id_of_candidate_to_recover();
+  uint64_t id_of_candidate_to_recover();
 };
 
 class Witness {
   bool belongs_to_leader_{false}; // i.e. This server can propose value
-  // unordered_map<key_t, unordered_map<int64_t, int>> candidates_;
+  // unordered_map<key_t, unordered_map<uint64_t, int>> candidates_;
   unordered_map<key_t, RevoveryCandidates> candidates_;
  public:
+  Witness() {
+    // Log_info("Witness created!!!!!!!!!!!");
+  }
   // return whether meet conflict, but not whether push_back success
   bool push_back(const shared_ptr<Marshallable>& cmd);
   bool remove(const shared_ptr<Marshallable>& cmd);

@@ -534,9 +534,11 @@ void CopilotServer::removeCmd(CopilotLogInfo& log_info, slotid_t slot) {
 
 bool CopilotServer::executeCmd(shared_ptr<CopilotData>& ins) {
   if (likely((bool)(ins->cmd))) {
-    if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP))
+    if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
       // WAN_WAIT
+      RuleWitnessGC(ins->cmd);
       app_next_(*ins->cmd);
+    }
     ins->status = Status::EXECUTED;
     updateMaxExecSlot(ins);
     return true;

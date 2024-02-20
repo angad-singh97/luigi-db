@@ -570,7 +570,7 @@ void TxLogServer::OnCurpForward(const bool_t& accepted,
     return;
   }
   shared_ptr<ResponseData> response_pack = nullptr;
-  int64_t slot_id = SimpleRWCommand::CombineInt32(key, ver);
+  uint64_t slot_id = SimpleRWCommand::CombineInt32(key, ver);
   if (curp_response_storage_[slot_id] == nullptr) {
     curp_response_storage_[slot_id] = make_shared<ResponseData>();
     response_pack = curp_response_storage_[slot_id];
@@ -1033,7 +1033,7 @@ void CurpCoordinatorCommitFinishTimeoutPool::TimeoutLoop() {
   // }
 }
 
-void CurpCoordinatorCommitFinishTimeoutPool::DealWith(int64_t cmd_id) {
+void CurpCoordinatorCommitFinishTimeoutPool::DealWith(uint64_t cmd_id) {
   // std::lock_guard<std::recursive_mutex> lock(sch_->curp_mtx_);
   key_t key = wait_for_commit_events_pool_[cmd_id].first;
   // Log_info("DealWith k=%d at %.2f ms", key, SimpleRWCommand::GetCurrentMsTime());
@@ -1395,7 +1395,12 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
                     bool_t* accepted,
                     value_t* result,
                     bool_t* is_leader) {
-  if (witness_.push_back(cmd)) {
+  if (rep_sched_->witness_.push_back(cmd)) {
+    // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+    // Log_info("Server %d OnRuleSpeculativeExecute <%d, %d> key %d", rep_sched_->loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, parsed_cmd.key_);
+    // Log_info("witness_.push_back server %d push cmd_id <%d, %d> %lld key %d success 1", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second,
+      // (long long)SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second), parsed_cmd.key_);
+    // verify(witness_.remove(cmd));
     *accepted = true;
     // [RULE] TODO: return speculative result
     *result = 0;
@@ -1407,6 +1412,13 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
 
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   witness_.remove(cmd);
+  return;
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+  // Log_info("witness_.remove server %d remove cmd_id <%d, %d> %lld key %d success %d", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second,
+  //     (long long)SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second), parsed_cmd.key_, witness_.remove(cmd));
+  // Log_info("witness_.remove(cmd) %d", witness_.remove(cmd));
+  // witness_.remove(cmd);
 }
 
 } // namespace janus
