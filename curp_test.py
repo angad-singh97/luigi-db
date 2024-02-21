@@ -47,7 +47,7 @@ curp_modes_ = [
     "fpga_raft_plus",
 ]
 fastpath_modes_ = [
-    101, # adaptive
+    # 101, # adaptive
     0,  # 0 possibility attempt fastpath
     5,
     10,
@@ -60,15 +60,17 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1000",
     "rw_1000000",
-    # "rw_zipf_1",
+    "rw_zipf_1",
     # "rw_zipf_0.9",
-    # "rw_zipf_0.8",
+    "rw_zipf_0.8",
     # "rw_zipf_0.7",
-    # "rw_zipf_0.6",
+    "rw_zipf_0.6",
     # "rw_zipf_0.5",
-    # "rw_1",
-    # "rw_zipf_0.9",
-    # "rw_zipf_0.75",
+    "rw_zipf_0.4",
+    # "rw_zipf_0.3",
+    "rw_zipf_0.2",
+    # "rw_zipf_0.1",
+    "rw_zipf_0",
 ]
 concurrent_ = [
     "concurrent_1",
@@ -256,7 +258,7 @@ def test_curp():
 def test_rule():
     exp_count = len(sites_) * len(rule_modes_) * len(benchmarks_) * len(latency_concurrent_) * len(fastpath_modes_)
     exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
-    estimate_minute = exp_count * sum(running_time_) // 60
+    estimate_minute = exp_count * sum(running_time_) * 4 // 3 // 60
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
     print("Number of total experiments is", exp_count)
@@ -275,6 +277,9 @@ def test_rule():
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
                         run(20, m, s, b, c, rt)
+    
+    print("Number of total experiments is", exp_count)
+    print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
 
 
 def main():
@@ -305,4 +310,11 @@ def main():
     test_rule()
 
 if __name__ == "__main__":
+    start_time = time()
     main()
+    end_time = time()
+    duration_seconds = end_time - start_time
+    hours = duration_seconds // 3600
+    minutes = (duration_seconds % 3600) // 60
+    seconds = duration_seconds % 60
+    print("Actual Time taken: {} hours, {} minutes, {} seconds".format(hours, minutes, seconds))
