@@ -14,15 +14,15 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
                                        ClientControlServiceImpl *ccsi,
                                        uint32_t thread_id)
   : CoordinatorClassic(coo_id, benchmark, ccsi, thread_id) {
-  if (Config::GetConfig()->replica_proto_ == MODE_FPGA_RAFT) {
-    margin_success_rate_ = 0.724;
-  } else if (Config::GetConfig()->replica_proto_ == MODE_COPILOT) {
-    margin_success_rate_ = 0.713;
-  } else if (Config::GetConfig()->replica_proto_ == MODE_MENCIUS) {
-    margin_success_rate_ = 0.930;
-  } else {
-    verify(0);
-  }
+  // if (Config::GetConfig()->replica_proto_ == MODE_FPGA_RAFT) {
+  //   margin_success_rate_ = 0.724;
+  // } else if (Config::GetConfig()->replica_proto_ == MODE_COPILOT) {
+  //   margin_success_rate_ = 0.713;
+  // } else if (Config::GetConfig()->replica_proto_ == MODE_MENCIUS) {
+  //   margin_success_rate_ = 0.930;
+  // } else {
+  //   verify(0);
+  // }
   // Log_info("[CURP] CoordinatorRule created for coo_id=%d thread_id=%d", coo_id, thread_id);
 }
 
@@ -44,12 +44,14 @@ void CoordinatorRule::GotoNextPhase() {
         // fixed percentage
         go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
       } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
-        if (dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 1000) {
-          go_to_fastpath_ = true;
-        } else {
-          // Log_info("Fastpath success: %.6f margin_success_rate: %.6f", recent_fastpath_success_.ave(), margin_success_rate_);
-          go_to_fastpath_ = recent_fastpath_success_.ave() > margin_success_rate_;
-        }
+        // static int printed_times = 0;
+        std::vector<double> cpu_info = rrr::CPUInfo::per_cpu_stat();
+        // if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000) {
+        //   Log_info("cpu_info %d %.6f %.6f %.6f %.6f", cpu_info.size(), cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
+        //   // printed_times++;
+        // }
+        // go_to_fastpath_ = true;
+        go_to_fastpath_ = Config::GetConfig()->replica_proto_ == MODE_COPILOT || cpu_info[1] < 99.5;
       } else {
         verify(0);
       }
@@ -63,12 +65,12 @@ void CoordinatorRule::GotoNextPhase() {
       }
       break;
     case Phase::DISPATCHED:
-      if (go_to_fastpath_) {
-        if (fast_path_success_)
-          recent_fastpath_success_.append(1);
-        else
-          recent_fastpath_success_.append(0);
-      }
+      // if (go_to_fastpath_) {
+      //   if (fast_path_success_)
+      //     recent_fastpath_success_.append(1);
+      //   else
+      //     recent_fastpath_success_.append(0);
+      // }
       if (fast_path_success_ || dispatch_ack_) {
         committed_ = true;
         // verify(phase_ % n_phase == Phase::WAITING_ORIGIN);

@@ -13,7 +13,7 @@ class CoordinatorRule : public CoordinatorClassic {
   bool coordinator_success_{false};
   shared_ptr<VecPieceData> sp_vpd_; // cmd
 
-  double margin_success_rate_;
+  // double margin_success_rate_;
 
   value_t result_;
 
