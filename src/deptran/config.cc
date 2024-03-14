@@ -942,6 +942,9 @@ int32_t Config::get_num_leaders(parid_t partition_id) {
     case MODE_MENCIUS:
       return GetPartitionSize(partition_id);
       break;
+    case MODE_MONGODB:
+      return 1;
+      break;
     default:
       Log_fatal("Rule mode do not support for this replica protocol now");
       return 0;

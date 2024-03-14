@@ -11,6 +11,8 @@ from waflib import Options
 pargs = ['--cflags', '--libs']
 #BOOST_LIBS = 'BOOST_SYSTEM BOOST_FILESYSTEM BOOST_THREAD BOOST_COROUTINE'
 
+#g++ -Wall -Wextra -std=c++17 -ggdb -Iinclude -Ilib -I/usr/local/include/mongocxx/v_noabi -I/usr/local/include/bsoncxx/v_noabi -Llib main.cpp -o bin/main -lboost_system -lpthread -lcrypto -lssl -lmongocxx -lbsoncxx
+
 def options(opt):
     opt.load("compiler_c")
     opt.load("compiler_cxx")
@@ -124,6 +126,14 @@ def configure(conf):
     # conf.env.append_value("CXXFLAGS", "-lprofiler scripts/pprof".split())
     conf.env.append_value("LDFLAGS", "-lprofiler")
 
+    # enable mongodb
+    # conf.env.append_value('CXXFLAGS', ['-std=c++17', '-ggdb'])
+    # conf.env.append_value('INCLUDES', ['lib', 'include'])
+    conf.env.append_value('INCLUDES', ['/usr/local/include/mongocxx/v_noabi', '/usr/local/include/bsoncxx/v_noabi'])
+    # conf.env.append_value("LINKFLAGS", ['-lboost_system', '-lpthread', '-lcrypto', '-lssl', '-lmongocxx', '-lbsoncxx'])
+    # conf.env.append_value("LDFLAGS", ['-lboost_system', '-lpthread', '-lcrypto', '-lssl', '-lmongocxx', '-lbsoncxx'])
+    conf.env.append_value("LDFLAGS", ["-lmongocxx", "-lbsoncxx"])
+
 def build(bld):
     _depend("src/rrr/pylib/simplerpcgen/rpcgen.py",
             "src/rrr/pylib/simplerpcgen/rpcgen.g",
@@ -191,12 +201,12 @@ def build(bld):
               uselib="YAML-CPP BOOST",
               use="externc rrr memdb deptran_objects PTHREAD PROFILER RT")
 
-    bld.program(source=bld.path.ant_glob("src/run.cc "
-                                         "src/deptran/paxos_main_helper.cc"),
-                target="microbench",
-                includes="src src/rrr src/deptran ",
-                uselib="YAML-CPP BOOST",
-                use="externc rrr memdb deptran_objects PTHREAD PROFILER RT")
+    #bld.program(source=bld.path.ant_glob("src/run.cc "
+    #                                     "src/deptran/paxos_main_helper.cc"),
+    #            target="microbench",
+    #            includes="src src/rrr src/deptran ",
+    #            uselib="YAML-CPP BOOST",
+    #            use="externc rrr memdb deptran_objects PTHREAD PROFILER RT")
 
     bld.add_post_fun(post)
 

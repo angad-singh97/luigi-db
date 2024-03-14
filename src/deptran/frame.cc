@@ -512,6 +512,7 @@ map<string, int> &Frame::FrameNameToMode() {
       {"copilot_plus",  MODE_COPILOT_PLUS},
       {"curp",          MODE_CURP},
       {"rule",          MODE_RULE},
+      {"mongodb",       MODE_MONGODB},
   };
   return frame_name_mode_s;
 }

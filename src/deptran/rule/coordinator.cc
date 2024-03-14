@@ -51,7 +51,7 @@ void CoordinatorRule::GotoNextPhase() {
         //   // printed_times++;
         // }
         // go_to_fastpath_ = true;
-        go_to_fastpath_ = Config::GetConfig()->replica_proto_ == MODE_COPILOT || cpu_info[1] < 99.5;
+        go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
       } else {
         verify(0);
       }
