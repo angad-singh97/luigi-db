@@ -8,7 +8,6 @@
 namespace janus {
 
 class CoordinatorMongodb : public Coordinator {
-  MongodbKVTableHandler handler;
  public:
   CoordinatorMongodb(uint32_t coo_id,
                       int32_t benchmark,

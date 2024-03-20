@@ -25,18 +25,28 @@ class MongodbKVTableHandler {
       client(mongocxx::client(uri)),
       db(client[kDatabaseName]) {
     
-    mongocxx::collection collection = db[kCollectionName];
+    db.drop();
+    // mongocxx::collection collection = db[kCollectionName];
     
-    try {
-        mongocxx::stdx::optional<mongocxx::result::delete_result> result =
-            collection.delete_many({});
-        assert(result);
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
+    // try {
+    //     mongocxx::stdx::optional<mongocxx::result::delete_result> result =
+    //         collection.delete_many({});
+    //     assert(result);
+    // } catch (const std::exception& e) {
+    //     std::cerr << "Error: " << e.what() << std::endl;
+    // }
+  }
+
+  ~MongodbKVTableHandler() {
+
   }
 
   bool Write(int key, int value) {
+    // char kCollectionName[10];
+    // std::string str = std::to_string(key);
+    // str.copy(kCollectionName, str.length());
+    // kCollectionName[str.length()] = '\0';
+
     mongocxx::collection collection = db[kCollectionName];
     auto filter_builder = bsoncxx::builder::stream::document{};
     auto update_builder = bsoncxx::builder::stream::document{};
@@ -65,6 +75,11 @@ class MongodbKVTableHandler {
 
 
   int Read(int key) {
+    // char kCollectionName[10];
+    // std::string str = std::to_string(key);
+    // str.copy(kCollectionName, str.length());
+    // kCollectionName[str.length()] = '\0';
+    
     mongocxx::collection collection = db[kCollectionName];
     auto filter_builder = bsoncxx::builder::stream::document{};
     

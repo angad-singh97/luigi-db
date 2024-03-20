@@ -10,5 +10,8 @@ int main() {
     std::cout << handler.Read(1) << std::endl;
     std::cout << handler.Write(1, 5) << std::endl;
     std::cout << handler.Read(1) << std::endl;
+    std::cout << handler.Write(3, 13) << std::endl;
+    std::cout << handler.Write(5, 15) << std::endl;
+     std::cout << handler.Read(3) << std::endl;
     return 0;
 }
