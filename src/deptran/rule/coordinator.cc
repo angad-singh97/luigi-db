@@ -185,13 +185,13 @@ void CoordinatorRule::DispatchAsync() {
     }
     sp_vec_piece_by_par_[par_id] = sp_vec_piece;
     commo()->BroadcastDispatch(sp_vec_piece,
-                               this,
-                               std::bind(&CoordinatorClassic::DispatchAck,
-                                         this,
-                                         cmd_ver_,
-                                         phase_,
-                                         std::placeholders::_1,
-                                         std::placeholders::_2));
+                              this,
+                              std::bind(&CoordinatorClassic::DispatchAck,
+                                        this,
+                                        cmd_ver_,
+                                        phase_,
+                                        std::placeholders::_1,
+                                        std::placeholders::_2));
   }
 }
 

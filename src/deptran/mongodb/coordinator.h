@@ -8,11 +8,14 @@
 namespace janus {
 
 class CoordinatorMongodb : public Coordinator {
+  
  public:
   CoordinatorMongodb(uint32_t coo_id,
                       int32_t benchmark,
                       ClientControlServiceImpl *ccsi,
-                      uint32_t thread_id): Coordinator(coo_id, benchmark, ccsi, thread_id) {};
+                      uint32_t thread_id): Coordinator(coo_id, benchmark, ccsi, thread_id) {
+    // Log_info("CoordinatorMongodb created");
+  };
   ~CoordinatorMongodb() {}
   void DoTxAsync(TxRequest &req) override {}
   void Submit(shared_ptr<Marshallable> &cmd,

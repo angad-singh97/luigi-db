@@ -18,6 +18,8 @@ class SimpleRWCommand: public Marshallable {
   bool same_as(SimpleRWCommand &other);
   Marshal& ToMarshal(Marshal& m) const override;
   Marshal& FromMarshal(Marshal& m) override;
+  bool IsRead();
+  bool IsWrite();
   static pair<int32_t, int32_t> GetCmdID(shared_ptr<Marshallable> cmd);
   static double GetCurrentMsTime();
   static double GetCommandMsTime(shared_ptr<Marshallable> cmd);

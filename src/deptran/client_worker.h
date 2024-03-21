@@ -4,6 +4,7 @@
 #include "config.h"
 #include "communicator.h"
 #include "procedure.h"
+#include "mongodb_kv_table_handler.h"
 
 namespace janus {
 
@@ -78,6 +79,9 @@ class ClientWorker {
   int curp_fastpath_p_ = 1024;
   int curp_fastpath_q_ = 1024;
 
+ private:
+  MongodbKVTableHandler mongodb_handler_;
+
  public:
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
       ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,
@@ -96,6 +100,21 @@ class ClientWorker {
   void Resume(locid_t locid);
   Coordinator* CreateFailCtrlCoordinator();
   void AcceptForwardedRequest(TxRequest &request, TxReply* txn_reply, rrr::DeferredReply* defer);
+
+  bool MongodbWrite(int key, int value) {
+    bool result = mongodb_handler_.Write(key, value);
+    WAN_WAIT
+    WAN_WAIT
+    // These two WAN_WAIT is to simulate 1 RTT during mongodb replication
+    return result;
+  }
+  int MongodbRead(int key) {
+    int result = mongodb_handler_.Read(key);
+    WAN_WAIT
+    WAN_WAIT
+    // These two WAN_WAIT is to simulate 1 RTT during mongodb replication
+    return result;
+  }
 
  protected:
   Coordinator* CreateCoordinator(uint16_t offset_id);

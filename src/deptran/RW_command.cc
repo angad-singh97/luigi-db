@@ -22,17 +22,20 @@ SimpleRWCommand::SimpleRWCommand(): Marshallable(MarshallDeputy::CMD_KV) {
 SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(MarshallDeputy::CMD_KV) {
   //Log_info("[copilot+] SimpleRWCommand created");
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
+  shared_ptr<TxPieceData> vector0;
   if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
     shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
     VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
     sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+    vector0 = *(sp_vec_piece->begin());
   } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
     shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
     sp_vec_piece = cmd_cast->sp_vec_piece_data_;
-  } else {
-    verify(0);
+    vector0 = *(sp_vec_piece->begin());
+  } else if (cmd->kind_ == MarshallDeputy::CONTAINER_CMD) {
+    vector0 = dynamic_pointer_cast<TxPieceData>(cmd);
   }
-  shared_ptr<TxPieceData> vector0 = *(sp_vec_piece->begin());
+  
   TxWorkspace tx_ws = vector0->input;
   std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
   cmd_id_ = make_pair(vector0->client_id_, vector0->cmd_id_in_client_);
@@ -110,6 +113,14 @@ Marshal& SimpleRWCommand::FromMarshal(Marshal& m) {
   m >> key_;
   m >> value_;
   return m;
+}
+
+bool SimpleRWCommand::IsRead() {
+    return type_ == RW_BENCHMARK_R_TXN || type_ == RW_BENCHMARK_R_TXN_0;
+}
+
+bool SimpleRWCommand::IsWrite() {
+  return type_ == RW_BENCHMARK_W_TXN || type_ == RW_BENCHMARK_W_TXN_0;
 }
 
 pair<int32_t, int32_t> SimpleRWCommand::GetCmdID(shared_ptr<Marshallable> cmd) {

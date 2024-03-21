@@ -43,6 +43,7 @@ class MongodbKVTableHandler {
     auto filter_builder = bsoncxx::builder::stream::document{};
     auto update_builder = bsoncxx::builder::stream::document{};
 
+
     bsoncxx::document::value filter =
       filter_builder << "key" << key << bsoncxx::builder::stream::finalize;
 
@@ -106,6 +107,8 @@ class MongodbKVTableHandler {
         std::cerr << "Error: " << e.what() << std::endl;
     }
   }
+
+  // document: {"_ids": 122323, "v": 2323}
 
   void Setup() {
     auto index_builder = bsoncxx::builder::stream::document{};

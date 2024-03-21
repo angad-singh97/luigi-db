@@ -90,7 +90,11 @@ void CoordinatorClassic::DoTxAsync(TxRequest& req) {
     Log_debug("start txn!!! : %d", forward_status_);
     // this GotoNextPhase is in none/coordinator.cc, coz this is CoordinatorNone instance
     // class CoordinatorNone : public CoordinatorClassic { }
-    Coroutine::CreateRun([this]() { GotoNextPhase(); }, __FILE__, __LINE__);
+    Coroutine::CreateRun([this]() {
+        // Log_info("Start CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
+        GotoNextPhase();
+      }, __FILE__, __LINE__
+    );
   }
 }
 
@@ -381,6 +385,7 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
   if (res == REJECT) {
     aborted_ = true;
     txn->commit_.store(false);
+    // Log_info("DispatchAck Reject CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
     GotoNextPhase();
     return;
   }
@@ -412,7 +417,11 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
     WAN_WAIT
     dispatch_ack_ = true;
     // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d cmd_ver=%d current_phase=%d [End of DispatchAck]", coo_id_, thread_id_, cmd_ver_, cmd_ver, phase % 3);
-    if (cmd_ver != cmd_ver_) return;
+    if (cmd_ver != cmd_ver_) {
+      // Log_info("AllDispatchAcked Failed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
+      return;
+    }
+    // Log_info("AllDispatchAcked Successed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
     GotoNextPhase();
   }
 }
