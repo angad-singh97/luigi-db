@@ -36,8 +36,27 @@ void CoordinatorRule::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::DISPATCHED);
       fast_path_success_ = false;
       dispatch_ack_ = false;
-      // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
+
+      // [Ze] Get cmds_by_par_ and sp_vec_piece_by_par_ in advance here since both original path and fastpath need this
+      cmds_by_par_ = ((TxData*) cmd_)->GetReadyPiecesData(100); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+      sp_vec_piece_by_par_.clear();
+      for (auto& pair: cmds_by_par_) {
+        const parid_t& par_id = pair.first;
+        auto& cmds = pair.second;
+        n_dispatch_ += cmds.size();
+        auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
+        for (auto c: cmds) {
+          c->id_ = next_pie_id();
+          dispatch_acks_[c->inn_id_] = false;
+          sp_vec_piece->push_back(c);
+          frequency_.append(SimpleRWCommand::GetKey(c));
+        }
+        sp_vec_piece_by_par_[par_id] = sp_vec_piece;
+      }
+
       DispatchAsync();
+
+      // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before BroadcastRuleSpeculativeExecute]", coo_id_, thread_id_, cmd_ver_, current_phase);
       // BroadcastRuleSpeculativeExecute(cmd_ver_);
       if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
@@ -120,6 +139,12 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
   auto cmds_by_par = cmds_by_par_;
   // curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
+  // [JetPack TODO] remove this
+  if (cmds_by_par.size() == 0) {
+    if (cmd_ver != cmd_ver_) return;
+    GotoNextPhase();
+    return;
+  }
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
   shared_ptr<RuleSpeculativeExecuteQuorumEvent> e;
@@ -163,27 +188,16 @@ void CoordinatorRule::DispatchAsync() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
 
-  int cnt = 0;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
-  ReadyPiecesData cmds_by_par;
-  cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  cmds_by_par_ = cmds_by_par;
+  // ReadyPiecesData cmds_by_par;
+  // cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  // cmds_by_par_ = cmds_by_par;
+  auto cmds_by_par = cmds_by_par_;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
-  sp_vec_piece_by_par_.clear();
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
-    auto& cmds = pair.second;
-    n_dispatch_ += cmds.size();
-    cnt += cmds.size();
-    auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
-    for (auto c: cmds) {
-      c->id_ = next_pie_id();
-      dispatch_acks_[c->inn_id_] = false;
-      sp_vec_piece->push_back(c);
-      frequency_.append(SimpleRWCommand::GetKey(c));
-    }
-    sp_vec_piece_by_par_[par_id] = sp_vec_piece;
+    auto sp_vec_piece = sp_vec_piece_by_par_[par_id];
     commo()->BroadcastDispatch(sp_vec_piece,
                               this,
                               std::bind(&CoordinatorClassic::DispatchAck,
