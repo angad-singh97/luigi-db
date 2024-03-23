@@ -26,7 +26,7 @@ class CoordinatorRule : public CoordinatorClassic {
     //   fastpath_count_, coordinatoraccept_count_, original_protocol_count_, cli2cli_->pct50(), cli2cli_->pct90(), cli2cli_->pct99());
   }
   void GotoNextPhase() override;
-  void BroadcastRuleSpeculativeExecute(int cmd_ver);
+  void BroadcastRuleSpeculativeExecute(int cmd_ver, int phase);
   void DispatchAsync() override;
 };
 
