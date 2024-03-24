@@ -377,7 +377,6 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
                                      phase_t phase,
                                      int res,
                                      TxnOutput& outputs) {
-  WAN_WAIT
   //Log_info("Is this being called");
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
   if (cmd_ver != cmd_ver_ || phase != phase_) return;
@@ -421,6 +420,7 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
       // Log_info("AllDispatchAcked Failed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
       return;
     }
+    // WAN_WAIT
     // Log_info("AllDispatchAcked Successed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
     GotoNextPhase();
   }

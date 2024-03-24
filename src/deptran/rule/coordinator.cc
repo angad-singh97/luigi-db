@@ -58,6 +58,8 @@ void CoordinatorRule::GotoNextPhase() {
         sp_vec_piece_by_par_[par_id] = sp_vec_piece;
       }
 
+      WAN_WAIT
+
       if (Config::GetConfig()->replica_proto_ != MODE_MONGODB)
         DispatchAsync(cmd_ver_snapshot, phase_snapshot);
 
@@ -104,6 +106,8 @@ void CoordinatorRule::GotoNextPhase() {
         // verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
+        cmd_ver_++;
+        WAN_WAIT
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           // verify(!(fast_path_success_ && dispatch_ack_));
@@ -114,7 +118,6 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
-        cmd_ver_++;
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
@@ -124,7 +127,9 @@ void CoordinatorRule::GotoNextPhase() {
     case Phase::WAITING_ORIGIN:
       committed_ = true;
       verify(phase_ % n_phase == Phase::INIT_END);
+      cmd_ver_++;
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before WAITING_ORIGIN end]", coo_id_, thread_id_, cmd_ver_, current_phase);
+      WAN_WAIT
       if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
         if (go_to_fastpath_) {
             cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
@@ -132,7 +137,6 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
-      cmd_ver_++;
       End();
       break;
     default:
@@ -171,7 +175,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
     e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
-  WAN_WAIT
+  // WAN_WAIT
   // if (cmd_ver != cmd_ver_) return;
   // Log_info("[CURP] After Wait");
   if (e->Yes()) {
