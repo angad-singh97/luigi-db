@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-86a6f9da708559c2df404846597541a5d2e0a40a-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-5c6e948c8c77500b86ac9cf1cbe8fdd04941595a-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
