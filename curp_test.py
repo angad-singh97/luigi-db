@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-71be925bc01189ef3d9cb14405b41f7f67d4d3c0-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-092d16fc75494e0163ed2aee479c2192bf1e5d85-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -30,17 +30,17 @@ TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
-    # "none_paxos",
+    "none_mongodb",
     "none_mencius",
     "none_copilot",
     "none_fpga_raft",
-    "none_mongodb"
+    # "none_paxos",
 ]
 rule_modes_ = [
+    "rule_mongodb",
     "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
-    "rule_mongodb",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -313,7 +313,7 @@ def main():
 
 
 def rerun_failed_experiments():
-
+    pass
 
 if __name__ == "__main__":
     start_time = time()
