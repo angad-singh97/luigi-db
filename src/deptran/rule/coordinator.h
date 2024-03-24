@@ -27,7 +27,7 @@ class CoordinatorRule : public CoordinatorClassic {
   }
   void GotoNextPhase() override;
   void BroadcastRuleSpeculativeExecute(int cmd_ver, int phase);
-  void DispatchAsync() override;
+  void DispatchAsync(int cmd_ver, int phase);
 };
 
 } // namespace janus
