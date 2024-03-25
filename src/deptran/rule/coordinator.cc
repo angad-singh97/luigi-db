@@ -178,7 +178,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
   result_ = e->GetResult();
   // fast_path_success_ = false;
   if (cmd_ver != cmd_ver_ || phase != phase_) return;
-  // Log_info("cmd ver %d %d phase %d %d", cmd_ver, cmd_ver_, phase, phase_);
+  Log_info("cmd ver %d %d phase %d %d", cmd_ver, cmd_ver_, phase, phase_);
   GotoNextPhase();
 }
 
