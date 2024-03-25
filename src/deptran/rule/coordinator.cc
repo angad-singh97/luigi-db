@@ -58,8 +58,7 @@ void CoordinatorRule::GotoNextPhase() {
         sp_vec_piece_by_par_[par_id] = sp_vec_piece;
       }
 
-      if (Config::GetConfig()->replica_proto_ != MODE_MONGODB)
-        DispatchAsync(cmd_ver_snapshot, phase_snapshot);
+      DispatchAsync();
 
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before BroadcastRuleSpeculativeExecute]", coo_id_, thread_id_, cmd_ver_, current_phase);
@@ -87,10 +86,6 @@ void CoordinatorRule::GotoNextPhase() {
       } else {
         // Do nothing
       }
-
-      if (Config::GetConfig()->replica_proto_ == MODE_MONGODB)
-        DispatchAsync(cmd_ver_snapshot, phase_snapshot);
-      
       break;
     case Phase::DISPATCHED:
       // if (go_to_fastpath_) {
@@ -171,7 +166,6 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
     e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
-  WAN_WAIT
   // if (cmd_ver != cmd_ver_) return;
   // Log_info("[CURP] After Wait");
   if (e->Yes()) {
@@ -188,7 +182,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
   GotoNextPhase();
 }
 
-void CoordinatorRule::DispatchAsync(int cmd_ver, int phase) {
+void CoordinatorRule::DispatchAsync() {
   Log_debug("commo Broadcast to the server on client worker");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
@@ -207,8 +201,8 @@ void CoordinatorRule::DispatchAsync(int cmd_ver, int phase) {
                               this,
                               std::bind(&CoordinatorClassic::DispatchAck,
                                         this,
-                                        cmd_ver,
-                                        phase,
+                                        cmd_ver_,
+                                        phase_,
                                         std::placeholders::_1,
                                         std::placeholders::_2));
   }
