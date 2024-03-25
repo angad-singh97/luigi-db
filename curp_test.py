@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-71be925bc01189ef3d9cb14405b41f7f67d4d3c0-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -34,13 +34,11 @@ modes_ = [
     "none_mencius",
     "none_copilot",
     "none_fpga_raft",
-    "none_mongodb"
 ]
 rule_modes_ = [
     "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
-    "rule_mongodb",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -51,9 +49,9 @@ curp_modes_ = [
 fastpath_modes_ = [
     # 101, # adaptive
     0,  # 0 possibility attempt fastpath
-    25,
+    5,
+    10,
     50,
-    75,
     100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
@@ -152,7 +150,7 @@ instance_commit_timeout_ = [
     1000,
 ]
 
-def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000):
+def run(latency, m, s, b, c, running_time=20, fp=0, fc=0, to1=1000000, to2=0, to3=1000):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
@@ -311,14 +309,9 @@ def main():
     # timeout_finetune()
     test_rule()
 
-
-def rerun_failed_experiments():
-
-
 if __name__ == "__main__":
     start_time = time()
     main()
-    rerun_failed_experiments()
     end_time = time()
     duration_seconds = end_time - start_time
     hours = duration_seconds // 3600
