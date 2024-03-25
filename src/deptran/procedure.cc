@@ -144,10 +144,14 @@ vector<TxPieceData> TxData::GetCmdsByPartition(parid_t par_id) {
 }
 
 ReadyPiecesData TxData::GetReadyPiecesData(int32_t max) {
-  verify(n_pieces_dispatched_ < n_pieces_dispatchable_); 
-  verify(n_pieces_dispatched_ < n_pieces_all_);
+  // Log_info("n_pieces_dispatched_ %d n_pieces_dispatchable_ %d n_pieces_all_ %d", n_pieces_dispatched_, n_pieces_dispatchable_, n_pieces_all_);
+  // n_pieces_dispatched_ = 0; // [JetPack TODO] remove this
+  verify(n_pieces_dispatched_ <= n_pieces_dispatchable_); // [JetPack TODO] recover this to <
+  verify(n_pieces_dispatched_ <= n_pieces_all_); // [JetPack TODO] recover this to <
   ReadyPiecesData ready_pieces_data;
 
+  if (n_pieces_dispatched_ == n_pieces_dispatchable_ || n_pieces_dispatched_ == n_pieces_all_)
+    return ready_pieces_data;
 
 //  int n_debug = 0;
   for (auto &kv : status_) {

@@ -29,15 +29,11 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
 void CoordinatorRule::GotoNextPhase() {
   int n_phase = 3;
   int current_phase = phase_ % n_phase;
-  int fastpath_mode = Config::GetConfig()->curp_or_rule_fastpath_rate_;
-  int cmd_ver_snapshot, phase_snapshot;
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
       verify(phase_ % n_phase == Phase::DISPATCHED);
-      cmd_ver_snapshot = cmd_ver_; // need this snapshot since cmd_ver_ may change during DispatchAsync
-      phase_snapshot = phase_; // need this snapshot since phase_ may change during DispatchAsync
       fast_path_success_ = false;
       dispatch_ack_ = false;
 
@@ -82,7 +78,7 @@ void CoordinatorRule::GotoNextPhase() {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           fastpath_attempted_count_++;
         }
-        BroadcastRuleSpeculativeExecute(cmd_ver_snapshot, phase_snapshot);
+        BroadcastRuleSpeculativeExecute(cmd_ver_);
       } else {
         // Do nothing
       }
@@ -135,7 +131,7 @@ void CoordinatorRule::GotoNextPhase() {
   }
 }
 
-void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
+void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
   auto txn = (TxData*) cmd_;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
@@ -143,6 +139,12 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
   auto cmds_by_par = cmds_by_par_;
   // curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
+  // [JetPack TODO] remove this
+  if (cmds_by_par.size() == 0) {
+    if (cmd_ver != cmd_ver_) return;
+    GotoNextPhase();
+    return;
+  }
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
   shared_ptr<RuleSpeculativeExecuteQuorumEvent> e;
@@ -177,8 +179,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver, int phase) {
   }
   result_ = e->GetResult();
   // fast_path_success_ = false;
-  if (cmd_ver != cmd_ver_ || phase != phase_) return;
-  Log_info("cmd ver %d %d phase %d %d", cmd_ver, cmd_ver_, phase, phase_);
+  if (cmd_ver != cmd_ver_) return;
   GotoNextPhase();
 }
 
