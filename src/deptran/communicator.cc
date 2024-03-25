@@ -458,7 +458,7 @@ void Communicator::BroadcastDispatch(
   if (Config::GetConfig()->replica_proto_ == MODE_MONGODB) {
     TxnOutput outputs;  
 
-    // WAN_WAIT
+    WAN_WAIT
 
     for (const auto& cmd: *sp_vec_piece) {
       SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
@@ -526,7 +526,7 @@ void Communicator::BroadcastDispatch(
   Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
-  // WAN_WAIT;
+  WAN_WAIT;
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif
