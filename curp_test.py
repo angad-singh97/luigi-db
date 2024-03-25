@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-7c09f55352b68982b2408d716dc8f0d7121d791f-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -30,12 +30,14 @@ TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
-    # "none_paxos",
+    "none_mongodb",
     "none_mencius",
     "none_copilot",
     "none_fpga_raft",
+    # "none_paxos",
 ]
 rule_modes_ = [
+    "rule_mongodb",
     "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
@@ -49,9 +51,9 @@ curp_modes_ = [
 fastpath_modes_ = [
     # 101, # adaptive
     0,  # 0 possibility attempt fastpath
-    5,
-    10,
+    25,
     50,
+    75,
     100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
@@ -149,19 +151,25 @@ instance_commit_timeout_ = [
     # i for i in range(5, 100, 20)
     1000,
 ]
+exps_need_to_rerun = []
+exps_finished_rerun = []
+total_experiment_num = 0
+total_rerun_time = 0
 
-def run(latency, m, s, b, c, running_time=20, fp=0, fc=0, to1=1000000, to2=0, to3=1000):
+def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
 
-    output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
+    if output_path == None:
+        output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
     t1 = time()
     res = "INIT"
     try:
         with open(output_path, "w") as f:
-            cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
+            if cmd == None:
+                cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
@@ -194,6 +202,25 @@ def run(latency, m, s, b, c, running_time=20, fp=0, fc=0, to1=1000000, to2=0, to
         print(e)
     t2 = time()
     print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
+    
+    success_flag = "Total throughtput is"
+    try:
+        with open(output_path, 'r') as file:
+            found = False
+            for line in file:
+                if success_flag in line:
+                    found = True
+                    break
+            if not found:
+                if rerun_time != None:
+                    exps_need_to_rerun.append((output_path, cmd, rerun_time + 1))
+                else:
+                    exps_need_to_rerun.append((output_path, cmd, 0))
+            else:
+                if rerun_time != None:
+                    exps_finished_rerun.append((output_path, cmd, rerun_time + 1))
+    except FileNotFoundError:
+        print(f"File '{output_path}' not found.")
 
 # def timeout_finetune():
 #     benchmarks_ = ["rw_1000000"]
@@ -258,6 +285,8 @@ def test_curp():
 def test_rule():
     exp_count = len(sites_) * len(rule_modes_) * len(benchmarks_) * len(latency_concurrent_) * len(fastpath_modes_)
     exp_count += len(sites_) * len(modes_) * len(["rw_1000000"]) * len(latency_concurrent_)
+    global total_experiment_num
+    total_experiment_num = exp_count
     estimate_minute = exp_count * sum(running_time_) * 4 // 3 // 60
     estimate_hour = estimate_minute // 60
     estimate_minute -= estimate_hour * 60
@@ -309,9 +338,35 @@ def main():
     # timeout_finetune()
     test_rule()
 
+
+def rerun_failed_experiments():
+    global exps_need_to_rerun, total_rerun_time
+    while len(exps_need_to_rerun) > 0:
+        exps_to_run = exps_need_to_rerun[:]
+        exps_need_to_rerun = []
+        print("rerun list length " + str(len(exps_to_run)))
+        for (output_path, cmd, rerun_times) in exps_to_run:
+            print("rerun " + str(rerun_times) + " | " + output_path)
+            total_rerun_time += 1
+            run(0, "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
+
+    global exps_finished_rerun
+    try:
+        exps_finished_rerun = sorted(exps_finished_rerun, key=lambda x: x[2], reverse=True)
+        output_path = os.path.join(exp_dir, "rerun.txt")
+        with open(output_path, 'w') as f:
+            for (output_path, cmd, rerun_times) in exps_finished_rerun:
+                text = str(rerun_times) + " | " + output_path + " | " + " ".join(cmd) + "\n"
+                f.write(text)
+    except FileNotFoundError:
+        print(f"File '{output_path}' not found.")
+    
+    print("Total experiment: " + str(total_experiment_num) + " Total rerun time: " + str(total_rerun_time) + " rerun ratio: " + str(total_rerun_time * 100.0 / total_experiment_num) + "%")
+
 if __name__ == "__main__":
     start_time = time()
     main()
+    rerun_failed_experiments()
     end_time = time()
     duration_seconds = end_time - start_time
     hours = duration_seconds // 3600
