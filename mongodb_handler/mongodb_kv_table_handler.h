@@ -10,7 +10,7 @@
 
 namespace mongodb_handler {
 
-constexpr char kMongoDbUri[] = "mongodb://130.245.173.103:27017";
+constexpr char kMongoDbUri[] = "mongodb://130.245.173.103:27017/";
 constexpr char kDatabaseName[] = "JetPack";
 constexpr char kCollectionName[] = "KVTable";
 
