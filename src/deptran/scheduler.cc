@@ -1421,4 +1421,10 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   // witness_.remove(cmd);
 }
 
+void TxLogServer::CommandEndCallback(const shared_ptr<Marshallable>& cmd) {
+  std::lock_guard<std::recursive_mutex> lock(callback_mtx_);
+  RuleWitnessGC(cmd);
+  app_next_(*cmd);
+}
+
 } // namespace janus

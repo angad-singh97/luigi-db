@@ -2,6 +2,7 @@
 
 #include "__dep__.h"
 #include "constants.h"
+#include "server.h"
 #include "../coordinator.h"
 #include "../mongodb_kv_table_handler.h"
 
@@ -23,6 +24,7 @@ class CoordinatorMongodb : public Coordinator {
               const std::function<void()> &exe_callback = []() {}) override;
   void Reset() override {}
   void Restart() override { verify(0); }
+  MongodbServer* Server();
 };
 
 }

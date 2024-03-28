@@ -454,27 +454,6 @@ void Communicator::BroadcastDispatch(
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
     Coordinator* coo,
     const function<void(int, TxnOutput&)> & callback) {
-  
-  if (Config::GetConfig()->replica_proto_ == MODE_MONGODB) {
-    TxnOutput outputs;  
-
-    WAN_WAIT
-
-    for (const auto& cmd: *sp_vec_piece) {
-      SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-      if (parsed_cmd.IsRead()) {
-        coo->client_worker_->MongodbRead(parsed_cmd.key_);
-      } else if (parsed_cmd.IsWrite()) {
-        coo->client_worker_->MongodbWrite(parsed_cmd.key_, parsed_cmd.value_);
-      } else {
-        verify(0);
-      }
-      outputs[cmd->inn_id_] = {};
-    }
-
-    callback(SUCCESS, outputs);
-    return;
-  }
 
   Log_debug("Do a dispatch on client worker");
   cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;

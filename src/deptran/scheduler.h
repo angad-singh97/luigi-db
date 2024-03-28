@@ -308,6 +308,7 @@ class TxLogServer {
   parid_t partition_id_{};
   std::recursive_mutex mtx_{};
   std::recursive_mutex curp_mtx_{};
+  std::recursive_mutex callback_mtx_{};
 
   bool epoch_enabled_{false};
   EpochMgr epoch_mgr_{};
@@ -592,6 +593,8 @@ class TxLogServer {
                                 bool_t* is_leader);
 
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
+
+  void CommandEndCallback(const shared_ptr<Marshallable>& cmd);
 
 };
 

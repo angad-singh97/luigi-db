@@ -4,30 +4,25 @@
 #include "constants.h"
 #include "../scheduler.h"
 #include "../mongodb_kv_table_handler.h"
+#include "../mongodb_connection_thread_pool.h"
 #include "../communicator.h"
 
 namespace janus {
 
 class MongodbServer : public TxLogServer {
-  MongodbKVTableHandler handler;
+  std::function<void(shared_ptr<Marshallable>)> callback_func_ = std::bind(&janus::TxLogServer::CommandEndCallback, this, std::placeholders::_1);
+  MongodbConnectionThreadPool mongodb_(100, callback_func_);
  public:
   void Setup() {
-    // handler.clear();
-  };
+  }
   bool IsLeader() override {
     return loc_id_ == 0;
   }
-  bool Write(int key, int value) {
-    WAN_WAIT
-    bool result = handler.Write(key, value);
-    WAN_WAIT
-    return result;
+  void Submit(const shared_ptr<Marshallable>& cmd) {
+    mongodb_.MongodbRequest(cmd);
   }
-  int Read(int key) {
-    WAN_WAIT
-    int result = handler.Read(key);
-    WAN_WAIT
-    return result;
+  ~MongodbServer() {
+    mongodb_.Close();
   }
 };
 
