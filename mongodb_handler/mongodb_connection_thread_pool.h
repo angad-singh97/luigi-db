@@ -60,13 +60,13 @@ class MongodbConnectionThreadPool {
   int round_robin_ = 0;
 
   std::vector<std::thread> threads_;
-  // std::vector<CallbackType> callbacks_;
   std::vector<std::unique_ptr<std::mutex>> mtxs_;
   std::vector<std::unique_ptr<std::condition_variable>> conditions_;
   std::vector<std::shared_ptr<MongodbKVTableHandler>> mongodb_handlers_;
   std::vector<std::shared_ptr<Distribution>> durations_;
-
   std::vector<std::queue<SampleCommand>> request_queues_;
+
+  CallbackType callback_;
 
 public:
 
@@ -84,7 +84,6 @@ public:
         std::lock_guard<std::mutex> lk(*mtxs_[thread_id]);
         cmd = request_queues_[thread_id].front();
         request_queues_[thread_id].pop();
-        // std::cout << "MongodbConnection unlock and start handle" << std::endl;
       }
       
       auto start_time = std::chrono::high_resolution_clock::now();
@@ -104,14 +103,11 @@ public:
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
       durations_[thread_id]->append(duration.count());
 
-      // std::cout << "MongodbConnection handle finish" << std::endl;
-      Callback(cmd);
-      // std::cout << "MongodbConnection Callback finish" << std::endl;
+      callback_(cmd);
     }
   }
 
   void MongodbRequest(SampleCommand cmd) {
-    // std::cout << "MongodbRequest " << cmd.key << std::endl;
     {
         std::lock_guard<std::mutex> lk(*mtxs_[round_robin_]);
         request_queues_[round_robin_].push(cmd);
@@ -148,10 +144,24 @@ public:
     return all.pct50();
   }
 
-  MongodbConnectionThreadPool(int thread_num)
-    : thread_num_(thread_num) {
+  // MongodbConnectionThreadPool(int thread_num)
+  //   : thread_num_(thread_num) {
+  //   for (int i = 0; i < thread_num; i++) {
+  //     mtxs_.push_back(std::make_unique<std::mutex>());
+  //     request_queues_.push_back(std::queue<SampleCommand>());
+  //     conditions_.push_back(std::make_unique<std::condition_variable>());
+  //     mongodb_handlers_.push_back(std::make_shared<MongodbKVTableHandler>());
+  //     durations_.push_back(std::make_shared<Distribution>());
+  //   }
+  //   for (int i = 0; i < thread_num; i++)
+  //     threads_.push_back(std::thread([this, i]() {
+  //       MongodbConnection(i);
+  //   }));
+  // }
+
+  MongodbConnectionThreadPool(int thread_num, CallbackType callback)
+    : thread_num_(thread_num), callback_(callback) {
     for (int i = 0; i < thread_num; i++) {
-      // callbacks_.push_back(Callback);
       mtxs_.push_back(std::make_unique<std::mutex>());
       request_queues_.push_back(std::queue<SampleCommand>());
       conditions_.push_back(std::make_unique<std::condition_variable>());
