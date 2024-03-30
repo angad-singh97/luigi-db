@@ -10,8 +10,24 @@
 namespace janus {
 
 class MongodbServer : public TxLogServer {
-  std::function<void(shared_ptr<Marshallable>)> callback_func_ = std::bind(&janus::TxLogServer::CommandEndCallback, this, std::placeholders::_1);
-  shared_ptr<MongodbConnectionThreadPool> mongodb_ = make_shared<MongodbConnectionThreadPool>(100, callback_func_);
+  const int mongodb_connection_ = 10;
+
+  std::function<void(shared_ptr<Marshallable>)> callback_func_ = std::bind(&janus::MongodbServer::CommandEndCallback, this, std::placeholders::_1);
+  shared_ptr<MongodbConnectionThreadPool> mongodb_ = make_shared<MongodbConnectionThreadPool>(mongodb_connection_, callback_func_);
+  std::mutex ready_to_app_next_lock_;
+  std::queue<shared_ptr<Marshallable>> ready_to_app_next_;
+  void check_app_next() {
+    lock_guard<std::mutex> guard(ready_to_app_next_lock_);
+    while (ready_to_app_next_.size() > 0) {
+      app_next_(*ready_to_app_next_.front());
+      ready_to_app_next_.pop();
+    }
+  }
+  void CommandEndCallback(const shared_ptr<Marshallable>& cmd) {
+    RuleWitnessGC(cmd);
+    lock_guard<std::mutex> guard(ready_to_app_next_lock_);
+    ready_to_app_next_.push(cmd);
+  }
  public:
   void Setup() override {
   }
@@ -20,6 +36,7 @@ class MongodbServer : public TxLogServer {
   }
   void Submit(const shared_ptr<Marshallable>& cmd) {
     mongodb_->MongodbRequest(cmd);
+    check_app_next();
   }
   ~MongodbServer() {
     mongodb_->Close();

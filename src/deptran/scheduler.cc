@@ -1412,19 +1412,12 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
 
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   witness_.remove(cmd);
-  return;
   // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   // uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   // Log_info("witness_.remove server %d remove cmd_id <%d, %d> %lld key %d success %d", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second,
   //     (long long)SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second), parsed_cmd.key_, witness_.remove(cmd));
   // Log_info("witness_.remove(cmd) %d", witness_.remove(cmd));
   // witness_.remove(cmd);
-}
-
-void TxLogServer::CommandEndCallback(const shared_ptr<Marshallable>& cmd) {
-  std::lock_guard<std::recursive_mutex> lock(callback_mtx_);
-  RuleWitnessGC(cmd);
-  app_next_(*cmd);
 }
 
 } // namespace janus
