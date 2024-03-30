@@ -142,6 +142,11 @@ pair<int32_t, int32_t> SimpleRWCommand::GetCmdID(shared_ptr<Marshallable> cmd) {
   return make_pair(vector0->client_id_, vector0->cmd_id_in_client_);
 }
 
+uint64_t SimpleRWCommand::GetCombinedCmdID(shared_ptr<Marshallable> cmd) {
+  pair<int32_t, int32_t> cmd_id = GetCmdID(cmd);
+  return CombineInt32(cmd_id.first, cmd_id.second);
+}
+
 double SimpleRWCommand::GetCurrentMsTime() {
   struct timeval tp;
   gettimeofday(&tp, NULL);
