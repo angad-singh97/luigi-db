@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-7c09f55352b68982b2408d716dc8f0d7121d791f-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-47817451888a2fe7b21251dedf60587dcbed4ed4+WAN_WAIT-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -31,16 +31,16 @@ TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
     "none_mongodb",
-    "none_mencius",
-    "none_copilot",
-    "none_fpga_raft",
+    # "none_mencius",
+    # "none_copilot",
+    # "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
     "rule_mongodb",
-    "rule_mencius",
-    "rule_copilot",
-    "rule_fpga_raft",
+    # "rule_mencius",
+    # "rule_copilot",
+    # "rule_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -297,15 +297,16 @@ def test_rule():
     
     for rt in running_time_:
         for s in sites_:
-            for m in rule_modes_:
-                for b in benchmarks_:
-                    for fp in fastpath_modes_:
-                        for c in latency_concurrent_:
-                            run(20, m, s, b, c, rt, fp)
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
                         run(20, m, s, b, c, rt)
+            for b in benchmarks_:
+                for m in rule_modes_:
+                    for fp in fastpath_modes_:
+                        for c in latency_concurrent_:
+                            run(20, m, s, b, c, rt, fp)
+            
     
     print("Number of total experiments is", exp_count)
     print("Estimate Finish Time is:" , estimate_hour, "h", estimate_minute, "min")
