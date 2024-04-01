@@ -1411,7 +1411,8 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
 }
 
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
-  witness_.remove(cmd);
+  if (Config::GetConfig()->tx_proto_ == MODE_RULE)
+    witness_.remove(cmd);
   // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   // uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   // Log_info("witness_.remove server %d remove cmd_id <%d, %d> %lld key %d success %d", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second,
