@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-47817451888a2fe7b21251dedf60587dcbed4ed4+WAN_WAIT-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-59fd8c57a0bf57762ea9b9b31671ec0596c3ad0e-z2")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -30,17 +30,17 @@ TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
-    "none_mongodb",
-    # "none_mencius",
-    # "none_copilot",
-    # "none_fpga_raft",
+    # "none_mongodb",
+    "none_mencius",
+    "none_copilot",
+    "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
-    "rule_mongodb",
-    # "rule_mencius",
-    # "rule_copilot",
-    # "rule_fpga_raft",
+    # "rule_mongodb",
+    "rule_mencius",
+    "rule_copilot",
+    "rule_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -306,6 +306,7 @@ def test_rule():
                     for fp in fastpath_modes_:
                         for c in latency_concurrent_:
                             run(20, m, s, b, c, rt, fp)
+                rerun_failed_experiments()
             
     
     print("Number of total experiments is", exp_count)
@@ -351,6 +352,8 @@ def rerun_failed_experiments():
             total_rerun_time += 1
             run(0, "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
 
+
+def print_rerun():
     global exps_finished_rerun
     try:
         exps_finished_rerun = sorted(exps_finished_rerun, key=lambda x: x[2], reverse=True)
@@ -368,6 +371,7 @@ if __name__ == "__main__":
     start_time = time()
     main()
     rerun_failed_experiments()
+    print_rerun()
     end_time = time()
     duration_seconds = end_time - start_time
     hours = duration_seconds // 3600
