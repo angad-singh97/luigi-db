@@ -19,6 +19,9 @@ class CmdData : public Marshallable {
   int32_t cmd_id_in_client_ = -1;
   // pair<int, int> cmd_id_ = make_pair<int, int>(-1, -1);
   /****global unique id end******/
+  // for rule use
+  // this is true only when rule mode is on, and fastpath is disabled for this command
+  bool_t rule_mode_on_and_is_original_path_only_command_ = false;
 
   virtual innid_t inn_id() const {
     return inn_id_;

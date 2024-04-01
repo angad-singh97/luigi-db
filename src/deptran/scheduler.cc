@@ -1410,6 +1410,11 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
   *is_leader = IsLeader();
 }
 
+void TxLogServer::OriginalPathUnexecutedCmdConflictPlaceHolder(const shared_ptr<Marshallable>& cmd) {
+  if (Config::GetConfig()->tx_proto_ == MODE_RULE && SimpleRWCommand::NeedRecordConflictInOriginalPath(cmd))
+    rep_sched_->witness_.push_back(cmd);
+}
+
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   if (Config::GetConfig()->tx_proto_ == MODE_RULE)
     witness_.remove(cmd);

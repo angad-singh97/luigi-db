@@ -40,6 +40,7 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
   std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
   cmd_id_ = make_pair(vector0->client_id_, vector0->cmd_id_in_client_);
   auto raw_type = vector0->type_;
+  rule_mode_on_and_is_original_path_only_command_ = vector0->rule_mode_on_and_is_original_path_only_command_;
   if (vector0->type_ == RW_BENCHMARK_R_TXN || vector0->type_ == RW_BENCHMARK_R_TXN_0) {
     type_ = RW_BENCHMARK_R_TXN;
     key_ = kv_map[0].get_i32();
@@ -191,6 +192,26 @@ key_t SimpleRWCommand::GetKey(shared_ptr<Marshallable> cmd) {
   std::map<int32_t, mdb::Value> kv_map = *(tx_ws.values_);
   auto raw_type = vector0->type_;
   return kv_map[0].get_i32();
+}
+
+bool SimpleRWCommand::NeedRecordConflictInOriginalPath(shared_ptr<Marshallable> cmd) {
+  shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
+  shared_ptr<TxPieceData> vector0;
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+    vector0 = *(sp_vec_piece->begin());
+  } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+    sp_vec_piece = cmd_cast->sp_vec_piece_data_;
+    vector0 = *(sp_vec_piece->begin());
+  } else if (cmd->kind_ == MarshallDeputy::CONTAINER_CMD){ // This only verified it's CmdData, but I assume it is SimpleCommand
+    vector0 = dynamic_pointer_cast<TxPieceData>(cmd);
+  } else {
+    verify(0);
+  }
+  return vector0->rule_mode_on_and_is_original_path_only_command_;
 }
 
 void KeyDistribution::Insert(key_t key) {

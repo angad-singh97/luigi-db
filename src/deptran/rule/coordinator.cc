@@ -37,28 +37,6 @@ void CoordinatorRule::GotoNextPhase() {
       fast_path_success_ = false;
       dispatch_ack_ = false;
 
-      // [Ze] Get cmds_by_par_ and sp_vec_piece_by_par_ in advance here since both original path and fastpath need this
-      cmds_by_par_ = ((TxData*) cmd_)->GetReadyPiecesData(100); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-      sp_vec_piece_by_par_.clear();
-      for (auto& pair: cmds_by_par_) {
-        const parid_t& par_id = pair.first;
-        auto& cmds = pair.second;
-        n_dispatch_ += cmds.size();
-        auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
-        for (auto c: cmds) {
-          c->id_ = next_pie_id();
-          dispatch_acks_[c->inn_id_] = false;
-          sp_vec_piece->push_back(c);
-          frequency_.append(SimpleRWCommand::GetKey(c));
-        }
-        sp_vec_piece_by_par_[par_id] = sp_vec_piece;
-      }
-
-      DispatchAsync();
-
-      // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch]", coo_id_, thread_id_, cmd_ver_, current_phase);
-      // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before BroadcastRuleSpeculativeExecute]", coo_id_, thread_id_, cmd_ver_, current_phase);
-      // BroadcastRuleSpeculativeExecute(cmd_ver_);
       if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
         // fixed percentage
         go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
@@ -74,6 +52,27 @@ void CoordinatorRule::GotoNextPhase() {
       } else {
         verify(0);
       }
+
+      // [Ze] Get cmds_by_par_ and sp_vec_piece_by_par_ in advance here since both original path and fastpath need this
+      cmds_by_par_ = ((TxData*) cmd_)->GetReadyPiecesData(100); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+      sp_vec_piece_by_par_.clear();
+      for (auto& pair: cmds_by_par_) {
+        const parid_t& par_id = pair.first;
+        auto& cmds = pair.second;
+        n_dispatch_ += cmds.size();
+        auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
+        for (auto c: cmds) {
+          c->id_ = next_pie_id();
+          c->rule_mode_on_and_is_original_path_only_command_ = !go_to_fastpath_;
+          dispatch_acks_[c->inn_id_] = false;
+          sp_vec_piece->push_back(c);
+          frequency_.append(SimpleRWCommand::GetKey(c));
+        }
+        sp_vec_piece_by_par_[par_id] = sp_vec_piece;
+      }
+
+      DispatchAsync();
+
       if (go_to_fastpath_) {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           fastpath_attempted_count_++;

@@ -591,6 +591,8 @@ class TxLogServer {
                                 value_t* result,
                                 bool_t* is_leader);
 
+  void OriginalPathUnexecutedCmdConflictPlaceHolder(const shared_ptr<Marshallable>& cmd);
+
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
 };
