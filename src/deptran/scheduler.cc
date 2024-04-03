@@ -291,6 +291,9 @@ TxLogServer::~TxLogServer() {
   // if (curp_log_cols_[0] != nullptr)
   //   curp_log_cols_[0]->Print();
   Log_info("loc_id=%d curp_double_commit_count_=%d", loc_id_, curp_double_commit_count_);
+  std::vector<double> witness_size_distribution = witness_.witness_size_distribution();
+  Log_info("loc_id=%d witness size distribution 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f",
+    loc_id_, witness_size_distribution[0], witness_size_distribution[1], witness_size_distribution[2], witness_size_distribution[3]);
 #ifdef LATENCY_DEBUG
   Log_info("loc_id=%d cli2preskip_begin_ %.2f cli2preskip_end_ %.2f cli2skip_begin_ %.2f cli2skip_end_ %.2f", loc_id_, cli2preskip_begin_.pct50(), cli2preskip_end_.pct50(), cli2skip_begin_.pct50(), cli2skip_end_.pct50());
   Log_info("loc_id=%d cli2leader_recv_ %.2f cli2leader_send_ %.2f cli2follower_recv_ %.2f cli2follower_send_ %.2f cli2commit_send_ %.2f cli2oncommit_ %.2f",
@@ -1425,5 +1428,85 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   // Log_info("witness_.remove(cmd) %d", witness_.remove(cmd));
   // witness_.remove(cmd);
 }
+
+
+void RevoveryCandidates::push_back(uint64_t cmd_id) {
+  maximal_++;
+  candidates_[cmd_id] = maximal_;
+}
+
+bool RevoveryCandidates::remove(uint64_t cmd_id) {
+  if (candidates_.count(cmd_id) == 0) {
+    return false;
+  } else {
+    // [JetPack] This cannot be ensured yet since we implement fastpath with 2 RPC, which will cause a network reorder of two conflict commands.
+    // This need to be ensured by combine the 2 RPCs to 1.
+    // verify(candidates_[cmd_id] == minimal_);
+    candidates_.erase(cmd_id);
+    minimal_++;
+    return true;
+  }
+}
+
+size_t RevoveryCandidates::size() {
+  return candidates_.size();
+}
+
+uint64_t RevoveryCandidates::id_of_candidate_to_recover() {
+  if (size() == 0)
+    return -1;
+  for (auto pair: candidates_) {
+    if (pair.second == minimal_)
+      return pair.first;
+  }
+  return -1;
+}
+
+bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  key_t key = parsed_cmd.key_;
+  uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+  if (candidates_[key].size() == 0) {
+    // exist conflict
+    candidates_[key].push_back(cmd_id);
+    witness_size_distribution_.mid_time_append(++witness_size_);
+    return true;
+  } else {
+    // not exist conflict, candidates_[key].size() >= 1
+    if (belongs_to_leader_) {
+      candidates_[key].push_back(cmd_id);
+      witness_size_distribution_.mid_time_append(++witness_size_);
+    }
+    return false;
+  }
+}
+
+bool Witness::remove(const shared_ptr<Marshallable>& cmd) {
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  bool removed = candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
+  if (removed) {
+    witness_size_distribution_.mid_time_append(--witness_size_);
+  }
+  return removed;
+}
+
+void Witness::set_belongs_to_leader(bool belongs_to_leader) {
+  belongs_to_leader_ = belongs_to_leader;
+}
+
+std::vector<double> Witness::witness_size_distribution() {
+  // Log_info("witness 50pct %d %.2f" , witness_size_distribution_.count(), witness_size_distribution_.pct50());
+  // Log_info("witness 90pct %d %.2f" , witness_size_distribution_.count(), witness_size_distribution_.pct90());
+  // Log_info("witness 99pct %d %.2f" , witness_size_distribution_.count(), witness_size_distribution_.pct99());
+  // Log_info("witness ave %d %.2f" , witness_size_distribution_.count(), witness_size_distribution_.ave());
+  std::vector<double> ret;
+  ret.push_back(witness_size_distribution_.pct50());
+  ret.push_back(witness_size_distribution_.pct90());
+  ret.push_back(witness_size_distribution_.pct99());
+  ret.push_back(witness_size_distribution_.ave());
+  // Log_info("witness ret %.2f %.2f %.2f %.2f", ret[0], ret[1], ret[2], ret[3]);
+  return ret;
+}
+
 
 } // namespace janus

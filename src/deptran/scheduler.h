@@ -9,6 +9,7 @@
 #include "rcc/tx.h"
 #include "classic/tpc_command.h"
 #include "RW_command.h"
+#include "config.h"
 
 namespace janus {
 
@@ -97,9 +98,27 @@ class CurpPlusDataCol {
 
 class Distribution {
   vector<double> data_;
+  double created_time_ = SimpleRWCommand::GetCurrentMsTime();
+  // bool pct_lock = false;
  public:
   void append(double x) {
+    // if (pct_lock) return;
     data_.push_back(x);
+  }
+  // only append if append_time is in mid 1/3 time (10~20s if duration is 30s)
+  void mid_time_append(double x, double append_time) {
+    // if (pct_lock) return;
+    double duration_3_times = (append_time - created_time_) * 3;
+    if (duration_3_times > Config::GetConfig()->duration_ * 1000 && duration_3_times < Config::GetConfig()->duration_ * 2 * 1000)
+      data_.push_back(x);
+  }
+  // only append if append_time is in mid 1/3 time (10~20s if duration is 30s)
+  void mid_time_append(double x) {
+    // if (pct_lock) return;
+    double append_time = SimpleRWCommand::GetCurrentMsTime();
+    double duration_3_times = (append_time - created_time_) * 3;
+    if (duration_3_times > Config::GetConfig()->duration_ * 1000 && duration_3_times < Config::GetConfig()->duration_ * 2 * 1000)
+      data_.push_back(x);
   }
   void merge(Distribution &o) {
     for (int i = 0; i < o.count(); i++)
@@ -109,6 +128,7 @@ class Distribution {
     return data_.size();
   }
   double pct(double pct) {
+    // pct_lock = true;
     if (data_.size() == 0)
       return -1;
     sort(data_.begin(), data_.end());
@@ -162,6 +182,34 @@ class Frequency {
     }
     return ss.str();
   }
+};
+
+class RevoveryCandidates {
+  int minimal_ = 0, maximal_ = -1;
+  unordered_map<uint64_t, int> candidates_;
+ public:
+  RevoveryCandidates() {}
+  void push_back(uint64_t cmd_id);
+  bool remove(uint64_t cmd_id);
+  size_t size();
+  uint64_t id_of_candidate_to_recover();
+};
+
+class Witness {
+  bool belongs_to_leader_{false}; // i.e. This server can propose value
+  // unordered_map<key_t, unordered_map<uint64_t, int>> candidates_;
+  unordered_map<key_t, RevoveryCandidates> candidates_;
+  int witness_size_ = 0;
+  Distribution witness_size_distribution_;
+ public:
+  Witness() {
+  }
+  // return whether meet conflict, but not whether push_back success
+  bool push_back(const shared_ptr<Marshallable>& cmd);
+  bool remove(const shared_ptr<Marshallable>& cmd);
+  void set_belongs_to_leader(bool belongs_to_leader);
+  // return 50pct, 90pct, 99pct, ave of the witness_size_distribution_
+  std::vector<double> witness_size_distribution();
 };
 
 class RecentAverage {
