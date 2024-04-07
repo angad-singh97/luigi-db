@@ -65,7 +65,11 @@ int SchedulerNoneCopilot::OnCommit(cmdid_t tx_id,
 			}
 		} else {
 			shared_ptr<Coordinator> coo{CreateRepCoord(dep_id.id)};
-			auto sp_m = dynamic_pointer_cast<Marshallable>(cmd);
+			auto batch_cmd = std::make_shared<TpcBatchCommand>();
+			batch_buffer_.push_back(cmd);
+			batch_cmd->AddCmds(batch_buffer_);
+			batch_buffer_.clear();
+			auto sp_m = dynamic_pointer_cast<Marshallable>(batch_cmd);
 			coo->Submit(sp_m);
 		}
 		sp_tx->commit_result->Wait();

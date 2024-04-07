@@ -663,7 +663,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
     {
   Log_info("[CURP] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
   poll_mgr_ = poll_mgr == nullptr ? new PollMgr(1) : poll_mgr;
-  frame_ = Frame::GetFrame(config->tx_proto_);
+  frame_ = Frame::GetFrame(config->tx_proto_, config->replica_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
   config->get_all_site_addr(servers_);
   num_txn.store(0);

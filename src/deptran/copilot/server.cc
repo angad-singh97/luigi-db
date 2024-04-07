@@ -536,6 +536,7 @@ bool CopilotServer::executeCmd(shared_ptr<CopilotData>& ins) {
   if (likely((bool)(ins->cmd))) {
     if (likely(ins->cmd->kind_ != MarshallDeputy::CMD_NOOP)) {
       // WAN_WAIT
+      // Log_info("loc_id %d execute cmd <%d, %d>", loc_id_, SimpleRWCommand::GetCmdID(ins->cmd).first, SimpleRWCommand::GetCmdID(ins->cmd).second);
       RuleWitnessGC(ins->cmd);
       app_next_(*ins->cmd);
     }

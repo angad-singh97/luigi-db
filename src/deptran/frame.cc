@@ -72,6 +72,10 @@ Frame* Frame::RegFrame(int mode,
 }
 
 Frame* Frame::GetFrame(int mode) {
+  return GetFrame(mode, -1);
+}
+
+Frame* Frame::GetFrame(int mode, int replica_mode) {
   Frame *frame = nullptr;
   // some built-in mode
   switch (mode) {
@@ -83,7 +87,7 @@ Frame* Frame::GetFrame(int mode) {
     case MODE_OCC:
     case MODE_CURP:
     case MODE_RULE:
-      frame = new Frame(mode);
+      frame = new Frame(mode, replica_mode);
       break;
     case MODE_EXTERNC:
       frame = new ExternCFrame();
@@ -318,19 +322,23 @@ TxData* Frame::CreateTxnCommand(TxRequest& req, shared_ptr<TxnRegistry> reg) {
 
 Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
   Log_info("enter CreateCommo");
-  switch (mode_) {
-    case MODE_RULE:
-      commo_ = new CommunicatorRule(pollmgr);
-      break;
-    case MODE_NONE_COPILOT:
-      commo_ = new CommunicatorNoneCopilot(pollmgr);
-      break;
-    // case MODE_COPILOT_PLUS:
-    //   commo_ = new CopilotPlusCommo(pollmgr);
-    //   break;
-    default:
-      commo_ = new Communicator(pollmgr);
-      break;
+  if (replica_mode_ == MODE_COPILOT) {
+    commo_ = new CommunicatorNoneCopilot(pollmgr);
+  } else {
+    switch (mode_) {
+      case MODE_RULE:
+        commo_ = new CommunicatorRule(pollmgr);
+        break;
+      case MODE_NONE_COPILOT:
+        commo_ = new CommunicatorNoneCopilot(pollmgr);
+        break;
+      // case MODE_COPILOT_PLUS:
+      //   commo_ = new CopilotPlusCommo(pollmgr);
+      //   break;
+      default:
+        commo_ = new Communicator(pollmgr);
+        break;
+    }
   }
   
   if (mode_ == MODE_NONE || mode_ == MODE_NONE_COPILOT) {
@@ -401,34 +409,39 @@ TxLogServer* Frame::CreateScheduler() {
   Log_info("enter CreateScheduler, mode=%d", Config::GetConfig()->tx_proto_);
   auto mode = Config::GetConfig()->tx_proto_;
   TxLogServer *sch = nullptr;
-  switch(mode) {
-    case MODE_2PL:
-      sch = new Scheduler2pl();
-      break;
-    case MODE_OCC:
-      sch = new SchedulerOcc();
-      break;
-    case MODE_MDCC:
-//      sch = new mdcc::MdccScheduler();
-      break;
-    case MODE_NOTX:
-    case MODE_NONE:
-    case MODE_CURP:
-    case MODE_RULE:
-      sch = new SchedulerNone();
-      break;
-    case MODE_NONE_COPILOT:
-      sch = new SchedulerNoneCopilot();
-      break;
-    case MODE_RPC_NULL:
-    case MODE_RCC:
-    case MODE_RO6:
-      verify(0);
-      break;
-    default:
-      verify(0);
-//      sch = new CustomSched();
+  if (Config::GetConfig()->replica_proto_ == MODE_COPILOT) {
+    sch = new SchedulerNoneCopilot();
+  } else {
+    switch(mode) {
+      case MODE_2PL:
+        sch = new Scheduler2pl();
+        break;
+      case MODE_OCC:
+        sch = new SchedulerOcc();
+        break;
+      case MODE_MDCC:
+  //      sch = new mdcc::MdccScheduler();
+        break;
+      case MODE_NOTX:
+      case MODE_NONE:
+      case MODE_CURP:
+      case MODE_RULE:
+        sch = new SchedulerNone();
+        break;
+      case MODE_NONE_COPILOT:
+        sch = new SchedulerNoneCopilot();
+        break;
+      case MODE_RPC_NULL:
+      case MODE_RCC:
+      case MODE_RO6:
+        verify(0);
+        break;
+      default:
+        verify(0);
+  //      sch = new CustomSched();
+    }
   }
+  
   verify(sch);
   sch->frame_ = this;
   verify(svr_ == nullptr);
