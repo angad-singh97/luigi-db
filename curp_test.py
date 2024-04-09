@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-59fd8c57a0bf57762ea9b9b31671ec0596c3ad0e-z2")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-7dc90a9a1527ef9ff6ea216d267650d27c33665a-z2-5")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -57,7 +57,8 @@ fastpath_modes_ = [
     100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
-    "12c1s3r1p",
+    "12c1s5r1p",
+    # "12c1s3r1p",
 ]
 benchmarks_ =  [
     # "rw_1000",
