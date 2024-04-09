@@ -114,7 +114,6 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
       ballot_t b;
       uint64_t dep;
       status_t status;
-      WAN_WAIT;
       fu->get_reply() >> md >> b >> dep >> status;
       bool ok = (ballot == b);
       

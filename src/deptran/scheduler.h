@@ -206,7 +206,8 @@ class Witness {
   }
   // return whether meet conflict, but not whether push_back success
   bool push_back(const shared_ptr<Marshallable>& cmd);
-  bool remove(const shared_ptr<Marshallable>& cmd);
+  // return how many cmd have been removed (cmd may be CMD_TPC_BATCH)
+  int remove(const shared_ptr<Marshallable>& cmd);
   void set_belongs_to_leader(bool belongs_to_leader);
   // return 50pct, 90pct, 99pct, ave of the witness_size_distribution_
   std::vector<double> witness_size_distribution();

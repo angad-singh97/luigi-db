@@ -1481,13 +1481,27 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   }
 }
 
-bool Witness::remove(const shared_ptr<Marshallable>& cmd) {
-  SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-  bool removed = candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
-  if (removed) {
-    witness_size_distribution_.mid_time_append(--witness_size_);
+int Witness::remove(const shared_ptr<Marshallable>& cmd) {
+  if (cmd->kind_ != MarshallDeputy::CMD_TPC_BATCH) {
+    SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+    bool removed = candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
+    if (removed) {
+      witness_size_distribution_.mid_time_append(--witness_size_);
+    }
+    return removed;
+  } else {
+    auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
+    int total_removed = 0;
+    for (auto& c: cmds->cmds_) {
+      SimpleRWCommand parsed_cmd = SimpleRWCommand(c);
+      bool removed = candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
+      if (removed) {
+        witness_size_distribution_.mid_time_append(--witness_size_);
+        total_removed++;
+      }
+    }
+    return total_removed;
   }
-  return removed;
 }
 
 void Witness::set_belongs_to_leader(bool belongs_to_leader) {

@@ -378,8 +378,9 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
                                      int res,
                                      TxnOutput& outputs) {
   //Log_info("Is this being called");
+  WAN_WAIT
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
-  if (cmd_ver != cmd_ver_) return;
+  if (cmd_ver != cmd_ver_ || phase != phase_) return;
   // if (phase != phase_) return;
   auto* txn = (TxData*) cmd_;
   if (res == REJECT) {
@@ -414,10 +415,9 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
   } else if (AllDispatchAcked()) {
     Log_debug("receive all start acks, txn_id: %llx; START PREPARE",
               txn->id_);
-    WAN_WAIT
     dispatch_ack_ = true;
     // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d cmd_ver=%d current_phase=%d [End of DispatchAck]", coo_id_, thread_id_, cmd_ver_, cmd_ver, phase % 3);
-    if (cmd_ver != cmd_ver_) {
+    if (cmd_ver != cmd_ver_ || phase != phase_) {
       // Log_info("AllDispatchAcked Failed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
       return;
     }
