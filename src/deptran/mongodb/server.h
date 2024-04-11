@@ -10,7 +10,7 @@
 namespace janus {
 
 class MongodbServer : public TxLogServer {
-  const int mongodb_connection_ = 100;
+  const int mongodb_connection_ = 95; // [JetPack] seems mongodb community default maximum connextion between 95 * 5 and 100 * 5
 
   // shared_ptr<MongodbConnectionThreadPool> mongodb_ = make_shared<MongodbConnectionThreadPool>(mongodb_connection_);
 
