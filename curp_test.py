@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-7dc90a9a1527ef9ff6ea216d267650d27c33665a-z2-5")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-6443b06c8871ea3c216d77a7eeb4f48dc16ca35c-z2-5-3")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -30,14 +30,14 @@ TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
-    # "none_mongodb",
+    "none_mongodb",
     "none_mencius",
     "none_copilot",
     "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
-    # "rule_mongodb",
+    "rule_mongodb",
     "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
@@ -58,7 +58,7 @@ fastpath_modes_ = [
 ]
 sites_ = [
     "12c1s5r1p",
-    # "12c1s3r1p",
+    "12c1s3r1p",
 ]
 benchmarks_ =  [
     # "rw_1000",
@@ -363,6 +363,8 @@ def print_rerun():
             for (output_path, cmd, rerun_times) in exps_finished_rerun:
                 text = str(rerun_times) + " | " + output_path + " | " + " ".join(cmd) + "\n"
                 f.write(text)
+            text = "Total experiment: " + str(total_experiment_num) + " Total rerun time: " + str(total_rerun_time) + " rerun ratio: " + str(total_rerun_time * 100.0 / total_experiment_num) + "%"
+            f.write(text)
     except FileNotFoundError:
         print(f"File '{output_path}' not found.")
     
