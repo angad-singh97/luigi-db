@@ -196,14 +196,40 @@ class RevoveryCandidates {
 };
 
 class Witness {
+  class WitnessLog {
+   public:
+    double time_;
+    int operation_; // 0: push_back; 1: remove
+    shared_ptr<Marshallable> cmd_;
+    bool success_;
+    int size_;
+    WitnessLog(int operation, shared_ptr<Marshallable> cmd, bool success, int size):
+      operation_(operation), cmd_(cmd), success_(success), size_(size) {
+      time_ = SimpleRWCommand::GetCurrentMsTime();
+    }
+    void print(double init_time) {
+      pair<int32_t, int32_t> cmd_id = SimpleRWCommand::GetCmdID(cmd_);
+      uint64_t cmd_id_combined = SimpleRWCommand::GetCombinedCmdID(cmd_);
+      if (operation_ == 0) {
+        Log_info("Log %.2f size %d suc %d key %" PRId32 " push_back %" PRId32 " %" PRId32 " %" PRId64, time_ - init_time, size_, success_, SimpleRWCommand::GetKey(cmd_), cmd_id.first, cmd_id.second, cmd_id_combined);
+      } else if (operation_ == 1) {
+        Log_info("Log %.2f size %d suc %d key %" PRId32 " remove %" PRId32 " %" PRId32 " %" PRId64, time_ - init_time, size_, success_, SimpleRWCommand::GetKey(cmd_), cmd_id.first, cmd_id.second, cmd_id_combined);
+      } else {
+        verify(0);
+      }
+    }
+  };
   bool belongs_to_leader_{false}; // i.e. This server can propose value
   // unordered_map<key_t, unordered_map<uint64_t, int>> candidates_;
   unordered_map<key_t, RevoveryCandidates> candidates_;
   int witness_size_ = 0;
   Distribution witness_size_distribution_;
+#ifdef WITNESS_LOG_DEBUG
+  vector<WitnessLog> witness_log_;
+#endif
  public:
-  Witness() {
-  }
+  Witness() {};
+  ~Witness() {};
   // return whether meet conflict, but not whether push_back success
   bool push_back(const shared_ptr<Marshallable>& cmd);
   // return how many cmd have been removed (cmd may be CMD_TPC_BATCH)
@@ -211,6 +237,9 @@ class Witness {
   void set_belongs_to_leader(bool belongs_to_leader);
   // return 50pct, 90pct, 99pct, ave of the witness_size_distribution_
   std::vector<double> witness_size_distribution();
+#ifdef WITNESS_LOG_DEBUG
+  void print_log();
+#endif
 };
 
 class RecentAverage {

@@ -294,6 +294,11 @@ TxLogServer::~TxLogServer() {
   std::vector<double> witness_size_distribution = witness_.witness_size_distribution();
   Log_info("loc_id=%d witness size distribution 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f",
     loc_id_, witness_size_distribution[0], witness_size_distribution[1], witness_size_distribution[2], witness_size_distribution[3]);
+#ifdef WITNESS_LOG_DEBUG
+  if (loc_id_ == 0)
+    witness_.print_log();
+#endif
+
 #ifdef LATENCY_DEBUG
   Log_info("loc_id=%d cli2preskip_begin_ %.2f cli2preskip_end_ %.2f cli2skip_begin_ %.2f cli2skip_end_ %.2f", loc_id_, cli2preskip_begin_.pct50(), cli2preskip_end_.pct50(), cli2skip_begin_.pct50(), cli2skip_end_.pct50());
   Log_info("loc_id=%d cli2leader_recv_ %.2f cli2leader_send_ %.2f cli2follower_recv_ %.2f cli2follower_send_ %.2f cli2commit_send_ %.2f cli2oncommit_ %.2f",
@@ -1467,15 +1472,25 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   key_t key = parsed_cmd.key_;
   uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   if (candidates_[key].size() == 0) {
-    // exist conflict
+    // not exist conflict
     candidates_[key].push_back(cmd_id);
+#ifdef WITNESS_LOG_DEBUG
+    witness_log_.push_back(WitnessLog(0, cmd, 1, witness_size_));
+#endif
     witness_size_distribution_.mid_time_append(++witness_size_);
     return true;
   } else {
-    // not exist conflict, candidates_[key].size() >= 1
+    // exist conflict, candidates_[key].size() >= 1
     if (belongs_to_leader_) {
       candidates_[key].push_back(cmd_id);
+#ifdef WITNESS_LOG_DEBUG
+      witness_log_.push_back(WitnessLog(0, cmd, 2, witness_size_));
+#endif
       witness_size_distribution_.mid_time_append(++witness_size_);
+    } else {
+#ifdef WITNESS_LOG_DEBUG
+      witness_log_.push_back(WitnessLog(0, cmd, 0, witness_size_));
+#endif
     }
     return false;
   }
@@ -1487,7 +1502,12 @@ int Witness::remove(const shared_ptr<Marshallable>& cmd) {
     bool removed = candidates_[parsed_cmd.key_].remove(SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second));
     if (removed) {
       witness_size_distribution_.mid_time_append(--witness_size_);
+      // if (candidates_[parsed_cmd.key_].size() == 0)
+      //   candidates_.erase(parsed_cmd.key_);
     }
+#ifdef WITNESS_LOG_DEBUG
+    witness_log_.push_back(WitnessLog(1, cmd, removed, witness_size_));
+#endif
     return removed;
   } else {
     auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
@@ -1498,7 +1518,12 @@ int Witness::remove(const shared_ptr<Marshallable>& cmd) {
       if (removed) {
         witness_size_distribution_.mid_time_append(--witness_size_);
         total_removed++;
+        // if (candidates_[parsed_cmd.key_].size() == 0)
+        //   candidates_.erase(parsed_cmd.key_);
       }
+#ifdef WITNESS_LOG_DEBUG
+      witness_log_.push_back(WitnessLog(1, c, removed, witness_size_));
+#endif
     }
     return total_removed;
   }
@@ -1521,6 +1546,16 @@ std::vector<double> Witness::witness_size_distribution() {
   // Log_info("witness ret %.2f %.2f %.2f %.2f", ret[0], ret[1], ret[2], ret[3]);
   return ret;
 }
+
+#ifdef WITNESS_LOG_DEBUG
+void Witness::print_log() {
+  if (witness_log_.size() == 0)
+    return;
+  for (int i = 0; i < witness_log_.size(); i++) {
+    witness_log_[i].print(witness_log_[0].time_);
+  }
+}
+#endif
 
 
 } // namespace janus

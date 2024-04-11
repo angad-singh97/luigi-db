@@ -159,5 +159,6 @@ namespace janus {
 
 // #define CPU_PROFILE_MAIN
 // #define CPU_PROFILE_SEVER
+// #define WITNESS_LOG_DEBUG
 
 } // namespace janus
