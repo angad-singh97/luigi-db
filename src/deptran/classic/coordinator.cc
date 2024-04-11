@@ -249,7 +249,6 @@ void CoordinatorClassic::DispatchAsync() {
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
-                                         cmd_ver_,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -309,7 +308,6 @@ void CoordinatorClassic::CurpDispatchAsync() {
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
-                                         -1,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -373,14 +371,13 @@ bool CoordinatorClassic::AllDispatchAcked() {
   return ret1;
 }
 
-void CoordinatorClassic::DispatchAck(int cmd_ver,
-                                     phase_t phase,
+void CoordinatorClassic::DispatchAck(phase_t phase,
                                      int res,
                                      TxnOutput& outputs) {
   //Log_info("Is this being called");
   WAN_WAIT
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
-  if (cmd_ver != cmd_ver_ || phase != phase_) return;
+  if (phase != phase_) return;
   // if (phase != phase_) return;
   auto* txn = (TxData*) cmd_;
   if (res == REJECT) {
@@ -411,13 +408,12 @@ void CoordinatorClassic::DispatchAck(int cmd_ver,
                   " n_started_: %d, n_pieces: %d",
               txn->id_, txn->n_pieces_dispatched_, txn->GetNPieceAll());
     DispatchAsync();
-    if (cmd_ver != cmd_ver_) return;
   } else if (AllDispatchAcked()) {
     Log_debug("receive all start acks, txn_id: %llx; START PREPARE",
               txn->id_);
     dispatch_ack_ = true;
     // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d cmd_ver=%d current_phase=%d [End of DispatchAck]", coo_id_, thread_id_, cmd_ver_, cmd_ver, phase % 3);
-    if (cmd_ver != cmd_ver_ || phase != phase_) {
+    if (phase != phase_) {
       // Log_info("AllDispatchAcked Failed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
       return;
     }

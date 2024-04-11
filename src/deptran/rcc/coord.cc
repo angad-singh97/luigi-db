@@ -63,7 +63,6 @@ void RccCoord::DispatchAsync() {
     commo()->SendDispatch(cc,
                           std::bind(&RccCoord::DispatchAck,
                                     this,
-                                    -1,
                                     phase_,
                                     std::placeholders::_1,
                                     std::placeholders::_2,
@@ -71,8 +70,7 @@ void RccCoord::DispatchAsync() {
   }
 }
 
-void RccCoord::DispatchAck(int cmd_ver, 
-                           phase_t phase,
+void RccCoord::DispatchAck(phase_t phase,
                            int res,
                            TxnOutput& output,
                            RccGraph &graph) {

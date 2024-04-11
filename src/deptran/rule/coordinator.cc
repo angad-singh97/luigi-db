@@ -29,10 +29,12 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
 void CoordinatorRule::GotoNextPhase() {
   int n_phase = 3;
   int current_phase = phase_ % n_phase;
+  int phase_cp;
   switch (phase_++ % n_phase) {
     case Phase::INIT_END:
       dispatch_time_ = SimpleRWCommand::GetCurrentMsTime();
       dispatch_duration_3_times_ = (dispatch_time_ - created_time_) * 3;
+      phase_cp = phase_;
       verify(phase_ % n_phase == Phase::DISPATCHED);
       fast_path_success_ = false;
       dispatch_ack_ = false;
@@ -77,7 +79,7 @@ void CoordinatorRule::GotoNextPhase() {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           fastpath_attempted_count_++;
         }
-        BroadcastRuleSpeculativeExecute(cmd_ver_);
+        BroadcastRuleSpeculativeExecute(phase_cp);
       } else {
         // Do nothing
       }
@@ -104,7 +106,6 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
-        cmd_ver_++;
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
@@ -122,7 +123,6 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
-      cmd_ver_++;
       End();
       break;
     default:
@@ -130,7 +130,7 @@ void CoordinatorRule::GotoNextPhase() {
   }
 }
 
-void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
+void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
   auto txn = (TxData*) cmd_;
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
@@ -138,12 +138,6 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
   auto cmds_by_par = cmds_by_par_;
   // curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
-  // [JetPack TODO] remove this
-  if (cmds_by_par.size() == 0) {
-    if (cmd_ver != cmd_ver_) return;
-    GotoNextPhase();
-    return;
-  }
   // [CURP] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
   shared_ptr<RuleSpeculativeExecuteQuorumEvent> e;
@@ -167,7 +161,6 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
     e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
-  // if (cmd_ver != cmd_ver_) return;
   // Log_info("[CURP] After Wait");
   if (e->Yes()) {
     fast_path_success_ = true;
@@ -178,8 +171,9 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int cmd_ver) {
   }
   result_ = e->GetResult();
   // fast_path_success_ = false;
-  if (cmd_ver != cmd_ver_) return;
-  GotoNextPhase();
+  if (phase != phase_) return;
+  if (fast_path_success_)
+    GotoNextPhase();
 }
 
 void CoordinatorRule::DispatchAsync() {
@@ -201,7 +195,6 @@ void CoordinatorRule::DispatchAsync() {
                               this,
                               std::bind(&CoordinatorClassic::DispatchAck,
                                         this,
-                                        cmd_ver_,
                                         phase_,
                                         std::placeholders::_1,
                                         std::placeholders::_2));

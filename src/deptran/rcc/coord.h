@@ -42,8 +42,7 @@ class RccCoord : public CoordinatorClassic {
 
   void PreDispatch();
   void DispatchAsync() override ;
-  virtual void DispatchAck(int cmd_ver,
-                           phase_t phase,
+  virtual void DispatchAck(phase_t phase,
                            int res,
                            TxnOutput& cmd,
                            RccGraph& graph);

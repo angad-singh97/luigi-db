@@ -41,7 +41,6 @@ void CoordinatorTapir::DispatchAsync() {
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
-                                         -1,
                                          phase_,
                                          std::placeholders::_1,
                                          std::placeholders::_2));
@@ -49,8 +48,7 @@ void CoordinatorTapir::DispatchAsync() {
   Log_debug("sent %d SubCmds", cnt);
 }
 
-void CoordinatorTapir::DispatchAck(int cmd_ver,
-                                   phase_t phase,
+void CoordinatorTapir::DispatchAck(phase_t phase,
                                    int32_t res,
                                    TxnOutput &outputs) {
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);

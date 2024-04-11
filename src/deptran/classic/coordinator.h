@@ -26,7 +26,6 @@ class CoordinatorClassic : public Coordinator {
   // For mid 1/3 sampling
   double dispatch_duration_3_times_ = -1;
   // For Rule SpeculativeExecute & Dispatch 2 replies
-  int cmd_ver_ = 0;
 
   // For original protocol use after curp fastpath OR rule use after original protocol
   ReadyPiecesData cmds_by_par_;
@@ -100,8 +99,7 @@ class CoordinatorClassic : public Coordinator {
   virtual void DispatchAsync();
   void CurpDispatchAsync();
   virtual void DispatchAsync(bool last);
-  virtual void DispatchAck(int cmd_ver,
-                           phase_t phase,
+  virtual void DispatchAck(phase_t phase,
                            int res,
                            map<innid_t, map<int32_t, Value>>& outputs);
   void Prepare();
