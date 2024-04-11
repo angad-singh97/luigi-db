@@ -1436,21 +1436,11 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
 
 
 void RevoveryCandidates::push_back(uint64_t cmd_id) {
-  maximal_++;
-  candidates_[cmd_id] = maximal_;
+  candidates_[cmd_id] = ++maximal_;
 }
 
 bool RevoveryCandidates::remove(uint64_t cmd_id) {
-  if (candidates_.count(cmd_id) == 0) {
-    return false;
-  } else {
-    // [JetPack] This cannot be ensured yet since we implement fastpath with 2 RPC, which will cause a network reorder of two conflict commands.
-    // This need to be ensured by combine the 2 RPCs to 1.
-    // verify(candidates_[cmd_id] == minimal_);
-    candidates_.erase(cmd_id);
-    minimal_++;
-    return true;
-  }
+  return candidates_.erase(cmd_id);
 }
 
 size_t RevoveryCandidates::size() {
@@ -1458,13 +1448,15 @@ size_t RevoveryCandidates::size() {
 }
 
 uint64_t RevoveryCandidates::id_of_candidate_to_recover() {
-  if (size() == 0)
-    return -1;
+  uint64_t cmd_to_recover = -1;
+  int minimal = INT_MAX;
   for (auto pair: candidates_) {
-    if (pair.second == minimal_)
-      return pair.first;
+    if (pair.second < minimal) {
+      cmd_to_recover = pair.first;
+      minimal = pair.second;
+    }
   }
-  return -1;
+  return cmd_to_recover;
 }
 
 bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {

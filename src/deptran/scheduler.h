@@ -185,7 +185,7 @@ class Frequency {
 };
 
 class RevoveryCandidates {
-  int minimal_ = 0, maximal_ = -1;
+  int maximal_ = -1;
   unordered_map<uint64_t, int> candidates_;
  public:
   RevoveryCandidates() {}
@@ -220,7 +220,6 @@ class Witness {
     }
   };
   bool belongs_to_leader_{false}; // i.e. This server can propose value
-  // unordered_map<key_t, unordered_map<uint64_t, int>> candidates_;
   unordered_map<key_t, RevoveryCandidates> candidates_;
   int witness_size_ = 0;
   Distribution witness_size_distribution_;
