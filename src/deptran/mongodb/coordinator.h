@@ -3,6 +3,7 @@
 #include "__dep__.h"
 #include "constants.h"
 #include "server.h"
+#include "commo.h"
 #include "../coordinator.h"
 #include "../mongodb_kv_table_handler.h"
 
@@ -18,6 +19,10 @@ class CoordinatorMongodb : public Coordinator {
     // Log_info("CoordinatorMongodb created");
   };
   ~CoordinatorMongodb() {}
+  MongodbCommo *commo() {
+    verify(commo_ != nullptr);
+    return (MongodbCommo *) commo_;
+  }
   void DoTxAsync(TxRequest &req) override {}
   void Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func = []() {},

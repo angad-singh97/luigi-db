@@ -98,6 +98,10 @@ abstract service Curp {
 
 }
 
+abstract service Mongodb {
+  defer Commit(MarshallDeputy cmd);
+}
+
 abstract service Mencius {
 
   defer Prepare(uint64_t slot,

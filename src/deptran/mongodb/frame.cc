@@ -2,6 +2,7 @@
 #include "coordinator.h"
 #include "server.h"
 #include "commo.h"
+#include "service.h"
 
 namespace janus {
 
@@ -49,7 +50,13 @@ MongodbFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
                                    rrr::PollMgr *poll_mgr,
                                    ServerControlServiceImpl *scsi) {
-  return std::vector<Service *>();
+  auto config = Config::GetConfig();
+  auto result = std::vector<Service *>();
+  switch (config->replica_proto_) {
+    case MODE_MONGODB:result.push_back(new MongodbServiceImpl(rep_sched));
+    default:break;
+  }
+  return result;
 }
 
 

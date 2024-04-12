@@ -295,7 +295,7 @@ TxLogServer::~TxLogServer() {
   Log_info("loc_id=%d witness size distribution 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f",
     loc_id_, witness_size_distribution[0], witness_size_distribution[1], witness_size_distribution[2], witness_size_distribution[3]);
 #ifdef WITNESS_LOG_DEBUG
-  if (loc_id_ == 0)
+  if (loc_id_ == 0 || loc_id_ == 1)
     witness_.print_log();
 #endif
 
