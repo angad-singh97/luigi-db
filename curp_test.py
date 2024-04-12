@@ -14,7 +14,7 @@ run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
 now = datetime.now()
-exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-6443b06c8871ea3c216d77a7eeb4f48dc16ca35c-z2-5-3")
+exp_dir = os.path.join("results", now.strftime("%Y-%m-%d-%H:%M:%S") + "-b783079e807458eb1dbdec437cbe0298cdadc825-z2-5")
 
 
 LOCAL_FAST_PATH_TIMEOUT = 3
@@ -58,22 +58,23 @@ fastpath_modes_ = [
 ]
 sites_ = [
     "12c1s5r1p",
-    "12c1s3r1p",
+    # "12c1s3r1p",
 ]
 benchmarks_ =  [
-    # "rw_1000",
-    "rw_1000000",
-    "rw_zipf_1",
-    # "rw_zipf_0.9",
-    "rw_zipf_0.8",
-    # "rw_zipf_0.7",
-    "rw_zipf_0.6",
-    # "rw_zipf_0.5",
-    "rw_zipf_0.4",
-    # "rw_zipf_0.3",
-    "rw_zipf_0.2",
-    # "rw_zipf_0.1",
-    "rw_zipf_0",
+    "rw_1",
+    "rw_1000",
+    # "rw_1000000",
+    # "rw_zipf_1",
+    # # "rw_zipf_0.9",
+    # "rw_zipf_0.8",
+    # # "rw_zipf_0.7",
+    # "rw_zipf_0.6",
+    # # "rw_zipf_0.5",
+    # "rw_zipf_0.4",
+    # # "rw_zipf_0.3",
+    # "rw_zipf_0.2",
+    # # "rw_zipf_0.1",
+    # "rw_zipf_0",
 ]
 concurrent_ = [
     "concurrent_1",
