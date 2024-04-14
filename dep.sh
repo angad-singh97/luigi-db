@@ -29,7 +29,12 @@ pip install -U setuptools
 pip3 install -r requirements.txt
 pip3 install Pillow matplotlib pyyaml
 
-# mongodb client
+
+# mongodb c++ driver: https://www.mongodb.com/community/forums/t/c-and-c-driver-for-debian-ubuntu-users/2732
+sudo apt-get install -y libmongoc-dev --assume-yes
+sudo apt-get install -y build-essential devscripts debian-keyring fakeroot debhelper cmake libssl-dev pkg-config python3-sphinx zlib1g-dev libicu-dev libsasl2-dev libsnappy-dev libzstd-dev --assume-yes
+
+# mongodb client / mongocxx : https://www.mongodb.com/docs/languages/cpp/drivers/current/installation/linux/#std-label-cpp-installation-linux
 cd ~
 curl -OL https://github.com/mongodb/mongo-cxx-driver/releases/download/r3.10.1/mongo-cxx-driver-r3.10.1.tar.gz
 tar -xzf mongo-cxx-driver-r3.10.1.tar.gz
