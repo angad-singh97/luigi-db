@@ -8,6 +8,7 @@ sudo apt-get --assume-yes install -y \
     pkg-config \
     build-essential \
     clang \
+    cmake \
     cgroup-tools \
     libapr1-dev libaprutil1-dev \
     libboost-all-dev \
