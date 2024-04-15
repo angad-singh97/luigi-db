@@ -52,6 +52,7 @@ int Config::CreateConfig(int argc, char **argv) {
 //  std::string filename = "./config/sample.yml";
   vector<string> config_paths;
   std::string proc_name = "localhost"; // default as "localhost"
+  std::string exp_setting_name = "not_set"; // used to dump Distribution to file
   std::string logging_path = "./disk_log/";
   char *end_ptr    = NULL;
 
@@ -81,7 +82,7 @@ int Config::CreateConfig(int argc, char **argv) {
   int c;
   optind = 1;
   string filename;
-  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:m:a:")) != -1) {
+  while ((c = getopt(argc, argv, "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:F:O:m:a:N:")) != -1) {
     switch (c) {
       case 'b': // heartbeat to controller
         heart_beat = true;
@@ -94,6 +95,9 @@ int Config::CreateConfig(int argc, char **argv) {
         break;
       case 'P':
         proc_name = std::string(optarg);
+        break;
+      case 'N':
+        exp_setting_name = std::string(optarg);
         break;
       case 'f': // properties.xml
         filename = std::string(optarg);
@@ -249,6 +253,7 @@ int Config::CreateConfig(int argc, char **argv) {
     curp_or_rule_fastpath_rate,
     curp_execution_in_advance_enabled);
   config_s->proc_name_ = proc_name;
+  config_s->exp_setting_name_ = exp_setting_name;
   config_s->config_paths_ = config_paths;
   config_s->Load();
   return SUCCESS;
@@ -297,6 +302,7 @@ Config::Config(char           *ctrl_hostname,
   txn_weight_(vector<double>()),
   txn_weights_(map<string, double>()),
   proc_name_(string()),
+  exp_setting_name_(string()),
   batch_start_(false),
   early_return_(false),
   retry_wait_(false),

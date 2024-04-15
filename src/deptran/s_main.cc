@@ -442,6 +442,29 @@ int main(int argc, char *argv[]) {
   Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f", fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count);
   Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
+
+  string dump_file_name = "results/recent_csv/" + Config::GetConfig()->exp_setting_name_ + ".csv";
+  std::ofstream file(dump_file_name);
+  if (!file.is_open()) {
+    Log_info("Failed to open file for writing %s", dump_file_name.c_str());
+  } else {
+    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "Overall" << "\n";
+    size_t max_size = 0;
+    for (int i = 0; i < 6; i++)
+      if (cli2cli[i].count() > max_size)
+        max_size = cli2cli[i].count();
+    for (size_t i = 0; i < max_size; ++i) {
+        for (int k = 0; k < 6; k++) {
+          if (i < cli2cli[k].count())
+            file << cli2cli[k].data_[i];
+          if (k < 5)
+            file << ",";
+          else
+            file << "\n";
+        }
+    }
+    Log_info("Dumped to %s", dump_file_name.c_str());
+  }
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());

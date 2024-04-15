@@ -97,10 +97,10 @@ class CurpPlusDataCol {
 };
 
 class Distribution {
-  vector<double> data_;
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
   // bool pct_lock = false;
  public:
+  vector<double> data_;
   void append(double x) {
     // if (pct_lock) return;
     data_.push_back(x);

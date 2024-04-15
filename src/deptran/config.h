@@ -55,6 +55,7 @@ class Config {
   std::vector<double> txn_weight_;
   map<string, double> txn_weights_;
   std::string proc_name_;
+  std::string exp_setting_name_;
   bool batch_start_;
   bool early_return_;
   bool retry_wait_;
