@@ -463,7 +463,7 @@ int main(int argc, char *argv[]) {
             file << "\n";
         }
     }
-    Log_info("Dumped to %s", dump_file_name.c_str());
+    Log_info("Dumped to %s with %d lines data", dump_file_name.c_str(), max_size);
   }
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
