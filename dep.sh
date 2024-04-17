@@ -29,6 +29,7 @@ pip install -U setuptools
 pip3 install -r requirements.txt
 pip3 install Pillow matplotlib pyyaml
 
+ulimit -n 10000
 
 # mongodb c++ driver: https://www.mongodb.com/community/forums/t/c-and-c-driver-for-debian-ubuntu-users/2732
 sudo apt-get install -y libmongoc-dev --assume-yes
