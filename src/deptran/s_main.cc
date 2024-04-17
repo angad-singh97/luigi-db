@@ -71,7 +71,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
   vector<ClientWorker*> workers;
 
   failover_triggers = new bool[client_sites.size()]() ;
-  int core_id = 8;
+  int core_id = 5; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
                                             client_sites[client_id],
@@ -385,6 +385,7 @@ int main(int argc, char *argv[]) {
 
   if (!client_infos.empty()) {
     //client_setup_heartbeat(client_infos.size());
+    sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
     client_launch_workers(client_infos);
     sleep(Config::GetConfig()->duration_);
     wait_for_clients();
