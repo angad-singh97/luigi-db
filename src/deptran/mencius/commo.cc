@@ -129,7 +129,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   // }
   // ms->g_mutex.unlock();
 
-  WAN_WAIT;
+  WAN_WAIT
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     auto follower_id = p.first;
@@ -207,7 +207,7 @@ void MenciusCommo::BroadcastDecide(const parid_t par_id,
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
   vector<Future*> fus;
   
-  // WAN_WAIT;
+  WAN_WAIT
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     FutureAttr fuattr;
