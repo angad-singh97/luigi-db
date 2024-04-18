@@ -10,7 +10,7 @@
 
 namespace janus {
 
-constexpr char kMongoDbUri[] = "mongodb://130.245.173.103:27017";
+constexpr char kMongoDbUri[] = "mongodb://184.72.49.232:27017";
 constexpr char kDatabaseName[] = "JetPack";
 constexpr char kCollectionName[] = "KVTable";
 
