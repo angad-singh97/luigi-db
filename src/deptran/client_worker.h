@@ -61,7 +61,7 @@ class ClientWorker {
   volatile bool* failover_server_quit_;
   volatile locid_t* failover_server_idx_;
   volatile double* total_throughput_;
-  Distribution cli2cli_[5];
+  Distribution cli2cli_[6];
   Frequency frequency_;
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;

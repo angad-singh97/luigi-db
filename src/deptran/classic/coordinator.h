@@ -100,6 +100,7 @@ class CoordinatorClassic : public Coordinator {
   void CurpDispatchAsync();
   virtual void DispatchAsync(bool last);
   virtual void DispatchAck(phase_t phase,
+                           double dispatch_time,
                            int res,
                            map<innid_t, map<int32_t, Value>>& outputs);
   void Prepare();

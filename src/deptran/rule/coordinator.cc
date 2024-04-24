@@ -196,6 +196,7 @@ void CoordinatorRule::DispatchAsync() {
                               std::bind(&CoordinatorClassic::DispatchAck,
                                         this,
                                         phase_,
+                                        dispatch_time_,
                                         std::placeholders::_1,
                                         std::placeholders::_2));
   }

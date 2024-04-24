@@ -34,7 +34,7 @@ int coordinatoraccept_count = 0;
 int original_protocol_count = 0;
 int fastpath_attempted_count = 0;
 int fastpath_successed_count = 0;
-Distribution cli2cli[6];
+Distribution cli2cli[7];
 Frequency frequency;
 // definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
 // 5nd element is for merge first 4
@@ -175,7 +175,7 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
 void client_shutdown() {
   for (const unique_ptr<ClientWorker>& client: client_workers_g) {
     client->retrive_statistic();
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 7; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
     frequency.merge(client->frequency_);
 #ifdef LATENCY_DEBUG
@@ -435,14 +435,16 @@ int main(int argc, char *argv[]) {
   client_shutdown();
   
   for (int i = 0; i < 5; i++)
-    cli2cli[5].merge(cli2cli[i]);
+    cli2cli[6].merge(cli2cli[i]);
   Log_info("Fastpath count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
   Log_info("CoordinatorAccept count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
   Log_info("Fast-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
   Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
   Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
-  Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
+  Log_info("All original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
+  Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
+  Log_info("Original throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f", fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count);
   Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
 
@@ -451,16 +453,16 @@ int main(int argc, char *argv[]) {
   if (!file.is_open()) {
     Log_info("Failed to open file for writing %s", dump_file_name.c_str());
   } else {
-    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "Overall" << "\n";
+    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "\n";
     size_t max_size = 0;
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 7; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
     for (size_t i = 0; i < max_size; ++i) {
-        for (int k = 0; k < 6; k++) {
+        for (int k = 0; k < 7; k++) {
           if (i < cli2cli[k].count())
             file << cli2cli[k].data_[i];
-          if (k < 5)
+          if (k < 6)
             file << ",";
           else
             file << "\n";

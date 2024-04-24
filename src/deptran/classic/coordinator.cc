@@ -250,6 +250,7 @@ void CoordinatorClassic::DispatchAsync() {
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
                                          phase_,
+                                         -1, 
                                          std::placeholders::_1,
                                          std::placeholders::_2));
 #endif
@@ -309,6 +310,7 @@ void CoordinatorClassic::CurpDispatchAsync() {
                                std::bind(&CoordinatorClassic::DispatchAck,
                                          this,
                                          phase_,
+                                         -1, 
                                          std::placeholders::_1,
                                          std::placeholders::_2));
 #endif
@@ -372,6 +374,7 @@ bool CoordinatorClassic::AllDispatchAcked() {
 }
 
 void CoordinatorClassic::DispatchAck(phase_t phase,
+                                     double dispatch_time,
                                      int res,
                                      TxnOutput& outputs) {
   //Log_info("Is this being called");
@@ -412,6 +415,8 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
     Log_debug("receive all start acks, txn_id: %llx; START PREPARE",
               txn->id_);
     dispatch_ack_ = true;
+    if (dispatch_time > 0)
+      cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time);
     // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d cmd_ver=%d current_phase=%d [End of DispatchAck]", coo_id_, thread_id_, cmd_ver_, cmd_ver, phase % 3);
     if (phase != phase_) {
       // Log_info("AllDispatchAcked Failed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);

@@ -21,7 +21,7 @@ ClientWorker::~ClientWorker() {
 
 void ClientWorker::retrive_statistic() {
   for (auto c : created_coordinators_) {
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
       cli2cli_[i].merge(c->cli2cli_[i]);
     frequency_.merge(c->frequency_);
     fastpath_count_ += c->fastpath_count_;
