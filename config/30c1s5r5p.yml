@@ -88,21 +88,21 @@ process:
   c13: aws4
   c14: aws4
   c15: aws4
-  c16: aws5
-  c17: aws5
-  c18: aws5
-  c19: aws6
-  c20: aws6
-  c21: aws6
-  c22: aws7
-  c23: aws7
-  c24: aws7
-  c25: aws8
-  c26: aws8
-  c27: aws8
-  c28: aws9
-  c29: aws9
-  c30: aws9
+  c16: aws0
+  c17: aws0
+  c18: aws0
+  c19: aws1
+  c20: aws1
+  c21: aws1
+  c22: aws2
+  c23: aws2
+  c24: aws2
+  c25: aws3
+  c26: aws3
+  c27: aws3
+  c28: aws4
+  c29: aws4
+  c30: aws4
   
 host:
   aws0: 184.72.49.232
@@ -110,8 +110,8 @@ host:
   aws2: 54.253.53.26
   aws3: 18.198.73.192
   aws4: 18.229.52.109
-  aws5: 44.205.230.205
-  aws6: 3.6.253.80
-  aws7: 52.195.138.239
-  aws8: 52.60.216.121
-  aws9: 35.179.49.225
+  # aws5: 44.205.230.205
+  # aws6: 3.6.253.80
+  # aws7: 52.195.138.239
+  # aws8: 52.60.216.121
+  # aws9: 35.179.49.225
