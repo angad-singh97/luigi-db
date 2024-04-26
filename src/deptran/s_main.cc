@@ -71,7 +71,12 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
   vector<ClientWorker*> workers;
 
   failover_triggers = new bool[client_sites.size()]() ;
+#ifdef SIMULATE_WAN
   int core_id = 5; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
+#endif
+#ifndef SIMULATE_WAN
+  int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
+#endif
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
                                             client_sites[client_id],
