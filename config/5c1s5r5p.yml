@@ -1,0 +1,25 @@
+
+site:
+  server: # each line is a partition, the first is the master site_name:port
+    - ["s101:18000", "s201:18001", "s301:18002", "s401:18003", "s501:18004"]
+  client: # each line is a partition
+    - ["c101", "c201", "c301", "c401", "c501"]
+
+process:
+  s101: aws0
+  s201: aws1
+  s301: aws2
+  s401: aws3
+  s501: aws4
+  c101: aws0
+  c201: aws1
+  c301: aws2
+  c401: aws3
+  c501: aws4
+
+host:
+  aws0: 184.72.49.232
+  aws1: 16.163.96.221
+  aws2: 54.253.53.26
+  aws3: 18.198.73.192
+  aws4: 18.229.52.109
