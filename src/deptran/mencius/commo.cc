@@ -82,7 +82,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   auto start = chrono::system_clock::now();
 
   std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
-  auto ms = dynamic_cast<MenciusServer*>(svr_workers->at((slot_id-1)%n).rep_sched_);
+  auto ms = dynamic_cast<MenciusServer*>(svr_workers->at((slot_id-1)%(svr_workers->size())).rep_sched_);
   auto skip_potentials_recd = ms->skip_potentials_recd;
   auto logs_ = ms->logs_;
 
