@@ -10,6 +10,8 @@ from datetime import datetime
 import psutil
 import numpy as np
 
+from pylib import ps as ps_killer
+
 run_app_     = "build/deptran_server"
 config_path_ = "config/"
 
@@ -30,14 +32,14 @@ TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 modes_ = [
-    "none_mongodb",
+    # "none_mongodb",
     "none_mencius",
     "none_copilot",
     "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
-    "rule_mongodb",
+    # "rule_mongodb",
     "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
@@ -61,10 +63,10 @@ sites_ = [
     # "12c1s3r1p",
 ]
 benchmarks_ =  [
-    "rw_1",
-    "rw_1000",
-    # "rw_1000000",
-    # "rw_zipf_1",
+    # "rw_1",
+    # "rw_1000",
+    "rw_1000000",
+    "rw_zipf_1",
     # # "rw_zipf_0.9",
     # "rw_zipf_0.8",
     # # "rw_zipf_0.7",
@@ -199,6 +201,7 @@ def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to
     except subprocess.TimeoutExpired:
         process.terminate()
         sleep(running_time * 2)
+        ps_killer.killall(["127.0.0.1"], "deptran_server", "-9")
         res = "Timeout"
     except Exception as e:
         print(e)
