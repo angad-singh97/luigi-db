@@ -62,9 +62,10 @@ class MongodbConnectionThreadPool {
   std::vector<std::thread> threads_;
   std::vector<std::unique_ptr<std::mutex>> mtxs_;
   std::vector<std::unique_ptr<std::condition_variable>> conditions_;
-  std::vector<std::shared_ptr<MongodbKVTableHandler>> mongodb_handlers_;
+  std::vector<std::shared_ptr<janus::MongodbKVTableHandler>> mongodb_handlers_{10000};
   std::vector<std::shared_ptr<Distribution>> durations_;
   std::vector<std::queue<SampleCommand>> request_queues_;
+  SampleCommand terminate_cmd = SampleCommand{2, 0, 0};
 
   CallbackType callback_;
 
@@ -119,12 +120,7 @@ public:
       round_robin_ = 0;
   }
 
-  static void Callback(SampleCommand cmd) {
-    // std::cout << cmd.key << std::endl;
-  }
-
   void Close() {
-    SampleCommand terminate_cmd{-1, 0, 0};
     for (int i = 0; i < thread_num_; i++) {
       std::unique_lock<std::mutex> lk(*mtxs_[i]);
       request_queues_[i].push(terminate_cmd);
@@ -144,41 +140,44 @@ public:
     return all.pct50();
   }
 
-  // MongodbConnectionThreadPool(int thread_num)
-  //   : thread_num_(thread_num) {
-  //   for (int i = 0; i < thread_num; i++) {
-  //     mtxs_.push_back(std::make_unique<std::mutex>());
-  //     request_queues_.push_back(std::queue<SampleCommand>());
-  //     conditions_.push_back(std::make_unique<std::condition_variable>());
-  //     mongodb_handlers_.push_back(std::make_shared<MongodbKVTableHandler>());
-  //     durations_.push_back(std::make_shared<Distribution>());
-  //   }
-  //   for (int i = 0; i < thread_num; i++)
-  //     threads_.push_back(std::thread([this, i]() {
-  //       MongodbConnection(i);
-  //   }));
-  // }
+  void static createHandlers(int i, std::vector<std::shared_ptr<janus::MongodbKVTableHandler>>& handlers) {
+    handlers[i] = std::make_shared<janus::MongodbKVTableHandler>();
+  }
 
   MongodbConnectionThreadPool(int thread_num, CallbackType callback)
     : thread_num_(thread_num), callback_(callback) {
+    auto time1 = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < thread_num; i++) {
       mtxs_.push_back(std::make_unique<std::mutex>());
       request_queues_.push_back(std::queue<SampleCommand>());
       conditions_.push_back(std::make_unique<std::condition_variable>());
-      mongodb_handlers_.push_back(std::make_shared<MongodbKVTableHandler>());
       durations_.push_back(std::make_shared<Distribution>());
     }
-    for (int i = 0; i < thread_num; i++)
+    auto time2 = std::chrono::high_resolution_clock::now();
+    std::cout << "MongodbConnectionThreadPool Phase 1 Duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(time2 - time1).count() << " ms" << std::endl;
+    std::vector<std::thread> create_connection_threads;
+    for (int i = 0; i < thread_num; i++) {
+      create_connection_threads.emplace_back(createHandlers, i, std::ref(mongodb_handlers_));
+      // mongodb_handlers_.push_back(std::make_shared<janus::MongodbKVTableHandler>());
+    }
+    for (auto& t : create_connection_threads) {
+        t.join();
+    }
+    auto time3 = std::chrono::high_resolution_clock::now();
+    std::cout << "MongodbConnectionThreadPool Phase 2 Duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(time3 - time2).count() << " ms" << std::endl;
+    for (int i = 0; i < thread_num; i++) {
       threads_.push_back(std::thread([this, i]() {
         MongodbConnection(i);
-    }));
+      }));
+    }
+    auto time4 = std::chrono::high_resolution_clock::now();
+    std::cout << "MongodbConnectionThreadPool Phase 3 Duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(time4 - time3).count() << " ms" << std::endl;
   }
 
   ~MongodbConnectionThreadPool() {
 
   }
 };
-
 
 
 }
