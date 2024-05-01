@@ -390,7 +390,7 @@ int main(int argc, char *argv[]) {
 
   if (!client_infos.empty()) {
     //client_setup_heartbeat(client_infos.size());
-#ifndef SIMULATE_WAN
+#ifndef AWS
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
     client_launch_workers(client_infos);

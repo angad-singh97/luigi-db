@@ -158,9 +158,15 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
     shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
     sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
     sp_vpd_ = sp_vpd;
+#ifdef MONGODB_DEBUG
+    Log_info("%.2f BroadcastRuleSpeculativeExecute <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
     e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
+#ifdef MONGODB_DEBUG
+  Log_info("%.2f BroadcastRuleSpeculativeExecute after wait <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
+#endif
   // Log_info("[CURP] After Wait");
   if (e->Yes()) {
     fast_path_success_ = true;
