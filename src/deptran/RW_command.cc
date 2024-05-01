@@ -150,6 +150,16 @@ double SimpleRWCommand::GetCurrentMsTime() {
   return tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
 }
 
+double SimpleRWCommand::zero_time_;
+
+void SimpleRWCommand::SetZeroTime() {
+  zero_time_ = GetCurrentMsTime();
+}
+
+double SimpleRWCommand::GetMsTimeElaps() {
+  return GetCurrentMsTime() - zero_time_;
+}
+
 double SimpleRWCommand::GetCommandMsTime(shared_ptr<Marshallable> cmd) {
   shared_ptr<VecPieceData> cmd_cast{nullptr};
   if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {

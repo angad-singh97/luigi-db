@@ -12,6 +12,7 @@ class SimpleRWCommand: public Marshallable {
   int32_t value_;
   pair<int32_t, int32_t> cmd_id_;
   bool rule_mode_on_and_is_original_path_only_command_;
+  static double zero_time_;
   SimpleRWCommand();
   // SimpleRWCommand(const SimpleRWCommand &o);
   SimpleRWCommand(shared_ptr<Marshallable> cmd);
@@ -24,6 +25,8 @@ class SimpleRWCommand: public Marshallable {
   static pair<int32_t, int32_t> GetCmdID(shared_ptr<Marshallable> cmd);
   static uint64_t GetCombinedCmdID(shared_ptr<Marshallable> cmd);
   static double GetCurrentMsTime();
+  static void SetZeroTime();
+  static double GetMsTimeElaps();
   static double GetCommandMsTime(shared_ptr<Marshallable> cmd);
   static double GetCommandMsTimeElaps(shared_ptr<Marshallable> cmd);
   static key_t GetKey(shared_ptr<Marshallable> cmd);
