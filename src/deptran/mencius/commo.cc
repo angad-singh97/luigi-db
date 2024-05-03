@@ -52,6 +52,10 @@ MenciusCommo::BroadcastPrepare(parid_t par_id,
 
     FutureAttr fuattr;
     fuattr.callback = [e, ballot, leader_id, src_coroid, follower_id](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
@@ -140,6 +144,10 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     // auto start2 = chrono::system_clock::now();
     auto start2 = 0;
     fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;

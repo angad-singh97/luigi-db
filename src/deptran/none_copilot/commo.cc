@@ -46,6 +46,10 @@ void CommunicatorNoneCopilot::BroadcastDispatch(shared_ptr<vector<shared_ptr<Sim
   auto par_id = sp_vec_piece->at(0)->PartitionId();
   rrr::FutureAttr fuattr;
   fuattr.callback = [coo, this, callback](Future *fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     int32_t ret;
     TxnOutput outputs;
     fu->get_reply() >> ret >> outputs;
@@ -86,6 +90,10 @@ void CommunicatorNoneCopilot::BroadcastDispatch(shared_ptr<vector<shared_ptr<Sim
 
   rrr::FutureAttr fu2;
   fu2.callback = [coo, this, callback](Future *fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     int32_t ret;
     TxnOutput outputs;
     fu->get_reply() >> ret >> outputs;

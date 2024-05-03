@@ -413,6 +413,8 @@ int main(int argc, char *argv[]) {
     worker.WaitForShutdown();
   }
 
+  Log_info("After worker.WaitForShutdown();");
+
   for (auto& ft : failover_threads_g) {
     ft.join();
   }
@@ -442,6 +444,7 @@ int main(int argc, char *argv[]) {
   ProfilerStop();
 #endif // ifdef CPU_PROFILE
   client_shutdown();
+  Log_info("After client_shutdown");
   
   for (int i = 0; i < 5; i++)
     cli2cli[6].merge(cli2cli[i]);

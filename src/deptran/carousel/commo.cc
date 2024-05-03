@@ -47,6 +47,10 @@ void CarouselCommo::BroadcastReadAndPrepare(
     rrr::FutureAttr fu2;
     fu2.callback =
         [coo, this, leader, callback](Future* fu) {
+          if (fu->get_error_code() != 0) {
+            Log_info("Get a error message in reply");
+            return;
+          }
           int32_t ret;
           TxnOutput outputs;
           fu->get_reply() >> ret >> outputs;

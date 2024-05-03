@@ -25,6 +25,10 @@ MultiPaxosPlusCommo::SendForward(parid_t par_id,
 
   FutureAttr fuattr;
   fuattr.callback = [e, leader_id, src_coroid, follower_id](Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     uint64_t coro_id = 0;
     fu->get_reply() >> coro_id;
     e->FeedResponse(1);
@@ -71,6 +75,10 @@ MultiPaxosPlusCommo::BroadcastPrepare(parid_t par_id,
 
     FutureAttr fuattr;
     fuattr.callback = [e, ballot, leader_id, src_coroid, follower_id](Future* fu) {
+      if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
@@ -121,6 +129,10 @@ MultiPaxosPlusCommo::BroadcastAccept(parid_t par_id,
 
     FutureAttr fuattr;
     fuattr.callback = [e, start, ballot, leader_id, src_coroid, follower_id, cmd, sch] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t b = 0;
       uint64_t coro_id = 0;
       fu->get_reply() >> b >> coro_id;
@@ -200,6 +212,10 @@ shared_ptr<IntEvent> MultiPaxosPlusCommo::BroadcastTest() {
     auto proxy = (CurpProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t b;
       fu->get_reply() >> b;
       verify(b == 24);

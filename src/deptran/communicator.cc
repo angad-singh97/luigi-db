@@ -434,6 +434,10 @@ std::shared_ptr<QuorumEvent> Communicator::SendReelect(){
 		if(id != 1) continue;
 		fuattr.callback = 
 			[e, this, id] (Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
 				bool_t success = false;
 				fu->get_reply() >> success;
 				
@@ -463,6 +467,10 @@ void Communicator::BroadcastDispatch(
   rrr::FutureAttr fuattr;
   fuattr.callback =
       [coo, this, callback](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         int32_t ret;
         TxnOutput outputs;
         fu->get_reply() >> ret >> outputs;
@@ -549,6 +557,10 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, coo, this, phase, txn, src_coroid, leader_id](Future* fu) {
+          if (fu->get_error_code() != 0) {
+            Log_info("Get a error message in reply");
+            return;
+          }
           int32_t ret;
           TxnOutput outputs;
           uint64_t coro_id = 0;
@@ -616,6 +628,10 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
           rrr::FutureAttr fuattr;
           fuattr.callback =
               [e, coo, this, src_coroid, follower_id](Future* fu) {
+                if (fu->get_error_code() != 0) {
+                  Log_info("Get a error message in reply");
+                  return;
+                }
                 int32_t ret;
                 TxnOutput outputs;
                 uint64_t coro_id = 0;
@@ -668,6 +684,10 @@ Communicator::SendPrepare(Coordinator* coo,
     qe->par_id_ = quorum_id++;
     FutureAttr fuattr;
     fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
 			bool_t slow;
       uint64_t coro_id = 0;
@@ -777,6 +797,10 @@ Communicator::SendCommit(Coordinator* coo,
     FutureAttr fuattr;
     auto phase = coo->phase_;
     fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
 			bool_t slow;
       uint64_t coro_id = 0;
@@ -888,6 +912,10 @@ Communicator::SendAbort(Coordinator* coo,
     FutureAttr fuattr;
     auto phase = coo->phase_;
     fuattr.callback = [this, e, qe, coo, src_coroid, site_id, phase, cmd](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
 			bool_t slow;
       uint64_t coro_id = 0;
@@ -998,6 +1026,10 @@ void Communicator::SendUpgradeEpoch(epoch_t curr_epoch,
       FutureAttr fuattr;
       auto& site_id = pair.first;
       function<void(Future*)> cb = [callback, par_id, site_id](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         int32_t res;
         fu->get_reply() >> res;
         callback(par_id, site_id, res);
@@ -1041,9 +1073,13 @@ void Communicator::SendForwardTxnRequest(
   dispatch_request.tx_type = req.tx_type_;
 
   FutureAttr future;
-  future.callback = [callback](Future* f) {
+  future.callback = [callback](Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     TxReply reply;
-    f->get_reply() >> reply;
+    fu->get_reply() >> reply;
     callback(reply);
   };
   Future::safe_release(leader_proxy->async_DispatchTxn(dispatch_request,
@@ -1066,6 +1102,10 @@ Communicator::BroadcastMessage(shardid_t shard_id,
     auto msg_ev = std::make_shared<MessageEvent>(shard_id, site_id);
     events.push_back(msg_ev);
     fuattr.callback = [msg_ev] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       auto& marshal = fu->get_reply();
       marshal >> msg_ev->msg_;
       msg_ev->Set(1);
@@ -1102,6 +1142,10 @@ shared_ptr<GetLeaderQuorumEvent> Communicator::BroadcastGetLeader(
     auto proxy = p.second;
     FutureAttr fuattr;
     fuattr.callback = [e, p](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       bool_t is_leader = false;
       fu->get_reply() >> is_leader;
       e->FeedResponse(is_leader, p.first);
@@ -1122,6 +1166,10 @@ shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
     auto proxy = p.second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int res;
       fu->get_reply() >> res;
       if (res == 0)
@@ -1168,6 +1216,10 @@ void Communicator::SendSimpleCmd(groupid_t gid, SimpleCommand& cmd,
     std::vector<int32_t>& sids, const function<void(int)>& callback) {
   FutureAttr fuattr;
   std::function<void(Future*)> cb = [this, callback](Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     int res;
     fu->get_reply() >> res;
     callback(res);
@@ -1198,6 +1250,10 @@ Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, this](Future* fu) {
+          if (fu->get_error_code() != 0) {
+            Log_info("Get a error message in reply");
+            return;
+          }
           bool_t accepted;
           ver_t ver;
           value_t result;
@@ -1293,6 +1349,10 @@ Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
       rrr::FutureAttr fuattr;
       fuattr.callback =
           [this, e](Future* fu) {
+            if (fu->get_error_code() != 0) {
+              Log_info("Get a error message in reply");
+              return;
+            }
             bool_t committed;
             value_t commit_result;
             fu->get_reply() >> committed >> commit_result;
@@ -1354,6 +1414,10 @@ Communicator::CurpBroadcastPrepare(parid_t par_id,
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e, site, self_loc](Future *fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       bool_t accepted;
       i32 status;
       ballot_t last_accepted_ballot;
@@ -1384,6 +1448,10 @@ Communicator::CurpBroadcastAccept(parid_t par_id,
     auto site = p.first;
     FutureAttr fuattr;
     fuattr.callback = [e](Future *fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       bool_t accepted;
       ballot_t seen_ballot;
       fu->get_reply() >> accepted >> seen_ballot;

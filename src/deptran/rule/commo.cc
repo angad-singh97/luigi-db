@@ -71,6 +71,10 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
     rrr::FutureAttr fuattr;
     fuattr.callback =
         [e, this](Future* fu) {
+          if (fu->get_error_code() != 0) {
+            Log_info("Get a error message in reply");
+            return;
+          }
           bool_t accepted;
           value_t result;
           bool_t is_leader;

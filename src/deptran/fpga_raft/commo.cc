@@ -31,6 +31,10 @@ shared_ptr<FpgaRaftForwardQuorumEvent> FpgaRaftCommo::SendForward(parid_t par_id
     auto proxy = (FpgaRaftProxy*) proxies[fid].second ;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       uint64_t cmt_idx = 0;
       fu->get_reply() >> cmt_idx;
       e->FeedResponse(cmt_idx);
@@ -54,6 +58,10 @@ void FpgaRaftCommo::BroadcastHeartbeat(parid_t par_id,
     FutureAttr fuattr;
     
 		fuattr.callback = [this, follower_id, logIndex] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       uint64_t index = 0;
 			
       fu->get_reply() >> index;
@@ -193,6 +201,10 @@ FpgaRaftCommo::BroadcastAppendEntries(parid_t par_id,
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
     fuattr.callback = [this, e, isLeader, currentTerm, follower_id, n, ip, begin] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       uint64_t accept = 0;
       uint64_t term = 0;
       uint64_t index = 0;
@@ -319,6 +331,10 @@ FpgaRaftCommo::BroadcastVote(parid_t par_id,
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t term = 0;
       bool_t vote = false ;
       fu->get_reply() >> term;
@@ -363,6 +379,10 @@ FpgaRaftCommo::BroadcastVote2FPGA(parid_t par_id,
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t term = 0;
       bool_t vote = false ;
       fu->get_reply() >> term;

@@ -14,6 +14,10 @@ void CommoFebruus::BroadcastPreAccept(QuorumEvent& e,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [&e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       uint64_t timestamp;
       fu->get_reply() >> res >> timestamp;
@@ -37,6 +41,10 @@ void CommoFebruus::BroadcastAccept(QuorumEvent& e,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [&e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       uint64_t timestamp;
       fu->get_reply() >> res;

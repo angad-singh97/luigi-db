@@ -16,6 +16,10 @@ void RccCommo::SendDispatch(vector<SimpleCommand> &cmd,
   auto par_id = cmd[0].partition_id_;
   std::function<void(Future*)> cb =
       [callback, tid, par_id](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         int res;
         TxnOutput output;
         MarshallDeputy md;
@@ -55,6 +59,10 @@ void RccCommo::SendFinish(parid_t pid,
                           const function<void(TxnOutput& output)> &callback) {
   FutureAttr fuattr;
   function<void(Future*)> cb = [callback] (Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     map<innid_t, map<int32_t, Value>> outputs;
     fu->get_reply() >> outputs;
     callback(outputs);
@@ -92,6 +100,10 @@ void RccCommo::SendInquire(parid_t pid,
   // verify(0);
 //  FutureAttr fuattr;
 //  function<void(Future*)> cb = [callback] (Future* fu) {
+    // if (fu->get_error_code() != 0) {
+    //       Log_info("Get a error message in reply");
+    //       return;
+    //     }
 //    MarshallDeputy md;
 //    fu->get_reply() >> md;
 //    RccGraph& graph = dynamic_cast<RccGraph&>(*md.sp_data_);
@@ -116,6 +128,10 @@ void RccCommo::BroadcastCommit(parid_t par_id,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [callback](Future* fu) {
+                        if (fu->get_error_code() != 0) {
+                          Log_info("Get a error message in reply");
+                          return;
+                        }
                         int32_t res;
                         TxnOutput output;
                         fu->get_reply() >> res >> output;

@@ -15,6 +15,10 @@ void JanusCommo::SendDispatch(vector<TxPieceData>& cmd,
   auto par_id = cmd[0].partition_id_;
   std::function<void(Future*)> cb =
       [callback, tid, par_id](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         int res;
         TxnOutput output;
         MarshallDeputy md;
@@ -55,6 +59,10 @@ void JanusCommo::SendInquire(parid_t pid,
                              const function<void(RccGraph& graph)>& callback) {
   FutureAttr fuattr;
   function<void(Future*)> cb = [callback](Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     MarshallDeputy md;
     fu->get_reply() >> md;
     verify(0);
@@ -84,6 +92,10 @@ void JanusCommo::BroadcastPreAccept(
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [callback](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       MarshallDeputy md;
       fu->get_reply() >> res >> md;
@@ -115,6 +127,10 @@ void JanusCommo::BroadcastAccept(parid_t par_id,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [callback](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       fu->get_reply() >> res;
       callback(res);
@@ -146,6 +162,10 @@ void JanusCommo::BroadcastCommit(
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [callback](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       TxnOutput output;
       fu->get_reply() >> res >> output;
@@ -169,6 +189,10 @@ shared_ptr<QuorumEvent> JanusCommo::BroadcastInquireValidation(set<parid_t>& par
     auto proxy = NearestProxyForPartition(par_id).second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       fu->get_reply() >> res;
       if (res == 1) {

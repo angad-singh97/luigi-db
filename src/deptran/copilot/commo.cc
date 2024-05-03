@@ -110,6 +110,10 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
 
     FutureAttr fuattr;
     fuattr.callback = [e, ballot, is_pilot, slot_id, site](Future *fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       MarshallDeputy md;
       ballot_t b;
       uint64_t dep;
@@ -168,6 +172,10 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
     } else {
       FutureAttr fuattr;
       fuattr.callback = [e, dep, ballot, site](Future *fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         ballot_t b;
         slotid_t sgst_dep;
 
@@ -226,6 +234,10 @@ CopilotCommo::BroadcastAccept(parid_t par_id,
     } else {
       FutureAttr fuattr;
       fuattr.callback = [e, ballot, site](Future *fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         ballot_t b;
         fu->get_reply() >> b;
         e->FeedResponse(ballot == b);

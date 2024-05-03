@@ -42,6 +42,10 @@ void TapirCommo::BroadcastFastAccept(parid_t par_id,
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [cb] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       fu->get_reply() >> res;
       cb(res);
