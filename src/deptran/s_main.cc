@@ -409,6 +409,8 @@ int main(int argc, char *argv[]) {
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
 #endif
 
+  sleep(10); // hopefully servers can finish reset of work in 10 seconds
+
   for (auto& worker : svr_workers_g) {
     worker.WaitForShutdown();
   }
