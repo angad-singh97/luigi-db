@@ -30,6 +30,9 @@ class MongodbConnectionThreadPool {
       queue.pop();
       return cmd;
     }
+    bool empty() {
+      return queue.empty();
+    }
     void close() {
       push(nullptr);
     }
@@ -69,7 +72,11 @@ class MongodbConnectionThreadPool {
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
       durations_[thread_id]->append(duration.count());
 
-      finished_queue_.push(cmd);
+      // finished_queue_.push(cmd);
+      shared_ptr<TxPieceData> cmd_content = *(((VecPieceData*)(dynamic_pointer_cast<TpcCommitCommand>(cmd)->cmd_.get()))->sp_vec_piece_data_->begin());
+      Log_info("Before cmd_content->mongodb_finished->Set(1);");
+      cmd_content->mongodb_finished->Set(1);
+      Log_info("After cmd_content->mongodb_finished->Set(1);");
     }
   }
 
@@ -108,6 +115,10 @@ class MongodbConnectionThreadPool {
 
   shared_ptr<Marshallable> MongodbFinishedPop() {
     return finished_queue_.pop();
+  }
+
+  bool MongodbFinishedEmpty() {
+    return finished_queue_.empty();
   }
 
   void Close() {
