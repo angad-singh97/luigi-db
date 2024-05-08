@@ -148,14 +148,14 @@ namespace janus {
 // #define CURP_WAIT_COMMIT_TIMEOUT (70) -> Config::GetConfig()->curp_wait_commit_timeout_
 // #define CURP_INSTANCE_COMMIT_TIMEOUT (100) -> Config::GetConfig()->curp_instance_commit_timeout_
 
-//#define AWS
+#define AWS
 // #define SIMULATE_WAN
 // #define CURP_CONFLICT_DEBUG
 // #define CURP_FULL_LOG_DEBUG
 // #define LATENCY_DEBUG
 // #define CURP_REPEAR_COMMIT_DEBUG
 // #define CURP_AVOID_CurpSkipFastpath_DEBUG
-#define MONGODB_DEBUG
+// #define MONGODB_DEBUG
 // #define CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
 #define CHECK_KEY_DISTRIBUTION
 
