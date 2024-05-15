@@ -12,7 +12,7 @@ namespace janus {
 class MongodbServer : public TxLogServer {
   
 #ifdef AWS
-  const int mongodb_connection_ = 3000; // [JetPack] seems mongodb community default maximum connextion between 4000 and 4500 in rs
+  const int mongodb_connection_ = 600; // [JetPack] seems mongodb community default maximum connextion between 4000 and 4500 in rs
 #endif
 #ifndef AWS
   const int mongodb_connection_ = 80; // [JetPack] seems mongodb community default maximum connextion between 95 * 5 and 100 * 5 at local
