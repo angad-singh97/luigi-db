@@ -327,6 +327,8 @@ class Communicator {
                                               std::chrono::milliseconds timeout_ms);
   ClientSiteProxyPair ConnectToClientSite(Config::SiteInfo &site,
                                           std::chrono::milliseconds timeout);
+  void Pause();
+  void Resume();
   void ConnectClientLeaders();
   void WaitConnectClientLeaders();
 

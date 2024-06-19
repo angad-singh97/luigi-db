@@ -285,13 +285,13 @@ class FpgaRaftServer : public TxLogServer {
 
   void SpCommit(const uint64_t cmt_idx) ;
 
-  virtual void Pause() override { 
-    paused_ = true ;
-  }
-  virtual void Resume() override {
-    paused_ = false ;
-    resetTimer() ;
-  }
+  // virtual void Pause() override { 
+  //   paused_ = true ;
+  // }
+  // virtual void Resume() override {
+  //   paused_ = false ;
+  //   resetTimer() ;
+  // }
 
   virtual bool HandleConflicts(Tx& dtxn,
                                innid_t inn_id,

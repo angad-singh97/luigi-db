@@ -519,8 +519,8 @@ class TxLogServer {
   virtual bool IsFPGALeader() { verify(0); } ;
 	
 	virtual bool RequestVote() { verify(0); return false;};
-  virtual void Pause() { verify(0); } ;
-  virtual void Resume() { verify(0); } ;
+  virtual void Pause();
+  virtual void Resume();
 
   // epoch related functions
   void TriggerUpgradeEpoch();

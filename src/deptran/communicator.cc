@@ -420,6 +420,18 @@ Communicator::NearestProxyForPartition(parid_t par_id) const {
   return partition_proxies[index];
 };
 
+void Communicator::Pause() {
+  for (auto it = rpc_clients_.begin(); it != rpc_clients_.end(); it++) {
+    it->second->pause();
+  }
+}
+
+void Communicator::Resume() {
+  for (auto it = rpc_clients_.begin(); it != rpc_clients_.end(); it++) {
+    it->second->resume();
+  }
+}
+
 std::shared_ptr<QuorumEvent> Communicator::SendReelect(){
 	//paused = true;
 	//sleep(10);

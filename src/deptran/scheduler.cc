@@ -357,6 +357,14 @@ void TxLogServer::DestroyExecutor(txnid_t txn_id) {
   delete exec;
 }
 
+void TxLogServer::Pause() {
+  commo_->Pause();
+};
+
+void TxLogServer::Resume() {
+  commo_->Resume();
+};
+
 void TxLogServer::TriggerUpgradeEpoch() {
   if (site_id_ == 0) {
     auto t_now = std::time(nullptr);
