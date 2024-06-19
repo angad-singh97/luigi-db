@@ -1157,10 +1157,17 @@ shared_ptr<GetLeaderQuorumEvent> Communicator::BroadcastGetLeader(
 
 shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
     parid_t par_id, locid_t loc_id, bool pause) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! enter Communicator::SendFailOverTrig");
+#endif
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
   auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
+  // sleep(1);
+  // WAN_WAIT;
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! after Communicator::SendFailOverTrig WAN_WAIT");
+#endif
   for (auto& p : proxies) {
     if (p.first != loc_id) continue;
     auto proxy = p.second;
@@ -1177,6 +1184,9 @@ shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
       else
         e->VoteNo();
     };
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!! Communicator::SendFailOverTrig");
+#endif
     Future::safe_release(proxy->async_FailOverTrig(pause, fuattr));
   }
   return e;

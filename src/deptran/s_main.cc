@@ -223,6 +223,9 @@ void wait_for_clients() {
 
 void server_failover_co(bool random, bool leader, int srv_idx)
 {
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!!!!!enter server_failover_co");
+#endif
     int idx = -1 ;
     int expected_idx = -1 ;
     int run_int = Config::GetConfig()->get_failover_run_interval() ;
@@ -265,7 +268,9 @@ void server_failover_co(bool random, bool leader, int srv_idx)
             break ;
         }
     }    
-    
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!!!!!!! failover_server_quit %d", failover_server_quit);
+#endif
     while(!failover_server_quit)
     {
         if(random)
@@ -273,9 +278,15 @@ void server_failover_co(bool random, bool leader, int srv_idx)
             idx = rand() % svr_workers_g.size() ;
         }
         failover_server_idx = idx ;
-        //sleep(run_int) ;
-        auto r = Reactor::CreateSpEvent<TimeoutEvent>(run_int * 1000 * 1000);
-        r->Wait();
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!!!!!!! before run_int wait %d s", run_int);
+#endif
+        sleep(run_int) ;
+        // auto r = Reactor::CreateSpEvent<TimeoutEvent>(run_int * 1000 * 1000);
+        // r->Wait();
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!!!!!!! after run_int wait");
+#endif
         if(idx == -1) 
         {
           // TODO other types
@@ -284,38 +295,60 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         }        
         if(failover_server_quit)
         {
-            break ;
+#ifdef FAILOVER_DEBUG
+          Log_info("!!!!!!!!!!!!!!!!!!!! quit here");
+#endif
+          break ;
         }
         for (int i = 0; i < client_workers_g.size() ; ++i)
         {
           failover_triggers[i] = true ;
         }
-        for (int i = 0; i < client_workers_g.size() ; ++i)
-        {
-          while(failover_triggers[i]) {
-            if (failover_server_quit) return ;
-          }
-        }
+        // for (int i = 0; i < client_workers_g.size() ; ++i)
+        // {
+        //   while(failover_triggers[i]) {
+        //     if (failover_server_quit) {
+        //       Log_info("!!!!!!!!!!!!!!!!!!!! quit here");
+        //       return ;
+        //     }
+        //   }
+        // }
         // TODO the idx of client
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!before pause 0");
+#endif
         client_workers_g[0]->Pause(idx) ;
+        Log_info("!!!!!!!!!!!!!! failover paused");
 //        svr_workers_g[idx].Pause() ;
         for (int i = 0; i < client_workers_g.size() ; ++i)
         {
           failover_triggers[i] = true ;
         }
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!! before stop_int wait");
+#endif
         Log_info("server %d paused for failover test", idx);
-        //sleep(stop_int) ;
-        auto s = Reactor::CreateSpEvent<TimeoutEvent>(stop_int * 1000 * 1000);
-        s->Wait() ;        
-        for (int i = 0; i < client_workers_g.size() ; ++i)
-        {
-          while(failover_triggers[i]) {
-            if (failover_server_quit) return ;
-          }
-        }        
+        sleep(stop_int) ;
+        // auto s = Reactor::CreateSpEvent<TimeoutEvent>(stop_int * 1000 * 1000);
+        // s->Wait() ;      
+#ifdef FAILOVER_DEBUG  
+        Log_info("!!!!!!!!!!!!!! after stop_int wait");
+#endif
+        // for (int i = 0; i < client_workers_g.size() ; ++i)
+        // {
+        //   while(failover_triggers[i]) {
+        //     if (failover_server_quit) return ;
+        //   }
+        // }        
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!before resume 0");
+#endif
         client_workers_g[0]->Resume(idx) ;
+        Log_info("!!!!!!!!!!!!!! failover resumed");
 //        svr_workers_g[idx].Resume() ;
+#ifdef FAILOVER_DEBUG
         Log_info("server %d resumed for failover test", idx);
+#endif
         if(leader)
         {
           // get current leader
@@ -326,6 +359,9 @@ void server_failover_co(bool random, bool leader, int srv_idx)
 }
 
 void server_failover_thread(bool random, bool leader, int srv_idx) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!!!enter server_failover_thread");
+#endif
   Coroutine::CreateRun([&, random, leader, srv_idx]() { 
     server_failover_co(random, leader, srv_idx) ;
   }) ;
@@ -343,8 +379,8 @@ void server_failover()
         server_failover_co(random, leader, idx) ;
       }) ;*/
       // TODO only consider the partition 0 now
-      /*failover_threads_g.push_back(
-          std::thread(&server_failover_thread, random, leader, idx)) ;*/
+      failover_threads_g.push_back(
+          std::thread(&server_failover_thread, random, leader, idx)) ;
     }
 }
 

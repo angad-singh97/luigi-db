@@ -129,6 +129,9 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 
 void ClassicServiceImpl::FailOverTrig(
     const bool_t& pause, rrr::i32* res, rrr::DeferredReply* defer) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!! ClassicServiceImpl::FailOverTrig");
+#endif
   if (pause && clt_cnt_ == 0) {
     // TODO temp solution yidawu
     auto client_infos = Config::GetConfig()->GetMyClients();

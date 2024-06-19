@@ -681,6 +681,9 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
 
 void ClientWorker::Pause(locid_t locid) {
   // TODO modify it locid and parid
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! ClientWorker::Pause %d", locid);
+#endif
   fail_ctrl_coo_->SendFailOverTrig(0, locid, true);
 }
 
