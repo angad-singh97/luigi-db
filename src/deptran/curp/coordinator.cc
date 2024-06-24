@@ -112,6 +112,7 @@ void CoordinatorCurp::GotoNextPhase() {
         else
           cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
+      commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
       End();
       break;
     default:

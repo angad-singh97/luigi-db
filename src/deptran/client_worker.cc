@@ -24,6 +24,7 @@ void ClientWorker::retrive_statistic() {
     for (int i = 0; i < 6; i++)
       cli2cli_[i].merge(c->cli2cli_[i]);
     frequency_.merge(c->frequency_);
+    commit_time_.merge(c->commit_time_);
     fastpath_count_ += c->fastpath_count_;
     coordinatoraccept_count_ += c->coordinatoraccept_count_;
     original_protocol_count_ += c->original_protocol_count_;

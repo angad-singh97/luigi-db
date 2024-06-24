@@ -35,6 +35,7 @@ int original_protocol_count = 0;
 int fastpath_attempted_count = 0;
 int fastpath_successed_count = 0;
 Distribution cli2cli[7];
+Distribution commit_time;
 Frequency frequency;
 // definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
 // 5nd element is for merge first 4
@@ -187,6 +188,7 @@ void client_shutdown() {
     for (int i = 0; i < 6; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
     frequency.merge(client->frequency_);
+    commit_time.merge(client->commit_time_);
 #ifdef LATENCY_DEBUG
     client2leader.merge(client->client2leader_);
     client2test_point.merge(client->client2test_point_);
@@ -503,8 +505,8 @@ int main(int argc, char *argv[]) {
   if (!file.is_open()) {
     Log_info("Failed to open file for writing %s", dump_file_name.c_str());
   } else {
-    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "\n";
-    size_t max_size = 0;
+    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "," << "Commit-Time" << "\n";
+    size_t max_size = commit_time.count();
     for (int i = 0; i < 7; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
@@ -512,11 +514,10 @@ int main(int argc, char *argv[]) {
         for (int k = 0; k < 7; k++) {
           if (i < cli2cli[k].count())
             file << cli2cli[k].data_[i];
-          if (k < 6)
-            file << ",";
-          else
-            file << "\n";
+          file << ",";
         }
+        file << commit_time.data_[i];
+        file << "\n";
     }
     Log_info("Dumped to %s with %d lines data", dump_file_name.c_str(), max_size);
     file.close();

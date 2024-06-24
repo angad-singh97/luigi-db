@@ -111,6 +111,7 @@ class Coordinator {
 
   Frequency frequency_;
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
+  Distribution commit_time_;
   
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;
