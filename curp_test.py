@@ -31,18 +31,20 @@ TC_20_FAST_PATH_TIMEOUT = 25
 TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
+FAILOVER = True
+
 modes_ = [
     # "none_mongodb",
-    "none_mencius",
-    "none_copilot",
+    # "none_mencius",
+    # "none_copilot",
     "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
     # "rule_mongodb",
-    "rule_mencius",
-    "rule_copilot",
-    "rule_fpga_raft",
+    # "rule_mencius",
+    # "rule_copilot",
+    # "rule_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -52,10 +54,10 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    0,  # 0 possibility attempt fastpath
-    25,
-    50,
-    75,
+    # 0,  # 0 possibility attempt fastpath
+    # 25,
+    # 50,
+    # 75,
     100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
@@ -94,24 +96,24 @@ concurrent_ = [
     "concurrent_50",
 ]
 latency_concurrent_ = [
-    "concurrent_1",
-    "concurrent_3",
-    "concurrent_6",
-    "concurrent_10",
-    "concurrent_20",
+    # "concurrent_1",
+    # "concurrent_3",
+    # "concurrent_6",
+    # "concurrent_10",
+    # "concurrent_20",
     # "concurrent_30",
-    "concurrent_40",
+    # "concurrent_40",
     # "concurrent_50",
-    "concurrent_60",
+    # "concurrent_60",
     # "concurrent_70",
-    "concurrent_80",
-    # "concurrent_90",
-    "concurrent_100",
-    "concurrent_120",
-    "concurrent_150",
-    "concurrent_200",
-    "concurrent_250",
-    "concurrent_300",
+    # "concurrent_80",
+    "concurrent_90",
+    # "concurrent_100",
+    # "concurrent_120",
+    # "concurrent_150",
+    # "concurrent_200",
+    # "concurrent_250",
+    # "concurrent_300",
     # "concurrent_500",
     # "concurrent_600",
     # "concurrent_750",
@@ -165,6 +167,7 @@ def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
+    failover_path = config_path_ + "failover.yml"
 
     if output_path == None:
         output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
@@ -173,12 +176,14 @@ def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to
     try:
         with open(output_path, "w") as f:
             if cmd == None:
-                cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
+                cmd = [run_app_,  "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
             # res = "OK" if r == 0 else "Failed"
-
+            if FAILOVER == True:
+                cmd.append('-f')
+                cmd.append(failover_path)
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
             # sleep(running_time // 2)
             cpu_usage = [[], [], [], []]
