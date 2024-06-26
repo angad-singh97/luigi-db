@@ -507,6 +507,7 @@ int main(int argc, char *argv[]) {
   } else {
     file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "," << "Commit-Time" << "\n";
     size_t max_size = commit_time.count();
+    commit_time.pct50();
     for (int i = 0; i < 7; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
