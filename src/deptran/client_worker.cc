@@ -685,12 +685,12 @@ void ClientWorker::Pause(locid_t locid) {
 #ifdef FAILOVER_DEBUG
   Log_info("!!!!!!!!!!!!!! ClientWorker::Pause %d", locid);
 #endif
-  fail_ctrl_coo_->SendFailOverTrig(0, locid, true);
+  fail_ctrl_coo_->FailoverPauseSocketOut(0, locid);
 }
 
 void ClientWorker::Resume(locid_t locid) {
   // TODO modify it locid and parid
-  fail_ctrl_coo_->SendFailOverTrig(0, locid, false);
+  fail_ctrl_coo_->FailoverResumeSocketOut(0, locid);
 }
 
 } // namespace janus

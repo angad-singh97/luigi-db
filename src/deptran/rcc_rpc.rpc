@@ -367,7 +367,8 @@ abstract service Classic {
   defer IsLeader(locid_t cur_pause| bool_t is_leader );
   defer IsFPGALeader(locid_t cur_pause| bool_t is_leader );
   defer SimpleCmd( SimpleCommand cmd| i32 res);
-  defer FailOverTrig(bool_t pause| i32 res);
+  defer FailoverPauseSocketOut(| i32 res);
+  defer FailoverResumeSocketOut(| i32 res);
    
   // input: contains many pieces, each piece consist of
   // | <i32 p_type> <i64 pid> <i32 input_size> <i32 max_output_size> 

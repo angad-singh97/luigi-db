@@ -776,12 +776,20 @@ retry:
   }
 }
 
-void CoordinatorClassic::SendFailOverTrig(parid_t par_id, locid_t loc_id, bool pause) {
-  auto e = commo()->SendFailOverTrig(par_id, loc_id, pause);
+void CoordinatorClassic::FailoverPauseSocketOut(parid_t par_id, locid_t loc_id) {
+  auto e = commo()->FailoverPauseSocketOut(par_id, loc_id);
   e->Wait();
   if (e->No()) {
     verify(0);
   }
-}
+};
+
+void CoordinatorClassic::FailoverResumeSocketOut(parid_t par_id, locid_t loc_id) {
+  auto e = commo()->FailoverResumeSocketOut(par_id, loc_id);
+  e->Wait();
+  if (e->No()) {
+    verify(0);
+  }
+};
 
 } // namespace janus
