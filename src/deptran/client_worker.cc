@@ -673,7 +673,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   commo_ = frame_->CreateCommo(poll_mgr_);
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
-      ((config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS) && site_info.locale_id != 0) ? true :
+      ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS) && site_info.locale_id != 0) ? true :
                                                                                false;
   Log_debug("client %d created; forward %d",
             cli_id_,
