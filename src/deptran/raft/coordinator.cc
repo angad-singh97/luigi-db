@@ -170,6 +170,7 @@ void CoordinatorRaft::AppendEntries() {
     else {
         verify(0);
     }
+    GotoNextPhase();
 }
 
 void CoordinatorRaft::Commit() {
@@ -204,36 +205,27 @@ void CoordinatorRaft::LeaderLearn() {
 }
 
 void CoordinatorRaft::GotoNextPhase() {
-  int n_phase = 4;
+  int n_phase = 3;
   int current_phase = phase_ % n_phase;
   phase_++;
   switch (current_phase) {
     case Phase::INIT_END:
       if (IsLeader()) {
-        phase_++; // skip prepare phase for "leader"
         verify(phase_ % n_phase == Phase::ACCEPT);
         AppendEntries();
-        phase_++;
-        verify(phase_ % n_phase == Phase::COMMIT);
       } else {
-        // TODO
+        // TODO: forward to leader
         verify(0);
-        Forward(cmd_,commit_callback_) ;
-        phase_ = Phase::COMMIT;
+        // Forward(cmd_,commit_callback_) ;
       }
+      break;
     case Phase::ACCEPT:
       verify(phase_ % n_phase == Phase::COMMIT);
       if (committed_) {
         LeaderLearn();
       } else {
-        // verify(0);
-        // Forward(cmd_,commit_callback_) ;
-        phase_ = Phase::COMMIT;
+        verify(0);
       }
-      break;
-    case Phase::PREPARE:
-      verify(phase_ % n_phase == Phase::ACCEPT);
-      AppendEntries();
       break;
     case Phase::COMMIT:
       // do nothing.

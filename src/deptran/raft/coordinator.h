@@ -13,8 +13,7 @@ class CoordinatorRaft : public Coordinator {
 //  static ballot_t next_slot_s;
   RaftServer* sch_ = nullptr;
  private:
-  enum Phase { INIT_END = 0, PREPARE = 1, ACCEPT = 2, COMMIT = 3, FORWARD = 4 };
-  const int32_t n_phase_ = 4;
+  enum Phase { INIT_END = 0, ACCEPT = 1, COMMIT = 2};
 
   RaftCommo *commo() {
     // TODO fix this.
