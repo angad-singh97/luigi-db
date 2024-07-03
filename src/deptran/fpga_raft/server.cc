@@ -388,7 +388,7 @@ void FpgaRaftServer::StartTimer()
                                      const function<void()> &cb) {
         // Log_info("OnAppendEntries svr %d", loc_id_);
         std::lock_guard<std::recursive_mutex> lock(mtx_);
-        //StartTimer() ;
+        // StartTimer() ; xxx: need to uncomment
         // client2follower_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
         
         Log_debug("fpga-raft scheduler on append entries for "

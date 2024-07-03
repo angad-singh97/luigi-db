@@ -2,52 +2,78 @@
 
 #include "__dep__.h"
 #include "constants.h"
-#include "../marshallable.h"
-
 #include "../rcc/graph.h"
 #include "../rcc/graph_marshaler.h"
 #include "../command.h"
 #include "deptran/procedure.h"
 #include "../command_marshaler.h"
-
 #include "../rcc_rpc.h"
 
+class SimpleCommand;
 namespace janus {
-
 
 class TxLogServer;
 class RaftServer;
 class RaftServiceImpl : public RaftService {
-
  public:
-
   RaftServer* sched_;
-
   RaftServiceImpl(TxLogServer* sched);
+	void Heartbeat(const uint64_t& leaderPrevLogIndex,
+								 const DepId& dep_id,
+								 uint64_t* followerPrevLogIndex,
+								 rrr::DeferredReply* defer) override;
+  void Forward(const MarshallDeputy& cmd,
+               uint64_t *cmt_idx,
+               rrr::DeferredReply* defer) override;
 
-  void RequestVote(const ballot_t& candinate_term,
-                   const uint64_t& candidate_id,
-                   const uint64_t& last_log_index,
-                   const ballot_t& last_log_term,
-                   ballot_t* voter_term,
-                   bool_t* vote_granted,
-                   rrr::DeferredReply* defer);
+  void Vote(const uint64_t& lst_log_idx,
+                  const ballot_t& lst_log_term,
+                  const parid_t& can_id,
+                  const ballot_t& can_term,
+                  ballot_t* reply_term,
+                  bool_t *vote_granted,
+                  rrr::DeferredReply* defer) override;
+
+  void Vote2FPGA(const uint64_t& lst_log_idx,
+                  const ballot_t& lst_log_term,
+                  const parid_t& can_id,
+                  const ballot_t& can_term,
+                  ballot_t* reply_term,
+                  bool_t *vote_granted,
+                  rrr::DeferredReply* defer) override;
+
+	void AppendEntries2(const uint64_t& slot,
+                      const ballot_t& ballot,
+                      const uint64_t& leaderCurrentTerm,
+                      const uint64_t& leaderPrevLogIndex,
+                      const uint64_t& leaderPrevLogTerm,
+											const uint64_t& leaderCommitIndex,
+											const DepId& dep_id,
+                      const MarshallDeputy& md_cmd,
+                      uint64_t *followerAppendOK,
+											uint64_t *followerCurrentTerm,
+                      uint64_t *followerLastLogIndex,
+                      rrr::DeferredReply* defer);
   
-  void AppendEntries(const uint64_t& slot,
-                     const ballot_t& leader_term,
-                     const uint64_t& leader_prev_log_index,
-                     const ballot_t& leader_prev_log_term,
-                     const uint64_t& leader_commit_index,
-                     const MarshallDeputy& md_cmd,
-                     ballot_t* follower_term,
-                     bool_t* follower_append_success,
-                     rrr::DeferredReply* defer);
-  
+	void AppendEntries(const uint64_t& slot,
+                     const ballot_t& ballot,
+                     const uint64_t& leaderCurrentTerm,
+                     const uint64_t& leaderPrevLogIndex,
+                     const uint64_t& leaderPrevLogTerm,
+                     const uint64_t& leaderCommitIndex,
+										 const DepId& dep_id,
+                     const MarshallDeputy& cmd,
+                     uint64_t *followerAppendOK,
+                     uint64_t *followerCurrentTerm,
+                     uint64_t *followerLastLogIndex,
+                     rrr::DeferredReply* defer) override;
+
   void Decide(const uint64_t& slot,
-              const ballot_t& term,
+              const ballot_t& ballot,
+							const DepId& dep_id,
               const MarshallDeputy& cmd,
-              rrr::DeferredReply* defer);
+              rrr::DeferredReply* defer) override;
 
 };
 
-}
+} // namespace janus
