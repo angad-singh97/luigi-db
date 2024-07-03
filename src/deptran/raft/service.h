@@ -18,10 +18,6 @@ class RaftServiceImpl : public RaftService {
  public:
   RaftServer* sched_;
   RaftServiceImpl(TxLogServer* sched);
-	void Heartbeat(const uint64_t& leaderPrevLogIndex,
-								 const DepId& dep_id,
-								 uint64_t* followerPrevLogIndex,
-								 rrr::DeferredReply* defer) override;
   void Forward(const MarshallDeputy& cmd,
                uint64_t *cmt_idx,
                rrr::DeferredReply* defer) override;

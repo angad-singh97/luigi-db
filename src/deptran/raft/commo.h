@@ -109,8 +109,6 @@ friend class RaftProxy;
   RaftCommo(PollMgr*);
   shared_ptr<RaftForwardQuorumEvent>
   SendForward(parid_t par_id, parid_t self_id, shared_ptr<Marshallable> cmd);  
-	void BroadcastHeartbeat(parid_t par_id,
-													uint64_t logIndex);
   shared_ptr<RaftPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,
                    slotid_t slot_id,

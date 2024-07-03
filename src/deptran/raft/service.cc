@@ -11,15 +11,6 @@ RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
 	srand(curr_time.tv_nsec);
 }
 
-void RaftServiceImpl::Heartbeat(const uint64_t& leaderPrevLogIndex,
-																		const DepId& dep_id,
-																		uint64_t* followerPrevLogIndex,
-																		rrr::DeferredReply* defer) {
-	//Log_info("received heartbeat");
-	*followerPrevLogIndex = sched_->lastLogIndex;
-	defer->reply();
-}
-
 void RaftServiceImpl::Forward(const MarshallDeputy& cmd,
                                     uint64_t* cmt_idx, 
                                     rrr::DeferredReply* defer) {

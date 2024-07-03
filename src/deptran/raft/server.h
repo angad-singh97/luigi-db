@@ -62,7 +62,6 @@ class RaftServer : public TxLogServer {
 	bool RequestVote() ;
 
 	void Setup();
-	static void* HeartbeatLoop(void* args) ;
   
 	void setIsLeader(bool isLeader)
   {
