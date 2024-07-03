@@ -33,27 +33,6 @@ class RaftServiceImpl : public RaftService {
                   ballot_t* reply_term,
                   bool_t *vote_granted,
                   rrr::DeferredReply* defer) override;
-
-  void Vote2FPGA(const uint64_t& lst_log_idx,
-                  const ballot_t& lst_log_term,
-                  const parid_t& can_id,
-                  const ballot_t& can_term,
-                  ballot_t* reply_term,
-                  bool_t *vote_granted,
-                  rrr::DeferredReply* defer) override;
-
-	void AppendEntries2(const uint64_t& slot,
-                      const ballot_t& ballot,
-                      const uint64_t& leaderCurrentTerm,
-                      const uint64_t& leaderPrevLogIndex,
-                      const uint64_t& leaderPrevLogTerm,
-											const uint64_t& leaderCommitIndex,
-											const DepId& dep_id,
-                      const MarshallDeputy& md_cmd,
-                      uint64_t *followerAppendOK,
-											uint64_t *followerCurrentTerm,
-                      uint64_t *followerLastLogIndex,
-                      rrr::DeferredReply* defer);
   
 	void AppendEntries(const uint64_t& slot,
                      const ballot_t& ballot,

@@ -63,7 +63,6 @@ class RaftServer : public TxLogServer {
   // Distribution client2follower_;
   
 	bool RequestVote() ;
-  void RequestVote2FPGA() ;
 
 	void Setup();
 	static void* HeartbeatLoop(void* args) ;
@@ -252,15 +251,6 @@ class RaftServer : public TxLogServer {
                       ballot_t *reply_term,
                       bool_t *vote_granted,
                       const function<void()> &cb) ;
-
-  void OnVote2FPGA(const slotid_t& lst_log_idx,
-                      const ballot_t& lst_log_term,
-                      const parid_t& can_id,
-                      const ballot_t& can_term,
-                      ballot_t *reply_term,
-                      bool_t *vote_granted,
-                      const function<void()> &cb) ;
-
 
   void OnAppendEntries(const slotid_t slot_id,
                        const ballot_t ballot,

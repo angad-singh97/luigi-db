@@ -347,53 +347,5 @@ RaftCommo::BroadcastVote(parid_t par_id,
   return e;
 }
 
-void RaftCommo::BroadcastVote2FPGA(parid_t par_id,
-                                        slotid_t lst_log_idx,
-                                        ballot_t lst_log_term,
-                                        parid_t self_id,
-                                        ballot_t cur_term,
-                                       const function<void(Future*)>& cb) {
-  verify(0); // deprecated function
-  auto proxies = rpc_par_proxies_[par_id];
-  for (auto& p : proxies) {
-    auto proxy = (RaftProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = cb;
-    Future::safe_release(proxy->async_Vote(lst_log_idx, lst_log_term, self_id,cur_term, fuattr));
-  }
-}
-
-shared_ptr<RaftVote2FPGAQuorumEvent>
-RaftCommo::BroadcastVote2FPGA(parid_t par_id,
-                                    slotid_t lst_log_idx,
-                                    ballot_t lst_log_term,
-                                    parid_t self_id,
-                                    ballot_t cur_term ) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<RaftVote2FPGAQuorumEvent>(n, n/2);
-  auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    if (p.first == this->loc_id_)
-        continue;
-    auto proxy = (RaftProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
-      if (fu->get_error_code() != 0) {
-        Log_info("Get a error message in reply");
-        return;
-      }
-      ballot_t term = 0;
-      bool_t vote = false ;
-      fu->get_reply() >> term;
-      fu->get_reply() >> vote ;
-      e->FeedResponse(vote, term);
-    };
-    Future::safe_release(proxy->async_Vote(lst_log_idx, lst_log_term, self_id, cur_term, fuattr));
-  }
-  return e;
-}
-
-
 
 } // namespace janus

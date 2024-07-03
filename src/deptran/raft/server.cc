@@ -91,115 +91,6 @@ RaftServer::~RaftServer() {
     // Log_info("site par %d, loc %d: client2follower 50pct: %.2f 90pct: %.2f 99pct: %.2f", partition_id_, loc_id_, client2follower_.pct50(), client2follower_.pct90(), client2follower_.pct99());
 }
 
-void RaftServer::RequestVote2FPGA() {
-
-  // currently don't request vote if no log
-  if(this->commo_ == NULL || lastLogIndex == 0 ) return ;
-
-  parid_t par_id = this->frame_->site_info_->partition_id_ ;
-  parid_t loc_id = this->frame_->site_info_->locale_id ;
-
-  if(paused_) {
-      resetTimer() ;
-      Log_debug("fpga raft server %d request vote to fpga rejected due to paused", loc_id );
-      // req_voting_ = false ;
-      return ;
-  }
-
-  Log_debug("fpga raft server %d in request vote to fpga", loc_id );
-
-  uint32_t lstoff = 0  ;
-  slotid_t lst_idx = 0 ;
-  ballot_t lst_term = 0 ;
-
-  {
-    std::lock_guard<std::recursive_mutex> lock(mtx_);
-    // TODO set fpga isleader false, recheck 
-    setIsFPGALeader(false) ;
-    currentTerm++ ;
-    lstoff = lastLogIndex - snapidx_ ;
-    auto log = GetRaftInstance(lstoff) ;
-    lst_idx = lstoff + snapidx_ ;
-    lst_term = log->term ;
-  }
-  
-  auto sp_quorum = ((RaftCommo *)(this->commo_))->BroadcastVote2FPGA(par_id,lst_idx,lst_term,loc_id, currentTerm );
-  sp_quorum->Wait();
-  std::lock_guard<std::recursive_mutex> lock1(mtx_);
-  if (sp_quorum->Yes()) {
-    // become a leader
-    setIsFPGALeader(true) ;
-    Log_debug("vote accepted %d curterm %d", loc_id, currentTerm);
-  } else if (sp_quorum->No()) {
-    // become a follower
-    Log_debug("vote rejected %d", loc_id);
-    setIsFPGALeader(false) ;
-    //reset cur term if new term is higher
-    ballot_t new_term = sp_quorum->Term() ;
-    currentTerm = new_term > currentTerm? new_term : currentTerm ;
-  } else {
-    // TODO process timeout.
-    Log_debug("vote timeout %d", loc_id);
-  }
-  req_voting_ = false ;
-}
-
-void RaftServer::OnVote2FPGA(const slotid_t& lst_log_idx,
-                            const ballot_t& lst_log_term,
-                            const parid_t& can_id,
-                            const ballot_t& can_term,
-                            ballot_t *reply_term,
-                            bool_t *vote_granted,
-                            const function<void()> &cb) {
-
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("fpga raft receives vote from candidate: %llx", can_id);
-
-  uint64_t cur_term = currentTerm ;
-  if( can_term < cur_term)
-  {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
-    return ;
-  }
-
-  // has voted to a machine in the same term, vote no
-  // TODO when to reset the vote_for_??
-//  if( can_term == cur_term && vote_for_ != INVALID_PARID )
-  if( can_term == cur_term)
-  {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
-    return ;
-  }
-
-  // lstoff starts from 1
-  uint32_t lstoff = lastLogIndex - snapidx_ ;
-
-  ballot_t curlstterm = snapterm_ ;
-  slotid_t curlstidx = lastLogIndex ;
-
-  if(lstoff > 0 )
-  {
-    auto log = GetRaftInstance(lstoff) ;
-    curlstterm = log->term ;
-  }
-
-  Log_debug("vote for lstoff %d, curlstterm %d, curlstidx %d", lstoff, curlstterm, curlstidx  );
-
-
-  // TODO del only for test 
-  verify(lstoff == lastLogIndex ) ;
-
-  if( lst_log_term > curlstterm || (lst_log_term == curlstterm && lst_log_idx >= curlstidx) )
-  {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, true, cb) ;
-    return ;
-  }
-
-  doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
-
-}
-
-
 bool RaftServer::RequestVote() {
   for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
 
@@ -249,7 +140,6 @@ bool RaftServer::RequestVote() {
     auto sp_m = dynamic_pointer_cast<Marshallable>(empty_cmd);
     ((CoordinatorRaft*)co)->Submit(sp_m);
     
-    //RequestVote2FPGA() ;
     if(IsLeader())
     {
 	  	//for(int i = 0; i < 100; i++) Log_info("wait wait wait");
