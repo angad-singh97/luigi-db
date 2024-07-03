@@ -10,13 +10,6 @@
 
 namespace janus {
 
-bool RaftServer::looping = false;
-
-struct hb_loop_args_type {
-	RaftCommo* commo;
-	RaftServer* sch;
-};
-
 RaftServer::RaftServer(Frame * frame) {
   frame_ = frame ;
   setIsFPGALeader(frame_->site_info_->locale_id == 0) ;
@@ -26,65 +19,9 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
-	if (heartbeat_ && !RaftServer::looping && IsLeader()) {
-		Log_info("starting loop at server");
-		RaftServer::looping = true;
-		memset(&loop_th_, 0, sizeof(loop_th_));
-		hb_loop_args_type* hb_loop_args = new hb_loop_args_type();
-		hb_loop_args->commo = (RaftCommo*) commo();
-		hb_loop_args->sch = this;
-		verify(hb_loop_args->commo && hb_loop_args->sch);
-		Pthread_create(&loop_th_, nullptr, RaftServer::HeartbeatLoop, hb_loop_args);
-	}
-}
-
-void* RaftServer::HeartbeatLoop(void* args) {
-	hb_loop_args_type* hb_loop_args = (hb_loop_args_type*) args;
-
-	RaftServer::looping = true;
-	while(RaftServer::looping) {
-		usleep(100*1000);
-		uint64_t prevLogIndex = hb_loop_args->sch->lastLogIndex;	
-		
-		auto instance = hb_loop_args->sch->GetRaftInstance(prevLogIndex);
-		auto term = instance->term;
-		auto prevTerm = instance->prevTerm;
-		auto ballot = instance->ballot;
-		auto slot = instance->slot_id;
-		shared_ptr<Marshallable> cmd = instance->log_;
-		
-		
-		parid_t partition_id = hb_loop_args->sch->partition_id_;
-		hb_loop_args->commo->BroadcastHeartbeat(partition_id, prevLogIndex);
-
-		auto matcheds = hb_loop_args->commo->matchedIndex;
-		for (auto it = matcheds.begin(); it != matcheds.end(); it++) {
-			if (prevLogIndex > it->second + 10000 && cmd) {
-				Log_info("leader_id: %d vs follower_id for %d: %d", prevLogIndex, it->first, it->second);
-				//hb_loop_args->commo->SendHeartbeat(partition_id, it->first, prevLogIndex);
-				hb_loop_args->commo->SendAppendEntriesAgain(it->first,
-																				partition_id,
-                                        slot,
-                                        ballot,
-                                        hb_loop_args->sch->IsLeader(),
-                                        term,
-                                        prevLogIndex,
-                                        prevTerm,
-                                        hb_loop_args->sch->commitIndex,
-                                        cmd);
-			}
-		}
-	}
-	delete hb_loop_args;
-	return nullptr;
 }
 
 RaftServer::~RaftServer() {
-		if (heartbeat_ && RaftServer::looping) {
-			RaftServer::looping = false;
-			Pthread_join(loop_th_, nullptr);
-		}
-    
 		stop_ = true ;
     Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", partition_id_, loc_id_, n_prepare_, n_accept_, 
     n_commit_);

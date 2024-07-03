@@ -55,8 +55,6 @@ class RaftServer : public TxLogServer {
   atomic<int64_t> counter_{0};
   const char *filename = "/db/data.txt";
 
-	static bool looping;
-	bool heartbeat_ = false;
 	enum { STOPPED, RUNNING } status_;
 	pthread_t loop_th_;
 
