@@ -53,7 +53,6 @@ class RaftServer : public TxLogServer {
   bool in_applying_logs_ = false ;
   bool failover_{false} ; // xxx: need to change to true
   atomic<int64_t> counter_{0};
-  const char *filename = "/db/data.txt";
 
 	enum { STOPPED, RUNNING } status_;
 	pthread_t loop_th_;
@@ -189,26 +188,9 @@ class RaftServer : public TxLogServer {
 					kv_vector.push_back(key_value);
 				}
 			}
-
-			// struct KeyValue key_values[kv_vector.size()];
-			// std::copy(kv_vector.begin(), kv_vector.end(), key_values);
-
-			// auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
-			
-			// struct timespec begin, end;
-			// //clock_gettime(CLOCK_MONOTONIC, &begin);
-      // de->Wait();
-			//clock_gettime(CLOCK_MONOTONIC, &end);
-			//Log_info("Time of Write: %d", end.tv_nsec - begin.tv_nsec);
     } else {
 			int value = -1;
 			int value_;
-			// auto de = IO::write(filename, &value, sizeof(int), 1);
-			struct timespec begin, end;
-			//clock_gettime(CLOCK_MONOTONIC, &begin);
-      // de->Wait();
-			//clock_gettime(CLOCK_MONOTONIC, &end);
-			//Log_info("Time of Write: %d", end.tv_nsec - begin.tv_nsec);
     }
     *term = currentTerm ;
   }
