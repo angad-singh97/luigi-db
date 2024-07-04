@@ -130,10 +130,6 @@ class RaftServer : public TxLogServer {
   // Volatile state on leaders
   
   
-  // Need to be discard
-  bool req_voting_ = false ;
-  bool paused_ = false ;
-
 
   // Need to be understood
   int32_t wait_int_ = 1 * 1000 * 1000 ; // 1s

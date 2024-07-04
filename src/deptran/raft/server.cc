@@ -33,14 +33,6 @@ bool RaftServer::RequestVote() {
   parid_t par_id = this->frame_->site_info_->partition_id_ ;
   parid_t loc_id = this->frame_->site_info_->locale_id ;
 
-
-  if(paused_) {
-      Log_debug("fpga raft server %d request vote rejected due to paused", loc_id );
-      resetTimer() ;
-      // req_voting_ = false ;
-      return false;
-  }
-
   Log_debug("fpga raft server %d in request vote", loc_id );
 
   uint32_t lstoff = 0  ;
@@ -82,7 +74,6 @@ bool RaftServer::RequestVote() {
     {
 	  	//for(int i = 0; i < 100; i++) Log_info("wait wait wait");
       Log_debug("vote accepted %d curterm %d", loc_id, currentTerm);
-  		req_voting_ = false ;
 			return true;
     }
     else
@@ -104,12 +95,10 @@ bool RaftServer::RequestVote() {
     //reset cur term if new term is higher
     ballot_t new_term = sp_quorum->Term() ;
     currentTerm = new_term > currentTerm? new_term : currentTerm ;
-  	req_voting_ = false ;
 		return false;
   } else {
     // TODO process timeout.
     Log_debug("vote timeout %d", loc_id);
-  	req_voting_ = false ;
 		return false;
   }
 }
@@ -183,14 +172,7 @@ void RaftServer::StartTimer()
                 if ( !IsLeader() && timer_->elapsed() > duration) {
                     Log_info(" timer time out") ;
                     // ask to vote
-                    // req_voting_ = true ;
                     RequestVote() ;
-                    /*while(req_voting_)
-                    {
-                      auto sp_e1 = Reactor::CreateSpEvent<TimeoutEvent>(wait_int_);
-                      sp_e1->Wait(wait_int_) ;
-                      if(stop_) return ;
-                    }*/
                     Log_debug("start a new timer") ;
                     resetTimer() ;
                     duration = randDuration() ;
