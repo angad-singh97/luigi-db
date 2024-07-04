@@ -174,18 +174,6 @@ void CoordinatorRaft::AppendEntries() {
 }
 
 void CoordinatorRaft::Commit() {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  // Log_info("About to commit slot %d <%d, %d> key %d", slot_id_,
-  //   SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second, SimpleRWCommand::GetKey(cmd_));
-  commit_callback_();
-  Log_debug("fpga-raft broadcast commit for partition: %d, slot %d",
-            (int) par_id_, (int) slot_id_);
-  commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, curr_ballot_, cmd_);
-  verify(phase_ == Phase::COMMIT);
-  GotoNextPhase();
-}
-
-void CoordinatorRaft::LeaderLearn() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     commit_callback_();
     uint64_t prevCommitIndex = this->sch_->commitIndex;
@@ -222,7 +210,7 @@ void CoordinatorRaft::GotoNextPhase() {
     case Phase::ACCEPT:
       verify(phase_ % n_phase == Phase::COMMIT);
       if (committed_) {
-        LeaderLearn();
+        Commit();
       } else {
         verify(0);
       }
