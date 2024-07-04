@@ -35,24 +35,23 @@ struct KeyValue {
 
 class RaftServer : public TxLogServer {
  private:
+
+  bool is_leader_ = false;
+
+  // For timer and leader election
   Timer *timer_;
-  bool stop_ = false ;
-  parid_t vote_for_ = INVALID_PARID ;
-  bool init_ = false ;
-  bool is_leader_ = false ;
-  slotid_t snapidx_ = 0 ;
-  ballot_t snapterm_ = 0 ;
-  int32_t wait_int_ = 1 * 1000 * 1000 ; // 1s
-  bool paused_ = false ;
-  bool req_voting_ = false ;
-  bool in_applying_logs_ = false ;
+  bool stop_ = false;
+  bool init_ = false;
 #ifdef RAFT_LEADER_ELECTION_LOGIC
   bool failover_{true};
 #endif
 #ifndef RAFT_LEADER_ELECTION_LOGIC
   bool failover_{false};
 #endif
-  atomic<int64_t> counter_{0};
+
+  // For snapshot
+  slotid_t snapidx_ = 0;
+  ballot_t snapterm_ = 0;
 
 	bool RequestVote() ;
 
@@ -116,18 +115,36 @@ class RaftServer : public TxLogServer {
     return 4 + RandomGenerator::rand(0, 6) ;
   }
  public:
-  slotid_t min_active_slot_ = 1; // anything before (lt) this slot is freed
-  slotid_t max_executed_slot_ = 0;
-  slotid_t max_committed_slot_ = 0;
-  map<slotid_t, shared_ptr<RaftData>> logs_{};
 
+  // Persistent state on all servers
+  uint64_t currentTerm = 0;
+  parid_t vote_for_ = INVALID_PARID ;
+  map<slotid_t, shared_ptr<RaftData>> logs_{};
+  map<slotid_t, shared_ptr<RaftData>> raft_logs_{};
+
+  // Volatile state on all servers
+  slotid_t min_active_slot_ = 1; // anything before (lt) this slot is freed
+  slotid_t max_committed_slot_ = 0;
+  slotid_t max_executed_slot_ = 0;
+
+  // Volatile state on leaders
+  
+  
+  // Need to be discard
+  bool req_voting_ = false ;
+  bool paused_ = false ;
+
+
+  // Need to be understood
+  int32_t wait_int_ = 1 * 1000 * 1000 ; // 1s
+  bool in_applying_logs_ = false ;
+  atomic<int64_t> counter_{0};
   /* NOTE: I think I should move these to the RaftData class */
   /* TODO: talk to Shuai about it */
   uint64_t lastLogIndex = 0;
-  uint64_t currentTerm = 0;
   uint64_t commitIndex = 0;
   uint64_t executeIndex = 0;
-  map<slotid_t, shared_ptr<RaftData>> raft_logs_{};
+  
 
   void StartTimer() ;
 
