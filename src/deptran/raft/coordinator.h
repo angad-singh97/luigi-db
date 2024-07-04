@@ -34,7 +34,6 @@ class CoordinatorRaft : public Coordinator {
   uint32_t n_replica_ = 0;   // TODO
   slotid_t slot_id_ = 0;
   slotid_t *slot_hint_ = nullptr;
-  uint64_t cmt_idx_ = 0 ;
 
   uint32_t n_replica() {
     verify(n_replica_ > 0);
@@ -48,10 +47,6 @@ class CoordinatorRaft : public Coordinator {
     verify(slot_hint_ != nullptr);
     slot_id_ = (*slot_hint_)++;
     return 0;
-  }
-
-  uint32_t GetQuorum() {
-    return n_replica() / 2 + 1;
   }
 
   void DoTxAsync(TxRequest &req) override {}

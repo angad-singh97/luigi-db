@@ -35,8 +35,6 @@ struct KeyValue {
 
 class RaftServer : public TxLogServer {
  private:
-   std::vector<std::thread> timer_threads_ = {};
-  void timer_thread(bool *vote) ;
   Timer *timer_;
   bool stop_ = false ;
   parid_t vote_for_ = INVALID_PARID ;
@@ -55,9 +53,6 @@ class RaftServer : public TxLogServer {
   bool failover_{false};
 #endif
   atomic<int64_t> counter_{0};
-
-	enum { STOPPED, RUNNING } status_;
-	pthread_t loop_th_;
 
 	bool RequestVote() ;
 
@@ -97,7 +92,6 @@ class RaftServer : public TxLogServer {
           //reset timeout
           //resetTimer() ;
       }
-      n_vote_++ ;
       cb() ;
   }
 
@@ -126,10 +120,6 @@ class RaftServer : public TxLogServer {
   slotid_t max_executed_slot_ = 0;
   slotid_t max_committed_slot_ = 0;
   map<slotid_t, shared_ptr<RaftData>> logs_{};
-  int n_vote_ = 0;
-  int n_prepare_ = 0;
-  int n_accept_ = 0;
-  int n_commit_ = 0;
 
   /* NOTE: I think I should move these to the RaftData class */
   /* TODO: talk to Shuai about it */
@@ -138,7 +128,6 @@ class RaftServer : public TxLogServer {
   uint64_t commitIndex = 0;
   uint64_t executeIndex = 0;
   map<slotid_t, shared_ptr<RaftData>> raft_logs_{};
-//  vector<shared_ptr<RaftData>> raft_logs_{};
 
   void StartTimer() ;
 
