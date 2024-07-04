@@ -28,7 +28,7 @@ RaftServer::~RaftServer() {
 }
 
 bool RaftServer::RequestVote() {
-  for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
+  Log_info("not calling the wrong method");
 
   // currently don't request vote if no log
   if(this->commo_ == NULL || lastLogIndex == 0 ) return false;
@@ -65,6 +65,9 @@ bool RaftServer::RequestVote() {
   std::lock_guard<std::recursive_mutex> lock1(mtx_);
   if (sp_quorum->Yes()) {
     // become a leader
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("loc_id=%d, setIsLeader %d", loc_id_, true);
+#endif
     setIsLeader(true) ;
 
     this->rep_frame_ = this->frame_ ;
@@ -73,6 +76,9 @@ bool RaftServer::RequestVote() {
     auto empty_cmd = std::make_shared<TpcEmptyCommand>();
     verify(empty_cmd->kind_ == MarshallDeputy::CMD_TPC_EMPTY);
     auto sp_m = dynamic_pointer_cast<Marshallable>(empty_cmd);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("before server %d submit empty cmd", loc_id_);
+#endif
     ((CoordinatorRaft*)co)->Submit(sp_m);
     
     if(IsLeader())
@@ -85,12 +91,18 @@ bool RaftServer::RequestVote() {
     else
     {
       Log_debug("fpga vote rejected %d curterm %d, do rollback", loc_id, currentTerm);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+      Log_info("loc_id=%d, setIsLeader %d", loc_id_, false);
+#endif
       setIsLeader(false) ;
     	return false;
 		}
   } else if (sp_quorum->No()) {
     // become a follower
     Log_debug("vote rejected %d", loc_id);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("loc_id=%d, setIsLeader %d", loc_id_, false);
+#endif
     setIsLeader(false) ;
     //reset cur term if new term is higher
     ballot_t new_term = sp_quorum->Term() ;
@@ -209,9 +221,13 @@ void RaftServer::StartTimer()
                                      uint64_t *followerCurrentTerm,
                                      uint64_t *followerLastLogIndex,
                                      const function<void()> &cb) {
-        // Log_info("OnAppendEntries svr %d", loc_id_);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+        Log_info("OnAppendEntries svr %d", loc_id_);
+#endif
         std::lock_guard<std::recursive_mutex> lock(mtx_);
-        // StartTimer() ; //xxx: need to uncomment
+#ifdef RAFT_LEADER_ELECTION_LOGIC
+        StartTimer();
+#endif
         
         Log_debug("fpga-raft scheduler on append entries for "
                 "slot_id: %llx, loc: %d, PrevLogIndex: %d",
@@ -223,6 +239,9 @@ void RaftServer::StartTimer()
             if (leaderCurrentTerm > this->currentTerm) {
                 currentTerm = leaderCurrentTerm;
                 Log_debug("server %d, set to be follower", loc_id_ ) ;
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+                Log_info("loc_id=%d, setIsLeader %d", loc_id_, false);
+#endif
                 setIsLeader(false) ;
             }
 

@@ -48,7 +48,12 @@ class RaftServer : public TxLogServer {
   bool paused_ = false ;
   bool req_voting_ = false ;
   bool in_applying_logs_ = false ;
-  bool failover_{false} ; // xxx: need to change to true
+#ifdef RAFT_LEADER_ELECTION_LOGIC
+  bool failover_{true};
+#endif
+#ifndef RAFT_LEADER_ELECTION_LOGIC
+  bool failover_{false};
+#endif
   atomic<int64_t> counter_{0};
 
 	enum { STOPPED, RUNNING } status_;

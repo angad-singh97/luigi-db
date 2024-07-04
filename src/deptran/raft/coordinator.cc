@@ -168,10 +168,16 @@ void CoordinatorRaft::GotoNextPhase() {
     case Phase::INIT_END:
       if (IsLeader()) {
         verify(phase_ % n_phase == Phase::ACCEPT);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+        Log_info("before server %d AppendEntries", loc_id_);
+#endif
         AppendEntries();
       } else {
-        // TODO: forward to leader
-        verify(0);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+        Log_info("server %d received a command as a follower", loc_id_);
+#endif
+        // TODO: forward to leader or do nothing just waiting for client resend to others
+        // verify(0);
       }
       break;
     case Phase::ACCEPT:

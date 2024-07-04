@@ -164,5 +164,6 @@ namespace janus {
 // #define CPU_PROFILE_SEVER
 // #define WITNESS_LOG_DEBUG
 #define FAILOVER_DEBUG
-
+// #define RAFT_LEADER_ELECTION_LOGIC
+// #define RAFT_LEADER_ELECTION_DEBUG
 } // namespace janus
