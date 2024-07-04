@@ -42,9 +42,6 @@ class RaftServer : public TxLogServer {
   parid_t vote_for_ = INVALID_PARID ;
   bool init_ = false ;
   bool is_leader_ = false ;
-  bool fpga_is_leader_ = false ;  
-  uint64_t fpga_lastLogIndex = 0;
-  uint64_t fpga_commitIndex = 0;
   slotid_t snapidx_ = 0 ;
   ballot_t snapterm_ = 0 ;
   int32_t wait_int_ = 1 * 1000 * 1000 ; // 1s
@@ -57,8 +54,6 @@ class RaftServer : public TxLogServer {
 	enum { STOPPED, RUNNING } status_;
 	pthread_t loop_th_;
 
-  // Distribution client2follower_;
-  
 	bool RequestVote() ;
 
 	void Setup();
@@ -70,18 +65,6 @@ class RaftServer : public TxLogServer {
     witness_.set_belongs_to_leader(isLeader);
   }
 
-  void setIsFPGALeader(bool isLeader)
-  {
-    Log_debug("set loc_id %d is fpga leader %d", loc_id_, isLeader) ;
-    fpga_is_leader_ = isLeader ;
-
-    if (isLeader) 
-    {
-      fpga_lastLogIndex = lastLogIndex ;
-      fpga_commitIndex = commitIndex ;
-    }
-    
-  }
   
   void doVote(const slotid_t& lst_log_idx,
                             const ballot_t& lst_log_term,
@@ -159,11 +142,6 @@ class RaftServer : public TxLogServer {
     return is_leader_ ;
   }
 
-  bool IsFPGALeader()
-  {
-    return fpga_is_leader_ ;
-  }
-  
   void SetLocalAppend(shared_ptr<Marshallable>& cmd, uint64_t* term, uint64_t* index, slotid_t slot_id = -1, ballot_t ballot = 1 ){
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     *index = lastLogIndex ;
@@ -253,14 +231,6 @@ class RaftServer : public TxLogServer {
                           const function<void()> &cb) ;
 
   void SpCommit(const uint64_t cmt_idx) ;
-
-  // virtual void Pause() override { 
-  //   paused_ = true ;
-  // }
-  // virtual void Resume() override {
-  //   paused_ = false ;
-  //   resetTimer() ;
-  // }
 
   virtual bool HandleConflicts(Tx& dtxn,
                                innid_t inn_id,

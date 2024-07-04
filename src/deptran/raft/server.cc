@@ -12,7 +12,6 @@ namespace janus {
 
 RaftServer::RaftServer(Frame * frame) {
   frame_ = frame ;
-  setIsFPGALeader(frame_->site_info_->locale_id == 0) ;
   setIsLeader(frame_->site_info_->locale_id == 0) ;
   stop_ = false ;
   timer_ = new Timer() ;
@@ -54,7 +53,6 @@ bool RaftServer::RequestVote() {
   {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     // TODO set fpga isleader false, recheck 
-    setIsFPGALeader(false) ;
     currentTerm++ ;
     lstoff = lastLogIndex - snapidx_ ;
     auto log = GetRaftInstance(lstoff) ;
@@ -117,8 +115,6 @@ void RaftServer::OnVote(const slotid_t& lst_log_idx,
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("fpga raft receives vote from candidate: %llx", can_id);
-
-  setIsFPGALeader(false) ;
 
   // TODO wait all the log pushed to fpga host
 
@@ -216,7 +212,6 @@ void RaftServer::StartTimer()
         // Log_info("OnAppendEntries svr %d", loc_id_);
         std::lock_guard<std::recursive_mutex> lock(mtx_);
         // StartTimer() ; xxx: need to uncomment
-        // client2follower_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
         
         Log_debug("fpga-raft scheduler on append entries for "
                 "slot_id: %llx, loc: %d, PrevLogIndex: %d",

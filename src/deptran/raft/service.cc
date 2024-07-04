@@ -46,22 +46,6 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
                                         uint64_t *followerLastLogIndex,
                                         rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-	//Log_info("CreateRunning2");
-
-
-	/*if (ballot == 1000000000 || leaderPrevLogIndex + 1 < sched_->lastLogIndex) {
-		*followerAppendOK = 1;
-		*followerCurrentTerm = leaderCurrentTerm;
-		*followerLastLogIndex = sched_->lastLogIndex + 1;
-		/*for (int i = 0; i < 1000000; i++) {
-			for (int j = 0; j < 1000; j++) {
-				Log_info("wow: %d %d", leaderPrevLogIndex, sched_->lastLogIndex);
-			}
-		}
-		defer->reply();
-		return;
-	}*/
-
 
   Coroutine::CreateRun([&] () {
     sched_->OnAppendEntries(slot,
@@ -87,7 +71,6 @@ void RaftServiceImpl::Decide(const uint64_t& slot,
                                    const MarshallDeputy& md_cmd,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-	//Log_info("Deciding with string: %s and id: %d", dep_id.str.c_str(), dep_id.id);
   Coroutine::CreateRun([&] () {
     sched_->OnCommit(slot,
                      ballot,

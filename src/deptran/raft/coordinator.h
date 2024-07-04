@@ -20,8 +20,6 @@ class CoordinatorRaft : public Coordinator {
     return (RaftCommo *) commo_;
   }
   bool in_submission_ = false; // debug;
-  bool in_prepare_ = false; // debug
-  bool in_accept = false; // debug
   bool in_append_entries = false; // debug
   uint64_t minIndex = 0;
 
@@ -44,7 +42,6 @@ class CoordinatorRaft : public Coordinator {
   }
 
   bool IsLeader() ;
-  bool IsFPGALeader() ;
 
   slotid_t GetNextSlot() {
     verify(0);
