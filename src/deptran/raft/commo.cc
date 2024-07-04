@@ -143,41 +143,6 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
   return e;
 }
 
-void RaftCommo::BroadcastAppendEntries(parid_t par_id,
-                                           slotid_t slot_id,
-																					 i64 dep_id,
-                                           ballot_t ballot,
-                                           uint64_t currentTerm,
-                                           uint64_t prevLogIndex,
-                                           uint64_t prevLogTerm,
-                                           uint64_t commitIndex,
-                                           shared_ptr<Marshallable> cmd,
-                                           const function<void(Future*)>& cb) {
-  verify(0); // deprecated function
-  auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
-  for (auto& p : proxies) {
-    auto proxy = (RaftProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = cb;
-    MarshallDeputy md(cmd);
-		DepId di;
-		di.str = "dep";
-		di.id = dep_id;
-    auto f = proxy->async_AppendEntries(slot_id, 
-                                        ballot, 
-                                        currentTerm,
-                                        prevLogIndex,
-                                        prevLogTerm,
-                                        commitIndex,
-																				di,
-                                        md, 
-                                        fuattr);
-    Future::safe_release(f);
-  }
-//  verify(0);
-}
-
 void RaftCommo::BroadcastDecide(const parid_t par_id,
                                       const slotid_t slot_id,
 																			const i64 dep_id,
@@ -195,22 +160,6 @@ void RaftCommo::BroadcastDecide(const parid_t par_id,
 		di.id = dep_id;
     auto f = proxy->async_Decide(slot_id, ballot, di, md, fuattr);
     Future::safe_release(f);
-  }
-}
-
-void RaftCommo::BroadcastVote(parid_t par_id,
-                                        slotid_t lst_log_idx,
-                                        ballot_t lst_log_term,
-                                        parid_t self_id,
-                                        ballot_t cur_term,
-                                       const function<void(Future*)>& cb) {
-  verify(0); // deprecated function
-  auto proxies = rpc_par_proxies_[par_id];
-  for (auto& p : proxies) {
-    auto proxy = (RaftProxy*) p.second;
-    FutureAttr fuattr;
-    fuattr.callback = cb;
-    Future::safe_release(proxy->async_Vote(lst_log_idx, lst_log_term, self_id,cur_term, fuattr));
   }
 }
 

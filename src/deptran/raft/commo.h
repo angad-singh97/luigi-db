@@ -21,23 +21,6 @@ class RaftForwardQuorumEvent: public QuorumEvent {
   }
 };
 
-class RaftPrepareQuorumEvent: public QuorumEvent {
- public:
-  using QuorumEvent::QuorumEvent;
-//  ballot_t max_ballot_{0};
-  bool HasAcceptedValue() {
-    // TODO implement this
-    return false;
-  }
-  void FeedResponse(bool y) {
-    if (y) {
-      VoteYes();
-    } else {
-      VoteNo();
-    }
-  }
-};
-
 class RaftVoteQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
@@ -58,21 +41,6 @@ class RaftVoteQuorumEvent: public QuorumEvent {
   
   int64_t Term() {
     return highest_term_;
-  }
-};
-
-class RaftAcceptQuorumEvent: public QuorumEvent {
- public:
-  using QuorumEvent::QuorumEvent;
-  void FeedResponse(bool y) {
-    if (y) {
-      VoteYes();
-    } else {
-      VoteNo();
-    }
-    /*Log_debug("multi-paxos comm accept event, "
-              "yes vote: %d, no vote: %d",
-              n_voted_yes_, n_voted_no_);*/
   }
 };
 
@@ -109,36 +77,12 @@ friend class RaftProxy;
   RaftCommo(PollMgr*);
   shared_ptr<RaftForwardQuorumEvent>
   SendForward(parid_t par_id, parid_t self_id, shared_ptr<Marshallable> cmd);  
-  shared_ptr<RaftPrepareQuorumEvent>
-  BroadcastPrepare(parid_t par_id,
-                   slotid_t slot_id,
-                   ballot_t ballot);
-  void BroadcastPrepare(parid_t par_id,
-                        slotid_t slot_id,
-                        ballot_t ballot,
-                        const function<void(Future *fu)> &callback);
   shared_ptr<RaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
                         slotid_t lst_log_idx,
                         ballot_t lst_log_term,
                         parid_t self_id,
-                        ballot_t cur_term );
-  void BroadcastVote(parid_t par_id,
-                        slotid_t lst_log_idx,
-                        ballot_t lst_log_term,
-                        parid_t self_id,
-                        ballot_t cur_term,
-                        const function<void(Future *fu)> &callback);  
-  shared_ptr<RaftAcceptQuorumEvent>
-  BroadcastAccept(parid_t par_id,
-                  slotid_t slot_id,
-                  ballot_t ballot,
-                  shared_ptr<Marshallable> cmd);
-  void BroadcastAccept(parid_t par_id,
-                       slotid_t slot_id,
-                       ballot_t ballot,
-                       shared_ptr<Marshallable> cmd,
-                       const function<void(Future*)> &callback);
+                        ballot_t cur_term ); 
   shared_ptr<RaftAppendQuorumEvent>
   BroadcastAppendEntries(parid_t par_id,
                          siteid_t leader_site_id,
@@ -151,16 +95,6 @@ friend class RaftProxy;
                          uint64_t prevLogTerm,
                          uint64_t commitIndex,
                          shared_ptr<Marshallable> cmd);
-  void BroadcastAppendEntries(parid_t par_id,
-                              slotid_t slot_id,
-															i64 dep_id,
-                              ballot_t ballot,
-                              uint64_t currentTerm,
-                              uint64_t prevLogIndex,
-                              uint64_t prevLogTerm,
-                              uint64_t commitIndex,
-                              shared_ptr<Marshallable> cmd,
-                              const function<void(Future*)> &callback);
   void BroadcastDecide(const parid_t par_id,
                        const slotid_t slot_id,
 											 const i64 dep_id,

@@ -10,7 +10,6 @@ class RaftCommo;
 class RaftServer;
 class CoordinatorRaft : public Coordinator {
  public:
-//  static ballot_t next_slot_s;
   RaftServer* sch_ = nullptr;
  private:
   enum Phase { INIT_END = 0, ACCEPT = 1, COMMIT = 2};
