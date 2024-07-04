@@ -8,19 +8,6 @@ namespace janus {
 
 class TxData;
 
-class RaftForwardQuorumEvent: public QuorumEvent {
- public:
-  using QuorumEvent::QuorumEvent;
-  uint64_t CommitIdx()
-  {
-    return cmt_idx_ ;
-  }
-  void FeedResponse(uint64_t cmt_idx) {
-    VoteYes();
-    cmt_idx_ = cmt_idx ;
-  }
-};
-
 class RaftVoteQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
@@ -75,8 +62,6 @@ friend class RaftProxy;
 	
   RaftCommo() = delete;
   RaftCommo(PollMgr*);
-  shared_ptr<RaftForwardQuorumEvent>
-  SendForward(parid_t par_id, parid_t self_id, shared_ptr<Marshallable> cmd);  
   shared_ptr<RaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
                         slotid_t lst_log_idx,

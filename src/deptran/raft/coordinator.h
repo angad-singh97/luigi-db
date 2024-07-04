@@ -55,9 +55,6 @@ class CoordinatorRaft : public Coordinator {
   }
 
   void DoTxAsync(TxRequest &req) override {}
-  void Forward(shared_ptr<Marshallable> &cmd,
-              const std::function<void()> &func = []() {},
-              const std::function<void()> &exe_callback = []() {}) ;
 
   void Submit(shared_ptr<Marshallable> &cmd,
               const std::function<void()> &func = []() {},

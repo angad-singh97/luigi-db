@@ -202,9 +202,6 @@ abstract service FpgaRaft {
 }
 
 abstract service Raft {
-  defer Forward(MarshallDeputy cmd |
-                uint64_t cmt_idx );
-
   defer Vote(uint64_t lst_log_idx,
                 ballot_t lst_log_term,
                 parid_t par_id,

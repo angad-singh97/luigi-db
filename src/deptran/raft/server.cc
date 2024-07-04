@@ -211,7 +211,7 @@ void RaftServer::StartTimer()
                                      const function<void()> &cb) {
         // Log_info("OnAppendEntries svr %d", loc_id_);
         std::lock_guard<std::recursive_mutex> lock(mtx_);
-        // StartTimer() ; xxx: need to uncomment
+        // StartTimer() ; //xxx: need to uncomment
         
         Log_debug("fpga-raft scheduler on append entries for "
                 "slot_id: %llx, loc: %d, PrevLogIndex: %d",
@@ -286,26 +286,6 @@ void RaftServer::StartTimer()
 				}*/
         WAN_WAIT
         cb();
-    }
-
-    void RaftServer::OnForward(shared_ptr<Marshallable> &cmd, 
-                                          uint64_t *cmt_idx,
-                                          const function<void()> &cb) {
-        this->rep_frame_ = this->frame_ ;
-        auto co = ((TxLogServer *)(this))->CreateRepCoord(0);
-        ((CoordinatorRaft*)co)->Submit(cmd);
-        
-        std::lock_guard<std::recursive_mutex> lock(mtx_);
-        *cmt_idx = ((CoordinatorRaft*)co)->cmt_idx_ ;
-        if(IsLeader() || *cmt_idx == 0 )
-        {
-          Log_debug(" is leader");
-          *cmt_idx = this->commitIndex ;
-        }
-
-        verify(*cmt_idx != 0) ;
-        WAN_WAIT
-        cb() ;        
     }
 
   void RaftServer::OnCommit(const slotid_t slot_id,

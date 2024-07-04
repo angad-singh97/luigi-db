@@ -18,9 +18,6 @@ class RaftServiceImpl : public RaftService {
  public:
   RaftServer* sched_;
   RaftServiceImpl(TxLogServer* sched);
-  void Forward(const MarshallDeputy& cmd,
-               uint64_t *cmt_idx,
-               rrr::DeferredReply* defer) override;
 
   void Vote(const uint64_t& lst_log_idx,
                   const ballot_t& lst_log_term,

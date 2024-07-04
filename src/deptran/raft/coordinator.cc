@@ -23,31 +23,13 @@ bool CoordinatorRaft::IsLeader() {
    return this->sch_->IsLeader() ;
 }
 
-
-void CoordinatorRaft::Forward(shared_ptr<Marshallable>& cmd,
-                                   const function<void()>& func,
-                                   const function<void()>& exe_callback) {
-		verify(0) ; // TODO delete it
-    auto e = commo()->SendForward(par_id_, loc_id_, cmd);
-    e->Wait();
-    uint64_t cmt_idx = e->CommitIdx() ;
-    cmt_idx_ = cmt_idx ;
-    Coroutine::CreateRun([&] () {
-      this->sch_->SpCommit(cmt_idx) ;
-    }) ;
-}
-
-
 void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
-  // client2leader_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
-  if (!IsLeader()) {
-    //Log_fatal("i am not the leader; site %d; locale %d",
-    //          frame_->site_info_->id, loc_id_);
-    Forward(cmd, func, exe_callback) ;
-    return ;
-  }
+  // if (!IsLeader()) {
+  //   //forward to leader
+  //   return ;
+  // }
   
 	std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(!in_submission_);
@@ -152,11 +134,6 @@ void CoordinatorRaft::AppendEntries() {
     else if (sp_quorum->No()) {
         verify(0);
         // TODO should become a follower if the term is smaller
-        //if(!IsLeader())
-        {
-            Forward(cmd_,commit_callback_) ;
-            return ;
-        }
     }
     else {
         verify(0);
@@ -195,7 +172,6 @@ void CoordinatorRaft::GotoNextPhase() {
       } else {
         // TODO: forward to leader
         verify(0);
-        // Forward(cmd_,commit_callback_) ;
       }
       break;
     case Phase::ACCEPT:

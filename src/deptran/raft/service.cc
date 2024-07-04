@@ -11,15 +11,6 @@ RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
 	srand(curr_time.tv_nsec);
 }
 
-void RaftServiceImpl::Forward(const MarshallDeputy& cmd,
-                                    uint64_t* cmt_idx, 
-                                    rrr::DeferredReply* defer) {
-   verify(sched_ != nullptr);
-   sched_->OnForward(const_cast<MarshallDeputy&>(cmd).sp_data_, cmt_idx,
-                      std::bind(&rrr::DeferredReply::reply, defer));
-
-}
-
 void RaftServiceImpl::Vote(const uint64_t& lst_log_idx,
                                     const ballot_t& lst_log_term,
                                     const parid_t& can_id,

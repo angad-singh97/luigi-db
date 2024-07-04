@@ -13,38 +13,6 @@ RaftCommo::RaftCommo(PollMgr* poll) : Communicator(poll) {
 //  verify(poll != nullptr);
 }
 
-shared_ptr<RaftForwardQuorumEvent> RaftCommo::SendForward(parid_t par_id, 
-                                            parid_t self_id, shared_ptr<Marshallable> cmd)
-{
-    int n = Config::GetConfig()->GetPartitionSize(par_id);
-    auto e = Reactor::CreateSpEvent<RaftForwardQuorumEvent>(1,1);
-    parid_t fid = (self_id + 1 ) % n ;
-    if (fid != self_id + 1 )
-    {
-      // sleep for 2 seconds cos no leader
-      int32_t timeout = 2*1000*1000 ;
-      auto sp_e = Reactor::CreateSpEvent<TimeoutEvent>(timeout);
-      sp_e->Wait();    
-    }
-    auto proxies = rpc_par_proxies_[par_id];
-    WAN_WAIT;
-    auto proxy = (RaftProxy*) proxies[fid].second ;
-    FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
-      if (fu->get_error_code() != 0) {
-        Log_info("Get a error message in reply");
-        return;
-      }
-      uint64_t cmt_idx = 0;
-      fu->get_reply() >> cmt_idx;
-      e->FeedResponse(cmt_idx);
-    };    
-    MarshallDeputy md(cmd);
-    auto f = proxy->async_Forward(md, fuattr);
-    Future::safe_release(f);
-    return e;
-}
-
 shared_ptr<RaftAppendQuorumEvent>
 RaftCommo::BroadcastAppendEntries(parid_t par_id,
                                       siteid_t leader_site_id,
