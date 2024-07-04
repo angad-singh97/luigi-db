@@ -231,8 +231,6 @@ class RaftServer : public TxLogServer {
                 const ballot_t ballot,
                 shared_ptr<Marshallable> &cmd);
 
-  void SpCommit(const uint64_t cmt_idx) ;
-
   virtual bool HandleConflicts(Tx& dtxn,
                                innid_t inn_id,
                                vector<string>& conflicts) {

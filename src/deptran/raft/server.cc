@@ -344,30 +344,6 @@ void RaftServer::StartTimer()
 		/*clock_gettime(CLOCK_MONOTONIC, &end);
 		Log_info("time of decide on server: %d", (end.tv_sec - begin.tv_sec)*1000000000 + end.tv_nsec - begin.tv_nsec);*/
   }
-  void RaftServer::SpCommit(const uint64_t cmt_idx) {
-      verify(0) ; // TODO delete it
-      std::lock_guard<std::recursive_mutex> lock(mtx_);
-      Log_debug("fpga raft spcommit for index: %lx for server %d", cmt_idx, loc_id_);
-      verify(cmt_idx != 0 ) ;
-      if (cmt_idx < commitIndex) {
-          return ;
-      }
-
-      commitIndex = cmt_idx;
-
-      for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
-          auto next_instance = GetRaftInstance(id);
-          if (next_instance->log_) {
-              // WAN_WAIT
-              RuleWitnessGC(next_instance->log_);
-              app_next_(*next_instance->log_);
-              Log_debug("fpga-raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
-              executeIndex++;
-          } else {
-              break;
-          }
-      }
-  }
 
   void RaftServer::removeCmd(slotid_t slot) {
     auto cmd = dynamic_pointer_cast<TpcCommitCommand>(raft_logs_[slot]->log_);
