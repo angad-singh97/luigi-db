@@ -213,10 +213,10 @@ abstract service Raft {
                       uint64_t leader_term,
                       uint64_t leader_prev_log_index,
                       uint64_t leader_prev_log_term,
-                      uint64_t leader_commit_index,
-                      MarshallDeputy cmd |
-                      uint64_t follower_append_success,
+                      MarshallDeputy cmd,
+                      uint64_t leader_commit_index |
                       uint64_t follower_term,
+                      uint64_t follower_append_success,
                       uint64_t follower_last_log_index);
 
   defer Decide(uint64_t slot,

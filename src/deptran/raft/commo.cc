@@ -74,8 +74,8 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
       uint64_t term = 0;
       uint64_t index = 0;
 			
-			fu->get_reply() >> accept;
       fu->get_reply() >> term;
+			fu->get_reply() >> accept;
       fu->get_reply() >> index;
 			
 			struct timespec end;
@@ -95,8 +95,8 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
                                         currentTerm,
                                         prevLogIndex,
                                         prevLogTerm,
-                                        commitIndex,
                                         md, 
+                                        commitIndex,
                                         fuattr);
     Future::safe_release(f);
   }

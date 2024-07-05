@@ -192,10 +192,10 @@ void RaftServer::StartTimer()
                                      const uint64_t leader_term,
                                      const uint64_t leader_prev_log_index,
                                      const uint64_t leader_prev_log_term,
-                                     const uint64_t leader_commit_index,
                                      shared_ptr<Marshallable> &cmd,
-                                     uint64_t *follower_append_success,
+                                     const uint64_t leader_commit_index,
                                      uint64_t *follower_term,
+                                     uint64_t *follower_append_success,
                                      uint64_t *follower_last_log_index,
                                      const function<void()> &cb) {
 #ifdef RAFT_LEADER_ELECTION_DEBUG
