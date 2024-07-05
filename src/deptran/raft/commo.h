@@ -66,7 +66,7 @@ friend class RaftProxy;
   BroadcastRequestVote(parid_t par_id,
                        ballot_t candidate_term,
                        locid_t candidate_id,
-                       slotid_t last_log_idx,
+                       slotid_t last_log_index,
                        ballot_t last_log_term); 
   shared_ptr<RaftAppendQuorumEvent>
   BroadcastAppendEntries(parid_t par_id,

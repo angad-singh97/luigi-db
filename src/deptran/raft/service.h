@@ -21,7 +21,7 @@ class RaftServiceImpl : public RaftService {
 
   void RequestVote(const ballot_t& candidate_term,
                    const locid_t& candidate_id,
-                   const uint64_t& last_log_idx,
+                   const uint64_t& last_log_index,
                    const ballot_t& last_log_term,
                    ballot_t* reply_term,
                    bool_t* vote_granted,
@@ -29,15 +29,15 @@ class RaftServiceImpl : public RaftService {
     
 	void AppendEntries(const uint64_t& slot,
                      const ballot_t& ballot,
-                     const uint64_t& leaderCurrentTerm,
-                     const uint64_t& leaderPrevLogIndex,
-                     const uint64_t& leaderPrevLogTerm,
-                     const uint64_t& leaderCommitIndex,
+                     const uint64_t& leader_term,
+                     const uint64_t& leader_prev_log_index,
+                     const uint64_t& leader_prev_log_term,
+                     const uint64_t& leader_commit_index,
 										 const DepId& dep_id,
                      const MarshallDeputy& cmd,
-                     uint64_t *followerAppendOK,
-                     uint64_t *followerCurrentTerm,
-                     uint64_t *followerLastLogIndex,
+                     uint64_t *follower_append_success,
+                     uint64_t *follower_term,
+                     uint64_t *follower_last_log_index,
                      rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,

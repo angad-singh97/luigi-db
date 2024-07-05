@@ -105,7 +105,7 @@ bool RaftServer::RequestVote() {
 
 void RaftServer::OnRequestVote(const ballot_t& candidate_term,
                                const locid_t& candidate_id,
-                               const uint64_t& last_log_idx,
+                               const uint64_t& last_log_index,
                                const ballot_t& last_log_term,
                                ballot_t* reply_term,
                                bool_t* vote_granted,
@@ -119,7 +119,7 @@ void RaftServer::OnRequestVote(const ballot_t& candidate_term,
   uint64_t cur_term = currentTerm ;
   if( candidate_term < cur_term)
   {
-    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
+    doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
     return ;
   }
 
@@ -128,7 +128,7 @@ void RaftServer::OnRequestVote(const ballot_t& candidate_term,
 //  if( candidate_term == cur_term && vote_for_ != INVALID_LOCID )
   if( candidate_term == cur_term)
   {
-    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
+    doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
     return ;
   }
 
@@ -150,13 +150,13 @@ void RaftServer::OnRequestVote(const ballot_t& candidate_term,
   // TODO del only for test 
   verify(lstoff == lastLogIndex ) ;
 
-  if( last_log_term > curlstterm || (last_log_term == curlstterm && last_log_idx >= curlstidx) )
+  if( last_log_term > curlstterm || (last_log_term == curlstterm && last_log_index >= curlstidx) )
   {
-    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, true, cb) ;
+    doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, true, cb) ;
     return ;
   }
 
-  doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
+  doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
 
 }
 
@@ -190,15 +190,15 @@ void RaftServer::StartTimer()
  * should we exclude the execution of this function for leader? */
   void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                      const ballot_t ballot,
-                                     const uint64_t leaderCurrentTerm,
-                                     const uint64_t leaderPrevLogIndex,
-                                     const uint64_t leaderPrevLogTerm,
-                                     const uint64_t leaderCommitIndex,
+                                     const uint64_t leader_term,
+                                     const uint64_t leader_prev_log_index,
+                                     const uint64_t leader_prev_log_term,
+                                     const uint64_t leader_commit_index,
 																		 const struct DepId dep_id,
                                      shared_ptr<Marshallable> &cmd,
-                                     uint64_t *followerAppendOK,
-                                     uint64_t *followerCurrentTerm,
-                                     uint64_t *followerLastLogIndex,
+                                     uint64_t *follower_append_success,
+                                     uint64_t *follower_term,
+                                     uint64_t *follower_last_log_index,
                                      const function<void()> &cb) {
 #ifdef RAFT_LEADER_ELECTION_DEBUG
         Log_info("OnAppendEntries svr %d", loc_id_);
@@ -210,13 +210,13 @@ void RaftServer::StartTimer()
         
         Log_debug("fpga-raft scheduler on append entries for "
                 "slot_id: %llx, loc: %d, PrevLogIndex: %d",
-                slot_id, this->loc_id_, leaderPrevLogIndex);
-        if ((leaderCurrentTerm >= this->currentTerm) &&
-                (leaderPrevLogIndex <= this->lastLogIndex)
-                /* TODO: log[leaderPrevLogidex].term == leaderPrevLogTerm */) {
+                slot_id, this->loc_id_, leader_prev_log_index);
+        if ((leader_term >= this->currentTerm) &&
+                (leader_prev_log_index <= this->lastLogIndex)
+                /* TODO: log[leaderPrevLogidex].term == leader_prev_log_term */) {
             //resetTimer() ;
-            if (leaderCurrentTerm > this->currentTerm) {
-                currentTerm = leaderCurrentTerm;
+            if (leader_term > this->currentTerm) {
+                currentTerm = leader_term;
                 Log_debug("server %d, set to be follower", loc_id_ ) ;
 #ifdef RAFT_LEADER_ELECTION_DEBUG
                 Log_info("loc_id=%d, setIsLeader %d", loc_id_, false);
@@ -225,17 +225,17 @@ void RaftServer::StartTimer()
             }
 
 						//this means that this is a retry of a previous one for a simulation
-						/*if (slot_id == 100000000 || leaderPrevLogIndex + 1 < lastLogIndex) {
-							for (int i = 0; i < 1000000; i++) Log_info("Dropping this AE message: %d %d", leaderPrevLogIndex, lastLogIndex);
+						/*if (slot_id == 100000000 || leader_prev_log_index + 1 < lastLogIndex) {
+							for (int i = 0; i < 1000000; i++) Log_info("Dropping this AE message: %d %d", leader_prev_log_index, lastLogIndex);
 							//verify(0);
-							*followerAppendOK = 0;
+							*follower_append_success = 0;
 							cb();
 							return;
 						}*/
-            verify(this->lastLogIndex == leaderPrevLogIndex);
-            this->lastLogIndex = leaderPrevLogIndex + 1 /* TODO:len(ents) */;
+            verify(this->lastLogIndex == leader_prev_log_index);
+            this->lastLogIndex = leader_prev_log_index + 1 /* TODO:len(ents) */;
             uint64_t prevCommitIndex = this->commitIndex;
-            this->commitIndex = std::max(leaderCommitIndex, this->commitIndex);
+            this->commitIndex = std::max(leader_commit_index, this->commitIndex);
             /* TODO: Replace entries after s.log[prev] w/ ents */
             /* TODO: it should have for loop for multiple entries */
             auto instance = GetRaftInstance(lastLogIndex);
@@ -249,9 +249,9 @@ void RaftServer::StartTimer()
             //app_next_(*instance->log_); 
             verify(lastLogIndex > commitIndex);
 
-            *followerAppendOK = 1;
-            *followerCurrentTerm = this->currentTerm;
-            *followerLastLogIndex = this->lastLogIndex;
+            *follower_append_success = 1;
+            *follower_term = this->currentTerm;
+            *follower_last_log_index = this->lastLogIndex;
             
 						if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT){
               auto p_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
@@ -275,8 +275,8 @@ void RaftServer::StartTimer()
         }
         else {
             Log_debug("reject append loc: %d, leader term %d last idx %d, server term: %d last idx: %d",
-                this->loc_id_, leaderCurrentTerm, leaderPrevLogIndex, currentTerm, lastLogIndex);          
-            *followerAppendOK = 0;
+                this->loc_id_, leader_term, leader_prev_log_index, currentTerm, lastLogIndex);          
+            *follower_append_success = 0;
         }
 
 				/*if (rand() % 1000 == 0) {
