@@ -30,7 +30,6 @@ class CoordinatorRaft : public Coordinator {
                         ClientControlServiceImpl *ccsi,
                         uint32_t thread_id);
   ~CoordinatorRaft();
-  ballot_t curr_ballot_ = 1; // TODO
   uint32_t n_replica_ = 0;   // TODO
   slotid_t slot_id_ = 0;
   slotid_t *slot_hint_ = nullptr;

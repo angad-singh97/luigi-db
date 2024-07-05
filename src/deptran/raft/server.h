@@ -25,7 +25,6 @@ struct RaftData {
 	//for retries
 	ballot_t prevTerm;
 	slotid_t slot_id;
-	ballot_t ballot;
 };
 
 struct KeyValue {
@@ -149,7 +148,7 @@ class RaftServer : public TxLogServer {
     return is_leader_ ;
   }
 
-  void SetLocalAppend(shared_ptr<Marshallable>& cmd, uint64_t* term, uint64_t* index, slotid_t slot_id = -1, ballot_t ballot = 1 ){
+  void SetLocalAppend(shared_ptr<Marshallable>& cmd, uint64_t* term, uint64_t* index, slotid_t slot_id = -1){
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     *index = lastLogIndex ;
     lastLogIndex += 1;
@@ -158,7 +157,6 @@ class RaftServer : public TxLogServer {
 		instance->prevTerm = currentTerm;
     instance->term = currentTerm;
 		instance->slot_id = slot_id;
-		instance->ballot = ballot;
 
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT){
       auto p_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
@@ -173,8 +171,7 @@ class RaftServer : public TxLogServer {
 				}
 			}
     } else {
-			int value = -1;
-			int value_;
+      // Do nothing
     }
     *term = currentTerm ;
   }
