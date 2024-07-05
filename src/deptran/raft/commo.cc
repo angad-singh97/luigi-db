@@ -18,7 +18,6 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
                                       siteid_t leader_site_id,
                                       slotid_t slot_id,
                                       i64 dep_id,
-                                      ballot_t ballot,
                                       bool isLeader,
                                       uint64_t currentTerm,
                                       uint64_t prevLogIndex,
@@ -97,7 +96,6 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
 		di.str = "dep";
 		di.id = dep_id;
     auto f = proxy->async_AppendEntries(slot_id,
-                                        ballot,
                                         currentTerm,
                                         prevLogIndex,
                                         prevLogTerm,
@@ -114,7 +112,6 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
 void RaftCommo::BroadcastDecide(const parid_t par_id,
                                       const slotid_t slot_id,
 																			const i64 dep_id,
-                                      const ballot_t ballot,
                                       const shared_ptr<Marshallable> cmd) {
   auto proxies = rpc_par_proxies_[par_id];
   vector<Future*> fus;
@@ -126,7 +123,7 @@ void RaftCommo::BroadcastDecide(const parid_t par_id,
 		DepId di;
 		di.str = "dep";
 		di.id = dep_id;
-    auto f = proxy->async_Decide(slot_id, ballot, di, md, fuattr);
+    auto f = proxy->async_Decide(slot_id, di, md, fuattr);
     Future::safe_release(f);
   }
 }

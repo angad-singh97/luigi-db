@@ -73,7 +73,6 @@ friend class RaftProxy;
                          siteid_t leader_site_id,
                          slotid_t slot_id,
                          i64 dep_id,
-                         ballot_t ballot,
                          bool isLeader,
                          uint64_t currentTerm,
                          uint64_t prevLogIndex,
@@ -83,7 +82,6 @@ friend class RaftProxy;
   void BroadcastDecide(const parid_t par_id,
                        const slotid_t slot_id,
 											 const i64 dep_id,
-                       const ballot_t ballot,
                        const shared_ptr<Marshallable> cmd);
 };
 

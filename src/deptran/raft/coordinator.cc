@@ -68,7 +68,6 @@ void CoordinatorRaft::AppendEntries() {
                                                      this->sch_->site_id_,
                                                      slot_id_,
                                                      dep_id_,
-                                                     curr_ballot_,
                                                      this->sch_->IsLeader(),
                                                      this->sch_->currentTerm,
                                                      prevLogIndex,
@@ -155,7 +154,7 @@ void CoordinatorRaft::Commit() {
     /*     this->sch_->app_next_(*instance->log_); */
     /* } */
 
-    commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, curr_ballot_, cmd_);
+    commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, cmd_);
     verify(phase_ == Phase::COMMIT);
     GotoNextPhase();
 }

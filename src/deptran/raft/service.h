@@ -28,7 +28,6 @@ class RaftServiceImpl : public RaftService {
                    rrr::DeferredReply* defer) override;
     
 	void AppendEntries(const uint64_t& slot,
-                     const ballot_t& ballot,
                      const uint64_t& leader_term,
                      const uint64_t& leader_prev_log_index,
                      const uint64_t& leader_prev_log_term,
@@ -41,7 +40,6 @@ class RaftServiceImpl : public RaftService {
                      rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,
-              const ballot_t& ballot,
 							const DepId& dep_id,
               const MarshallDeputy& cmd,
               rrr::DeferredReply* defer) override;

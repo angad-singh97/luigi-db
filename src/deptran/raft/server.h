@@ -217,7 +217,6 @@ class RaftServer : public TxLogServer {
                      const function<void()> &cb);
 
   void OnAppendEntries(const slotid_t slot_id,
-                       const ballot_t ballot,
                        const uint64_t leader_term,
                        const uint64_t leader_prev_log_index,
                        const uint64_t leader_prev_log_term,
@@ -230,7 +229,6 @@ class RaftServer : public TxLogServer {
                        const function<void()> &cb);
 
   void OnCommit(const slotid_t slot_id,
-                const ballot_t ballot,
                 shared_ptr<Marshallable> &cmd);
 
   virtual bool HandleConflicts(Tx& dtxn,

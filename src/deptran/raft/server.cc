@@ -189,7 +189,6 @@ void RaftServer::StartTimer()
 /* NOTE: broadcast send to all of the host even to its own server 
  * should we exclude the execution of this function for leader? */
   void RaftServer::OnAppendEntries(const slotid_t slot_id,
-                                     const ballot_t ballot,
                                      const uint64_t leader_term,
                                      const uint64_t leader_prev_log_index,
                                      const uint64_t leader_prev_log_term,
@@ -287,7 +286,6 @@ void RaftServer::StartTimer()
     }
 
   void RaftServer::OnCommit(const slotid_t slot_id,
-                              const ballot_t ballot,
                               shared_ptr<Marshallable> &cmd) {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     // Log_info("OnCommit");

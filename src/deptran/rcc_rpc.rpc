@@ -210,7 +210,6 @@ abstract service Raft {
                     bool_t vote_granted );
 
   defer AppendEntries(uint64_t slot,
-                      ballot_t ballot,
                       uint64_t leader_term,
                       uint64_t leader_prev_log_index,
                       uint64_t leader_prev_log_term,
@@ -222,7 +221,6 @@ abstract service Raft {
                       uint64_t follower_last_log_index);
 
   defer Decide(uint64_t slot,
-               ballot_t ballot,
 							 DepId dep_id,
                MarshallDeputy cmd);
 }

@@ -29,7 +29,6 @@ void RaftServiceImpl::RequestVote(const ballot_t& candidate_term,
 }
 
 void RaftServiceImpl::AppendEntries(const uint64_t& slot,
-                                        const ballot_t& ballot,
                                         const uint64_t& leader_term,
                                         const uint64_t& leader_prev_log_index,
                                         const uint64_t& leader_prev_log_term,
@@ -44,7 +43,6 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
 
   Coroutine::CreateRun([&] () {
     sched_->OnAppendEntries(slot,
-                            ballot,
                             leader_term,
                             leader_prev_log_index,
                             leader_prev_log_term,
@@ -61,14 +59,12 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
 }
 
 void RaftServiceImpl::Decide(const uint64_t& slot,
-                                   const ballot_t& ballot,
 																	 const DepId& dep_id,
                                    const MarshallDeputy& md_cmd,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   Coroutine::CreateRun([&] () {
     sched_->OnCommit(slot,
-                     ballot,
                      const_cast<MarshallDeputy&>(md_cmd).sp_data_);
     defer->reply();
   });
