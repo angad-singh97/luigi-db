@@ -32,7 +32,6 @@ class RaftServiceImpl : public RaftService {
                      const uint64_t& leader_prev_log_index,
                      const uint64_t& leader_prev_log_term,
                      const uint64_t& leader_commit_index,
-										 const DepId& dep_id,
                      const MarshallDeputy& cmd,
                      uint64_t *follower_append_success,
                      uint64_t *follower_term,
@@ -40,7 +39,6 @@ class RaftServiceImpl : public RaftService {
                      rrr::DeferredReply* defer) override;
 
   void Decide(const uint64_t& slot,
-							const DepId& dep_id,
               const MarshallDeputy& cmd,
               rrr::DeferredReply* defer) override;
 

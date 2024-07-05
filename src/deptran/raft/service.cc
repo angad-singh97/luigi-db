@@ -33,7 +33,6 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
                                         const uint64_t& leader_prev_log_index,
                                         const uint64_t& leader_prev_log_term,
                                         const uint64_t& leader_commit_index,
-																				const DepId& dep_id,
                                         const MarshallDeputy& md_cmd,
                                         uint64_t *follower_append_success,
                                         uint64_t *follower_term,
@@ -47,7 +46,6 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
                             leader_prev_log_index,
                             leader_prev_log_term,
                             leader_commit_index,
-														dep_id,
                             const_cast<MarshallDeputy&>(md_cmd).sp_data_,
                             follower_append_success,
                             follower_term,
@@ -59,9 +57,8 @@ void RaftServiceImpl::AppendEntries(const uint64_t& slot,
 }
 
 void RaftServiceImpl::Decide(const uint64_t& slot,
-																	 const DepId& dep_id,
-                                   const MarshallDeputy& md_cmd,
-                                   rrr::DeferredReply* defer) {
+                             const MarshallDeputy& md_cmd,
+                             rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   Coroutine::CreateRun([&] () {
     sched_->OnCommit(slot,

@@ -72,7 +72,6 @@ friend class RaftProxy;
   BroadcastAppendEntries(parid_t par_id,
                          siteid_t leader_site_id,
                          slotid_t slot_id,
-                         i64 dep_id,
                          bool isLeader,
                          uint64_t currentTerm,
                          uint64_t prevLogIndex,
@@ -81,7 +80,6 @@ friend class RaftProxy;
                          shared_ptr<Marshallable> cmd);
   void BroadcastDecide(const parid_t par_id,
                        const slotid_t slot_id,
-											 const i64 dep_id,
                        const shared_ptr<Marshallable> cmd);
 };
 

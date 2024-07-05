@@ -17,7 +17,6 @@ shared_ptr<RaftAppendQuorumEvent>
 RaftCommo::BroadcastAppendEntries(parid_t par_id,
                                       siteid_t leader_site_id,
                                       slotid_t slot_id,
-                                      i64 dep_id,
                                       bool isLeader,
                                       uint64_t currentTerm,
                                       uint64_t prevLogIndex,
@@ -92,15 +91,11 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
     MarshallDeputy md(cmd);
 		verify(md.sp_data_ != nullptr);
 		outbound++;
-		DepId di;
-		di.str = "dep";
-		di.id = dep_id;
     auto f = proxy->async_AppendEntries(slot_id,
                                         currentTerm,
                                         prevLogIndex,
                                         prevLogTerm,
                                         commitIndex,
-																				di,
                                         md, 
                                         fuattr);
     Future::safe_release(f);
@@ -110,9 +105,8 @@ RaftCommo::BroadcastAppendEntries(parid_t par_id,
 }
 
 void RaftCommo::BroadcastDecide(const parid_t par_id,
-                                      const slotid_t slot_id,
-																			const i64 dep_id,
-                                      const shared_ptr<Marshallable> cmd) {
+                                const slotid_t slot_id,
+                                const shared_ptr<Marshallable> cmd) {
   auto proxies = rpc_par_proxies_[par_id];
   vector<Future*> fus;
   for (auto& p : proxies) {
@@ -120,10 +114,7 @@ void RaftCommo::BroadcastDecide(const parid_t par_id,
     FutureAttr fuattr;
     fuattr.callback = [](Future* fu) {};
     MarshallDeputy md(cmd);
-		DepId di;
-		di.str = "dep";
-		di.id = dep_id;
-    auto f = proxy->async_Decide(slot_id, di, md, fuattr);
+    auto f = proxy->async_Decide(slot_id, md, fuattr);
     Future::safe_release(f);
   }
 }

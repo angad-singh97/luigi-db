@@ -67,12 +67,10 @@ void CoordinatorRaft::AppendEntries() {
     auto sp_quorum = commo()->BroadcastAppendEntries(par_id_,
                                                      this->sch_->site_id_,
                                                      slot_id_,
-                                                     dep_id_,
                                                      this->sch_->IsLeader(),
                                                      this->sch_->currentTerm,
                                                      prevLogIndex,
                                                      prevLogTerm,
-                                                     /* ents, */
                                                      this->sch_->commitIndex,
                                                      cmd_);
 
@@ -154,7 +152,7 @@ void CoordinatorRaft::Commit() {
     /*     this->sch_->app_next_(*instance->log_); */
     /* } */
 
-    commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, cmd_);
+    commo()->BroadcastDecide(par_id_, slot_id_, cmd_);
     verify(phase_ == Phase::COMMIT);
     GotoNextPhase();
 }
