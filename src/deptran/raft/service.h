@@ -19,14 +19,14 @@ class RaftServiceImpl : public RaftService {
   RaftServer* sched_;
   RaftServiceImpl(TxLogServer* sched);
 
-  void Vote(const uint64_t& lst_log_idx,
-                  const ballot_t& lst_log_term,
-                  const parid_t& can_id,
-                  const ballot_t& can_term,
-                  ballot_t* reply_term,
-                  bool_t *vote_granted,
-                  rrr::DeferredReply* defer) override;
-  
+  void RequestVote(const ballot_t& candidate_term,
+                   const locid_t& candidate_id,
+                   const uint64_t& last_log_idx,
+                   const ballot_t& last_log_term,
+                   ballot_t* reply_term,
+                   bool_t* vote_granted,
+                   rrr::DeferredReply* defer) override;
+    
 	void AppendEntries(const uint64_t& slot,
                      const ballot_t& ballot,
                      const uint64_t& leaderCurrentTerm,

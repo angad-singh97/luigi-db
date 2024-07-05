@@ -131,14 +131,14 @@ void RaftCommo::BroadcastDecide(const parid_t par_id,
   }
 }
 
-shared_ptr<RaftVoteQuorumEvent>
-RaftCommo::BroadcastVote(parid_t par_id,
-                                    slotid_t lst_log_idx,
-                                    ballot_t lst_log_term,
-                                    parid_t self_id,
-                                    ballot_t cur_term ) {
+shared_ptr<RaftRequestVoteQuorumEvent>
+RaftCommo::BroadcastRequestVote(parid_t par_id,
+                                ballot_t candidate_term,
+                                locid_t candidate_id,
+                                slotid_t last_log_idx,
+                                ballot_t last_log_term) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<RaftVoteQuorumEvent>(n, n/2);
+  auto e = Reactor::CreateSpEvent<RaftRequestVoteQuorumEvent>(n, n/2);
   auto proxies = rpc_par_proxies_[par_id];
   WAN_WAIT;
   for (auto& p : proxies) {
@@ -158,7 +158,7 @@ RaftCommo::BroadcastVote(parid_t par_id,
       e->FeedResponse(vote, term);
       // TODO add max accepted value.
     };
-    Future::safe_release(proxy->async_Vote(lst_log_idx, lst_log_term, self_id, cur_term, fuattr));
+    Future::safe_release(proxy->async_RequestVote(candidate_term, candidate_id, last_log_idx, last_log_term, fuattr));
   }
   return e;
 }

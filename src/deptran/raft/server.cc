@@ -36,8 +36,8 @@ bool RaftServer::RequestVote() {
   Log_debug("fpga raft server %d in request vote", loc_id );
 
   uint32_t lstoff = 0  ;
-  slotid_t lst_idx = 0 ;
-  ballot_t lst_term = 0 ;
+  slotid_t last_idx = 0 ;
+  ballot_t last_term = 0 ;
 
   {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -45,11 +45,11 @@ bool RaftServer::RequestVote() {
     currentTerm++ ;
     lstoff = lastLogIndex - snapidx_ ;
     auto log = GetRaftInstance(lstoff) ;
-    lst_idx = lstoff + snapidx_ ;
-    lst_term = log->term ;
+    last_idx = lstoff + snapidx_ ;
+    last_term = log->term ;
   }
   
-  auto sp_quorum = ((RaftCommo *)(this->commo_))->BroadcastVote(par_id,lst_idx,lst_term,loc_id, currentTerm );
+  auto sp_quorum = ((RaftCommo *)(this->commo_))->BroadcastRequestVote(par_id,currentTerm, loc_id, last_idx, last_term);
   sp_quorum->Wait();
   std::lock_guard<std::recursive_mutex> lock1(mtx_);
   if (sp_quorum->Yes()) {
@@ -103,32 +103,32 @@ bool RaftServer::RequestVote() {
   }
 }
 
-void RaftServer::OnVote(const slotid_t& lst_log_idx,
-                            const ballot_t& lst_log_term,
-                            const parid_t& can_id,
-                            const ballot_t& can_term,
-                            ballot_t *reply_term,
-                            bool_t *vote_granted,
-                            const function<void()> &cb) {
+void RaftServer::OnRequestVote(const ballot_t& candidate_term,
+                               const locid_t& candidate_id,
+                               const uint64_t& last_log_idx,
+                               const ballot_t& last_log_term,
+                               ballot_t* reply_term,
+                               bool_t* vote_granted,
+                               const function<void()> &cb) {
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("fpga raft receives vote from candidate: %llx", can_id);
+  Log_debug("fpga raft receives vote from candidate: %llx", candidate_id);
 
   // TODO wait all the log pushed to fpga host
 
   uint64_t cur_term = currentTerm ;
-  if( can_term < cur_term)
+  if( candidate_term < cur_term)
   {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
+    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
     return ;
   }
 
   // has voted to a machine in the same term, vote no
   // TODO when to reset the vote_for_??
-//  if( can_term == cur_term && vote_for_ != INVALID_PARID )
-  if( can_term == cur_term)
+//  if( candidate_term == cur_term && vote_for_ != INVALID_LOCID )
+  if( candidate_term == cur_term)
   {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
+    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
     return ;
   }
 
@@ -150,13 +150,13 @@ void RaftServer::OnVote(const slotid_t& lst_log_idx,
   // TODO del only for test 
   verify(lstoff == lastLogIndex ) ;
 
-  if( lst_log_term > curlstterm || (lst_log_term == curlstterm && lst_log_idx >= curlstidx) )
+  if( last_log_term > curlstterm || (last_log_term == curlstterm && last_log_idx >= curlstidx) )
   {
-    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, true, cb) ;
+    doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, true, cb) ;
     return ;
   }
 
-  doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
+  doVote(last_log_idx, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, false, cb) ;
 
 }
 

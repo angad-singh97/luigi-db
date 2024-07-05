@@ -8,7 +8,7 @@ namespace janus {
 
 class TxData;
 
-class RaftVoteQuorumEvent: public QuorumEvent {
+class RaftRequestVoteQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
   bool HasAcceptedValue() {
@@ -62,12 +62,12 @@ friend class RaftProxy;
 	
   RaftCommo() = delete;
   RaftCommo(PollMgr*);
-  shared_ptr<RaftVoteQuorumEvent>
-  BroadcastVote(parid_t par_id,
-                        slotid_t lst_log_idx,
-                        ballot_t lst_log_term,
-                        parid_t self_id,
-                        ballot_t cur_term ); 
+  shared_ptr<RaftRequestVoteQuorumEvent>
+  BroadcastRequestVote(parid_t par_id,
+                       ballot_t candidate_term,
+                       locid_t candidate_id,
+                       slotid_t last_log_idx,
+                       ballot_t last_log_term); 
   shared_ptr<RaftAppendQuorumEvent>
   BroadcastAppendEntries(parid_t par_id,
                          siteid_t leader_site_id,

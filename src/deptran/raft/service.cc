@@ -11,17 +11,21 @@ RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
 	srand(curr_time.tv_nsec);
 }
 
-void RaftServiceImpl::Vote(const uint64_t& lst_log_idx,
-                                    const ballot_t& lst_log_term,
-                                    const parid_t& can_id,
-                                    const ballot_t& can_term,
-                                    ballot_t* reply_term,
-                                    bool_t *vote_granted,
-                                    rrr::DeferredReply* defer) {
+void RaftServiceImpl::RequestVote(const ballot_t& candidate_term,
+                                  const locid_t& candidate_id,
+                                  const uint64_t& last_log_idx,
+                                  const ballot_t& last_log_term,
+                                  ballot_t* reply_term,
+                                  bool_t* vote_granted,
+                                  rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-  sched_->OnVote(lst_log_idx,lst_log_term, can_id, can_term,
-                    reply_term, vote_granted,
-                    std::bind(&rrr::DeferredReply::reply, defer));
+  sched_->OnRequestVote(candidate_term,
+                        candidate_id,
+                        last_log_idx,
+                        last_log_term,
+                        reply_term,
+                        vote_granted,
+                        std::bind(&rrr::DeferredReply::reply, defer));
 }
 
 void RaftServiceImpl::AppendEntries(const uint64_t& slot,

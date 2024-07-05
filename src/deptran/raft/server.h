@@ -9,7 +9,7 @@ namespace janus {
 class Command;
 class CmdData;
 
-#define INVALID_PARID  ((parid_t)-1)
+#define INVALID_LOCID  ((parid_t)-1)
 #define NUM_BATCH_TIMER_RESET  (100)
 #define SEC_BATCH_TIMER_RESET  (1)
 
@@ -118,7 +118,7 @@ class RaftServer : public TxLogServer {
 
   // Persistent state on all servers
   uint64_t currentTerm = 0;
-  parid_t vote_for_ = INVALID_PARID ;
+  parid_t vote_for_ = INVALID_LOCID ;
   map<slotid_t, shared_ptr<RaftData>> logs_{};
   map<slotid_t, shared_ptr<RaftData>> raft_logs_{};
 
@@ -208,13 +208,13 @@ class RaftServer : public TxLogServer {
   RaftServer(Frame *frame) ;
   ~RaftServer() ;
 
-  void OnVote(const slotid_t& lst_log_idx,
-                      const ballot_t& lst_log_term,
-                      const parid_t& can_id,
-                      const ballot_t& can_term,
-                      ballot_t *reply_term,
-                      bool_t *vote_granted,
-                      const function<void()> &cb) ;
+  void OnRequestVote(const ballot_t& candidate_term,
+                     const locid_t& candidate_id,
+                     const uint64_t& last_log_idx,
+                     const ballot_t& last_log_term,
+                     ballot_t* reply_term,
+                     bool_t* vote_granted,
+                     const function<void()> &cb);
 
   void OnAppendEntries(const slotid_t slot_id,
                        const ballot_t ballot,
