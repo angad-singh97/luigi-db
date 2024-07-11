@@ -265,6 +265,57 @@ void CoordinatorClassic::DispatchAsync() {
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
 }
 
+void CoordinatorClassic::DispatchSync() {
+  Log_debug("commo Broadcast to the server on client worker");
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+  auto txn = (TxData*) cmd_;
+
+  int cnt = 0;
+  auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
+  n_pd = 100;
+  ReadyPiecesData cmds_by_par;
+  // if (curp_stored_cmd_) {
+  //   cmds_by_par = cmds_by_par_;
+  // } else {
+    cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+  // }
+  Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
+  for (auto& pair: cmds_by_par) {
+    const parid_t& par_id = pair.first;
+    auto& cmds = pair.second;
+    n_dispatch_ += cmds.size();
+    cnt += cmds.size();
+    auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
+    for (auto c: cmds) {
+      c->id_ = next_pie_id();
+      dispatch_acks_[c->inn_id_] = false;
+      sp_vec_piece->push_back(c);
+    }
+    // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
+
+#ifndef SKIP_TXN_SERVER
+    // Log_info("SKIP_TXN_SERVER off");
+    
+    commo()->SyncBroadcastDispatch(sp_vec_piece,
+                                    this,
+                                    std::bind(&CoordinatorClassic::DispatchAck,
+                                              this,
+                                              phase_,
+                                              -1, 
+                                              std::placeholders::_1,
+                                              std::placeholders::_2));
+#endif
+
+#ifdef SKIP_TXN_SERVER
+  verify(0);
+  Log_info("SKIP_TXN_SERVER on");
+  CurpBroadcastDispatch(sp_vec_piece);
+#endif
+  }
+
+  Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
+}
+
 // [Ze] The Only difference between this and DispatchAsync is that this function do not need n_dispatch_, since it just redispatch
 // And GetReadyPiecesData
 void CoordinatorClassic::CurpDispatchAsync() {

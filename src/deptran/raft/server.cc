@@ -154,7 +154,9 @@ void RaftServer::OnRequestVote(const ballot_t& candidate_term,
 
   if( last_log_term > curlstterm || (last_log_term == curlstterm && last_log_index >= curlstidx) )
   {
+#ifdef RAFT_LEADER_ELECTION_DEBUG
     Log_info("OnRequestVote %d vote %d vote_granted since (last_log_term %d > curlstterm %d) || (last_log_term=curlstterm && last_log_index %d >= curlstidx %d)", loc_id_, candidate_id, last_log_term, curlstterm, last_log_index, curlstidx);
+#endif
     doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, true, cb) ;
     return ;
   }
