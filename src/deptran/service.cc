@@ -127,10 +127,10 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 }
 
 
-void ClassicServiceImpl::FailOverTrig(
-    const bool_t& pause, rrr::i32* res, rrr::DeferredReply* defer) {
+void ClassicServiceImpl::FailoverPauseSocketOut(
+    rrr::i32* res, rrr::DeferredReply* defer) {
 #ifdef FAILOVER_DEBUG
-  Log_info("!!!!!!!!!!!!!! ClassicServiceImpl::FailOverTrig");
+  Log_info("!!!!!!!!!!!!!! ClassicServiceImpl::FailoverPauseSocketOut");
 #endif
   if (pause && clt_cnt_ == 0) {
     // TODO temp solution yidawu
@@ -144,24 +144,43 @@ void ClassicServiceImpl::FailOverTrig(
   }
 
   Coroutine::CreateRun([&]() {
-    if (pause) {
-      // TODO: yidawu need to test with multi clients in diff machines
-      int wait_int = 50 * 1000; // 50ms
-      while (clt_cnt_.load() == 0) {
-        auto e = Reactor::CreateSpEvent<NeverEvent>();
-        e->Wait(wait_int);
-      }
-      clt_cnt_--;
-      while (clt_cnt_.load() != 0) {
-        auto e = Reactor::CreateSpEvent<NeverEvent>();
-        e->Wait(wait_int);
-      }
-      dtxn_sched_->rep_sched_->Pause();
-      poll_mgr_->pause();
-    } else {
-      poll_mgr_->resume();
-      dtxn_sched_->rep_sched_->Resume();
+    // TODO: yidawu need to test with multi clients in diff machines
+    int wait_int = 50 * 1000; // 50ms
+    while (clt_cnt_.load() == 0) {
+      auto e = Reactor::CreateSpEvent<NeverEvent>();
+      e->Wait(wait_int);
     }
+    clt_cnt_--;
+    while (clt_cnt_.load() != 0) {
+      auto e = Reactor::CreateSpEvent<NeverEvent>();
+      e->Wait(wait_int);
+    }
+    dtxn_sched_->rep_sched_->Pause();
+    poll_mgr_->pause();
+    *res = SUCCESS;
+    defer->reply();
+  });
+}
+
+void ClassicServiceImpl::FailoverResumeSocketOut(
+    rrr::i32* res, rrr::DeferredReply* defer) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! ClassicServiceImpl::FailoverResumeSocketOut");
+#endif
+  if (pause && clt_cnt_ == 0) {
+    // TODO temp solution yidawu
+    auto client_infos = Config::GetConfig()->GetMyClients();
+    unordered_set<string> clt_set;
+    for (auto c : client_infos) {
+      clt_set.insert(c.host);
+    }
+
+    clt_cnt_.store(clt_set.size());
+  }
+
+  Coroutine::CreateRun([&]() {
+    poll_mgr_->resume();
+    dtxn_sched_->rep_sched_->Resume();
     *res = SUCCESS;
     defer->reply();
   });

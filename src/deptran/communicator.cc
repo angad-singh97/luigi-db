@@ -1167,10 +1167,10 @@ shared_ptr<GetLeaderQuorumEvent> Communicator::BroadcastGetLeader(
   return e;
 }
 
-shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
-    parid_t par_id, locid_t loc_id, bool pause) {
+shared_ptr<QuorumEvent> Communicator::FailoverPauseSocketOut(
+    parid_t par_id, locid_t loc_id) {
 #ifdef FAILOVER_DEBUG
-  Log_info("!!!!!!!!!!!!!! enter Communicator::SendFailOverTrig");
+  Log_info("!!!!!!!!!!!!!! enter Communicator::FailoverPauseSocketOut");
 #endif
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
@@ -1178,7 +1178,7 @@ shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
   // sleep(1);
   // WAN_WAIT;
 #ifdef FAILOVER_DEBUG
-  Log_info("!!!!!!!!!!!!!! after Communicator::SendFailOverTrig WAN_WAIT");
+  Log_info("!!!!!!!!!!!!!! after Communicator::FailoverPauseSocketOut WAN_WAIT");
 #endif
   for (auto& p : proxies) {
     if (p.first != loc_id) continue;
@@ -1197,9 +1197,46 @@ shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
         e->VoteNo();
     };
 #ifdef FAILOVER_DEBUG
-    Log_info("!!!!!!!!!!!! Communicator::SendFailOverTrig");
+    Log_info("!!!!!!!!!!!! Communicator::FailoverPauseSocketOut");
 #endif
-    Future::safe_release(proxy->async_FailOverTrig(pause, fuattr));
+    Future::safe_release(proxy->async_FailoverPauseSocketOut(fuattr));
+  }
+  return e;
+}
+
+shared_ptr<QuorumEvent> Communicator::FailoverResumeSocketOut(
+    parid_t par_id, locid_t loc_id) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! enter Communicator::FailoverResumeSocketOut");
+#endif
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
+  auto proxies = rpc_par_proxies_[par_id];
+  // sleep(1);
+  // WAN_WAIT;
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! after Communicator::FailoverResumeSocketOut WAN_WAIT");
+#endif
+  for (auto& p : proxies) {
+    if (p.first != loc_id) continue;
+    auto proxy = p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      int res;
+      fu->get_reply() >> res;
+      if (res == 0)
+        e->VoteYes();
+      else
+        e->VoteNo();
+    };
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!! Communicator::FailoverResumeSocketOut");
+#endif
+    Future::safe_release(proxy->async_FailoverResumeSocketOut(fuattr));
   }
   return e;
 }

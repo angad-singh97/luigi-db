@@ -201,6 +201,28 @@ abstract service FpgaRaft {
                MarshallDeputy cmd);
 }
 
+abstract service Raft {
+  defer RequestVote(ballot_t candidate_term,
+                    locid_t candidate_id,
+                    uint64_t last_log_idx,
+                    ballot_t last_log_term |
+                    ballot_t reply_term,
+                    bool_t vote_granted );
+
+  defer AppendEntries(uint64_t slot,
+                      uint64_t leader_term,
+                      uint64_t leader_prev_log_index,
+                      uint64_t leader_prev_log_term,
+                      MarshallDeputy cmd,
+                      uint64_t leader_commit_index |
+                      uint64_t follower_term,
+                      uint64_t follower_append_success,
+                      uint64_t follower_last_log_index);
+
+  defer Decide(uint64_t slot,
+               MarshallDeputy cmd);
+}
+
 abstract service FpgaRaftPlus {
 	defer Heartbeat(uint64_t leaderPrevLogIndex,
 									DepId dep_id |
@@ -367,7 +389,8 @@ abstract service Classic {
   defer IsLeader(locid_t cur_pause| bool_t is_leader );
   defer IsFPGALeader(locid_t cur_pause| bool_t is_leader );
   defer SimpleCmd( SimpleCommand cmd| i32 res);
-  defer FailOverTrig(bool_t pause| i32 res);
+  defer FailoverPauseSocketOut(| i32 res);
+  defer FailoverResumeSocketOut(| i32 res);
    
   // input: contains many pieces, each piece consist of
   // | <i32 p_type> <i64 pid> <i32 input_size> <i32 max_output_size> 

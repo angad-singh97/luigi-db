@@ -62,9 +62,11 @@ class ClassicServiceImpl : public ClassicService {
                 uint64_t* coro_id,
                 DeferredReply* defer_reply) override;
 
-  void FailOverTrig(const bool_t& pause, 
-                        rrr::i32* res, 
-                        rrr::DeferredReply* defer) override ;
+  void FailoverPauseSocketOut(rrr::i32* res,
+                              rrr::DeferredReply* defer) override ;
+
+  void FailoverResumeSocketOut(rrr::i32* res,
+                               rrr::DeferredReply* defer) override ;
 
   void IsLeader(const locid_t& can_id,
                  bool_t* is_leader,

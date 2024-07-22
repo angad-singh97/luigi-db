@@ -51,7 +51,7 @@ class FpgaRaftServer : public TxLogServer {
   bool paused_ = false ;
   bool req_voting_ = false ;
   bool in_applying_logs_ = false ;
-  bool failover_{false} ;
+  bool failover_{false} ; // xxx: need to change to true
   atomic<int64_t> counter_{0};
   const char *filename = "/db/data.txt";
 

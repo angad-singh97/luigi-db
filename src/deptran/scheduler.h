@@ -672,6 +672,19 @@ class TxLogServer {
 
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
+  // void OnRulePrepare(uint32_t epoch,
+  //                    ballot_t ballot,
+  //                    value_t* result,
+  //                    int* acc_ballot,
+  //                    Witness* pool);
+  
+  // void OnRuleAccept(uint32_t epoch,
+  //                   ballot_t ballot,
+  //                   Witness pool,
+  //                   value_t* result);
+
+  // void OnRuleCommit(uint32_t epoch,
+  //                   Witness pool);
 };
 
 } // namespace janus

@@ -939,6 +939,7 @@ int Config::GetPartitionSize(parid_t partition_id) {
 
 int32_t Config::get_num_leaders(parid_t partition_id) {
   switch (replica_proto_) {
+    case MODE_RAFT:
     case MODE_FPGA_RAFT:
       return 1;
       break;

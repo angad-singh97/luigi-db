@@ -399,7 +399,8 @@ class Communicator {
   void AddMessageHandler(std::function<bool(const MarshallDeputy&,
                                             MarshallDeputy&)>);
   shared_ptr<GetLeaderQuorumEvent> BroadcastGetLeader(parid_t par_id, locid_t cur_pause);
-  shared_ptr<QuorumEvent> SendFailOverTrig(parid_t par_id, locid_t loc_id, bool pause);
+  shared_ptr<QuorumEvent> FailoverPauseSocketOut(parid_t par_id, locid_t loc_id);
+  shared_ptr<QuorumEvent> FailoverResumeSocketOut(parid_t par_id, locid_t loc_id);
   void SetNewLeaderProxy(parid_t par_id, locid_t loc_id);
   void SendSimpleCmd(groupid_t gid, SimpleCommand& cmd, std::vector<int32_t>& sids,
       const function<void(int)>& callback);

@@ -25,6 +25,7 @@ std::vector<int> CommunicatorRule::LeadersForPartition(parid_t par_id) const {
   std::vector<int> leaders;
   auto config = Config::GetConfig();
   switch (config->replica_proto_) {
+    case MODE_RAFT:
     case MODE_FPGA_RAFT:
       leaders.push_back(0);
       break;
