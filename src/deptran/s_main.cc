@@ -488,12 +488,12 @@ int main(int argc, char *argv[]) {
   
   for (int i = 0; i < 5; i++)
     cli2cli[6].merge(cli2cli[i]);
-  Log_info("Fastpath count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0) cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
-  Log_info("CoordinatorAccept count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0) cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
-  Log_info("Fast-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0) cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
-  Log_info("Slow-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0) cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
-  Log_info("Original-Protocol count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0) cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("All original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0) cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("Fastpath count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
+  Log_info("CoordinatorAccept count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
+  Log_info("Fast-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
+  Log_info("Slow-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
+  Log_info("Original-Protocol count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
+  Log_info("All original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
   Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Original throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));

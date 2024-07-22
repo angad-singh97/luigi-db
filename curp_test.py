@@ -31,7 +31,7 @@ TC_20_FAST_PATH_TIMEOUT = 25
 TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
-FAILOVER = True
+FAILOVER = False
 
 modes_ = [
     # "none_mongodb",
@@ -80,6 +80,17 @@ benchmarks_ =  [
     # # "rw_zipf_0.1",
     # "rw_zipf_0",
 ]
+open_loop_ = [
+    # "client_closed",
+    # "client_open_10",
+    "client_open_99",
+    # "client_open_100",
+    # "client_open_1k",
+    # "client_open_2k",
+    # "client_open_3k",
+    # "client_open_4k",
+    # "client_open_5k",
+]
 concurrent_ = [
     "concurrent_1",
     "concurrent_3",
@@ -107,8 +118,8 @@ latency_concurrent_ = [
     # "concurrent_60",
     # "concurrent_70",
     # "concurrent_80",
-    "concurrent_90",
-    # "concurrent_100",
+    # "concurrent_90",
+    "concurrent_100",
     # "concurrent_120",
     # "concurrent_150",
     # "concurrent_200",
@@ -162,21 +173,23 @@ exps_finished_rerun = []
 total_experiment_num = 0
 total_rerun_time = 0
 
-def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
+def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
+    po = config_path_ + o + ".yml"
     failover_path = config_path_ + "failover.yml"
 
     if output_path == None:
-        output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
+        output_path = os.path.join(exp_dir, str(latency) + '-' + o + '-' + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
+    # print("output_path: ", output_path)
     t1 = time()
     res = "INIT"
     try:
         with open(output_path, "w") as f:
             if cmd == None:
-                cmd = [run_app_,  "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
+                cmd = [run_app_, "-f", po, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
@@ -310,12 +323,14 @@ def test_rule():
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
-                        run(20, m, s, b, c, rt)
+                        for o in open_loop_:
+                            run(20, m, s, b, c, o, rt)
             for b in benchmarks_:
                 for m in rule_modes_:
                     for fp in fastpath_modes_:
                         for c in latency_concurrent_:
-                            run(20, m, s, b, c, rt, fp)
+                            for o in open_loop_:
+                                run(20, m, s, b, c, o, rt, fp)
                 rerun_failed_experiments()
             
     
@@ -360,7 +375,7 @@ def rerun_failed_experiments():
         for (output_path, cmd, rerun_times) in exps_to_run:
             print("rerun " + str(rerun_times) + " | " + output_path)
             total_rerun_time += 1
-            run(0, "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
+            run(0, "", "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
 
 
 def print_rerun():
