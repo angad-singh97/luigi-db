@@ -72,6 +72,9 @@ class RaftServer : public TxLogServer {
                             bool_t *vote_granted,
                             bool_t vote,
                             const function<void()> &cb) {
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+      Log_info("doVote %d vote %d vote_granted %d", loc_id_, can_id, vote);
+#endif
       *vote_granted = vote ;
       *reply_term = currentTerm ;
       Log_debug("loc %d vote decision %d, for can_id %d canterm %d curterm %d isleader %d lst_log_idx %d lst_log_term %d", 

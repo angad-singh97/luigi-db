@@ -69,7 +69,9 @@ bool RaftServer::RequestVote() {
     Log_info("before server %d submit empty cmd", loc_id_);
 #endif
     ((CoordinatorRaft*)co)->Submit(sp_m);
-    
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("arrive here");
+#endif
     if(IsLeader())
     {
 	  	//for(int i = 0; i < 100; i++) Log_info("wait wait wait");
@@ -152,6 +154,9 @@ void RaftServer::OnRequestVote(const ballot_t& candidate_term,
 
   if( last_log_term > curlstterm || (last_log_term == curlstterm && last_log_index >= curlstidx) )
   {
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("OnRequestVote %d vote %d vote_granted since (last_log_term %d > curlstterm %d) || (last_log_term=curlstterm && last_log_index %d >= curlstidx %d)", loc_id_, candidate_id, last_log_term, curlstterm, last_log_index, curlstidx);
+#endif
     doVote(last_log_index, last_log_term, candidate_id, candidate_term, reply_term, vote_granted, true, cb) ;
     return ;
   }
@@ -170,7 +175,7 @@ void RaftServer::StartTimer()
             while(!stop_)
             {
                 if ( !IsLeader() && timer_->elapsed() > duration) {
-                    Log_info(" timer time out") ;
+                    Log_info("loc %d timer time out", loc_id_) ;
                     // ask to vote
                     RequestVote() ;
                     Log_debug("start a new timer") ;
@@ -212,7 +217,7 @@ void RaftServer::StartTimer()
         if ((leader_term >= this->currentTerm) &&
                 (leader_prev_log_index <= this->lastLogIndex)
                 /* TODO: log[leaderPrevLogidex].term == leader_prev_log_term */) {
-            //resetTimer() ;
+            resetTimer() ;
             if (leader_term > this->currentTerm) {
                 currentTerm = leader_term;
                 Log_debug("server %d, set to be follower", loc_id_ ) ;
