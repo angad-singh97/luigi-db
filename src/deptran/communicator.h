@@ -344,6 +344,9 @@ class Communicator {
   virtual void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
+  virtual void SyncBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                         Coordinator *coo,
+                         const std::function<void(int res, TxnOutput &)> &) ;
 
 	shared_ptr<QuorumEvent> SendReelect();
 

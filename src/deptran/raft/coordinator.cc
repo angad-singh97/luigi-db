@@ -63,7 +63,9 @@ void CoordinatorRaft::AppendEntries() {
     uint64_t prevLogTerm = this->sch_->currentTerm;
 		this->sch_->SetLocalAppend(cmd_, &prevLogTerm, &prevLogIndex, slot_id_) ;
 		
-
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("loc_id %d BroadcastAppendEntries", loc_id_);
+#endif
     auto sp_quorum = commo()->BroadcastAppendEntries(par_id_,
                                                      this->sch_->site_id_,
                                                      slot_id_,
