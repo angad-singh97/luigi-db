@@ -73,7 +73,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
 
   failover_triggers = new bool[client_sites.size()]() ;
 #ifdef SIMULATE_WAN
-  int core_id = 5; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
+  int core_id = 10; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
 #endif
 #ifndef SIMULATE_WAN
   int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
@@ -116,6 +116,9 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   int i=0;
   vector<std::thread> setup_ths;
   int core_id = 0;
+#ifdef SIMULATE_WAN
+  core_id = 5; //
+#endif
   for (auto& site_info : server_sites) {
     auto th_ = std::thread([&site_info, &i, &config] () {
       Log_info("launching site: %x, bind address %s",

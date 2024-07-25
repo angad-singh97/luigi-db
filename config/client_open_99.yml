@@ -1,4 +1,4 @@
 client:
     type: open
     rate: 99
-    max_undone: 99
+    max_undone: 5000

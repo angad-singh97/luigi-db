@@ -9,8 +9,9 @@ import sys
 from datetime import datetime
 import psutil
 import numpy as np
-
+from collections import defaultdict
 from pylib import ps as ps_killer
+from itertools import chain
 
 run_app_     = "build/deptran_server"
 config_path_ = "config/"
@@ -33,18 +34,23 @@ TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
 FAILOVER = False
 
+CLIENT_ID_BASE = 10
+CLIENT_NUM = 12
+SERVER_ID_BASE = 5
+SERVER_NUM = 5
+
 modes_ = [
     # "none_mongodb",
     # "none_mencius",
-    # "none_copilot",
+    "none_copilot",
     "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
     # "rule_mongodb",
     # "rule_mencius",
-    # "rule_copilot",
-    # "rule_fpga_raft",
+    "rule_copilot",
+    "rule_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -82,14 +88,8 @@ benchmarks_ =  [
 ]
 open_loop_ = [
     # "client_closed",
-    # "client_open_10",
-    "client_open_99",
-    # "client_open_100",
-    # "client_open_1k",
-    # "client_open_2k",
-    # "client_open_3k",
-    # "client_open_4k",
-    # "client_open_5k",
+    "client_open",
+
 ]
 concurrent_ = [
     "concurrent_1",
@@ -199,22 +199,32 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
                 cmd.append(failover_path)
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
             # sleep(running_time // 2)
-            cpu_usage = [[], [], [], []]
+            # cpu_usage = [[], [], [], []] # TODO: change to according size
+            cpu_usage = defaultdict(list)
+            client_ids = [CLIENT_ID_BASE + i for i in range(CLIENT_NUM)]
+            server_ids = [SERVER_ID_BASE + i for i in range(SERVER_NUM)]
             for _ in range(20):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
                 if _ >= 10:
-                    for cpu_id in range(3):
+                    for cpu_id in chain(client_ids,server_ids): # TODO: add a list for cpu_id
                         cpu_usage[cpu_id].append(cpu_percent[cpu_id])
-                    cpu_usage[3].append(np.sum(cpu_percent[3:]))
+                        
+                    # cpu_usage[3].append(np.sum(cpu_percent[3:])) #TODO: this entry is not needed
             process.wait(timeout= max(120, running_time * 1.5))
             f.write("\n")
-            for cpu_id in range(3):
-                text = "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
+            text = "Server: \n"
+            for cpu_id in server_ids: # TODO: switch to cpu_id list
+                text += "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
                     + str(np.mean(cpu_usage[cpu_id])) + " max: " + str(np.max(cpu_usage[cpu_id])) + "\n"
-                f.write(text)
-            text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
-                    + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"
+            text += "Client: \n"
+            for cpu_id in client_ids: # TODO: switch to cpu_id list
+                text += "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
+                    + str(np.mean(cpu_usage[cpu_id])) + " max: " + str(np.max(cpu_usage[cpu_id])) + "\n"
+                
             f.write(text)
+            # text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
+            #         + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"
+            # f.write(text)
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
