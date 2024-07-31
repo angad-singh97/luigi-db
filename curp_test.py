@@ -40,15 +40,15 @@ SERVER_ID_BASE = 5
 SERVER_NUM = 5
 
 modes_ = [
-    # "none_mongodb",
-    # "none_mencius",
+    "none_mongodb",
+    "none_mencius",
     "none_copilot",
     "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
-    # "rule_mongodb",
-    # "rule_mencius",
+    "rule_mongodb",
+    "rule_mencius",
     "rule_copilot",
     "rule_fpga_raft",
 ]
@@ -60,10 +60,10 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    # 0,  # 0 possibility attempt fastpath
-    # 25,
-    # 50,
-    # 75,
+    0,  # 0 possibility attempt fastpath
+    25,
+    50,
+    75,
     100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
@@ -107,24 +107,24 @@ concurrent_ = [
     "concurrent_50",
 ]
 latency_concurrent_ = [
-    # "concurrent_1",
-    # "concurrent_3",
-    # "concurrent_6",
-    # "concurrent_10",
-    # "concurrent_20",
+    "concurrent_1",
+    "concurrent_3",
+    "concurrent_6",
+    "concurrent_10",
+    "concurrent_20",
     # "concurrent_30",
-    # "concurrent_40",
+    "concurrent_40",
     # "concurrent_50",
-    # "concurrent_60",
+    "concurrent_60",
     # "concurrent_70",
-    # "concurrent_80",
+    "concurrent_80",
     # "concurrent_90",
     "concurrent_100",
-    # "concurrent_120",
-    # "concurrent_150",
-    # "concurrent_200",
-    # "concurrent_250",
-    # "concurrent_300",
+    "concurrent_120",
+    "concurrent_150",
+    "concurrent_200",
+    "concurrent_250",
+    "concurrent_300",
     # "concurrent_500",
     # "concurrent_600",
     # "concurrent_750",
@@ -228,7 +228,7 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
-        sleep(running_time * 2)
+        # sleep(running_time * 2)
         ps_killer.killall(["127.0.0.1"], "deptran_server", "-9")
         res = "Timeout"
     except Exception as e:
