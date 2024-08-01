@@ -209,18 +209,25 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
                     for cpu_id in chain(client_ids,server_ids): # TODO: add a list for cpu_id
                         cpu_usage[cpu_id].append(cpu_percent[cpu_id])
                         
-                    # cpu_usage[3].append(np.sum(cpu_percent[3:])) #TODO: this entry is not needed
             process.wait(timeout= max(120, running_time * 1.5))
             f.write("\n")
             text = "Server: \n"
-            for cpu_id in server_ids: # TODO: switch to cpu_id list
-                text += "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
-                    + str(np.mean(cpu_usage[cpu_id])) + " max: " + str(np.max(cpu_usage[cpu_id])) + "\n"
+            for cpu_id in server_ids: 
+                text += "cpu{} medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                                 cpu_id, np.median(cpu_usage[cpu_id]), 
+                                np.mean(cpu_usage[cpu_id]), np.max(cpu_usage[cpu_id]))
             text += "Client: \n"
-            for cpu_id in client_ids: # TODO: switch to cpu_id list
-                text += "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
-                    + str(np.mean(cpu_usage[cpu_id])) + " max: " + str(np.max(cpu_usage[cpu_id])) + "\n"
+            client_sum = [0 for _ in range(10)]
+            for cpu_id in client_ids: 
+                client_sum = [x + y for x, y in zip(client_sum, cpu_usage[cpu_id])]
+                text += "cpu{}  medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                        cpu_id,  np.median(cpu_usage[cpu_id]), 
+                         np.mean(cpu_usage[cpu_id]), np.max(cpu_usage[cpu_id]))
                 
+            text += "client sum: "
+            text += "medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                         np.median(client_sum), 
+                         np.mean(client_sum), np.max(client_sum))
             f.write(text)
             # text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
             #         + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"
