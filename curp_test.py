@@ -209,7 +209,7 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
                     for cpu_id in chain(client_ids,server_ids): # TODO: add a list for cpu_id
                         cpu_usage[cpu_id].append(cpu_percent[cpu_id])
                         
-            process.wait(timeout= max(120, running_time * 1.5))
+            process.wait(timeout= max(7, running_time * 1.5))
             f.write("\n")
             text = "Server: \n"
             for cpu_id in server_ids: 
@@ -224,7 +224,7 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
                         cpu_id,  np.median(cpu_usage[cpu_id]), 
                          np.mean(cpu_usage[cpu_id]), np.max(cpu_usage[cpu_id]))
                 
-            text += "client sum: "
+            text += "Client sum: "
             text += "medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
                          np.median(client_sum), 
                          np.mean(client_sum), np.max(client_sum))
@@ -241,22 +241,24 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
     except Exception as e:
         print(e)
     t2 = time()
-    print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
+    print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1), end=" ")
     
-    success_flag = "Total throughtput is"
+    success_flag = "Client sum: "
     try:
         with open(output_path, 'r') as file:
             found = False
             for line in file:
-                if success_flag in line:
+                if success_flag in line :
                     found = True
                     break
             if not found:
+                print("no flag, add to rerun")
                 if rerun_time != None:
                     exps_need_to_rerun.append((output_path, cmd, rerun_time + 1))
                 else:
                     exps_need_to_rerun.append((output_path, cmd, 0))
             else:
+                print("flag found, success")
                 if rerun_time != None:
                     exps_finished_rerun.append((output_path, cmd, rerun_time + 1))
     except FileNotFoundError:
