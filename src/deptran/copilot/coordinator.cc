@@ -326,7 +326,7 @@ void CoordinatorCopilot::Commit() {
               " %s, %lu, status: %x",
               indicator[cur_pilot], cur_slot, indicator[ucmit_ins->is_pilot],
               ucmit_ins->slot_id, ucmit_ins->status);
-          initFastTakeover(ucmit_ins);
+          // initFastTakeover(ucmit_ins); // Ze: temporarily comment this line for fixing zoo open loop unexpected TAKEOVER problem
         }
       }
     }
