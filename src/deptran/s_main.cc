@@ -73,7 +73,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
 
   failover_triggers = new bool[client_sites.size()]() ;
 #ifdef SIMULATE_WAN
-  int core_id = 5; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
+  int core_id = 10; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
 #endif
 #ifndef SIMULATE_WAN
   int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
@@ -116,6 +116,9 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   int i=0;
   vector<std::thread> setup_ths;
   int core_id = 0;
+#ifdef SIMULATE_WAN
+  core_id = 5; //
+#endif
   for (auto& site_info : server_sites) {
     auto th_ = std::thread([&site_info, &i, &config] () {
       Log_info("launching site: %x, bind address %s",
@@ -488,12 +491,12 @@ int main(int argc, char *argv[]) {
   
   for (int i = 0; i < 5; i++)
     cli2cli[6].merge(cli2cli[i]);
-  Log_info("Fastpath count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
-  Log_info("CoordinatorAccept count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
-  Log_info("Fast-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
-  Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
-  Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("All original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("Fastpath count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
+  Log_info("CoordinatorAccept count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
+  Log_info("Fast-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
+  Log_info("Slow-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
+  Log_info("Original-Protocol count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
+  Log_info("All original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
   Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Original throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
