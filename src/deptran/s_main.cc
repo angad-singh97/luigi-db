@@ -520,7 +520,8 @@ int main(int argc, char *argv[]) {
             file << cli2cli[k].data_[i];
           file << ",";
         }
-        file << commit_time.data_[i];
+        if (i < commit_time.count())
+          file << commit_time.data_[i];
         file << "\n";
     }
     Log_info("Dumped to %s with %d lines data", dump_file_name.c_str(), max_size);
