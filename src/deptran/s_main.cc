@@ -555,7 +555,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < cpu_usage.size(); i++){
       Log_info("%.4F", cpu_usage[i]);
     }
-    
+    Log_info("server median : %.3f", median(cpu_usage));
 #endif
 #ifndef AWS
     sleep(Config::GetConfig()->duration_);
@@ -648,9 +648,7 @@ int main(int argc, char *argv[]) {
     file.close();
     Log_info("%s closed", dump_file_name.c_str());
   }
-#ifdef AWS
-  Log_info("server median : %.3f", median(cpu_usage));
-#endif
+
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());
