@@ -60,11 +60,11 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    0,  # 0 possibility attempt fastpath
-    25,
+    # 0,  # 0 possibility attempt fastpath
+    # 25,
     50,
-    75,
-    100,  # 1 possibility attempt fastpath
+    # 75,
+    # 100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s5r1p",

@@ -429,7 +429,84 @@ void setup_ulimit() {
   }
   Log_info("ulimit -n is %d", (int)limit.rlim_cur);
 }
+//for AWS test cpu usage monitoring
+struct CPUStats { 
+    unsigned long long user, nice, system, idle, iowait, irq, softirq, steal;
 
+    unsigned long long total() const {
+        return user + nice + system + idle + iowait + irq + softirq + steal;
+    }
+
+    unsigned long long idleTime() const {
+        return idle + iowait;
+    }
+};
+//for AWS test cpu usage monitoring
+CPUStats getCPUStats(int core) {
+    std::ifstream file("/proc/stat");
+    std::string line;
+    CPUStats stats;
+
+    // Skip to the line corresponding to the specified core (e.g., "cpu0", "cpu1", etc.)
+    for (int i = 0; i <= core + 1; ++i) {
+        std::getline(file, line);
+    }
+    
+    std::istringstream iss(line);
+    std::string cpuLabel;
+    iss >> cpuLabel >> stats.user >> stats.nice >> stats.system >> stats.idle
+        >> stats.iowait >> stats.irq >> stats.softirq >> stats.steal;
+
+    return stats;
+}
+//for AWS test cpu usage monitoring
+double calculateCPUUsage(const CPUStats& oldStats, const CPUStats& newStats) {
+    unsigned long long totalDiff = newStats.total() - oldStats.total();
+    unsigned long long idleDiff = newStats.idleTime() - oldStats.idleTime();
+    Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
+    return 100.0 * (1.0 - static_cast<double>(idleDiff) / totalDiff);
+}
+//for AWS test cpu usage monitoring
+vector<double> getUsage(int core_id, int duration){
+  // Get initial CPU stats
+  int first_phase = duration / 3;
+  int second_phase = 2 * (duration / 3);
+   
+  std::vector<double> cpu_usages;
+  
+  for (int i = 0; i < duration; ++i) {
+      // Measure CPU usage if within the middle third of the duration
+      if (i >= first_phase && i < second_phase) {
+          CPUStats oldStats = getCPUStats(core_id);
+          std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second
+          CPUStats newStats = getCPUStats(core_id);
+          double cpuUsage = calculateCPUUsage(oldStats, newStats);
+          cpu_usages.push_back(cpuUsage);
+          continue;
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  return cpu_usages;
+
+}
+double median(std::vector<double> values) {
+    // Ensure the vector is not empty
+    if (values.empty()) {
+        throw std::invalid_argument("Cannot compute the median of an empty vector.");
+    }
+
+    // Sort the vector
+    std::sort(values.begin(), values.end());
+
+    size_t size = values.size();
+    if (size % 2 == 0) {
+        // If even number of elements, return the average of the two middle elements
+        return (values[size / 2 - 1] + values[size / 2]) / 2.0;
+    } else {
+        // If odd number of elements, return the middle element
+        return values[size / 2];
+    }
+}
 int main(int argc, char *argv[]) {
   check_current_path();
   Log_info("starting process %ld", getpid());
@@ -471,7 +548,18 @@ int main(int argc, char *argv[]) {
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
     client_launch_workers(client_infos);
+#ifdef AWS
+    int server_core_id = 5;
+    std::vector<double> cpu_usage = getUsage(server_core_id, Config::GetConfig()->duration_);
+    Log_info("CORE %d USAGE: ", server_core_id);
+    for(int i = 0; i < cpu_usage.size(); i++){
+      Log_info("%.4F", cpu_usage[i]);
+    }
+    
+#endif
+#ifndef AWS
     sleep(Config::GetConfig()->duration_);
+#endif
     wait_for_clients();
     failover_server_quit = true;
     Log_info("all clients have shut down.");
@@ -560,6 +648,9 @@ int main(int argc, char *argv[]) {
     file.close();
     Log_info("%s closed", dump_file_name.c_str());
   }
+#ifdef AWS
+  Log_info("server median : %.3f", median(cpu_usages));
+#endif
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());
