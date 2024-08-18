@@ -105,6 +105,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
     if(core_id % 4 == 1){
       core_id++;
     }
+#endif
 #ifndef AWS
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -178,6 +179,7 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
     } else {
       Log_info("start a server thread on core %d, site-id:%d", core_id, site_info.id);
     }
+#endif
 #ifndef AWS
     // for better performance, bind each server thread to a cpu core
     cpu_set_t cpuset;
