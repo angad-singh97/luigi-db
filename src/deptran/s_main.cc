@@ -89,7 +89,8 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             &total_throughput);
     workers.push_back(worker);
     auto th_ = std::thread(&ClientWorker::Work, worker);
-#ifndef AWS
+#ifdef AWS
+    //in AWS test, distrubute client workers on different cores except physical core 1(core_id == 1 || 5), which is the server worker core
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(core_id, &cpuset);
@@ -104,6 +105,19 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
     if(core_id % 4 == 1){
       core_id++;
     }
+#ifndef AWS
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
+    }
+    core_id ++;
+
 #endif
     client_threads_g.push_back(std::move(th_));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -151,6 +165,19 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       Log_info("site %d launched!", (int)site_info.id);
       worker.launched_ = true;
     });
+#ifdef AWS
+    // for better performance, bind each server thread to a cpu core
+    // in AWS test, each instance has at most one server worker
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a server thread on core %d, site-id:%d", core_id, site_info.id);
+    }
 #ifndef AWS
     // for better performance, bind each server thread to a cpu core
     cpu_set_t cpuset;
