@@ -649,7 +649,7 @@ int main(int argc, char *argv[]) {
     Log_info("%s closed", dump_file_name.c_str());
   }
 #ifdef AWS
-  Log_info("server median : %.3f", median(cpu_usages));
+  Log_info("server median : %.3f", median(cpu_usage));
 #endif
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
