@@ -76,7 +76,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
   int core_id = 10; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
 #endif
 #ifndef SIMULATE_WAN
-  int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
+  int core_id = 0; // [JetPack] usually run 1 replica on each process on cloud setting
 #endif
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
@@ -101,6 +101,9 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
       Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
     }
     core_id ++;
+    if(core_id % 4 == 1){
+      core_id++;
+    }
 #endif
     client_threads_g.push_back(std::move(th_));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -115,7 +118,7 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   svr_workers_g.resize(server_sites.size(), ServerWorker());
   int i=0;
   vector<std::thread> setup_ths;
-  int core_id = 0;
+  int core_id = 1;
 #ifdef SIMULATE_WAN
   core_id = 5; //
 #endif
