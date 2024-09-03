@@ -463,7 +463,7 @@ CPUStats getCPUStats(int core) {
 double calculateCPUUsage(const CPUStats& oldStats, const CPUStats& newStats) {
     unsigned long long totalDiff = newStats.total() - oldStats.total();
     unsigned long long idleDiff = newStats.idleTime() - oldStats.idleTime();
-    Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
+    // Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
     return 100.0 * (1.0 - static_cast<double>(idleDiff) / totalDiff);
 }
 //for AWS test cpu usage monitoring
