@@ -40,16 +40,16 @@ SERVER_ID_BASE = 5
 SERVER_NUM = 5
 
 modes_ = [
-    "none_mongodb",
-    "none_mencius",
-    "none_copilot",
-    "none_fpga_raft",
+    # "none_mongodb",
+    # "none_mencius",
+    # "none_copilot",
+    # "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
-    "rule_mongodb",
-    "rule_mencius",
-    "rule_copilot",
+    # "rule_mongodb",
+    # "rule_mencius",
+    # "rule_copilot",
     "rule_fpga_raft",
 ]
 curp_modes_ = [
@@ -60,11 +60,11 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    0,  # 0 possibility attempt fastpath
-    25,
-    50,
+    # 0,  # 0 possibility attempt fastpath
+    # 25,
+    # 50,
     75,
-    100,  # 1 possibility attempt fastpath
+    # 100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s5r1p",
@@ -73,7 +73,7 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1",
     # "rw_1000",
-    "rw_1000000",
+    # "rw_1000000",
     "rw_zipf_1",
     # # "rw_zipf_0.9",
     # "rw_zipf_0.8",
@@ -107,21 +107,21 @@ concurrent_ = [
     "concurrent_50",
 ]
 latency_concurrent_ = [
-    "concurrent_1",
-    # "concurrent_3",
-    # "concurrent_6",
-    "concurrent_10",
-    "concurrent_20",
-    # "concurrent_30",
-    "concurrent_40",
-    # "concurrent_50",
-    "concurrent_60",
-    # "concurrent_70",
-    "concurrent_80",
-    # "concurrent_90",
-    "concurrent_100",
-    "concurrent_120",
-    # "concurrent_150",
+    # "concurrent_1",
+    # # "concurrent_3",
+    # # "concurrent_6",
+    # "concurrent_10",
+    # "concurrent_20",
+    # # "concurrent_30",
+    # "concurrent_40",
+    # # "concurrent_50",
+    # "concurrent_60",
+    # # "concurrent_70",
+    # "concurrent_80",
+    # # "concurrent_90",
+    # "concurrent_100",
+    # "concurrent_120",
+    # # "concurrent_150",
     "concurrent_200",
     # "concurrent_250",
     # "concurrent_300",

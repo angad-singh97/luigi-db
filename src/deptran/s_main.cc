@@ -429,6 +429,37 @@ void setup_ulimit() {
   }
   Log_info("ulimit -n is %d", (int)limit.rlim_cur);
 }
+double getMemoryUsageMB() {
+    std::ifstream status_file("/proc/self/status");
+    std::string line;
+    double rss_kb = 0.0;
+
+    if (!status_file.is_open()) {
+        std::cerr << "Error: Could not open /proc/self/status" << std::endl;
+        return -1.0;
+    }
+
+    while (std::getline(status_file, line)) {
+        // Find the line that starts with "VmRSS:"
+        if (line.rfind("VmRSS:", 0) == 0) {
+            std::istringstream iss(line);
+            std::string key;
+            double value;
+            std::string unit;
+            iss >> key >> value >> unit;
+
+            if (unit == "kB") {
+                rss_kb = value;
+            }
+            break;
+        }
+    }
+
+    status_file.close();
+
+    // Convert from kilobytes to megabytes
+    return rss_kb / 1024.0;
+}
 //for AWS test cpu usage monitoring
 struct CPUStats { 
     unsigned long long user, nice, system, idle, iowait, irq, softirq, steal;
@@ -466,29 +497,6 @@ double calculateCPUUsage(const CPUStats& oldStats, const CPUStats& newStats) {
     // Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
     return 100.0 * (1.0 - static_cast<double>(idleDiff) / totalDiff);
 }
-//for AWS test cpu usage monitoring
-vector<double> getUsage(int core_id, int duration){
-  // Get initial CPU stats
-  int first_phase = duration / 3;
-  int second_phase = 2 * (duration / 3);
-   
-  std::vector<double> cpu_usages;
-  
-  for (int i = 0; i < duration; ++i) {
-      // Measure CPU usage if within the middle third of the duration
-      if (i >= first_phase && i < second_phase) {
-          CPUStats oldStats = getCPUStats(core_id);
-          std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second
-          CPUStats newStats = getCPUStats(core_id);
-          double cpuUsage = calculateCPUUsage(oldStats, newStats);
-          cpu_usages.push_back(cpuUsage);
-          continue;
-      }
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-  return cpu_usages;
-
-}
 double median(std::vector<double> values) {
     // Ensure the vector is not empty
     if (values.empty()) {
@@ -507,6 +515,33 @@ double median(std::vector<double> values) {
         return values[size / 2];
     }
 }
+//for AWS test cpu usage monitoring
+vector<double> getUsage(int core_id, int duration){
+  // Get initial CPU stats
+  int first_phase = duration / 3;
+  int second_phase = 2 * (duration / 3);
+   
+  std::vector<double> cpu_usages;
+  //addition: add memory usage to this function
+  std::vector<double> memory_usage;
+  for (int i = 0; i < duration; ++i) {
+      // Measure CPU usage if within the middle third of the duration
+      if (i >= first_phase && i < second_phase) {
+          CPUStats oldStats = getCPUStats(core_id);
+          std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second
+          memory_usage.push_back(getMemoryUsageMB());
+          CPUStats newStats = getCPUStats(core_id);
+          double cpuUsage = calculateCPUUsage(oldStats, newStats);
+          cpu_usages.push_back(cpuUsage);
+          continue;
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  cpu_usages.push_back(median(memory_usage));
+  return cpu_usages;
+
+}
+
 int main(int argc, char *argv[]) {
   check_current_path();
   Log_info("starting process %ld", getpid());
@@ -533,7 +568,6 @@ int main(int argc, char *argv[]) {
   ProfilerStart(prof_file);
   Log_info("started to profile cpu");
 #endif // ifdef CPU_PROFILE
-
   auto server_infos = Config::GetConfig()->GetMyServers();
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
@@ -548,16 +582,20 @@ int main(int argc, char *argv[]) {
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
     client_launch_workers(client_infos);
+
 #ifdef AWS
-    int server_core_id = 5;
+    int server_core_id = 1;
     std::vector<double> cpu_usage = getUsage(server_core_id, Config::GetConfig()->duration_);
+    double memory_during_test = cpu_usage[cpu_usage.size() - 1];
     Log_info("CORE %d USAGE: ", server_core_id);
     for(int i = 0; i < cpu_usage.size(); i++){
       Log_info("%.4F", cpu_usage[i]);
     }
     Log_info("server median : %.3f", median(cpu_usage));
+    Log_info("memory during test: %.3f", memory_during_test);
 #endif
 #ifndef AWS
+
     sleep(Config::GetConfig()->duration_);
 #endif
     wait_for_clients();
@@ -569,7 +607,6 @@ int main(int argc, char *argv[]) {
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
 #endif
-
   sleep(10); // hopefully servers can finish reset of work in 10 seconds
 
   for (auto& worker : svr_workers_g) {
