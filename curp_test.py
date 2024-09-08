@@ -49,8 +49,8 @@ modes_ = [
 rule_modes_ = [
     # "rule_mongodb",
     # "rule_mencius",
-    "rule_copilot",
-    # "rule_fpga_raft",
+    # "rule_copilot",
+    "rule_fpga_raft",
 ]
 curp_modes_ = [
     "paxos_plus",
@@ -60,11 +60,11 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    0,  # 0 possibility attempt fastpath
-    25,
-    50,
+    # 0,  # 0 possibility attempt fastpath
+    # 25,
+    # 50,
     75,
-    100,  # 1 possibility attempt fastpath
+    # 100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s5r1p",
@@ -108,8 +108,8 @@ concurrent_ = [
 ]
 latency_concurrent_ = [
     # "concurrent_1",
-    # "concurrent_3",
-    # "concurrent_6",
+    # # "concurrent_3",
+    # # "concurrent_6",
     # "concurrent_10",
     # "concurrent_20",
     # # "concurrent_30",
@@ -120,14 +120,14 @@ latency_concurrent_ = [
     # "concurrent_80",
     # # "concurrent_90",
     # "concurrent_100",
-    "concurrent_120",
-    # "concurrent_150",
-    # "concurrent_200",
-    "concurrent_250",
+    # "concurrent_120",
+    # # "concurrent_150",
+    "concurrent_200",
+    # "concurrent_250",
     # "concurrent_300",
-    # # "concurrent_500",
-    # # "concurrent_600",
-    # # "concurrent_750",
+    # "concurrent_500",
+    # "concurrent_600",
+    # "concurrent_750",
     # "concurrent_1000",
     # "concurrent_2000",
     # "concurrent_4000",
@@ -173,7 +173,11 @@ exps_finished_rerun = []
 total_experiment_num = 0
 total_rerun_time = 0
 
+target_process_name = 'deptran_server'
+target_process = None
+
 def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
+    
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
@@ -197,15 +201,36 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
             if FAILOVER == True:
                 cmd.append('-f')
                 cmd.append(failover_path)
+            ps_killer.killall(["127.0.0.1"], "deptran_server", "-9")
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
             # sleep(running_time // 2)
             # cpu_usage = [[], [], [], []] # TODO: change to according size
             cpu_usage = defaultdict(list)
             client_ids = [CLIENT_ID_BASE + i for i in range(CLIENT_NUM)]
             server_ids = [SERVER_ID_BASE + i for i in range(SERVER_NUM)]
+            memory_before = 0
+            memory_during_test = 0
+            
+            for proc in psutil.process_iter(attrs=['pid', 'name']):
+                if target_process_name.lower() in proc.info['name'].lower():
+                    target_process = psutil.Process(proc.info['pid'])
+                    break
+
+            if target_process is None:
+                print(f"Process '{target_process_name}' not found.")
+            else:
+                try:
+                    memory_info = target_process.memory_info()
+                    memory_before = memory_info.rss / (1024 ** 2)
+                          # Wait 5 seconds before checking again
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    print(f"Process {target_process.pid} has terminated or access is denied.")
+            
             for _ in range(20):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
-                if _ >= 10:
+                if _ >= 10 and  _ <20:
+                    memory_info = target_process.memory_info()
+                    memory_during_test += memory_info.rss / (1024 ** 2)
                     for cpu_id in chain(client_ids,server_ids): # TODO: add a list for cpu_id
                         cpu_usage[cpu_id].append(cpu_percent[cpu_id])
                         
@@ -228,6 +253,9 @@ def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0,
             text += "medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
                          np.median(client_sum), 
                          np.mean(client_sum), np.max(client_sum))
+            text += "memory before test: {:.3f}\n".format(memory_before)
+            text += "memory during test: {:.3f}\n".format(memory_during_test / 10)
+            
             f.write(text)
             # text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
             #         + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"

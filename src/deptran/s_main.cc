@@ -76,7 +76,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
   int core_id = 10; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
 #endif
 #ifndef SIMULATE_WAN
-  int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
+  int core_id = 0; // [JetPack] usually run 1 replica on each process on cloud setting
 #endif
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
@@ -89,6 +89,23 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             &total_throughput);
     workers.push_back(worker);
     auto th_ = std::thread(&ClientWorker::Work, worker);
+#ifdef AWS
+    //in AWS test, distrubute client workers on different cores except physical core 1(core_id == 1 || 5), which is the server worker core
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
+    }
+    core_id ++;
+    if(core_id % 4 == 1){
+      core_id++;
+    }
+#endif
 #ifndef AWS
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -101,6 +118,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
       Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
     }
     core_id ++;
+
 #endif
     client_threads_g.push_back(std::move(th_));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -115,7 +133,7 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   svr_workers_g.resize(server_sites.size(), ServerWorker());
   int i=0;
   vector<std::thread> setup_ths;
-  int core_id = 0;
+  int core_id = 1;
 #ifdef SIMULATE_WAN
   core_id = 5; //
 #endif
@@ -148,6 +166,20 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       Log_info("site %d launched!", (int)site_info.id);
       worker.launched_ = true;
     });
+#ifdef AWS
+    // for better performance, bind each server thread to a cpu core
+    // in AWS test, each instance has at most one server worker
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a server thread on core %d, site-id:%d", core_id, site_info.id);
+    }
+#endif
 #ifndef AWS
     // for better performance, bind each server thread to a cpu core
     cpu_set_t cpuset;
@@ -397,6 +429,118 @@ void setup_ulimit() {
   }
   Log_info("ulimit -n is %d", (int)limit.rlim_cur);
 }
+double getMemoryUsageMB() {
+    std::ifstream status_file("/proc/self/status");
+    std::string line;
+    double rss_kb = 0.0;
+
+    if (!status_file.is_open()) {
+        std::cerr << "Error: Could not open /proc/self/status" << std::endl;
+        return -1.0;
+    }
+
+    while (std::getline(status_file, line)) {
+        // Find the line that starts with "VmRSS:"
+        if (line.rfind("VmRSS:", 0) == 0) {
+            std::istringstream iss(line);
+            std::string key;
+            double value;
+            std::string unit;
+            iss >> key >> value >> unit;
+
+            if (unit == "kB") {
+                rss_kb = value;
+            }
+            break;
+        }
+    }
+
+    status_file.close();
+
+    // Convert from kilobytes to megabytes
+    return rss_kb / 1024.0;
+}
+//for AWS test cpu usage monitoring
+struct CPUStats { 
+    unsigned long long user, nice, system, idle, iowait, irq, softirq, steal;
+
+    unsigned long long total() const {
+        return user + nice + system + idle + iowait + irq + softirq + steal;
+    }
+
+    unsigned long long idleTime() const {
+        return idle + iowait;
+    }
+};
+//for AWS test cpu usage monitoring
+CPUStats getCPUStats(int core) {
+    std::ifstream file("/proc/stat");
+    std::string line;
+    CPUStats stats;
+
+    // Skip to the line corresponding to the specified core (e.g., "cpu0", "cpu1", etc.)
+    for (int i = 0; i <= core + 1; ++i) {
+        std::getline(file, line);
+    }
+    
+    std::istringstream iss(line);
+    std::string cpuLabel;
+    iss >> cpuLabel >> stats.user >> stats.nice >> stats.system >> stats.idle
+        >> stats.iowait >> stats.irq >> stats.softirq >> stats.steal;
+
+    return stats;
+}
+//for AWS test cpu usage monitoring
+double calculateCPUUsage(const CPUStats& oldStats, const CPUStats& newStats) {
+    unsigned long long totalDiff = newStats.total() - oldStats.total();
+    unsigned long long idleDiff = newStats.idleTime() - oldStats.idleTime();
+    // Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
+    return 100.0 * (1.0 - static_cast<double>(idleDiff) / totalDiff);
+}
+double median(std::vector<double> values) {
+    // Ensure the vector is not empty
+    if (values.empty()) {
+        throw std::invalid_argument("Cannot compute the median of an empty vector.");
+    }
+
+    // Sort the vector
+    std::sort(values.begin(), values.end());
+
+    size_t size = values.size();
+    if (size % 2 == 0) {
+        // If even number of elements, return the average of the two middle elements
+        return (values[size / 2 - 1] + values[size / 2]) / 2.0;
+    } else {
+        // If odd number of elements, return the middle element
+        return values[size / 2];
+    }
+}
+//for AWS test cpu usage monitoring
+vector<double> getUsage(int core_id, int duration){
+  // Get initial CPU stats
+  int first_phase = duration / 3;
+  int second_phase = 2 * (duration / 3);
+   
+  std::vector<double> cpu_usages;
+  //addition: add memory usage to this function
+  std::vector<double> memory_usage;
+  for (int i = 0; i < duration; ++i) {
+      // Measure CPU usage if within the middle third of the duration
+      if (i >= first_phase && i < second_phase) {
+          CPUStats oldStats = getCPUStats(core_id);
+          std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second
+          memory_usage.push_back(getMemoryUsageMB());
+          CPUStats newStats = getCPUStats(core_id);
+          double cpuUsage = calculateCPUUsage(oldStats, newStats);
+          cpu_usages.push_back(cpuUsage);
+          continue;
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  cpu_usages.push_back(median(memory_usage));
+  return cpu_usages;
+
+}
 
 int main(int argc, char *argv[]) {
   check_current_path();
@@ -424,7 +568,6 @@ int main(int argc, char *argv[]) {
   ProfilerStart(prof_file);
   Log_info("started to profile cpu");
 #endif // ifdef CPU_PROFILE
-
   auto server_infos = Config::GetConfig()->GetMyServers();
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
@@ -439,7 +582,22 @@ int main(int argc, char *argv[]) {
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
     client_launch_workers(client_infos);
+
+#ifdef AWS
+    int server_core_id = 1;
+    std::vector<double> cpu_usage = getUsage(server_core_id, Config::GetConfig()->duration_);
+    double memory_during_test = cpu_usage[cpu_usage.size() - 1];
+    Log_info("CORE %d USAGE: ", server_core_id);
+    for(int i = 0; i < cpu_usage.size(); i++){
+      Log_info("%.4F", cpu_usage[i]);
+    }
+    Log_info("server median : %.3f", median(cpu_usage));
+    Log_info("memory during test: %.3f", memory_during_test);
+#endif
+#ifndef AWS
+
     sleep(Config::GetConfig()->duration_);
+#endif
     wait_for_clients();
     failover_server_quit = true;
     Log_info("all clients have shut down.");
@@ -449,7 +607,6 @@ int main(int argc, char *argv[]) {
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
 #endif
-
   sleep(10); // hopefully servers can finish reset of work in 10 seconds
 
   for (auto& worker : svr_workers_g) {
@@ -528,6 +685,7 @@ int main(int argc, char *argv[]) {
     file.close();
     Log_info("%s closed", dump_file_name.c_str());
   }
+
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());
