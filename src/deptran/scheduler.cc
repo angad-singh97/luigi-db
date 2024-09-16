@@ -1443,25 +1443,38 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
 }
 
 
-void RevoveryCandidates::push_back(uint64_t cmd_id) {
-  candidates_[cmd_id] = ++maximal_;
+void RevoveryCandidates::push_back(uint64_t cmd_id, bool is_write) {
+  candidates_[cmd_id] = make_pair(++maximal_, is_write);
+  total_write_ += is_write;
 }
 
 bool RevoveryCandidates::remove(uint64_t cmd_id) {
-  return candidates_.erase(cmd_id);
+  auto it = candidates_.find(cmd_id);
+  if (it != candidates_.end()) {
+    total_write_ -= it->second.second;
+    candidates_.erase(cmd_id);
+    return 1;
+  } else {
+    return 0;
+  }
+  // return candidates_.erase(cmd_id);
 }
 
 size_t RevoveryCandidates::size() {
   return candidates_.size();
 }
 
+int RevoveryCandidates::total_write() {
+  return total_write_;
+}
+
 uint64_t RevoveryCandidates::id_of_candidate_to_recover() {
   uint64_t cmd_to_recover = -1;
   int minimal = INT_MAX;
   for (auto pair: candidates_) {
-    if (pair.second < minimal) {
+    if (pair.second.first < minimal) {
       cmd_to_recover = pair.first;
-      minimal = pair.second;
+      minimal = pair.second.first;
     }
   }
   return cmd_to_recover;
@@ -1471,9 +1484,17 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   key_t key = parsed_cmd.key_;
   uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+
+#ifdef READ_NOT_CONFLICT_OPTIMIZATION
+  // if (!(candidates_[key].size() == 0 || (candidates_[key].total_write() == 0 && parsed_cmd.IsRead())))
+  //   Log_info("total_write %d parsed_cmd.IsRead() %d parsed_cmd.IsWrite() %d", candidates_[key].total_write(), parsed_cmd.IsRead(), parsed_cmd.IsWrite());
+  if (candidates_[key].size() == 0 || (candidates_[key].total_write() == 0 && parsed_cmd.IsRead())) {
+#endif
+#ifndef READ_NOT_CONFLICT_OPTIMIZATION
   if (candidates_[key].size() == 0) {
+#endif
     // not exist conflict
-    candidates_[key].push_back(cmd_id);
+    candidates_[key].push_back(cmd_id, parsed_cmd.IsWrite());
 #ifdef WITNESS_LOG_DEBUG
     witness_log_.push_back(WitnessLog(0, cmd, 1, witness_size_));
 #endif
@@ -1482,7 +1503,7 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   } else {
     // exist conflict, candidates_[key].size() >= 1
     if (belongs_to_leader_) {
-      candidates_[key].push_back(cmd_id);
+      candidates_[key].push_back(cmd_id, parsed_cmd.IsWrite());
 #ifdef WITNESS_LOG_DEBUG
       witness_log_.push_back(WitnessLog(0, cmd, 2, witness_size_));
 #endif

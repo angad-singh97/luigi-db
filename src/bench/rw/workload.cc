@@ -63,6 +63,7 @@ RwWorkload::RwWorkload(Config *config) : Workload(config) {
 
 void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
   req->n_try_ = n_try_;
+  // Log_info("Read Weights %.3f Write Weights %.3f", txn_weights_["read"], txn_weights_["write"]);
   std::vector<double> weights = {txn_weights_["read"], txn_weights_["write"]};
   int32_t key, value;
   switch (RandomGenerator::weighted_select(weights)) {

@@ -186,12 +186,14 @@ class Frequency {
 
 class RevoveryCandidates {
   int maximal_ = -1;
-  unordered_map<uint64_t, int> candidates_;
+  int total_write_ = 0;
+  unordered_map<uint64_t, pair<int, bool>> candidates_;
  public:
   RevoveryCandidates() {}
-  void push_back(uint64_t cmd_id);
+  void push_back(uint64_t cmd_id, bool is_write);
   bool remove(uint64_t cmd_id);
   size_t size();
+  int total_write();
   uint64_t id_of_candidate_to_recover();
 };
 
