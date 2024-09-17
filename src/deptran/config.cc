@@ -365,6 +365,9 @@ void Config::LoadYML(std::string &filename) {
   if (config["bench"]) {
     LoadBenchYML(config["bench"]);
   }
+  if (config["bench_update_weight"]){
+    UpdateWeights(config["bench_update_weight"]);
+  }
   if (config["schema"]) {
     LoadSchemaYML(config["schema"]);
   }
@@ -591,6 +594,16 @@ void Config::LoadModeYML(YAML::Node config) {
   if (config["carousel_basic_mode"]) {
     carousel_basic_mode_ = config["carousel_basic_mode"].as<bool>();
   }
+}
+
+void Config::UpdateWeights(YAML::Node config) {
+    auto weights = config["weight"];
+    for (auto it = weights.begin(); it != weights.end(); ++it) {
+        auto txn_name = it->first.as<std::string>();
+        auto weight = it->second.as<double>();
+        // Update the txn_weights_ map with the new weight
+        txn_weights_[txn_name] = weight;
+    }  
 }
 
 void Config::LoadBenchYML(YAML::Node config) {
