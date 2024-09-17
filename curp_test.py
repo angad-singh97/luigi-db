@@ -39,6 +39,8 @@ CLIENT_NUM = 12
 SERVER_ID_BASE = 5
 SERVER_NUM = 5
 
+YCSB_TEST = True
+
 modes_ = [
     # "none_mongodb",
     # "none_mencius",
@@ -75,16 +77,25 @@ benchmarks_ =  [
     # "rw_1000",
     # "rw_1000000",
     "rw_zipf_1",
-    # # "rw_zipf_0.9",
-    # "rw_zipf_0.8",
-    # # "rw_zipf_0.7",
-    # "rw_zipf_0.6",
-    # # "rw_zipf_0.5",
+    "rw_zipf_0.95",
+    "rw_zipf_0.9",
+    "rw_zipf_0.85",
+    "rw_zipf_0.8",
+    "rw_zipf_0.75",
+    "rw_zipf_0.7",
+    "rw_zipf_0.65",
+    "rw_zipf_0.6",
+    "rw_zipf_0.55",
+    "rw_zipf_0.5",
     # "rw_zipf_0.4",
     # # "rw_zipf_0.3",
     # "rw_zipf_0.2",
     # # "rw_zipf_0.1",
     # "rw_zipf_0",
+]
+YCSB_ = [
+    "YCSB_A.yml",
+    "YCSB_B.yml"
 ]
 open_loop_ = [
     # "client_closed",
@@ -108,21 +119,21 @@ concurrent_ = [
 ]
 latency_concurrent_ = [
     # "concurrent_1",
-    # # "concurrent_3",
-    # # "concurrent_6",
+    # "concurrent_3",
+    # "concurrent_6",
     # "concurrent_10",
     # "concurrent_20",
-    # # "concurrent_30",
+    # "concurrent_30",
     # "concurrent_40",
-    # # "concurrent_50",
+    # "concurrent_50",
     # "concurrent_60",
-    # # "concurrent_70",
+    # "concurrent_70",
     # "concurrent_80",
-    # # "concurrent_90",
-    # "concurrent_100",
+    # "concurrent_90",
+    "concurrent_100",
     # "concurrent_120",
-    # # "concurrent_150",
-    "concurrent_200",
+    # "concurrent_150",
+    # "concurrent_200",
     # "concurrent_250",
     # "concurrent_300",
     # "concurrent_500",
@@ -371,14 +382,17 @@ def test_rule():
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
                         for o in open_loop_:
+                            if YCSB_TEST:
+                                continue
                             run(20, m, s, b, c, o, rt)
             for b in benchmarks_:
-                for m in rule_modes_:
-                    for fp in fastpath_modes_:
-                        for c in latency_concurrent_:
-                            for o in open_loop_:
-                                run(20, m, s, b, c, o, rt, fp)
-                rerun_failed_experiments()
+                for y in  YCSB_:
+                    for m in rule_modes_:
+                        for fp in fastpath_modes_:
+                            for c in latency_concurrent_:
+                                for o in open_loop_:
+                                    run(20, m, s, b, c, o, rt, fp)
+                    rerun_failed_experiments()
             
     
     print("Number of total experiments is", exp_count)

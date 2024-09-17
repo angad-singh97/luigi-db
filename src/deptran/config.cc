@@ -597,13 +597,16 @@ void Config::LoadModeYML(YAML::Node config) {
 }
 
 void Config::UpdateWeights(YAML::Node config) {
-    auto weights = config["weight"];
-    for (auto it = weights.begin(); it != weights.end(); ++it) {
-        auto txn_name = it->first.as<std::string>();
-        auto weight = it->second.as<double>();
-        // Update the txn_weights_ map with the new weight
-        txn_weights_[txn_name] = weight;
-    }  
+  auto weights = config["weight"];
+  for (auto it = weights.begin(); it != weights.end(); ++it) {
+      auto txn_name = it->first.as<std::string>();
+      auto weight = it->second.as<double>();
+      // Update the txn_weights_ map with the new weight
+      txn_weights_[txn_name] = weight;
+  }  
+  for (std::map<std::string, double>::iterator it = txn_weights_.begin(); it != txn_weights_.end(); ++it) {
+    Log_info("key: %s value: %.2f", it->first.c_str(), it->second);
+  }
 }
 
 void Config::LoadBenchYML(YAML::Node config) {
