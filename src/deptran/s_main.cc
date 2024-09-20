@@ -556,6 +556,8 @@ int main(int argc, char *argv[]) {
     return ret;
   }
 
+
+
   auto client_infos = Config::GetConfig()->GetMyClients();
   if (client_infos.size() > 0) {
     client_setup_heartbeat(client_infos.size());

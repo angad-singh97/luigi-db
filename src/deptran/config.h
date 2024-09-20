@@ -202,7 +202,7 @@ class Config {
   void LoadFailoverYML(YAML::Node config);
   void LoadSchemaTableColumnYML(Sharding::tb_info_t &tb_info,
                                 YAML::Node column);
-
+  void UpdateWeights(YAML::Node config);
 
   void InitMode(std::string&cc_name, string&ab_name);
   void InitBench(std::string &);
