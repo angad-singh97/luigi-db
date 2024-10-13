@@ -24,6 +24,7 @@ void ClientWorker::retrive_statistic() {
     for (int i = 0; i < 6; i++)
       cli2cli_[i].merge(c->cli2cli_[i]);
     frequency_.merge(c->frequency_);
+    commit_time_.merge(c->commit_time_);
     fastpath_count_ += c->fastpath_count_;
     coordinatoraccept_count_ += c->coordinatoraccept_count_;
     original_protocol_count_ += c->original_protocol_count_;
@@ -672,7 +673,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   commo_ = frame_->CreateCommo(poll_mgr_);
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
-      ((config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS) && site_info.locale_id != 0) ? true :
+      ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS) && site_info.locale_id != 0) ? true :
                                                                                false;
   Log_debug("client %d created; forward %d",
             cli_id_,
@@ -681,12 +682,15 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
 
 void ClientWorker::Pause(locid_t locid) {
   // TODO modify it locid and parid
-  fail_ctrl_coo_->SendFailOverTrig(0, locid, true);
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! ClientWorker::Pause %d", locid);
+#endif
+  fail_ctrl_coo_->FailoverPauseSocketOut(0, locid);
 }
 
 void ClientWorker::Resume(locid_t locid) {
   // TODO modify it locid and parid
-  fail_ctrl_coo_->SendFailOverTrig(0, locid, false);
+  fail_ctrl_coo_->FailoverResumeSocketOut(0, locid);
 }
 
 } // namespace janus

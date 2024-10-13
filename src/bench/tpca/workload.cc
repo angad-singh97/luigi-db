@@ -78,10 +78,10 @@ TpcaWorkload::TpcaWorkload(Config* config) : Workload(config) {
 ////    int k3 = RandomGenerator::rand(0, tpca_para_.n_branch_ - 1);
 ////    Log_info("gen req, coo_id: %x \t k1: %x k2: %x, k3: %x", cid, k1, k2, k3);
 //  } else if (dist == "zipf") {
-//    static auto alpha = Config::GetConfig()->coeffcient_;
-//    static ZipfDist d1(alpha, tpca_para_.n_customer_);
-//    static ZipfDist d2(alpha, tpca_para_.n_teller_);
-//    static ZipfDist d3(alpha, tpca_para_.n_branch_);
+//    static auto theta = Config::GetConfig()->coeffcient_;
+//    static ZipfDist d1(theta, tpca_para_.n_customer_);
+//    static ZipfDist d2(theta, tpca_para_.n_teller_);
+//    static ZipfDist d3(theta, tpca_para_.n_branch_);
 //    k1 = d1(rand_gen_);
 //    k2 = d2(rand_gen_);
 //    k3 = d3(rand_gen_);
@@ -137,10 +137,10 @@ void TpcaWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
         {2, Value(k3)},
         {3, amount}};
   } else if (dist == "zipf") {
-    static auto alpha = Config::GetConfig()->coeffcient_;
-    static ZipfDist d1(alpha, tpca_para_.n_customer_);
-    static ZipfDist d2(alpha, tpca_para_.n_teller_);
-    static ZipfDist d3(alpha, tpca_para_.n_branch_);
+    static auto theta = Config::GetConfig()->coeffcient_;
+    static ZipfDist d1(theta, tpca_para_.n_customer_);
+    static ZipfDist d2(theta, tpca_para_.n_teller_);
+    static ZipfDist d3(theta, tpca_para_.n_branch_);
     int k1 = d1(rand_gen_);
     int k2 = d2(rand_gen_);
     int k3 = d3(rand_gen_);

@@ -51,7 +51,7 @@ class FpgaRaftServer : public TxLogServer {
   bool paused_ = false ;
   bool req_voting_ = false ;
   bool in_applying_logs_ = false ;
-  bool failover_{false} ;
+  bool failover_{false} ; // xxx: need to change to true
   atomic<int64_t> counter_{0};
   const char *filename = "/db/data.txt";
 
@@ -285,13 +285,13 @@ class FpgaRaftServer : public TxLogServer {
 
   void SpCommit(const uint64_t cmt_idx) ;
 
-  virtual void Pause() override { 
-    paused_ = true ;
-  }
-  virtual void Resume() override {
-    paused_ = false ;
-    resetTimer() ;
-  }
+  // virtual void Pause() override { 
+  //   paused_ = true ;
+  // }
+  // virtual void Resume() override {
+  //   paused_ = false ;
+  //   resetTimer() ;
+  // }
 
   virtual bool HandleConflicts(Tx& dtxn,
                                innid_t inn_id,

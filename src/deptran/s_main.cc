@@ -35,6 +35,14 @@ int original_protocol_count = 0;
 int fastpath_attempted_count = 0;
 int fastpath_successed_count = 0;
 Distribution cli2cli[7];
+  // 0: fastpath protocol attempts, 1 RTT (mid 1/3 duration)
+  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT) [abandoned]
+  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT [abandoned]
+  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout [abandoned]
+  // 4: original protocol attempts, 2 RTT (mid 1/3 duration)
+  // 5: all original protocol even fastpath success, 2 RTT (full duration)
+  // 6: merge 0~4, all attempts (mid 1/3 duration)
+Distribution commit_time;
 Frequency frequency;
 // definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
 // 5nd element is for merge first 4
@@ -72,10 +80,10 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
 
   failover_triggers = new bool[client_sites.size()]() ;
 #ifdef SIMULATE_WAN
-  int core_id = 5; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
+  int core_id = 10; // [JetPack] usually run within 5 replicas, 5 + 3 cores are enough for aws test
 #endif
 #ifndef SIMULATE_WAN
-  int core_id = 1; // [JetPack] usually run 1 replica on each process on cloud setting
+  int core_id = 0; // [JetPack] usually run 1 replica on each process on cloud setting
 #endif
   for (uint32_t client_id = 0; client_id < client_sites.size(); client_id++) {
     ClientWorker* worker = new ClientWorker(client_id,
@@ -88,6 +96,23 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             &total_throughput);
     workers.push_back(worker);
     auto th_ = std::thread(&ClientWorker::Work, worker);
+#ifdef AWS
+    //in AWS test, distrubute client workers on different cores except physical core 1(core_id == 1 || 5), which is the server worker core
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
+    }
+    core_id ++;
+    if(core_id % 4 == 1){
+      core_id++;
+    }
+#endif
 #ifndef AWS
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -100,6 +125,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
       Log_info("start a client thread on core %d, client-id:%d", core_id, client_id);
     }
     core_id ++;
+
 #endif
     client_threads_g.push_back(std::move(th_));
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
@@ -114,7 +140,10 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
   svr_workers_g.resize(server_sites.size(), ServerWorker());
   int i=0;
   vector<std::thread> setup_ths;
-  int core_id = 0;
+  int core_id = 1;
+#ifdef SIMULATE_WAN
+  core_id = 5; //
+#endif
   for (auto& site_info : server_sites) {
     auto th_ = std::thread([&site_info, &i, &config] () {
       Log_info("launching site: %x, bind address %s",
@@ -144,6 +173,20 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       Log_info("site %d launched!", (int)site_info.id);
       worker.launched_ = true;
     });
+#ifdef AWS
+    // for better performance, bind each server thread to a cpu core
+    // in AWS test, each instance has at most one server worker
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    int rc = pthread_setaffinity_np(th_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    } else {
+      Log_info("start a server thread on core %d, site-id:%d", core_id, site_info.id);
+    }
+#endif
 #ifndef AWS
     // for better performance, bind each server thread to a cpu core
     cpu_set_t cpuset;
@@ -187,6 +230,7 @@ void client_shutdown() {
     for (int i = 0; i < 6; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
     frequency.merge(client->frequency_);
+    commit_time.merge(client->commit_time_);
 #ifdef LATENCY_DEBUG
     client2leader.merge(client->client2leader_);
     client2test_point.merge(client->client2test_point_);
@@ -223,6 +267,9 @@ void wait_for_clients() {
 
 void server_failover_co(bool random, bool leader, int srv_idx)
 {
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!!!!!enter server_failover_co");
+#endif
     int idx = -1 ;
     int expected_idx = -1 ;
     int run_int = Config::GetConfig()->get_failover_run_interval() ;
@@ -265,7 +312,9 @@ void server_failover_co(bool random, bool leader, int srv_idx)
             break ;
         }
     }    
-    
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!!!!!!! failover_server_quit %d", failover_server_quit);
+#endif
     while(!failover_server_quit)
     {
         if(random)
@@ -273,9 +322,15 @@ void server_failover_co(bool random, bool leader, int srv_idx)
             idx = rand() % svr_workers_g.size() ;
         }
         failover_server_idx = idx ;
-        //sleep(run_int) ;
-        auto r = Reactor::CreateSpEvent<TimeoutEvent>(run_int * 1000 * 1000);
-        r->Wait();
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!!!!!!! before run_int wait %d s", run_int);
+#endif
+        sleep(run_int) ;
+        // auto r = Reactor::CreateSpEvent<TimeoutEvent>(run_int * 1000 * 1000);
+        // r->Wait();
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!!!!!!! after run_int wait");
+#endif
         if(idx == -1) 
         {
           // TODO other types
@@ -284,38 +339,60 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         }        
         if(failover_server_quit)
         {
-            break ;
+#ifdef FAILOVER_DEBUG
+          Log_info("!!!!!!!!!!!!!!!!!!!! quit here");
+#endif
+          break ;
         }
         for (int i = 0; i < client_workers_g.size() ; ++i)
         {
           failover_triggers[i] = true ;
         }
-        for (int i = 0; i < client_workers_g.size() ; ++i)
-        {
-          while(failover_triggers[i]) {
-            if (failover_server_quit) return ;
-          }
-        }
+        // for (int i = 0; i < client_workers_g.size() ; ++i)
+        // {
+        //   while(failover_triggers[i]) {
+        //     if (failover_server_quit) {
+        //       Log_info("!!!!!!!!!!!!!!!!!!!! quit here");
+        //       return ;
+        //     }
+        //   }
+        // }
         // TODO the idx of client
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!before pause 0");
+#endif
         client_workers_g[0]->Pause(idx) ;
+        Log_info("!!!!!!!!!!!!!! failover paused");
 //        svr_workers_g[idx].Pause() ;
         for (int i = 0; i < client_workers_g.size() ; ++i)
         {
           failover_triggers[i] = true ;
         }
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!! before stop_int wait");
+#endif
         Log_info("server %d paused for failover test", idx);
-        //sleep(stop_int) ;
-        auto s = Reactor::CreateSpEvent<TimeoutEvent>(stop_int * 1000 * 1000);
-        s->Wait() ;        
-        for (int i = 0; i < client_workers_g.size() ; ++i)
-        {
-          while(failover_triggers[i]) {
-            if (failover_server_quit) return ;
-          }
-        }        
+        sleep(stop_int) ;
+        // auto s = Reactor::CreateSpEvent<TimeoutEvent>(stop_int * 1000 * 1000);
+        // s->Wait() ;      
+#ifdef FAILOVER_DEBUG  
+        Log_info("!!!!!!!!!!!!!! after stop_int wait");
+#endif
+        // for (int i = 0; i < client_workers_g.size() ; ++i)
+        // {
+        //   while(failover_triggers[i]) {
+        //     if (failover_server_quit) return ;
+        //   }
+        // }        
+#ifdef FAILOVER_DEBUG
+        Log_info("!!!!!!!!!!!!!!before resume 0");
+#endif
         client_workers_g[0]->Resume(idx) ;
+        Log_info("!!!!!!!!!!!!!! failover resumed");
 //        svr_workers_g[idx].Resume() ;
+#ifdef FAILOVER_DEBUG
         Log_info("server %d resumed for failover test", idx);
+#endif
         if(leader)
         {
           // get current leader
@@ -326,6 +403,9 @@ void server_failover_co(bool random, bool leader, int srv_idx)
 }
 
 void server_failover_thread(bool random, bool leader, int srv_idx) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!!!enter server_failover_thread");
+#endif
   Coroutine::CreateRun([&, random, leader, srv_idx]() { 
     server_failover_co(random, leader, srv_idx) ;
   }) ;
@@ -343,8 +423,8 @@ void server_failover()
         server_failover_co(random, leader, idx) ;
       }) ;*/
       // TODO only consider the partition 0 now
-      /*failover_threads_g.push_back(
-          std::thread(&server_failover_thread, random, leader, idx)) ;*/
+      failover_threads_g.push_back(
+          std::thread(&server_failover_thread, random, leader, idx)) ;
     }
 }
 
@@ -355,6 +435,118 @@ void setup_ulimit() {
     Log_fatal("getrlimit() failed with errno=%d", errno);
   }
   Log_info("ulimit -n is %d", (int)limit.rlim_cur);
+}
+double getMemoryUsageMB() {
+    std::ifstream status_file("/proc/self/status");
+    std::string line;
+    double rss_kb = 0.0;
+
+    if (!status_file.is_open()) {
+        std::cerr << "Error: Could not open /proc/self/status" << std::endl;
+        return -1.0;
+    }
+
+    while (std::getline(status_file, line)) {
+        // Find the line that starts with "VmRSS:"
+        if (line.rfind("VmRSS:", 0) == 0) {
+            std::istringstream iss(line);
+            std::string key;
+            double value;
+            std::string unit;
+            iss >> key >> value >> unit;
+
+            if (unit == "kB") {
+                rss_kb = value;
+            }
+            break;
+        }
+    }
+
+    status_file.close();
+
+    // Convert from kilobytes to megabytes
+    return rss_kb / 1024.0;
+}
+//for AWS test cpu usage monitoring
+struct CPUStats { 
+    unsigned long long user, nice, system, idle, iowait, irq, softirq, steal;
+
+    unsigned long long total() const {
+        return user + nice + system + idle + iowait + irq + softirq + steal;
+    }
+
+    unsigned long long idleTime() const {
+        return idle + iowait;
+    }
+};
+//for AWS test cpu usage monitoring
+CPUStats getCPUStats(int core) {
+    std::ifstream file("/proc/stat");
+    std::string line;
+    CPUStats stats;
+
+    // Skip to the line corresponding to the specified core (e.g., "cpu0", "cpu1", etc.)
+    for (int i = 0; i <= core + 1; ++i) {
+        std::getline(file, line);
+    }
+    
+    std::istringstream iss(line);
+    std::string cpuLabel;
+    iss >> cpuLabel >> stats.user >> stats.nice >> stats.system >> stats.idle
+        >> stats.iowait >> stats.irq >> stats.softirq >> stats.steal;
+
+    return stats;
+}
+//for AWS test cpu usage monitoring
+double calculateCPUUsage(const CPUStats& oldStats, const CPUStats& newStats) {
+    unsigned long long totalDiff = newStats.total() - oldStats.total();
+    unsigned long long idleDiff = newStats.idleTime() - oldStats.idleTime();
+    // Log_info("idlediff : %.4f, totaldiff : %.4f",static_cast<double>(idleDiff) ,static_cast<double>(totalDiff));
+    return 100.0 * (1.0 - static_cast<double>(idleDiff) / totalDiff);
+}
+double median(std::vector<double> values) {
+    // Ensure the vector is not empty
+    if (values.empty()) {
+        throw std::invalid_argument("Cannot compute the median of an empty vector.");
+    }
+
+    // Sort the vector
+    std::sort(values.begin(), values.end());
+
+    size_t size = values.size();
+    if (size % 2 == 0) {
+        // If even number of elements, return the average of the two middle elements
+        return (values[size / 2 - 1] + values[size / 2]) / 2.0;
+    } else {
+        // If odd number of elements, return the middle element
+        return values[size / 2];
+    }
+}
+//for AWS test cpu usage monitoring
+vector<double> getUsage(int core_id, int duration){
+  // Get initial CPU stats
+  int first_phase = duration / 3;
+  int second_phase = 2 * (duration / 3);
+   
+  std::vector<double> cpu_usages;
+  //addition: add memory usage to this function
+  std::vector<double> memory_usage;
+  for (int i = 0; i < duration; ++i) {
+      // Measure CPU usage if within the middle third of the duration
+      if (i >= first_phase && i < second_phase) {
+          CPUStats oldStats = getCPUStats(core_id);
+          std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait 1 second
+          memory_usage.push_back(getMemoryUsageMB());
+          CPUStats newStats = getCPUStats(core_id);
+          double cpuUsage = calculateCPUUsage(oldStats, newStats);
+          cpu_usages.push_back(cpuUsage);
+          continue;
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  cpu_usages.push_back(median(memory_usage));
+  return cpu_usages;
+
 }
 
 int main(int argc, char *argv[]) {
@@ -371,6 +563,8 @@ int main(int argc, char *argv[]) {
     return ret;
   }
 
+
+
   auto client_infos = Config::GetConfig()->GetMyClients();
   if (client_infos.size() > 0) {
     client_setup_heartbeat(client_infos.size());
@@ -383,7 +577,6 @@ int main(int argc, char *argv[]) {
   ProfilerStart(prof_file);
   Log_info("started to profile cpu");
 #endif // ifdef CPU_PROFILE
-
   auto server_infos = Config::GetConfig()->GetMyServers();
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
@@ -398,7 +591,22 @@ int main(int argc, char *argv[]) {
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
     client_launch_workers(client_infos);
+
+#ifdef AWS
+    int server_core_id = 1;
+    std::vector<double> cpu_usage = getUsage(server_core_id, Config::GetConfig()->duration_);
+    double memory_during_test = cpu_usage[cpu_usage.size() - 1];
+    Log_info("CORE %d USAGE: ", server_core_id);
+    for(int i = 0; i < cpu_usage.size(); i++){
+      Log_info("%.4F", cpu_usage[i]);
+    }
+    Log_info("server median : %.3f", median(cpu_usage));
+    Log_info("memory during test: %.3f", memory_during_test);
+#endif
+#ifndef AWS
+
     sleep(Config::GetConfig()->duration_);
+#endif
     wait_for_clients();
     failover_server_quit = true;
     Log_info("all clients have shut down.");
@@ -408,7 +616,6 @@ int main(int argc, char *argv[]) {
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
 #endif
-
   sleep(10); // hopefully servers can finish reset of work in 10 seconds
 
   for (auto& worker : svr_workers_g) {
@@ -450,15 +657,15 @@ int main(int argc, char *argv[]) {
   
   for (int i = 0; i < 5; i++)
     cli2cli[6].merge(cli2cli[i]);
-  Log_info("Fastpath count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
-  Log_info("CoordinatorAccept count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
-  Log_info("Fast-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
-  Log_info("Slow-Original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
-  Log_info("Original-Protocol count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("All original count %d 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("Fastpath count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
+  Log_info("CoordinatorAccept count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
+  Log_info("Fast-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
+  Log_info("Slow-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
+  Log_info("Original-Protocol count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
+  Log_info("All original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
   Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
-  Log_info("Original throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
+  Log_info("Total Original throughput is %.2f", cli2cli[5].count() * 1.0 / Config::GetConfig()->duration_);
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f", fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count);
   Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
 
@@ -467,8 +674,9 @@ int main(int argc, char *argv[]) {
   if (!file.is_open()) {
     Log_info("Failed to open file for writing %s", dump_file_name.c_str());
   } else {
-    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "\n";
-    size_t max_size = 0;
+    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "," << "Commit-Time" << "\n";
+    size_t max_size = commit_time.count();
+    commit_time.pct50();
     for (int i = 0; i < 7; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
@@ -476,16 +684,17 @@ int main(int argc, char *argv[]) {
         for (int k = 0; k < 7; k++) {
           if (i < cli2cli[k].count())
             file << cli2cli[k].data_[i];
-          if (k < 6)
-            file << ",";
-          else
-            file << "\n";
+          file << ",";
         }
+        if (i < commit_time.count())
+          file << commit_time.data_[i];
+        file << "\n";
     }
     Log_info("Dumped to %s with %d lines data", dump_file_name.c_str(), max_size);
     file.close();
     Log_info("%s closed", dump_file_name.c_str());
   }
+
 #ifdef LATENCY_DEBUG
   Log_info("client2leader 50pct %.2f 90pct %.2f 99pct %.2f", client2leader.pct50(), client2leader.pct90(), client2leader.pct99());
   Log_info("client2test_point 50pct %.2f 90pct %.2f 99pct %.2f", client2test_point.pct50(), client2test_point.pct90(), client2test_point.pct99());

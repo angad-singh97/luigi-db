@@ -102,8 +102,9 @@ namespace janus {
 #define MODE_MENCIUS       (0x200)
 #define MODE_MENCIUS_PLUS       (0x201)
 #define MODE_CAROUSEL (0x2000)
-#define MODE_FPGA_RAFT (0x400)
-#define MODE_FPGA_RAFT_PLUS (0x401)
+#define MODE_RAFT (0x400)
+#define MODE_FPGA_RAFT (0x401)
+#define MODE_FPGA_RAFT_PLUS (0x402)
 #define MODE_COPILOT        (0x4000)
 #define MODE_COPILOT_PLUS (0x4001)
 #define MODE_MONGODB (0x9000)
@@ -148,8 +149,8 @@ namespace janus {
 // #define CURP_WAIT_COMMIT_TIMEOUT (70) -> Config::GetConfig()->curp_wait_commit_timeout_
 // #define CURP_INSTANCE_COMMIT_TIMEOUT (100) -> Config::GetConfig()->curp_instance_commit_timeout_
 
-#define AWS
-// #define SIMULATE_WAN
+// #define AWS
+#define SIMULATE_WAN
 // #define CURP_CONFLICT_DEBUG
 // #define CURP_FULL_LOG_DEBUG
 // #define LATENCY_DEBUG
@@ -158,9 +159,13 @@ namespace janus {
 // #define MONGODB_DEBUG
 // #define CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
 #define CHECK_KEY_DISTRIBUTION
+#define READ_NOT_CONFLICT_OPTIMIZATION
+
 
 // #define CPU_PROFILE_MAIN
 // #define CPU_PROFILE_SEVER
 // #define WITNESS_LOG_DEBUG
-
+// #define FAILOVER_DEBUG
+// #define RAFT_LEADER_ELECTION_LOGIC
+// #define RAFT_LEADER_ELECTION_DEBUG
 } // namespace janus

@@ -186,12 +186,14 @@ class Frequency {
 
 class RevoveryCandidates {
   int maximal_ = -1;
-  unordered_map<uint64_t, int> candidates_;
+  int total_write_ = 0;
+  unordered_map<uint64_t, pair<int, bool>> candidates_;
  public:
   RevoveryCandidates() {}
-  void push_back(uint64_t cmd_id);
+  void push_back(uint64_t cmd_id, bool is_write);
   bool remove(uint64_t cmd_id);
   size_t size();
+  int total_write();
   uint64_t id_of_candidate_to_recover();
 };
 
@@ -519,8 +521,8 @@ class TxLogServer {
   virtual bool IsFPGALeader() { verify(0); } ;
 	
 	virtual bool RequestVote() { verify(0); return false;};
-  virtual void Pause() { verify(0); } ;
-  virtual void Resume() { verify(0); } ;
+  virtual void Pause();
+  virtual void Resume();
 
   // epoch related functions
   void TriggerUpgradeEpoch();
@@ -672,6 +674,19 @@ class TxLogServer {
 
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
+  // void OnRulePrepare(uint32_t epoch,
+  //                    ballot_t ballot,
+  //                    value_t* result,
+  //                    int* acc_ballot,
+  //                    Witness* pool);
+  
+  // void OnRuleAccept(uint32_t epoch,
+  //                   ballot_t ballot,
+  //                   Witness pool,
+  //                   value_t* result);
+
+  // void OnRuleCommit(uint32_t epoch,
+  //                   Witness pool);
 };
 
 } // namespace janus

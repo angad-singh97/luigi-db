@@ -14,26 +14,25 @@ class ZipfDist {
   };
   vector<probvals> zdist = {};
 
-  void get_zipf(double alpha, int N) {
-    double theta;
+  void get_zipf(double theta, int N) {
     double sum = 0.0;
     double c = 0.0;
     double sumc = 0.0;
     int i;
 
     /*
-     * pmf: f(x) = 1 / (x^alpha) * sum_1_to_n( (1/i)^alpha )
+     * pmf: f(x) = 1 / (x^theta) * sum_1_to_n( (1/i)^theta )
      */
 
     for (i = 1; i <= N; i++) {
-      sum += 1.0 / (double) pow((double) i, (double) (alpha));
+      sum += 1.0 / (double) pow((double) i, (double) (theta));
 
     }
     c = 1.0 / sum;
 
     for (i = 0; i < N; i++) {
       zdist[i].prob = c /
-          (double) pow((double) (i + 1), (double) (alpha));
+          (double) pow((double) (i + 1), (double) (theta));
       sumc += zdist[i].prob;
       zdist[i].cum_prob = sumc;
     }
@@ -48,15 +47,15 @@ class ZipfDist {
 #endif
   }
 
-  ZipfDist(double alpha, int N) {
+  ZipfDist(double theta, int N) {
     int i;
 
-    if (N <= 0 || alpha < 0.0 || alpha > 1.0) {
+    if (N <= 0 || theta < 0.0 || theta > 1.0) {
       Log_fatal("wrong arguments for zipf");
     }
 
     zdist.resize(N);
-    get_zipf(alpha, N);          /* generate the distribution */
+    get_zipf(theta, N);          /* generate the distribution */
   }
 
   int operator() (std::mt19937& rand_gen) {

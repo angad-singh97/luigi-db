@@ -106,6 +106,7 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
+        commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
@@ -123,6 +124,8 @@ void CoordinatorRule::GotoNextPhase() {
           else
             cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
+      commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+      // Log_info("End");
       End();
       break;
     default:

@@ -63,6 +63,7 @@ RwWorkload::RwWorkload(Config *config) : Workload(config) {
 
 void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
   req->n_try_ = n_try_;
+  // Log_info("Read Weights %.3f Write Weights %.3f", txn_weights_["read"], txn_weights_["write"]);
   std::vector<double> weights = {txn_weights_["read"], txn_weights_["write"]};
   int32_t key, value;
   switch (RandomGenerator::weighted_select(weights)) {
@@ -109,8 +110,8 @@ int32_t RwWorkload::GetId(uint32_t cid) {
   auto& dist = Config::GetConfig()->dist_;
   static int32_t key_range = Config::GetConfig()->range_ == -1 ? rw_benchmark_para_.n_table_ : Config::GetConfig()->range_;
   if (dist == "zipf") {
-    static auto alpha = Config::GetConfig()->coeffcient_;
-    static ZipfDist d(alpha, key_range);
+    static auto theta = Config::GetConfig()->coeffcient_;
+    static ZipfDist d(theta, key_range);
     id = d(rand_gen_);
   } else if (fix_id_ == -1) {
     // Log_info("[CURP] id range is (0, %d)", key_range - 1);

@@ -327,6 +327,8 @@ class Communicator {
                                               std::chrono::milliseconds timeout_ms);
   ClientSiteProxyPair ConnectToClientSite(Config::SiteInfo &site,
                                           std::chrono::milliseconds timeout);
+  void Pause();
+  void Resume();
   void ConnectClientLeaders();
   void WaitConnectClientLeaders();
 
@@ -340,6 +342,9 @@ class Communicator {
                  int32_t output_size,
                  std::function<void(Future *fu)> &callback);
   virtual void BroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
+                         Coordinator *coo,
+                         const std::function<void(int res, TxnOutput &)> &) ;
+  virtual void SyncBroadcastDispatch(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data,
                          Coordinator *coo,
                          const std::function<void(int res, TxnOutput &)> &) ;
 
@@ -397,7 +402,8 @@ class Communicator {
   void AddMessageHandler(std::function<bool(const MarshallDeputy&,
                                             MarshallDeputy&)>);
   shared_ptr<GetLeaderQuorumEvent> BroadcastGetLeader(parid_t par_id, locid_t cur_pause);
-  shared_ptr<QuorumEvent> SendFailOverTrig(parid_t par_id, locid_t loc_id, bool pause);
+  shared_ptr<QuorumEvent> FailoverPauseSocketOut(parid_t par_id, locid_t loc_id);
+  shared_ptr<QuorumEvent> FailoverResumeSocketOut(parid_t par_id, locid_t loc_id);
   void SetNewLeaderProxy(parid_t par_id, locid_t loc_id);
   void SendSimpleCmd(groupid_t gid, SimpleCommand& cmd, std::vector<int32_t>& sids,
       const function<void(int)>& callback);

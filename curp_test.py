@@ -9,8 +9,9 @@ import sys
 from datetime import datetime
 import psutil
 import numpy as np
-
+from collections import defaultdict
 from pylib import ps as ps_killer
+from itertools import chain
 
 run_app_     = "build/deptran_server"
 config_path_ = "config/"
@@ -31,17 +32,26 @@ TC_20_FAST_PATH_TIMEOUT = 25
 TC_20_WAIT_COMMIT_TIMEOUT = 70
 TC_20_INSTANCE_COMMIT_TIMEOUT = 100
 
+FAILOVER = False
+
+CLIENT_ID_BASE = 10
+CLIENT_NUM = 12
+SERVER_ID_BASE = 5
+SERVER_NUM = 5
+
+YCSB_TEST = True
+
 modes_ = [
     # "none_mongodb",
-    "none_mencius",
-    "none_copilot",
-    "none_fpga_raft",
+    # "none_mencius",
+    # "none_copilot",
+    # "none_fpga_raft",
     # "none_paxos",
 ]
 rule_modes_ = [
     # "rule_mongodb",
-    "rule_mencius",
-    "rule_copilot",
+    # "rule_mencius",
+    # "rule_copilot",
     "rule_fpga_raft",
 ]
 curp_modes_ = [
@@ -52,11 +62,11 @@ curp_modes_ = [
 ]
 fastpath_modes_ = [
     # 101, # adaptive
-    0,  # 0 possibility attempt fastpath
-    25,
-    50,
+    # 0,  # 0 possibility attempt fastpath
+    # 25,
+    # 50,
     75,
-    100,  # 1 possibility attempt fastpath
+    # 100,  # 1 possibility attempt fastpath
 ]
 sites_ = [
     "12c1s5r1p",
@@ -65,18 +75,32 @@ sites_ = [
 benchmarks_ =  [
     # "rw_1",
     # "rw_1000",
-    "rw_1000000",
+    # "rw_1000000",
     "rw_zipf_1",
-    # # "rw_zipf_0.9",
-    # "rw_zipf_0.8",
-    # # "rw_zipf_0.7",
-    # "rw_zipf_0.6",
-    # # "rw_zipf_0.5",
+    "rw_zipf_0.95",
+    "rw_zipf_0.9",
+    "rw_zipf_0.85",
+    "rw_zipf_0.8",
+    "rw_zipf_0.75",
+    "rw_zipf_0.7",
+    "rw_zipf_0.65",
+    "rw_zipf_0.6",
+    "rw_zipf_0.55",
+    "rw_zipf_0.5",
     # "rw_zipf_0.4",
     # # "rw_zipf_0.3",
     # "rw_zipf_0.2",
     # # "rw_zipf_0.1",
     # "rw_zipf_0",
+]
+YCSB_ = [
+    "YCSB_A.yml",
+    "YCSB_B.yml"
+]
+open_loop_ = [
+    # "client_closed",
+    "client_open",
+
 ]
 concurrent_ = [
     "concurrent_1",
@@ -94,24 +118,24 @@ concurrent_ = [
     "concurrent_50",
 ]
 latency_concurrent_ = [
-    "concurrent_1",
-    "concurrent_3",
-    "concurrent_6",
-    "concurrent_10",
-    "concurrent_20",
+    # "concurrent_1",
+    # "concurrent_3",
+    # "concurrent_6",
+    # "concurrent_10",
+    # "concurrent_20",
     # "concurrent_30",
-    "concurrent_40",
+    # "concurrent_40",
     # "concurrent_50",
-    "concurrent_60",
+    # "concurrent_60",
     # "concurrent_70",
-    "concurrent_80",
+    # "concurrent_80",
     # "concurrent_90",
     "concurrent_100",
-    "concurrent_120",
-    "concurrent_150",
-    "concurrent_200",
-    "concurrent_250",
-    "concurrent_300",
+    # "concurrent_120",
+    # "concurrent_150",
+    # "concurrent_200",
+    # "concurrent_250",
+    # "concurrent_300",
     # "concurrent_500",
     # "concurrent_600",
     # "concurrent_750",
@@ -160,68 +184,120 @@ exps_finished_rerun = []
 total_experiment_num = 0
 total_rerun_time = 0
 
-def run(latency, m, s, b, c, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
+target_process_name = 'deptran_server'
+target_process = None
+
+def run(latency, m, s, b, c, o, running_time=30, fp=0, fc=0, to1=1000000, to2=0, to3=1000, output_path=None, cmd=None, rerun_time=None):
+    
     pm = config_path_ + m + ".yml"
     ps = config_path_ + s + ".yml"
     pb = config_path_ + b + ".yml"
     pc = config_path_ + c + ".yml"
+    po = config_path_ + o + ".yml"
+    failover_path = config_path_ + "failover.yml"
 
     if output_path == None:
-        output_path = os.path.join(exp_dir, str(latency) + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
+        output_path = os.path.join(exp_dir, str(latency) + '-' + o + '-' + 'ms-' + m + '-' + s + '-' + b + '-' + c + '-' + str(fc) + '-' + str(to1) + '-' + str(to2) + '-' + str(to3) + '-' + str(fp) + '-' + str(running_time) + ".res")
+    # print("output_path: ", output_path)
     t1 = time()
     res = "INIT"
     try:
         with open(output_path, "w") as f:
             if cmd == None:
-                cmd = [run_app_, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
+                cmd = [run_app_, "-f", po, "-f", pm, "-f", ps, "-f", pb, "-f", pc, "-P", "localhost", "-d", str(running_time), "-F", str(fc), "-O", str(to1)+ "-" + str(to2) + "-" + str(to3), "-m", str(fp)]
             # print(' '.join(cmd))
 
             # r = call(cmd, stdout=f, stderr=f, timeout=60)
             # res = "OK" if r == 0 else "Failed"
-
+            if FAILOVER == True:
+                cmd.append('-f')
+                cmd.append(failover_path)
+            ps_killer.killall(["127.0.0.1"], "deptran_server", "-9")
             process = subprocess.Popen(" ".join(cmd), shell=True, stdout=f, stderr=subprocess.STDOUT)
             # sleep(running_time // 2)
-            cpu_usage = [[], [], [], []]
+            # cpu_usage = [[], [], [], []] # TODO: change to according size
+            cpu_usage = defaultdict(list)
+            client_ids = [CLIENT_ID_BASE + i for i in range(CLIENT_NUM)]
+            server_ids = [SERVER_ID_BASE + i for i in range(SERVER_NUM)]
+            memory_before = 0
+            memory_during_test = 0
+            
+            for proc in psutil.process_iter(attrs=['pid', 'name']):
+                if target_process_name.lower() in proc.info['name'].lower():
+                    target_process = psutil.Process(proc.info['pid'])
+                    break
+
+            if target_process is None:
+                print(f"Process '{target_process_name}' not found.")
+            else:
+                try:
+                    memory_info = target_process.memory_info()
+                    memory_before = memory_info.rss / (1024 ** 2)
+                          # Wait 5 seconds before checking again
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    print(f"Process {target_process.pid} has terminated or access is denied.")
+            
             for _ in range(20):
                 cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
-                if _ >= 10:
-                    for cpu_id in range(3):
+                if _ >= 10 and  _ <20:
+                    memory_info = target_process.memory_info()
+                    memory_during_test += memory_info.rss / (1024 ** 2)
+                    for cpu_id in chain(client_ids,server_ids): # TODO: add a list for cpu_id
                         cpu_usage[cpu_id].append(cpu_percent[cpu_id])
-                    cpu_usage[3].append(np.sum(cpu_percent[3:]))
-            process.wait(timeout= max(120, running_time * 1.5))
+                        
+            process.wait(timeout= max(70, running_time * 1.5))
             f.write("\n")
-            for cpu_id in range(3):
-                text = "cpu" + str(cpu_id) + " " + str(cpu_usage[cpu_id]) + " medium: " + str(np.median(cpu_usage[cpu_id])) + " mean: " \
-                    + str(np.mean(cpu_usage[cpu_id])) + " max: " + str(np.max(cpu_usage[cpu_id])) + "\n"
-                f.write(text)
-            text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
-                    + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"
+            text = "Server: \n"
+            for cpu_id in server_ids: 
+                text += "cpu{} medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                                 cpu_id, np.median(cpu_usage[cpu_id]), 
+                                np.mean(cpu_usage[cpu_id]), np.max(cpu_usage[cpu_id]))
+            text += "Client: \n"
+            client_sum = [0 for _ in range(10)]
+            for cpu_id in client_ids: 
+                client_sum = [x + y for x, y in zip(client_sum, cpu_usage[cpu_id])]
+                text += "cpu{}  medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                        cpu_id,  np.median(cpu_usage[cpu_id]), 
+                         np.mean(cpu_usage[cpu_id]), np.max(cpu_usage[cpu_id]))
+                
+            text += "Client sum: "
+            text += "medium: {:.3f} mean: {:.3f} max: {:.3f}\n".format(
+                         np.median(client_sum), 
+                         np.mean(client_sum), np.max(client_sum))
+            text += "memory before test: {:.3f}\n".format(memory_before)
+            text += "memory during test: {:.3f}\n".format(memory_during_test / 10)
+            
             f.write(text)
+            # text = "clientall " + str(cpu_usage[3]) + " medium: " + str(np.median(cpu_usage[3])) + " mean: " \
+            #         + str(np.mean(cpu_usage[3])) + " max: " + str(np.max(cpu_usage[3])) + "\n"
+            # f.write(text)
         res = "FINISH"
     except subprocess.TimeoutExpired:
         process.terminate()
-        sleep(running_time * 2)
+        # sleep(running_time * 2)
         ps_killer.killall(["127.0.0.1"], "deptran_server", "-9")
         res = "Timeout"
     except Exception as e:
         print(e)
     t2 = time()
-    print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1))
+    print("%-15s%-10s%-15s%-20s%-6s \t %.2fs" % (m, s, b, c, res, t2-t1), end=" ")
     
-    success_flag = "Total throughtput is"
+    success_flag = "Client sum: "
     try:
         with open(output_path, 'r') as file:
             found = False
             for line in file:
-                if success_flag in line:
+                if success_flag in line :
                     found = True
                     break
             if not found:
+                print("no flag, add to rerun")
                 if rerun_time != None:
                     exps_need_to_rerun.append((output_path, cmd, rerun_time + 1))
                 else:
                     exps_need_to_rerun.append((output_path, cmd, 0))
             else:
+                print("flag found, success")
                 if rerun_time != None:
                     exps_finished_rerun.append((output_path, cmd, rerun_time + 1))
     except FileNotFoundError:
@@ -305,13 +381,18 @@ def test_rule():
             for m in modes_:
                 for b in ["rw_1000000"]:
                     for c in latency_concurrent_:
-                        run(20, m, s, b, c, rt)
+                        for o in open_loop_:
+                            if YCSB_TEST:
+                                continue
+                            run(20, m, s, b, c, o, rt)
             for b in benchmarks_:
-                for m in rule_modes_:
-                    for fp in fastpath_modes_:
-                        for c in latency_concurrent_:
-                            run(20, m, s, b, c, rt, fp)
-                rerun_failed_experiments()
+                for y in  YCSB_:
+                    for m in rule_modes_:
+                        for fp in fastpath_modes_:
+                            for c in latency_concurrent_:
+                                for o in open_loop_:
+                                    run(20, m, s, b, c, o, rt, fp)
+                    rerun_failed_experiments()
             
     
     print("Number of total experiments is", exp_count)
@@ -355,7 +436,7 @@ def rerun_failed_experiments():
         for (output_path, cmd, rerun_times) in exps_to_run:
             print("rerun " + str(rerun_times) + " | " + output_path)
             total_rerun_time += 1
-            run(0, "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
+            run(0, "", "", "", "", "", 0, 0, 0, 0, 0, 0, output_path, cmd, rerun_times)
 
 
 def print_rerun():

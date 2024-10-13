@@ -102,15 +102,16 @@ class Coordinator {
 
   // For latency test
   Distribution cli2cli_[6];
-  // 0: fastpath success, 1 RTT
-  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT)
-  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT
-  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout
-  // 4: original protocol, 2 RTT
-  // 5: all original protocol even fastpath success, 2 RTT
+  // 0: fastpath protocol attempts, 1 RTT (mid 1/3 duration)
+  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT) [abandoned]
+  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT [abandoned]
+  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout [abandoned]
+  // 4: original protocol attempts, 2 RTT (mid 1/3 duration)
+  // 5: all original protocol even fastpath success, 2 RTT (full duration)
 
   Frequency frequency_;
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
+  Distribution commit_time_;
   
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;
@@ -192,7 +193,8 @@ class Coordinator {
 
   virtual void DoTxAsync(TxRequest &) = 0;
   virtual void SetNewLeader(parid_t, volatile locid_t*) { verify(0); };
-  virtual void SendFailOverTrig(parid_t, locid_t, bool) { verify(0); };
+  virtual void FailoverPauseSocketOut(parid_t, locid_t) { verify(0); };
+  virtual void FailoverResumeSocketOut(parid_t, locid_t) { verify(0); };
   virtual void Submit(shared_ptr<Marshallable>& cmd,
                       const std::function<void()>& commit_callback = [](){},
                       const std::function<void()>& exe_callback = [](){}) {

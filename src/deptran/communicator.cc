@@ -420,6 +420,18 @@ Communicator::NearestProxyForPartition(parid_t par_id) const {
   return partition_proxies[index];
 };
 
+void Communicator::Pause() {
+  for (auto it = rpc_clients_.begin(); it != rpc_clients_.end(); it++) {
+    it->second->pause();
+  }
+}
+
+void Communicator::Resume() {
+  for (auto it = rpc_clients_.begin(); it != rpc_clients_.end(); it++) {
+    it->second->resume();
+  }
+}
+
 std::shared_ptr<QuorumEvent> Communicator::SendReelect(){
 	//paused = true;
 	//sleep(10);
@@ -519,6 +531,64 @@ void Communicator::BroadcastDispatch(
 #endif
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
+}
+
+void Communicator::SyncBroadcastDispatch(
+    shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
+    Coordinator* coo,
+    const function<void(int, TxnOutput&)> & callback) {
+
+  Log_debug("Do a dispatch on client worker");
+  cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
+  verify(!sp_vec_piece->empty());
+  auto par_id = sp_vec_piece->at(0)->PartitionId();
+  
+  std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
+  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+    int n = rpc_par_proxies_.find(par_id)->second.size();
+    pair_leader_proxy = LeaderProxyForPartition(par_id, coo->cli_id_% n);
+  } else {
+    pair_leader_proxy = LeaderProxyForPartition(par_id);
+  }
+  
+  SetLeaderCache(par_id, pair_leader_proxy) ;
+  Log_debug("send dispatch to site %ld, par %d",
+            pair_leader_proxy.first, par_id);
+  auto proxy = pair_leader_proxy.second;
+  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+
+  // Record Time
+  sp_vpd->time_sent_from_client_ = SimpleRWCommand::GetCurrentMsTime();
+
+  MarshallDeputy md(sp_vpd); // ????
+
+	DepId di;
+	di.str = "dep";
+	di.id = Communicator::global_id++;
+  
+#ifdef CURP_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
+#ifdef COPILOT_TIME_DEBUG
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#endif
+
+  WAN_WAIT;
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
+#endif
+  int32_t ret;
+  TxnOutput outputs;
+  uint64_t coro_id;
+  int32_t dispatch_error_code = proxy->Dispatch(cmd_id, di, md, &ret, &outputs, &coro_id);
+	verify(dispatch_error_code == 0);
+  callback(ret, outputs);
 }
 
 
@@ -1155,12 +1225,19 @@ shared_ptr<GetLeaderQuorumEvent> Communicator::BroadcastGetLeader(
   return e;
 }
 
-shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
-    parid_t par_id, locid_t loc_id, bool pause) {
+shared_ptr<QuorumEvent> Communicator::FailoverPauseSocketOut(
+    parid_t par_id, locid_t loc_id) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! enter Communicator::FailoverPauseSocketOut");
+#endif
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
   auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
+  // sleep(1);
+  // WAN_WAIT;
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! after Communicator::FailoverPauseSocketOut WAN_WAIT");
+#endif
   for (auto& p : proxies) {
     if (p.first != loc_id) continue;
     auto proxy = p.second;
@@ -1177,7 +1254,47 @@ shared_ptr<QuorumEvent> Communicator::SendFailOverTrig(
       else
         e->VoteNo();
     };
-    Future::safe_release(proxy->async_FailOverTrig(pause, fuattr));
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!! Communicator::FailoverPauseSocketOut");
+#endif
+    Future::safe_release(proxy->async_FailoverPauseSocketOut(fuattr));
+  }
+  return e;
+}
+
+shared_ptr<QuorumEvent> Communicator::FailoverResumeSocketOut(
+    parid_t par_id, locid_t loc_id) {
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! enter Communicator::FailoverResumeSocketOut");
+#endif
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(1, 1);
+  auto proxies = rpc_par_proxies_[par_id];
+  // sleep(1);
+  // WAN_WAIT;
+#ifdef FAILOVER_DEBUG
+  Log_info("!!!!!!!!!!!!!! after Communicator::FailoverResumeSocketOut WAN_WAIT");
+#endif
+  for (auto& p : proxies) {
+    if (p.first != loc_id) continue;
+    auto proxy = p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      int res;
+      fu->get_reply() >> res;
+      if (res == 0)
+        e->VoteYes();
+      else
+        e->VoteNo();
+    };
+#ifdef FAILOVER_DEBUG
+    Log_info("!!!!!!!!!!!! Communicator::FailoverResumeSocketOut");
+#endif
+    Future::safe_release(proxy->async_FailoverResumeSocketOut(fuattr));
   }
   return e;
 }
