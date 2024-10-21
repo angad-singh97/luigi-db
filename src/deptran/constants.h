@@ -150,7 +150,7 @@ namespace janus {
 // #define CURP_INSTANCE_COMMIT_TIMEOUT (100) -> Config::GetConfig()->curp_instance_commit_timeout_
 
 // #define AWS
-#define SIMULATE_WAN
+// #define SIMULATE_WAN
 // #define CURP_CONFLICT_DEBUG
 // #define CURP_FULL_LOG_DEBUG
 // #define LATENCY_DEBUG

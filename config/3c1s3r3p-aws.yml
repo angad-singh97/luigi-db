@@ -6,14 +6,14 @@ site:
     - ["c101", "c201", "c301"]
 
 process:
-  s101: server0
-  s201: server1
-  s301: server2
-  c101: server0
-  c201: server1
-  c301: server2
+  s101: aws0
+  s201: aws1
+  s301: aws2
+  c101: aws0
+  c201: aws1
+  c301: aws2
 
 host:
-  server0: 130.245.173.125
-  server1: 130.245.173.126
-  server2: 130.245.173.127
+  aws0: 184.72.49.232
+  aws1: 16.163.96.221
+  aws2: 54.253.53.26
