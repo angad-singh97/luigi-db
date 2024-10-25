@@ -85,6 +85,11 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     return;
   }
   in_applying_logs_ = true;
+
+  // auto next_instance = GetInstance(slot_id);
+  // app_next_(*next_instance->committed_cmd_);
+  
+
   //slotid_t tmp_max_executed_slot_ = max_executed_slot_;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
@@ -125,6 +130,9 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     }
   }
   min_active_slot_ = i;
+
+  // logs_.erase(slot_id);
+
   in_applying_logs_ = false;
 }
 
