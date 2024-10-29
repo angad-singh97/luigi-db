@@ -48,6 +48,9 @@ void CoordinatorFpgaRaft::Forward(shared_ptr<Marshallable>& cmd,
 void CoordinatorFpgaRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("Time of cmd <%d, %d> arrive svr %d Submit: %.2fms", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
   // client2leader_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd));
   if (!IsLeader()) {
     //Log_fatal("i am not the leader; site %d; locale %d",
@@ -90,7 +93,9 @@ void CoordinatorFpgaRaft::AppendEntries() {
 		this->sch_->SetLocalAppend(cmd_, &prevLogTerm, &prevLogIndex, slot_id_, curr_ballot_) ;
 		
     // client2leader_send_.append(SimpleRWCommand::GetCommandMsTimeElaps(cmd_));
-
+#ifdef LATENCY_LOG_DEBUG
+    Log_info("Time of cmd <%d, %d> arrive svr %d Before BroadcastAppendEntries: %.2fms", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
     auto sp_quorum = commo()->BroadcastAppendEntries(par_id_,
                                                      this->sch_->site_id_,
                                                      slot_id_,
@@ -179,6 +184,9 @@ void CoordinatorFpgaRaft::Commit() {
   commit_callback_();
   Log_debug("fpga-raft broadcast commit for partition: %d, slot %d",
             (int) par_id_, (int) slot_id_);
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("Time of cmd <%d, %d> arrive svr %d Before BroadcastDecide: %.2fms", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
   commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, curr_ballot_, cmd_);
   verify(phase_ == Phase::COMMIT);
   GotoNextPhase();
@@ -197,7 +205,9 @@ void CoordinatorFpgaRaft::LeaderLearn() {
     /*     auto instance = this->sch_->GetFpgaRaftInstance(this->sch_->commitIndex); */
     /*     this->sch_->app_next_(*instance->log_); */
     /* } */
-
+#ifdef LATENCY_LOG_DEBUG
+    Log_info("Time of cmd <%d, %d> arrive svr %d Before BroadcastDecide: %.2fms", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
     commo()->BroadcastDecide(par_id_, slot_id_, dep_id_, curr_ballot_, cmd_);
     verify(phase_ == Phase::COMMIT);
     GotoNextPhase();

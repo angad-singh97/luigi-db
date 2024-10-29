@@ -68,6 +68,10 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   rrr::DeferredReply* defer) {
   // usleep(20000);
 
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("!!!!!!!!!!!!! enter ClassicServiceImpl::Dispatch");
+#endif
+
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] cmd<%d, %d> entered ClassicServiceImpl::Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif

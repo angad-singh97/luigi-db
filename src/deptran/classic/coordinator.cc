@@ -428,6 +428,9 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
                                      double dispatch_time,
                                      int res,
                                      TxnOutput& outputs) {
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("!!!!!!!!!!!! enter CoordinatorClassic::DispatchAck");
+#endif
   //Log_info("Is this being called");
   WAN_WAIT
   std::lock_guard<std::recursive_mutex> lock(this->mtx_);
@@ -735,6 +738,9 @@ void CoordinatorClassic::ReportCommit() {
 }
 
 void CoordinatorClassic::End() {
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("!!!!!!!!! enter CoordinatorClassic::End()");
+#endif
   TxData* tx_data = (TxData*) cmd_;
   TxReply& tx_reply_buf = tx_data->get_reply();
   double last_latency = tx_data->last_attempt_latency();

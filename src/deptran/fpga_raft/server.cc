@@ -26,6 +26,8 @@ FpgaRaftServer::FpgaRaftServer(Frame * frame) {
 }
 
 void FpgaRaftServer::Setup() {
+  SimpleRWCommand::SetZeroTime();
+  Log_info("Raft svr %d SetZeroTime", loc_id_);
 	if (heartbeat_ && !FpgaRaftServer::looping && IsLeader()) {
 		Log_info("starting loop at server");
 		FpgaRaftServer::looping = true;
@@ -386,6 +388,9 @@ void FpgaRaftServer::StartTimer()
                                      uint64_t *followerCurrentTerm,
                                      uint64_t *followerLastLogIndex,
                                      const function<void()> &cb) {
+#ifdef LATENCY_LOG_DEBUG
+        Log_info("Time of cmd <%d, %d> arrive svr %d OnAppendEntries: %.2fms", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
         // Log_info("OnAppendEntries svr %d", loc_id_);
         std::lock_guard<std::recursive_mutex> lock(mtx_);
         // StartTimer() ; xxx: need to uncomment
@@ -494,6 +499,9 @@ void FpgaRaftServer::StartTimer()
   void FpgaRaftServer::OnCommit(const slotid_t slot_id,
                               const ballot_t ballot,
                               shared_ptr<Marshallable> &cmd) {
+#ifdef LATENCY_LOG_DEBUG
+    Log_info("Time of cmd <%d, %d> arrive svr %d OnCommit: %.2fms", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     // Log_info("OnCommit");
 		struct timespec begin, end;
@@ -511,6 +519,9 @@ void FpgaRaftServer::StartTimer()
             Log_debug("fpga-raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
             // WAN_WAIT
             RuleWitnessGC(next_instance->log_);
+#ifdef LATENCY_LOG_DEBUG
+            Log_info("Time of cmd <%d, %d> arrive svr %d app_next: %.2fms", SimpleRWCommand::GetCmdID(next_instance->log_).first, SimpleRWCommand::GetCmdID(next_instance->log_).second, loc_id_, SimpleRWCommand::GetMsTimeElaps());
+#endif
             app_next_(*next_instance->log_);
             executeIndex++;
         } else {

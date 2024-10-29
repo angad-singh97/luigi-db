@@ -18,6 +18,7 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
+  SimpleRWCommand::SetZeroTime();
 }
 
 RaftServer::~RaftServer() {

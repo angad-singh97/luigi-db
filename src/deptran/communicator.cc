@@ -529,6 +529,9 @@ void Communicator::BroadcastDispatch(
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif
+#ifdef LATENCY_LOG_DEBUG
+  Log_info("!!!!!!!! Before proxy->async_Dispatch(cmd_id, di, md, fuattr);");
+#endif
 	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
 }

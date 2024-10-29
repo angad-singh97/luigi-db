@@ -154,6 +154,7 @@ namespace janus {
 // #define CURP_CONFLICT_DEBUG
 // #define CURP_FULL_LOG_DEBUG
 // #define LATENCY_DEBUG
+// #define LATENCY_LOG_DEBUG
 // #define CURP_REPEAR_COMMIT_DEBUG
 // #define CURP_AVOID_CurpSkipFastpath_DEBUG
 // #define MONGODB_DEBUG

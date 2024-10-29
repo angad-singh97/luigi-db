@@ -335,6 +335,9 @@ int SchedulerClassic::CommitReplicated(TpcCommitCommand& tpc_commit_cmd) {
   //   // mostly for debug
   //   sp_tx->commit_result->Set(1);
   // }
+#ifdef LATENCY_LOG_DEBUG
+  // Log_info("!!!!!!!!! Before sp_tx->commit_result->Set(1);");
+#endif
   sp_tx->commit_result->Set(1);
   sp_tx->ev_execute_ready_->Set(1);
   return 0;

@@ -137,6 +137,7 @@ void PaxosServer::OnCommit(const slotid_t slot_id,
 }
 
 void PaxosServer::Setup() {
+  SimpleRWCommand::SetZeroTime();
   Log_info("Setup this=%p, this->loc_id_=%d, this->commo_==%p", 
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
