@@ -63,7 +63,7 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
   coo->commo_ = commo_;
   /* TODO: remove when have a class for common data */
   verify(sch_ != nullptr);
-  coo->sch_ = this->sch_;
+  coo->svr_ = this->sch_;
   coo->slot_hint_ = &slot_hint_;
   coo->slot_id_ = slot_hint_++;
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);

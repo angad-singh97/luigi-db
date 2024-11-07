@@ -8,80 +8,137 @@ namespace janus {
 
 class TxData;
 
-class RaftRequestVoteQuorumEvent: public QuorumEvent {
- public:
-  using QuorumEvent::QuorumEvent;
-  bool HasAcceptedValue() {
-    return false;
-  }
-  void FeedResponse(bool y, ballot_t term) {
-    if (y) {
-      VoteYes();
-    } else {
-      VoteNo();
-      if(term > highest_term_)
-      {
-        highest_term_ = term ;
-      }      
-    }
-  }
+// class RaftRequestVoteQuorumEvent: public QuorumEvent {
+//  public:
+//   using QuorumEvent::QuorumEvent;
+//   bool HasAcceptedValue() {
+//     return false;
+//   }
+//   void FeedResponse(bool y, ballot_t term) {
+//     if (y) {
+//       VoteYes();
+//     } else {
+//       VoteNo();
+//       if(term > highest_term_)
+//       {
+//         highest_term_ = term ;
+//       }      
+//     }
+//   }
   
-  int64_t Term() {
-    return highest_term_;
-  }
-};
+//   int64_t Term() {
+//     return highest_term_;
+//   }
+// };
 
-class RaftAppendQuorumEvent: public QuorumEvent {
- public:
-    uint64_t minIndex;
-    using QuorumEvent::QuorumEvent;
-    void FeedResponse(bool appendOK, uint64_t index, std::string ip_addr = "") {
-        if (appendOK) {
-            if ((n_voted_yes_ == 0) && (n_voted_no_ == 0))
-                minIndex = index;
-            else
-                minIndex = std::min(minIndex, index);
-            VoteYes();
-        } else {
-            VoteNo();
-        }
-        /*Log_debug("fpga-raft comm accept event, "
-                  "yes vote: %d, no vote: %d, min index: %d",
-                  n_voted_yes_, n_voted_no_, minIndex);*/
-    }
-};
+// class RaftAppendQuorumEvent: public QuorumEvent {
+//  public:
+//     uint64_t minIndex;
+//     using QuorumEvent::QuorumEvent;
+//     void FeedResponse(bool appendOK, uint64_t index, std::string ip_addr = "") {
+//         if (appendOK) {
+//             if ((n_voted_yes_ == 0) && (n_voted_no_ == 0))
+//                 minIndex = index;
+//             else
+//                 minIndex = std::min(minIndex, index);
+//             VoteYes();
+//         } else {
+//             VoteNo();
+//         }
+//         /*Log_debug("fpga-raft comm accept event, "
+//                   "yes vote: %d, no vote: %d, min index: %d",
+//                   n_voted_yes_, n_voted_no_, minIndex);*/
+//     }
+// };
 
 
+
+// class RaftCommo : public Communicator {
+
+// friend class RaftProxy;
+//  public:
+// 	std::unordered_map<siteid_t, uint64_t> matchedIndex {};
+// 	int index;
+	
+//   RaftCommo() = delete;
+//   RaftCommo(PollMgr*);
+//   shared_ptr<RaftRequestVoteQuorumEvent>
+//   BroadcastRequestVote(parid_t par_id,
+//                        ballot_t candidate_term,
+//                        locid_t candidate_id,
+//                        slotid_t last_log_index,
+//                        ballot_t last_log_term); 
+//   shared_ptr<RaftAppendQuorumEvent>
+//   BroadcastAppendEntries(parid_t par_id,
+//                          siteid_t leader_site_id,
+//                          slotid_t slot_id,
+//                          bool isLeader,
+//                          uint64_t currentTerm,
+//                          uint64_t prevLogIndex,
+//                          uint64_t prevLogTerm,
+//                          uint64_t commitIndex,
+//                          shared_ptr<Marshallable> cmd);
+//   void BroadcastDecide(const parid_t par_id,
+//                        const slotid_t slot_id,
+//                        const shared_ptr<Marshallable> cmd);
+// };
 
 class RaftCommo : public Communicator {
 
-friend class RaftProxy;
  public:
-	std::unordered_map<siteid_t, uint64_t> matchedIndex {};
-	int index;
-	
   RaftCommo() = delete;
   RaftCommo(PollMgr*);
-  shared_ptr<RaftRequestVoteQuorumEvent>
-  BroadcastRequestVote(parid_t par_id,
-                       ballot_t candidate_term,
-                       locid_t candidate_id,
-                       slotid_t last_log_index,
-                       ballot_t last_log_term); 
-  shared_ptr<RaftAppendQuorumEvent>
-  BroadcastAppendEntries(parid_t par_id,
-                         siteid_t leader_site_id,
-                         slotid_t slot_id,
-                         bool isLeader,
-                         uint64_t currentTerm,
-                         uint64_t prevLogIndex,
-                         uint64_t prevLogTerm,
-                         uint64_t commitIndex,
-                         shared_ptr<Marshallable> cmd);
-  void BroadcastDecide(const parid_t par_id,
-                       const slotid_t slot_id,
-                       const shared_ptr<Marshallable> cmd);
+
+  shared_ptr<IntEvent> SendRequestVote(
+    parid_t par_id,
+    siteid_t site_id,
+    uint64_t leaderTerm,
+    uint64_t candidateId,
+    uint64_t lastLogIndex,
+    uint64_t lastLogTerm,
+    uint64_t *receiverTerm,
+    bool_t *voteGranted
+  );
+
+  shared_ptr<IntEvent> SendAppendEntries(
+    parid_t par_id,
+    siteid_t site_id,
+    uint64_t leaderTerm,
+    uint64_t leaderId,
+    uint64_t prevLogIndex,
+    uint64_t prevLogTerm,
+    MarshallDeputy entry,
+    uint64_t entryTerm,
+    uint64_t leaderCommit,
+    uint64_t* receiverTerm,
+    bool_t* success
+  );
+
+  shared_ptr<IntEvent> SendEmptyAppendEntries(
+    parid_t par_id,
+    siteid_t site_id,
+    uint64_t leaderTerm,
+    uint64_t leaderId,
+    uint64_t prevLogIndex,
+    uint64_t prevLogTerm,
+    uint64_t leaderCommit,
+    uint64_t* receiverTerm,
+    bool_t* success
+  );
+
+  shared_ptr<IntEvent> 
+  SendString(parid_t par_id, siteid_t site_id, const string& msg, string* res);
+
+  /* Do not modify this class below here */
+
+  friend class FpgaRaftProxy;
+ public:
+#ifdef RAFT_TEST_CORO
+  std::recursive_mutex rpc_mtx_ = {};
+  uint64_t rpc_count_ = 0;
+#endif
 };
+
 
 } // namespace janus
 
