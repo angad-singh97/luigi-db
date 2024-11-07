@@ -51,29 +51,29 @@ void MenciusServiceImpl::Suggest(const uint64_t& slot,
   // Log_info("Duration of RPC is: %d", start_-time);
 
   // the only case for the current slot is SKIP or current value
-  //SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
-  //sched_->c_mutex.lock();
-  //sched_->uncommitted_keys_[parsed_cmd.key_] += 1;
-  //sched_->c_mutex.unlock();
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
+  sched_->c_mutex.lock();
+  sched_->uncommitted_keys_[parsed_cmd.key_] += 1;
+  sched_->c_mutex.unlock();
 
-  // sched_->g_mutex.lock();
-  // // update the received potential SKIPs
-  // int n = Config::GetConfig()->GetPartitionSize(sched_->partition_id_);
-  // if (skip_potentials.size()>100) {
-  //   sched_->skip_potentials_recd[(slot-1)%n].clear();
-  //   for (auto x: skip_potentials){
-  //     sched_->skip_potentials_recd[(slot-1)%n].insert(x);
-  //   }
-  // }
+  sched_->g_mutex.lock();
+  // update the received potential SKIPs
+  int n = Config::GetConfig()->GetPartitionSize(sched_->partition_id_);
+  if (skip_potentials.size()>100) {
+    sched_->skip_potentials_recd[(slot-1)%n].clear();
+    for (auto x: skip_potentials){
+      sched_->skip_potentials_recd[(slot-1)%n].insert(x);
+    }
+  }
   
-  // // commit the SKIP
-  // for (auto x: skip_commits){
-  //   auto cmd = std::make_shared<TpcCommitCommand>();
-  //   MarshallDeputy md(cmd);
-  //   md.kind_ = MarshallDeputy::CMD_TPC_COMMIT;
-  //   sched_->OnCommit(x, 100, md.sp_data_, true);
-  // }
-  // sched_->g_mutex.unlock();
+  // commit the SKIP
+  for (auto x: skip_commits){
+    auto cmd = std::make_shared<TpcCommitCommand>();
+    MarshallDeputy md(cmd);
+    md.kind_ = MarshallDeputy::CMD_TPC_COMMIT;
+    sched_->OnCommit(x, 100, md.sp_data_, true);
+  }
+  sched_->g_mutex.unlock();
 
   auto coro = Coroutine::CreateRun([&] () {
     sched_->OnSuggest(slot,
@@ -101,11 +101,11 @@ void MenciusServiceImpl::Decide(const uint64_t& slot,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   auto x = md_cmd.sp_data_;
-  //SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
-  // sched_->c_mutex.lock();
-  // sched_->uncommitted_keys_[parsed_cmd.key_] -= 1;
-  // assert(sched_->uncommitted_keys_[parsed_cmd.key_]>=0);
-  // sched_->c_mutex.unlock();
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
+  sched_->c_mutex.lock();
+  sched_->uncommitted_keys_[parsed_cmd.key_] -= 1;
+  assert(sched_->uncommitted_keys_[parsed_cmd.key_]>=0);
+  sched_->c_mutex.unlock();
   sched_->OnCommit(slot, ballot,x);
   defer->reply();
 }

@@ -92,28 +92,28 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
 
   // from skip_potentials_recd (received by ServerWorker) to compute the committed SKIP entries (as well alpha)
   std::vector<uint64_t> skip_commits;
-  // ms->g_mutex.lock();
-  // {
-  //   int id = ms->max_executed_slot_ + 1;
-  //   while (true) {
-  //     int cnt = 0;
-  //     if ((id-1)%n==(slot_id-1)%n){
-  //       for (int i=0;i<n;i++){
-  //         if(ms->skip_potentials_recd.find(i)!=ms->skip_potentials_recd.end() 
-  //             && ms->skip_potentials_recd.at(i).find(id)!=ms->skip_potentials_recd.at(i).end())
-  //           cnt++;
-  //       }
-  //       if (cnt>=(n/2+1)){
-  //         skip_commits.push_back(id);
-  //       }else{
-  //         break;
-  //       }
-  //     }else{
-  //       id+=1;
-  //     }
-  //   }
-  // }
-  // ms->g_mutex.unlock();
+  ms->g_mutex.lock();
+  {
+    int id = ms->max_executed_slot_ + 1;
+    while (true) {
+      int cnt = 0;
+      if ((id-1)%n==(slot_id-1)%n){
+        for (int i=0;i<n;i++){
+          if(ms->skip_potentials_recd.find(i)!=ms->skip_potentials_recd.end() 
+              && ms->skip_potentials_recd.at(i).find(id)!=ms->skip_potentials_recd.at(i).end())
+            cnt++;
+        }
+        if (cnt>=(n/2+1)){
+          skip_commits.push_back(id);
+        }else{
+          break;
+        }
+      }else{
+        id+=1;
+      }
+    }
+  }
+  ms->g_mutex.unlock();
   // the customized alpha
   int alpha = 10;
   if (skip_commits.size()<alpha){
@@ -122,16 +122,16 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
 
   // from logs_ to compute potential SKIP entries => skip_potentials
   std::vector<uint64_t> skip_potentials;
-  // ms->g_mutex.lock();
-  // {
-  //   for (slotid_t id = ms->max_executed_slot_ + 1; id <= ms->max_committed_slot_; id++) {
-  //     auto& sp_instance = logs_[id];
-  //     if(!sp_instance){ // not committed yet
-  //       skip_potentials.push_back(id);
-  //     }
-  //   }
-  // }
-  // ms->g_mutex.unlock();
+  ms->g_mutex.lock();
+  {
+    for (slotid_t id = ms->max_executed_slot_ + 1; id <= ms->max_committed_slot_; id++) {
+      auto& sp_instance = logs_[id];
+      if(!sp_instance){ // not committed yet
+        skip_potentials.push_back(id);
+      }
+    }
+  }
+  ms->g_mutex.unlock();
 
   WAN_WAIT
   for (auto& p : proxies) {
