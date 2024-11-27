@@ -300,5 +300,7 @@ class FpgaRaftServer : public TxLogServer {
   };
 
   void removeCmd(slotid_t slot);
+
+  bool ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) override;
 };
 } // namespace janus

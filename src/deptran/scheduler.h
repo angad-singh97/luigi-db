@@ -674,6 +674,11 @@ class TxLogServer {
 
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
+  virtual bool ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+    // This function should be overrided by the deriviated class (replica server)
+    assert(0);
+    return false;
+  }
   // void OnRulePrepare(uint32_t epoch,
   //                    ballot_t ballot,
   //                    value_t* result,

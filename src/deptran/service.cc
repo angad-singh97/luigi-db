@@ -104,7 +104,9 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   piece_count_tid_.insert(header.tid);
 #endif
   shared_ptr<Marshallable> sp = md.sp_data_;
+#ifndef ZERO_OVERHEAD
   dtxn_sched()->OriginalPathUnexecutedCmdConflictPlaceHolder(sp);
+#endif
 	//Log_info("CreateRunning2");
   // Coroutine::CreateRun([cmd_id, sp, output, res, coro_id, this, defer]() {
     *res = SUCCESS;

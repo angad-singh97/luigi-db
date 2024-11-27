@@ -162,6 +162,7 @@ namespace janus {
 #define CHECK_KEY_DISTRIBUTION
 #define READ_NOT_CONFLICT_OPTIMIZATION
 // #define CHECK_LONG_POLL_WAIT
+#define ZERO_OVERHEAD
 
 
 // #define CPU_PROFILE_MAIN

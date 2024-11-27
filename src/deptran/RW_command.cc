@@ -202,6 +202,14 @@ bool SimpleRWCommand::NeedRecordConflictInOriginalPath(shared_ptr<Marshallable> 
   return vector0->rule_mode_on_and_is_original_path_only_command_;
 }
 
+bool SimpleRWCommand::Conflict(shared_ptr<Marshallable> cmd1, shared_ptr<Marshallable> cmd2) {
+  SimpleRWCommand parsed_cmd1 = SimpleRWCommand(cmd1);
+  SimpleRWCommand parsed_cmd2 = SimpleRWCommand(cmd2);
+  if (parsed_cmd1.key_ != parsed_cmd2.key_)
+    return false;
+  return parsed_cmd1.IsWrite() || parsed_cmd2.IsWrite();
+}
+
 void KeyDistribution::Insert(key_t key) {
   key_count_[key]++;
 }

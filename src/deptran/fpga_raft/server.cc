@@ -572,4 +572,13 @@ void FpgaRaftServer::StartTimer()
     raft_logs_.erase(slot);
   }
 
+  bool FpgaRaftServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+    for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
+      auto next_instance = GetFpgaRaftInstance(id);
+      if (next_instance->log_ && SimpleRWCommand::Conflict(next_instance->log_, cmd))
+        return true;
+    }
+    return false;
+  }
+
 } // namespace janus

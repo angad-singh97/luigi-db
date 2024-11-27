@@ -1411,7 +1411,13 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
                     bool_t* accepted,
                     value_t* result,
                     bool_t* is_leader) {
+#ifdef ZERO_OVERHEAD
+  // if (rep_sched_->ConflictWithOriginalUnexecutedLog(cmd))
+  //   Log_info("Conflict!");
+  if (rep_sched_->witness_.push_back(cmd) && !rep_sched_->ConflictWithOriginalUnexecutedLog(cmd)) {
+#else
   if (rep_sched_->witness_.push_back(cmd)) {
+#endif
     // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
     // Log_info("Server %d OnRuleSpeculativeExecute <%d, %d> key %d", rep_sched_->loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, parsed_cmd.key_);
     // Log_info("witness_.push_back server %d push cmd_id <%d, %d> %lld key %d success 1", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second,

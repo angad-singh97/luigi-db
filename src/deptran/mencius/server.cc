@@ -142,4 +142,13 @@ void MenciusServer::Setup() {
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
 
+bool MenciusServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+  for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
+    auto next_instance = GetInstance(id);
+    if (next_instance->committed_cmd_ && SimpleRWCommand::Conflict(next_instance->committed_cmd_, cmd))
+      return true;
+  }
+  return false;
+}
+
 } // namespace janus

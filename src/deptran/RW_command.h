@@ -31,6 +31,7 @@ class SimpleRWCommand: public Marshallable {
   static double GetCommandMsTimeElaps(shared_ptr<Marshallable> cmd);
   static key_t GetKey(shared_ptr<Marshallable> cmd);
   static bool NeedRecordConflictInOriginalPath(shared_ptr<Marshallable> cmd);
+  static bool Conflict(shared_ptr<Marshallable> cmd1, shared_ptr<Marshallable> cmd2);
   static uint64_t CombineInt32(pair<uint32_t, uint32_t> a) {
     return (((uint64_t)a.first) << 31) | a.second;
     // return (((uint64_t)a.first) * 1000000000) + a.second;

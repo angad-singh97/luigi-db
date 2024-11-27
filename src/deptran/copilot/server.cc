@@ -897,4 +897,15 @@ bool CopilotServer::strongConnect(shared_ptr<CopilotData>& ins, int* index) {
 
 #endif
 
+
+bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+  if (!(isPilot_ || isCopilot_)) return false;
+  for (slotid_t id = log_infos_[isPilot_].max_executed_slot + 1; id <= log_infos_[isPilot_].max_committed_slot; id++) {
+    shared_ptr<CopilotData> ins = GetInstance(id, isPilot_);
+    if (ins && ins->cmd && SimpleRWCommand::Conflict(ins->cmd, cmd));
+      return true;
+  }
+  return false;
+}
+
 } // namespace janus
