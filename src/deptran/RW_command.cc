@@ -205,8 +205,11 @@ bool SimpleRWCommand::NeedRecordConflictInOriginalPath(shared_ptr<Marshallable> 
 bool SimpleRWCommand::Conflict(shared_ptr<Marshallable> cmd1, shared_ptr<Marshallable> cmd2) {
   SimpleRWCommand parsed_cmd1 = SimpleRWCommand(cmd1);
   SimpleRWCommand parsed_cmd2 = SimpleRWCommand(cmd2);
-  if (parsed_cmd1.key_ != parsed_cmd2.key_)
+  if (parsed_cmd1.key_ != parsed_cmd2.key_) {
+    // Log_info("Not Conflict %d with %d", parsed_cmd1.key_, parsed_cmd2.key_);
     return false;
+  }
+  // Log_info("Conflict if %d or %d", parsed_cmd1.IsWrite(), parsed_cmd2.IsWrite());
   return parsed_cmd1.IsWrite() || parsed_cmd2.IsWrite();
 }
 

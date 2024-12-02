@@ -902,11 +902,21 @@ bool CopilotServer::strongConnect(shared_ptr<CopilotData>& ins, int* index) {
 bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!(isPilot_ || isCopilot_)) return false;
+  // Log_info("[Begin] isPilot_ %d isCopilot_ %d from %d to %d", isPilot_, isCopilot_, log_infos_[isPilot_].max_executed_slot + 1, log_infos_[isPilot_].max_active_slot);
   for (slotid_t id = log_infos_[isPilot_].max_executed_slot + 1; id <= log_infos_[isPilot_].max_active_slot; id++) {
+    // Log_info("id=%d", id);
     shared_ptr<CopilotData> ins = GetInstance(id, isPilot_);
-    if (ins && ins->cmd && SimpleRWCommand::Conflict(ins->cmd, cmd));
-      return true;
+    if (ins && ins->cmd) {
+      // Copilots use batch cmds in copilot instance
+      verify(ins->cmd->kind_ == MarshallDeputy::CMD_TPC_BATCH);
+      shared_ptr<TpcBatchCommand> batch_cmd = dynamic_pointer_cast<TpcBatchCommand>(ins->cmd);
+      for (int i = 0; i < batch_cmd->Size(); i++)
+        if (SimpleRWCommand::Conflict(batch_cmd->cmds_[i], cmd))
+          return true;
+    }
+      
   }
+  // Log_info("[End] isPilot_ %d isCopilot_ %d from %d to %d", isPilot_, isCopilot_, log_infos_[isPilot_].max_executed_slot + 1, log_infos_[isPilot_].max_active_slot);
   return false;
 }
 
