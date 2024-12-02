@@ -573,6 +573,7 @@ void FpgaRaftServer::StartTimer()
   }
 
   bool FpgaRaftServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
     for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
       auto next_instance = GetFpgaRaftInstance(id);
       if (next_instance->log_ && SimpleRWCommand::Conflict(next_instance->log_, cmd))

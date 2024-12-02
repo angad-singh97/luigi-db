@@ -145,6 +145,7 @@ void MenciusServer::Setup() {
 }
 
 bool MenciusServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_ && SimpleRWCommand::Conflict(next_instance->committed_cmd_, cmd))

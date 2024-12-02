@@ -899,6 +899,7 @@ bool CopilotServer::strongConnect(shared_ptr<CopilotData>& ins, int* index) {
 
 
 bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!(isPilot_ || isCopilot_)) return false;
   for (slotid_t id = log_infos_[isPilot_].max_executed_slot + 1; id <= log_infos_[isPilot_].max_committed_slot; id++) {
     shared_ptr<CopilotData> ins = GetInstance(id, isPilot_);
