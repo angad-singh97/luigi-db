@@ -101,11 +101,6 @@ void MenciusServiceImpl::Decide(const uint64_t& slot,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   auto x = md_cmd.sp_data_;
-  SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
-  sched_->c_mutex.lock();
-  sched_->uncommitted_keys_[parsed_cmd.key_] -= 1;
-  assert(sched_->uncommitted_keys_[parsed_cmd.key_]>=0);
-  sched_->c_mutex.unlock();
   sched_->OnCommit(slot, ballot,x);
   defer->reply();
 }
