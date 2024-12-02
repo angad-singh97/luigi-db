@@ -53,6 +53,7 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
     instance->max_ballot_seen_ = ballot;
     instance->max_ballot_suggested_ = ballot;
     instance->cmd_ = cmd;
+    max_active_slot_ = std::max(max_active_slot_, slot_id);
   } else {
     // TODO
     verify(0);
@@ -62,7 +63,9 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
   *max_ballot = instance->max_ballot_seen_;
   n_suggest_++;
   WAN_WAIT
-  cb();
+  if (cb) {
+    cb();
+  }
 }
 
 void MenciusServer::OnCommit(const slotid_t slot_id,
@@ -95,11 +98,11 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
-    if (executed_slots_[id]!=1){
+      if (!next_instance->executed_){
         RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
-     executed_slots_.erase(id);
-    }
+        next_instance->executed_ = true;
+      }
       Log_debug("mencius par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
       n_commit_++;
@@ -109,14 +112,14 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
   }
 
   //apply the entry out of order if there is no conflict
-  for (slotid_t id = tmp_max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
+  for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
       SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
-      if (uncommitted_keys_[parsed_cmd.key_]==0){
-        executed_slots_[id]=1;
+      if (!next_instance->executed_ && uncommitted_keys_[parsed_cmd.key_]==0){
         RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
+        next_instance->executed_ = true;
       }
     }
   }
@@ -145,8 +148,9 @@ void MenciusServer::Setup() {
 }
 
 bool MenciusServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
+  return false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
+  for (slotid_t id = max_executed_slot_ + 1; id <= max_active_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_ && SimpleRWCommand::Conflict(next_instance->committed_cmd_, cmd))
       return true;

@@ -322,6 +322,7 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
     ins->ballot = ballot;
     ins->dep_id = dep;
     ins->cmd = cmd;
+    log_infos_[is_pilot].max_active_slot = std::max(log_infos_[is_pilot].max_active_slot, slot);
     // still set the cmd here, to prevent PREPARE from getting an empty cmd
     ins->status = Status::FAST_ACCEPTED;
     if (suggest_dep == dep) {
@@ -901,7 +902,7 @@ bool CopilotServer::strongConnect(shared_ptr<CopilotData>& ins, int* index) {
 bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!(isPilot_ || isCopilot_)) return false;
-  for (slotid_t id = log_infos_[isPilot_].max_executed_slot + 1; id <= log_infos_[isPilot_].max_committed_slot; id++) {
+  for (slotid_t id = log_infos_[isPilot_].max_executed_slot + 1; id <= log_infos_[isPilot_].max_active_slot; id++) {
     shared_ptr<CopilotData> ins = GetInstance(id, isPilot_);
     if (ins && ins->cmd && SimpleRWCommand::Conflict(ins->cmd, cmd));
       return true;

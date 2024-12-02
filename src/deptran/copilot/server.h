@@ -37,6 +37,7 @@ struct CopilotLogInfo {
   slotid_t max_executed_slot = 0;
   slotid_t max_committed_slot = 0;
   slotid_t max_accepted_slot = 0;
+  slotid_t max_active_slot = 0;
   slotid_t max_dep = 0;
   SharedIntEvent max_cmit_evt{};
 };

@@ -23,6 +23,7 @@ struct MenciusData {
   shared_ptr<Marshallable> cmd_{nullptr};
   shared_ptr<Marshallable> accepted_cmd_{nullptr};
   shared_ptr<Marshallable> committed_cmd_{nullptr};
+  bool executed_ = false;
 };
 
 class MenciusServer : public TxLogServer {
@@ -33,6 +34,7 @@ class MenciusServer : public TxLogServer {
   slotid_t min_active_slot_ = 0; // anything before (lt) this slot is freed
   slotid_t max_executed_slot_ = 0;
   slotid_t max_committed_slot_ = 0;
+  slotid_t max_active_slot_ = 0;
   map<slotid_t, shared_ptr<MenciusData>> logs_{};
   unordered_map<uint32_t, set<uint64_t>> skip_potentials_recd{};
   unordered_map<uint32_t, atomic<int>> uncommitted_keys_{};  // [max_executed+1, ...]

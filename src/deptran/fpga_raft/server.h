@@ -154,6 +154,7 @@ class FpgaRaftServer : public TxLogServer {
   uint64_t currentTerm = 0;
   uint64_t commitIndex = 0;
   uint64_t executeIndex = 0;
+  uint64_t maxIndex = 0;
   map<slotid_t, shared_ptr<FpgaRaftData>> raft_logs_{};
 //  vector<shared_ptr<FpgaRaftData>> raft_logs_{};
 
@@ -179,6 +180,7 @@ class FpgaRaftServer : public TxLogServer {
     instance->term = currentTerm;
 		instance->slot_id = slot_id;
 		instance->ballot = ballot;
+    maxIndex = std::max(maxIndex, slot_id);
 
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT){
       auto p_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
