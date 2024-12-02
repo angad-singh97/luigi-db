@@ -20,6 +20,7 @@ struct MenciusData {
   ballot_t max_ballot_seen_ = 0;
   ballot_t max_ballot_suggested_ = 0;
   bool is_skip = false;
+  shared_ptr<Marshallable> cmd_{nullptr};
   shared_ptr<Marshallable> accepted_cmd_{nullptr};
   shared_ptr<Marshallable> committed_cmd_{nullptr};
 };

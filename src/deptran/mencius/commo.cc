@@ -138,6 +138,20 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     auto proxy = (MenciusProxy*) p.second;
     auto follower_id = p.first;
 
+    if (p.first == loc_id_) {
+        auto start_ = 0;
+        uint64_t sender = loc_id_;
+        
+        ballot_t b = 0;
+        uint64_t coro_id = 0;
+
+        static_cast<MenciusServer *>(rep_sched_)->OnSuggest(
+          slot_id, start_, ballot, sender, skip_commits, skip_potentials, cmd, &b, &coro_id, nullptr);
+
+        e->FeedResponse(b==ballot);
+        continue;
+    }
+
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
 
     FutureAttr fuattr;

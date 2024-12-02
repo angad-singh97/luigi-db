@@ -52,6 +52,7 @@ void MenciusServer::OnSuggest(const slotid_t slot_id,
   if (instance->max_ballot_seen_ <= ballot) {
     instance->max_ballot_seen_ = ballot;
     instance->max_ballot_suggested_ = ballot;
+    instance->cmd_ = cmd;
   } else {
     // TODO
     verify(0);
