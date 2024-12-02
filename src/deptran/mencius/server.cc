@@ -94,11 +94,11 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
-    //if (executed_slots_[id]!=1){
+    if (executed_slots_[id]!=1){
         RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
-    //  executed_slots_.erase(id);
-    //}
+     executed_slots_.erase(id);
+    }
       Log_debug("mencius par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
       max_executed_slot_++;
       n_commit_++;
@@ -114,6 +114,7 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
       SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
       if (uncommitted_keys_[parsed_cmd.key_]==0){
         executed_slots_[id]=1;
+        RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
       }
     }
