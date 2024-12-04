@@ -249,7 +249,7 @@ void ClientWorker::Work() {
   for (uint32_t n_tx = 0; n_tx < n_concurrent_; n_tx++) {
     auto sp_job = std::make_shared<OneTimeJob>([this, n_tx] () {
       // this wait tries to avoid launching clients all at once, especially for open-loop clients.
-      Reactor::CreateSpEvent<NeverEvent>()->Wait(RandomGenerator::rand(0, 1000000));
+      // Reactor::CreateSpEvent<NeverEvent>()->Wait(RandomGenerator::rand(0, 1000000)); // [Ze]: I disable this for Mencius, I think it's safe
       auto beg_time = Time::now() ;
       auto end_time = beg_time + duration * pow(10, 6);
 #ifdef COPILOT_DEBUG
