@@ -106,7 +106,8 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
         SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
         c_mutex.lock();
         unexecuted_keys_[parsed_cmd.key_] -= 1;
-        assert(unexecuted_keys_[parsed_cmd.key_]>=0);
+        // Log_info("[-1] cmd %d %d cnt %d", parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, unexecuted_keys_[parsed_cmd.key_].load());
+        verify(unexecuted_keys_[parsed_cmd.key_]>=0);
         c_mutex.unlock();
       }
       Log_debug("mencius par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
@@ -122,14 +123,15 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
     auto next_instance = GetInstance(id);
     if (next_instance->committed_cmd_) {
       SimpleRWCommand parsed_cmd = SimpleRWCommand(next_instance->committed_cmd_);
-      if ((!next_instance->executed_) && (unexecuted_keys_[parsed_cmd.key_]==0)){
+      if ((!next_instance->executed_) && (unexecuted_keys_[parsed_cmd.key_]==1)){
         RuleWitnessGC(next_instance->committed_cmd_);
         app_next_(*next_instance->committed_cmd_);
         next_instance->executed_ = true;
         
         c_mutex.lock();
         unexecuted_keys_[parsed_cmd.key_] -= 1;
-        assert(unexecuted_keys_[parsed_cmd.key_]>=0);
+        // Log_info("[-1]] cmd %d %d cnt %d", parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, unexecuted_keys_[parsed_cmd.key_].load());
+        verify(unexecuted_keys_[parsed_cmd.key_]>=0);
         c_mutex.unlock();
       } else {
         // Log_info("out-of-order execute fail since %d %d", !next_instance->executed_, unexecuted_keys_[parsed_cmd.key_]==0);

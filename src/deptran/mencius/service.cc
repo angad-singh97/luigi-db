@@ -51,10 +51,6 @@ void MenciusServiceImpl::Suggest(const uint64_t& slot,
   // Log_info("Duration of RPC is: %d", start_-time);
 
   // the only case for the current slot is SKIP or current value
-  SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
-  sched_->c_mutex.lock();
-  sched_->unexecuted_keys_[parsed_cmd.key_] += 1;
-  sched_->c_mutex.unlock();
 
   sched_->g_mutex.lock();
   // update the received potential SKIPs
@@ -101,6 +97,13 @@ void MenciusServiceImpl::Decide(const uint64_t& slot,
                                    rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
   auto x = md_cmd.sp_data_;
+
+  SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
+  sched_->c_mutex.lock();
+  sched_->unexecuted_keys_[parsed_cmd.key_] += 1;
+  // Log_info("[+1] cmd %d %d cnt %d", parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, sched_->unexecuted_keys_[parsed_cmd.key_].load());
+  sched_->c_mutex.unlock();
+
   sched_->OnCommit(slot, ballot,x);
   defer->reply();
 }
