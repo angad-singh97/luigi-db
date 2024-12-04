@@ -491,13 +491,22 @@ void Communicator::BroadcastDispatch(
   
   std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
   if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
-    int n = rpc_par_proxies_.find(par_id)->second.size();
-    pair_leader_proxy = LeaderProxyForPartition(par_id, coo->cli_id_% n);
+    // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
+    // If not, round-robin with all proposors.
+    auto server_infos = Config::GetConfig()->GetMyServers();
+    if (server_infos.size() == 1) {
+      int n = rpc_par_proxies_.find(par_id)->second.size();
+      pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
+    } else {
+      int n = rpc_par_proxies_.find(par_id)->second.size();
+      pair_leader_proxy = LeaderProxyForPartition(par_id, coo->coo_id_ % n);
+    }
   } else {
     pair_leader_proxy = LeaderProxyForPartition(par_id);
   }
   
   SetLeaderCache(par_id, pair_leader_proxy) ;
+  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
   Log_debug("send dispatch to site %ld, par %d",
             pair_leader_proxy.first, par_id);
   auto proxy = pair_leader_proxy.second;
@@ -548,13 +557,22 @@ void Communicator::SyncBroadcastDispatch(
   
   std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
   if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
-    int n = rpc_par_proxies_.find(par_id)->second.size();
-    pair_leader_proxy = LeaderProxyForPartition(par_id, coo->cli_id_% n);
+    // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
+    // If not, round-robin with all proposors.
+    auto server_infos = Config::GetConfig()->GetMyServers();
+    if (server_infos.size() == 1) {
+      int n = rpc_par_proxies_.find(par_id)->second.size();
+      pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
+    } else {
+      int n = rpc_par_proxies_.find(par_id)->second.size();
+      pair_leader_proxy = LeaderProxyForPartition(par_id, coo->coo_id_ % n);
+    }
   } else {
     pair_leader_proxy = LeaderProxyForPartition(par_id);
   }
   
   SetLeaderCache(par_id, pair_leader_proxy) ;
+  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
   Log_debug("send dispatch to site %ld, par %d",
             pair_leader_proxy.first, par_id);
   auto proxy = pair_leader_proxy.second;

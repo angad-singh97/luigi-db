@@ -578,6 +578,7 @@ int main(int argc, char *argv[]) {
   Log_info("started to profile cpu");
 #endif // ifdef CPU_PROFILE
   auto server_infos = Config::GetConfig()->GetMyServers();
+  // std::cout << "!!!!!!!!!!!!!!!" << server_infos[0].id << " " << server_infos[0].locale_id << std::endl;
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
     server_failover() ;
