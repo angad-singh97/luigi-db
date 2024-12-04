@@ -303,6 +303,8 @@ class FpgaRaftServer : public TxLogServer {
 
   void removeCmd(slotid_t slot);
 
+#ifdef ZERO_OVERHEAD
   bool ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) override;
+#endif
 };
 } // namespace janus

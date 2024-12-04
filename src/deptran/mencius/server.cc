@@ -162,6 +162,7 @@ void MenciusServer::Setup() {
         (void*)this, this->loc_id_, (void*)this->commo_);
 }
 
+#ifdef ZERO_OVERHEAD
 bool MenciusServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
   return false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -173,5 +174,6 @@ bool MenciusServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshalla
   }
   return false;
 }
+#endif
 
 } // namespace janus

@@ -150,7 +150,9 @@ class CopilotServer : public TxLogServer {
   bool isExecuted(shared_ptr<CopilotData>& ins);
   bool allCmdComitted(shared_ptr<Marshallable> batch_cmd);
 
+#ifdef ZERO_OVERHEAD
   bool ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) override;
+#endif
 };
 
 } //namespace janus

@@ -898,7 +898,7 @@ bool CopilotServer::strongConnect(shared_ptr<CopilotData>& ins, int* index) {
 
 #endif
 
-
+#ifdef ZERO_OVERHEAD
 bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!(isPilot_ || isCopilot_)) return false;
@@ -919,5 +919,6 @@ bool CopilotServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshalla
   // Log_info("[End] isPilot_ %d isCopilot_ %d from %d to %d", isPilot_, isCopilot_, log_infos_[isPilot_].max_executed_slot + 1, log_infos_[isPilot_].max_active_slot);
   return false;
 }
+#endif
 
 } // namespace janus

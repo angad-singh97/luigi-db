@@ -100,6 +100,8 @@ class MenciusServer : public TxLogServer {
     verify(0);
   };
 
+#ifdef ZERO_OVERHEAD
   bool ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) override;
+#endif
 };
 } // namespace janus

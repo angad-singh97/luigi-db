@@ -572,6 +572,7 @@ void FpgaRaftServer::StartTimer()
     raft_logs_.erase(slot);
   }
 
+#ifdef ZERO_OVERHEAD
   bool FpgaRaftServer::ConflictWithOriginalUnexecutedLog(const shared_ptr<Marshallable>& cmd) {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     for (slotid_t id = executeIndex + 1; id <= maxIndex; id++) {
@@ -581,5 +582,6 @@ void FpgaRaftServer::StartTimer()
     }
     return false;
   }
+#endif
 
 } // namespace janus
