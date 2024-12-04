@@ -53,7 +53,7 @@ void MenciusServiceImpl::Suggest(const uint64_t& slot,
   // the only case for the current slot is SKIP or current value
   SimpleRWCommand parsed_cmd = SimpleRWCommand(md_cmd.sp_data_);
   sched_->c_mutex.lock();
-  sched_->uncommitted_keys_[parsed_cmd.key_] += 1;
+  sched_->unexecuted_keys_[parsed_cmd.key_] += 1;
   sched_->c_mutex.unlock();
 
   sched_->g_mutex.lock();
