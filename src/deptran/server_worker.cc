@@ -236,6 +236,7 @@ void ServerWorker::SetupCommo() {
     tx_sched_->commo_ = tx_commo_;
   }
   if (rep_frame_) {
+    // Log_info("CreateCommo!!!!!!!!!!!!!"); // [Ze] I don't know why but removing this will cause "verify(commo_ != nullptr); error" in mencius/frame.cc when running rule_mencius open loop experiment
     rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;

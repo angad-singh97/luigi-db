@@ -26,6 +26,14 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
   // Log_info("[CURP] CoordinatorRule created for coo_id=%d thread_id=%d", coo_id, thread_id);
 }
 
+CommunicatorRule* CoordinatorRule::commo() {
+  if (commo_ == nullptr) {
+    commo_ = new CommunicatorRule;
+  }
+  verify(commo_ != nullptr);
+  return commo_;
+}
+
 void CoordinatorRule::GotoNextPhase() {
   int n_phase = 3;
   int current_phase = phase_ % n_phase;
@@ -164,7 +172,8 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
 #ifdef MONGODB_DEBUG
     Log_info("%.2f BroadcastRuleSpeculativeExecute <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
-    e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
+    // e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
+    e = commo()->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
 #ifdef MONGODB_DEBUG

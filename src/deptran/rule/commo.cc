@@ -108,5 +108,75 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
 
   return e;
 }
+
+void CommunicatorRule::BroadcastDispatch(
+    shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
+    Coordinator* coo,
+    const function<void(int, TxnOutput&)> & callback) {
+
+  Log_debug("Do a dispatch on client worker");
+  cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
+  verify(!sp_vec_piece->empty());
+  auto par_id = sp_vec_piece->at(0)->PartitionId();
+
+  rrr::FutureAttr fuattr;
+  fuattr.callback =
+      [coo, this, callback](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
+        int32_t ret;
+        TxnOutput outputs;
+        fu->get_reply() >> ret >> outputs;
+        callback(ret, outputs);
+      };
+  
+  std::vector<SiteProxyPair> pair_proxies;
+  pair_proxies = LeaderProxyForPartition(par_id);
+
+  // std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
+  // if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+  //   // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
+  //   // If not, round-robin with all proposors.
+  //   auto server_infos = Config::GetConfig()->GetMyServers();
+  //   if (server_infos.size() == 1) {
+  //     int n = rpc_par_proxies_.find(par_id)->second.size();
+  //     pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
+  //   } else {
+  //     int n = rpc_par_proxies_.find(par_id)->second.size();
+  //     pair_leader_proxy = LeaderProxyForPartition(par_id, coo->coo_id_ % n);
+  //   }
+  // } else {
+  //   pair_leader_proxy = LeaderProxyForPartition(par_id);
+  // }
+  
+  // SetLeaderCache(par_id, pair_leader_proxy) ;
+  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
+  // Log_debug("send dispatch to site %ld, par %d",
+  //           pair_leader_proxy.first, par_id);
+  // auto proxy = pair_leader_proxy.second;
+  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
+  sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
+
+  // Record Time
+  sp_vpd->time_sent_from_client_ = SimpleRWCommand::GetCurrentMsTime();
+
+  MarshallDeputy md(sp_vpd); // ????
+
+	DepId di;
+	di.str = "dep";
+	di.id = Communicator::global_id++;
+  
+  WAN_WAIT;
+
+  for (SiteProxyPair pair_proxy: pair_proxies) {
+    siteid_t site_id = pair_proxy.first;
+    // Log_info("Send to %d", site_id);
+    ClassicProxy* proxy = pair_proxy.second;
+    auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
+    Future::safe_release(future);
+  }
+}
     
 } // namespace janus

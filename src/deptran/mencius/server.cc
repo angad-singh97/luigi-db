@@ -74,6 +74,8 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
                            bool is_skip) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   //Log_info("mencius scheduler decide for slot: %d on loc_id_:%d", slot_id, this->loc_id_);
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Log_info("OnCommit loc_id_=%d cmd_id=<%d, %d>", loc_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
   auto instance = GetInstance(slot_id);
   instance->committed_cmd_ = cmd;
   instance->is_skip = true;
