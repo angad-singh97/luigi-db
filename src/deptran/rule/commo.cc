@@ -3,23 +3,71 @@
 namespace janus
 {
 
-SiteProxyPair CommunicatorRule::FindSiteProxyPair(parid_t par_id, int replica_id) const {
-  auto it  = rpc_par_proxies_.find(par_id);
-  verify(it != rpc_par_proxies_.end());
-  auto& partition_proxies = it->second;
-  auto config = Config::GetConfig();
-  auto proxy_pair =
-      std::find_if(partition_proxies.begin(), partition_proxies.end(),
-                   [config, replica_id](const std::pair<siteid_t, ClassicProxy*>& p) {
-                     verify(p.second != nullptr);
-                     auto& site = config->SiteById(p.first);
-                     return site.locale_id == replica_id;
-                   });
-  if (proxy_pair == partition_proxies.end())
-    Log_fatal("couldn't find replica %d for partition %d", replica_id, par_id);
-  verify(proxy_pair->second);
-  return *proxy_pair;
+vector<std::pair<siteid_t, ClassicProxy*>>
+CommunicatorRule::LeaderProxyForPartition(parid_t par_id, int idx) const {
+  if (idx > -1) { // Mencius
+    auto it = rpc_par_proxies_.find(par_id);
+    auto& partition_proxies = it->second;
+    verify(partition_proxies.size()>idx);
+    vector<std::pair<siteid_t, ClassicProxy*>> ret;
+    ret.push_back(it->second.at(idx));
+    return ret;
+  }
+
+  auto leader_cache =
+      const_cast<map<parid_t, vector<SiteProxyPair>>&>(this->jetpack_leader_cache_);
+
+  vector<int> leader_ids = LeadersForPartition(par_id);
+
+  auto leader_it = leader_cache.find(par_id);
+  if (leader_it != leader_cache.end()) {
+    return leader_it->second;
+  } else {
+    auto it = rpc_par_proxies_.find(par_id);
+    verify(it != rpc_par_proxies_.end());
+    auto& partition_proxies = it->second;
+    auto config = Config::GetConfig();
+    vector<std::pair<siteid_t, ClassicProxy*>> cache;
+    for (auto leader_id: leader_ids) {
+      auto proxy_it = std::find_if(
+          partition_proxies.begin(),
+          partition_proxies.end(),
+          [config, leader_id](const std::pair<siteid_t, ClassicProxy*>& p) {
+            verify(p.second != nullptr);
+            auto& site = config->SiteById(p.first);
+            return site.locale_id == leader_id;
+          });
+      if (proxy_it == partition_proxies.end()) {
+        Log_fatal("could not find leader for partition %d", par_id);
+      } else {
+        cache.push_back(*proxy_it);
+        Log_debug("leader site for parition %d is %d", par_id, proxy_it->first);
+      }
+      verify(proxy_it->second != nullptr);
+    }
+    leader_cache[par_id] = cache;
+    return cache;
+  }
 }
+
+
+// SiteProxyPair CommunicatorRule::FindSiteProxyPair(parid_t par_id, int replica_id) const {
+//   auto it  = rpc_par_proxies_.find(par_id);
+//   verify(it != rpc_par_proxies_.end());
+//   auto& partition_proxies = it->second;
+//   auto config = Config::GetConfig();
+//   auto proxy_pair =
+//       std::find_if(partition_proxies.begin(), partition_proxies.end(),
+//                    [config, replica_id](const std::pair<siteid_t, ClassicProxy*>& p) {
+//                      verify(p.second != nullptr);
+//                      auto& site = config->SiteById(p.first);
+//                      return site.locale_id == replica_id;
+//                    });
+//   if (proxy_pair == partition_proxies.end())
+//     Log_fatal("couldn't find replica %d for partition %d", replica_id, par_id);
+//   verify(proxy_pair->second);
+//   return *proxy_pair;
+// }
 
 std::vector<int> CommunicatorRule::LeadersForPartition(parid_t par_id) const {
   std::vector<int> leaders;
@@ -44,16 +92,16 @@ std::vector<int> CommunicatorRule::LeadersForPartition(parid_t par_id) const {
   return leaders;
 }
 
-std::vector<SiteProxyPair>
-CommunicatorRule::LeaderProxyForPartition(parid_t par_id) const {
-  /**
-   * ad-hoc. No leader election. fixed leader(id=0) for raft; fixed pilot(id=0) and copilot(id=1) for copilot.
-   */
-  std::vector<SiteProxyPair> proxy_pairs;
-  for (auto leader_id: LeadersForPartition(par_id))
-    proxy_pairs.push_back(FindSiteProxyPair(par_id, leader_id));
-  return proxy_pairs;  
-}
+// std::vector<SiteProxyPair>
+// CommunicatorRule::LeaderProxyForPartition(parid_t par_id) const {
+//   /**
+//    * ad-hoc. No leader election. fixed leader(id=0) for raft; fixed pilot(id=0) and copilot(id=1) for copilot.
+//    */
+//   std::vector<SiteProxyPair> proxy_pairs;
+//   for (auto leader_id: LeadersForPartition(par_id))
+//     proxy_pairs.push_back(FindSiteProxyPair(par_id, leader_id));
+//   return proxy_pairs;  
+// }
 
 shared_ptr<RuleSpeculativeExecuteQuorumEvent>
 CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<SimpleCommand>>> vec_piece_data) {
@@ -109,6 +157,7 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
   return e;
 }
 
+
 void CommunicatorRule::BroadcastDispatch(
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
     Coordinator* coo,
@@ -132,30 +181,6 @@ void CommunicatorRule::BroadcastDispatch(
         callback(ret, outputs);
       };
   
-  std::vector<SiteProxyPair> pair_proxies;
-  pair_proxies = LeaderProxyForPartition(par_id);
-
-  // std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
-  // if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
-  //   // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
-  //   // If not, round-robin with all proposors.
-  //   auto server_infos = Config::GetConfig()->GetMyServers();
-  //   if (server_infos.size() == 1) {
-  //     int n = rpc_par_proxies_.find(par_id)->second.size();
-  //     pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
-  //   } else {
-  //     int n = rpc_par_proxies_.find(par_id)->second.size();
-  //     pair_leader_proxy = LeaderProxyForPartition(par_id, coo->coo_id_ % n);
-  //   }
-  // } else {
-  //   pair_leader_proxy = LeaderProxyForPartition(par_id);
-  // }
-  
-  // SetLeaderCache(par_id, pair_leader_proxy) ;
-  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
-  // Log_debug("send dispatch to site %ld, par %d",
-  //           pair_leader_proxy.first, par_id);
-  // auto proxy = pair_leader_proxy.second;
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
 
@@ -168,15 +193,34 @@ void CommunicatorRule::BroadcastDispatch(
 	di.str = "dep";
 	di.id = Communicator::global_id++;
   
+
   WAN_WAIT;
 
-  for (SiteProxyPair pair_proxy: pair_proxies) {
-    siteid_t site_id = pair_proxy.first;
-    // Log_info("Send to %d", site_id);
-    ClassicProxy* proxy = pair_proxy.second;
+  vector<std::pair<siteid_t, ClassicProxy*>> pair_leader_proxies;
+  // if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+  //   // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
+  //   // If not, round-robin with all proposors.
+  //   auto server_infos = Config::GetConfig()->GetMyServers();
+  //   if (server_infos.size() == 1) {
+  //     int n = rpc_par_proxies_.find(par_id)->second.size();
+  //     pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
+  //   } else {
+  //     int n = rpc_par_proxies_.find(par_id)->second.size();
+  //     pair_leader_proxy = LeaderProxyForPartition(par_id, rand() % n);
+  //   }
+  // } else {
+  //   pair_leader_proxy = LeaderProxyForPartition(par_id);
+  // }
+
+  pair_leader_proxies = LeaderProxyForPartition(par_id);
+
+  for (auto pair_leader_proxy: pair_leader_proxies) {
+    auto proxy = pair_leader_proxy.second;
     auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
     Future::safe_release(future);
   }
+  
 }
-    
+
+
 } // namespace janus
