@@ -194,6 +194,7 @@ Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
 }
 
 void ClientWorker::Work() {
+  auto work_start_time = std::chrono::steady_clock::now();
   Log_debug("%s: %d", __FUNCTION__, this->cli_id_);
   txn_reg_ = std::make_shared<TxnRegistry>();
   verify(config_ != nullptr);
@@ -362,7 +363,9 @@ void ClientWorker::Work() {
 // force stop if there is no any move in 5 seconds
   int prev_done = 0;
   while (all_done_ == 0) {
-    if (prev_done == (int) sp_n_tx_done_.value_ && prev_done > 0) {
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - work_start_time).count();
+    if (prev_done == (int) sp_n_tx_done_.value_ && (prev_done > 0 || elapsed_time > 30)) {
       break;
     }
     prev_done = (int) sp_n_tx_done_.value_;
