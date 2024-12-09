@@ -26,13 +26,13 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
   // Log_info("[CURP] CoordinatorRule created for coo_id=%d thread_id=%d", coo_id, thread_id);
 }
 
-CommunicatorRule* CoordinatorRule::commo() {
-  if (commo_ == nullptr) {
-    commo_ = new CommunicatorRule;
-  }
-  verify(commo_ != nullptr);
-  return commo_;
-}
+// CommunicatorRule* CoordinatorRule::commo() {
+//   if (commo_ == nullptr) {
+//     commo_ = new CommunicatorRule;
+//   }
+//   verify(commo_ != nullptr);
+//   return commo_;
+// }
 
 void CoordinatorRule::GotoNextPhase() {
   int n_phase = 3;
@@ -172,8 +172,8 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
 #ifdef MONGODB_DEBUG
     Log_info("%.2f BroadcastRuleSpeculativeExecute <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
-    // e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
-    e = commo()->BroadcastRuleSpeculativeExecute(sp_vec_piece);
+    e = ((CommunicatorRule *)commo())->BroadcastRuleSpeculativeExecute(sp_vec_piece);
+    // e = commo()->BroadcastRuleSpeculativeExecute(sp_vec_piece);
   }
   e->Wait();
 #ifdef MONGODB_DEBUG
@@ -209,14 +209,14 @@ void CoordinatorRule::DispatchAsync() {
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
     auto sp_vec_piece = sp_vec_piece_by_par_[par_id];
-    commo()->BroadcastDispatch(sp_vec_piece,
-                              this,
-                              std::bind(&CoordinatorClassic::DispatchAck,
-                                        this,
-                                        phase_,
-                                        dispatch_time_,
-                                        std::placeholders::_1,
-                                        std::placeholders::_2));
+    ((CommunicatorRule *)commo())->BroadcastDispatch(sp_vec_piece,
+                                                      this,
+                                                      std::bind(&CoordinatorClassic::DispatchAck,
+                                                                this,
+                                                                phase_,
+                                                                dispatch_time_,
+                                                                std::placeholders::_1,
+                                                                std::placeholders::_2));
   }
 }
 
