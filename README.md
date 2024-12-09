@@ -11,7 +11,7 @@ bin/rpcgen --python --cpp src/deptran/rcc_rpc.rpc && python3 add_virtual.py
 
 build src code
 ```
-python3 waf configure build
+python3 waf configure build -J
 ```
 
 ### run
