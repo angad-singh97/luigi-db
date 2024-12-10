@@ -30,7 +30,7 @@ class CoordinatorRule : public CoordinatorClassic {
   // CommunicatorRule* commo();
   void GotoNextPhase() override;
   void BroadcastRuleSpeculativeExecute(int cmd_ver);
-  void DispatchAsync() override;
+  void DispatchAsync(bool fastpath_broadcast_mode);
 };
 
 } // namespace janus

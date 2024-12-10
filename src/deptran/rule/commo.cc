@@ -160,6 +160,7 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
 
 
 void CommunicatorRule::BroadcastDispatch(
+    bool fastpath_broadcast_mode,
     shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece,
     Coordinator* coo,
     const function<void(int, TxnOutput&)> & callback) {
@@ -198,22 +199,30 @@ void CommunicatorRule::BroadcastDispatch(
   WAN_WAIT;
 
   vector<std::pair<siteid_t, ClassicProxy*>> pair_leader_proxies;
-  // if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
-  //   // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
-  //   // If not, round-robin with all proposors.
-  //   auto server_infos = Config::GetConfig()->GetMyServers();
-  //   if (server_infos.size() == 1) {
-  //     int n = rpc_par_proxies_.find(par_id)->second.size();
-  //     pair_leader_proxy = LeaderProxyForPartition(par_id, server_infos[0].id);
-  //   } else {
-  //     int n = rpc_par_proxies_.find(par_id)->second.size();
-  //     pair_leader_proxy = LeaderProxyForPartition(par_id, rand() % n);
-  //   }
-  // } else {
-  //   pair_leader_proxy = LeaderProxyForPartition(par_id);
-  // }
 
-  pair_leader_proxies = LeaderProxyForPartition(par_id);
+  if (fastpath_broadcast_mode) {
+    pair_leader_proxies = LeaderProxyForPartition(par_id);
+  } else {
+    std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
+    if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+      // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
+      // If not, round-robin with all proposors.
+      auto server_infos = Config::GetConfig()->GetMyServers();
+      if (server_infos.size() == 1) {
+        int n = rpc_par_proxies_.find(par_id)->second.size();
+        pair_leader_proxy = Communicator::LeaderProxyForPartition(par_id, server_infos[0].id);
+      } else {
+        int n = rpc_par_proxies_.find(par_id)->second.size();
+        pair_leader_proxy = Communicator::LeaderProxyForPartition(par_id, rand() % n);
+      }
+    } else {
+      pair_leader_proxy = Communicator::LeaderProxyForPartition(par_id);
+    }
+    pair_leader_proxies.push_back(pair_leader_proxy);
+  }
+
+
+  
 
   for (auto pair_leader_proxy: pair_leader_proxies) {
     auto proxy = pair_leader_proxy.second;

@@ -81,7 +81,7 @@ void CoordinatorRule::GotoNextPhase() {
         sp_vec_piece_by_par_[par_id] = sp_vec_piece;
       }
 
-      DispatchAsync();
+      DispatchAsync(go_to_fastpath_);
 
       if (go_to_fastpath_) {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
@@ -194,7 +194,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
     GotoNextPhase();
 }
 
-void CoordinatorRule::DispatchAsync() {
+void CoordinatorRule::DispatchAsync(bool fastpath_broadcast_mode) {
   Log_debug("commo Broadcast to the server on client worker");
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto txn = (TxData*) cmd_;
@@ -209,7 +209,8 @@ void CoordinatorRule::DispatchAsync() {
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
     auto sp_vec_piece = sp_vec_piece_by_par_[par_id];
-    ((CommunicatorRule *)commo())->BroadcastDispatch(sp_vec_piece,
+    ((CommunicatorRule *)commo())->BroadcastDispatch(fastpath_broadcast_mode,
+                                                      sp_vec_piece,
                                                       this,
                                                       std::bind(&CoordinatorClassic::DispatchAck,
                                                                 this,
