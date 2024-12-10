@@ -81,7 +81,7 @@ void CoordinatorRule::GotoNextPhase() {
         sp_vec_piece_by_par_[par_id] = sp_vec_piece;
       }
 
-      DispatchAsync(go_to_fastpath_);
+      DispatchAsync(go_to_fastpath_ || Config::GetConfig()->replica_proto_ == MODE_COPILOT); // Copilot fast path or not both need to send to pilot and copilot
 
       if (go_to_fastpath_) {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {

@@ -322,7 +322,7 @@ TxData* Frame::CreateTxnCommand(TxRequest& req, shared_ptr<TxnRegistry> reg) {
 
 Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
   Log_info("enter CreateCommo");
-  if (replica_mode_ == MODE_COPILOT) {
+  if (replica_mode_ == MODE_COPILOT && mode_ != MODE_RULE) {
     commo_ = new CommunicatorNoneCopilot(pollmgr);
   } else {
     switch (mode_) {
