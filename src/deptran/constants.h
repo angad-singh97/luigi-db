@@ -163,7 +163,7 @@ namespace janus {
 #define READ_NOT_CONFLICT_OPTIMIZATION
 // #define CHECK_LONG_POLL_WAIT
 // #define ZERO_OVERHEAD
-
+// #define DB_CHECKSUM
 
 // #define CPU_PROFILE_MAIN
 // #define CPU_PROFILE_SEVER

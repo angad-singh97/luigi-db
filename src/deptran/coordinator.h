@@ -124,7 +124,8 @@ class Coordinator {
 
   // For Rule Coordinator Count
   int fastpath_attempted_count_ = 0;
-  int fastpath_successed_count_ = 0;
+  int fastpath_successed_count_ = 0; // this count all the fast path success
+  int fastpath_efficient_successed_count_ = 0; // this only count that fast path success and success before original path
   // RecentAverage recent_fastpath_success_ = RecentAverage(1000);
 
   // For Curp && Rule

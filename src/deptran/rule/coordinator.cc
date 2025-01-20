@@ -108,7 +108,7 @@ void CoordinatorRule::GotoNextPhase() {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           // verify(!(fast_path_success_ && dispatch_ack_));
           if (fast_path_success_)
-            fastpath_successed_count_++;
+            fastpath_efficient_successed_count_++;
           if (go_to_fastpath_)
             cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
           else
@@ -182,6 +182,10 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
   // Log_info("[CURP] After Wait");
   if (e->Yes()) {
     fast_path_success_ = true;
+    // Log_info("Yes!!!!!");
+    if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
+      fastpath_successed_count_++;
+    }
   } else if (e->No() || e->timeouted_) {
     fast_path_success_ = false;
   } else {

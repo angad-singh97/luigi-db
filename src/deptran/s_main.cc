@@ -34,6 +34,7 @@ int coordinatoraccept_count = 0;
 int original_protocol_count = 0;
 int fastpath_attempted_count = 0;
 int fastpath_successed_count = 0;
+int fastpath_efficient_successed_count = 0;
 Distribution cli2cli[7];
   // 0: fastpath protocol attempts, 1 RTT (mid 1/3 duration)
   // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT) [abandoned]
@@ -242,6 +243,7 @@ void client_shutdown() {
 
     fastpath_attempted_count += client->fastpath_attempted_count_;
     fastpath_successed_count += client->fastpath_successed_count_;
+    fastpath_efficient_successed_count += client->fastpath_efficient_successed_count_;
   }
   client_workers_g.clear();
 }
@@ -635,6 +637,7 @@ int main(int argc, char *argv[]) {
     auto p = worker.site_info_->partition_id_;
     int sum = worker.DbChecksum();
     checksum_results[p].push_back(sum);
+    Log_info("partition %d checksum %d", p, sum);
   }
   bool checksum_fail = false;
   for (auto& pair : checksum_results) {
@@ -647,6 +650,8 @@ int main(int argc, char *argv[]) {
   }
   if (checksum_fail) {
     Log_warn("checksum match failed...perhaps wait longer before checksum?");
+  } else {
+    Log_info("checksum success");
   }
 #endif
 #ifdef CPU_PROFILE
@@ -667,7 +672,8 @@ int main(int argc, char *argv[]) {
   Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
   Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Total Original throughput is %.2f", cli2cli[5].count() * 1.0 / Config::GetConfig()->duration_);
-  Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f", fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count);
+  Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f efficient_successed %d efficient_rate(pct) %.2f", 
+    fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count, fastpath_efficient_successed_count, fastpath_efficient_successed_count * 100.0 / fastpath_attempted_count);
   Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
 
   string dump_file_name = "results/recent_csv/" + Config::GetConfig()->exp_setting_name_ + ".csv";
