@@ -287,7 +287,8 @@ void ServerWorker::ShutDown() {
 }
 
 int ServerWorker::DbChecksum() {
-  auto cs = this->tx_sched_->mdb_txn_mgr_->Checksum();
+  // auto cs = this->tx_sched_->mdb_txn_mgr_->Checksum();
+  uint32_t cs = this->tx_sched_->ChecksumXor();
   Log_info("site_id: %d shard_id: %d checksum: %x", (int)this->site_info_->id,
            (int)this->site_info_->partition_id_, (int) cs);
   return cs;

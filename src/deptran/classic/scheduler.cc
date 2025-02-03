@@ -282,6 +282,9 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 }
 
 void SchedulerClassic::DoCommit(Tx& tx_box) {
+#ifdef DB_CHECKSUM
+  ApplyToDatabase(tx_box.cmd_);
+#endif
   auto mdb_txn = RemoveMTxn(tx_box.tid_);
   verify(mdb_txn == tx_box.mdb_txn_);
   mdb_txn->commit();

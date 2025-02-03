@@ -581,6 +581,29 @@ class TxLogServer {
 
   int curp_double_commit_count_ = 0;
 
+  // For checksum
+  unordered_map<key_t, value_t> database_;
+  int database_operation_count_ = 0;
+
+  void ApplyToDatabase(shared_ptr<Marshallable> cmd) {
+    SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+    Log_info("Apply Write %d key %d value %d", parsed_cmd.IsWrite(), parsed_cmd.key_, parsed_cmd.value_);
+    if (parsed_cmd.IsWrite()) {
+      database_[parsed_cmd.key_] = parsed_cmd.value_;
+      database_operation_count_++;
+    }
+  }
+
+  uint32_t ChecksumXor() {
+    Log_info("database_operation_count_ %d", database_operation_count_);
+    uint32_t checksum = 0;
+    for (const auto& kv : database_) {
+        checksum ^= static_cast<uint32_t>(kv.first);
+        checksum ^= static_cast<uint32_t>(kv.second);
+    }
+    return checksum;
+  }
+
   void OnCurpDispatch(const int32_t& client_id,
                       const int32_t& cmd_id_in_client,
                       const shared_ptr<Marshallable>& cmd,
