@@ -8,6 +8,8 @@
 #include "deptran/procedure.h"
 #include "../command_marshaler.h"
 #include "../rcc_rpc.h"
+#include "server.h"
+#include "macros.h"
 
 class SimpleCommand;
 namespace janus {
@@ -19,60 +21,48 @@ class RaftServiceImpl : public RaftService {
   RaftServer* svr_;
   RaftServiceImpl(TxLogServer* sched);
 
-  // void RequestVote(const ballot_t& candidate_term,
-  //                  const locid_t& candidate_id,
-  //                  const uint64_t& last_log_index,
-  //                  const ballot_t& last_log_term,
-  //                  ballot_t* reply_term,
-  //                  bool_t* vote_granted,
-  //                  rrr::DeferredReply* defer) override;
-    
-	// void AppendEntries(const uint64_t& slot,
-  //                    const uint64_t& leader_term,
-  //                    const uint64_t& leader_prev_log_index,
-  //                    const uint64_t& leader_prev_log_term,
-  //                    const MarshallDeputy& cmd,
-  //                    const uint64_t& leader_commit_index,
-  //                    uint64_t *follower_term,
-  //                    uint64_t *follower_append_success,
-  //                    uint64_t *follower_last_log_index,
-  //                    rrr::DeferredReply* defer) override;
+  RpcHandler(Vote, 6,
+             const uint64_t&, lst_log_idx,
+             const ballot_t&, lst_log_term,
+             const siteid_t&, can_id,
+             const ballot_t&, can_term,
+             ballot_t*, reply_term,
+             bool_t*, vote_granted) {
+    *reply_term = can_term;
+    *vote_granted = false;
+  }
 
-  // void Decide(const uint64_t& slot,
-  //             const MarshallDeputy& cmd,
-  //             rrr::DeferredReply* defer) override;
+  RpcHandler(AppendEntries, 11,
+             const uint64_t&, slot,
+             const ballot_t&, ballot,
+             const uint64_t&, leaderCurrentTerm,
+             const uint64_t&, leaderPrevLogIndex,
+             const uint64_t&, leaderPrevLogTerm,
+             const uint64_t&, leaderCommitIndex,
+             const MarshallDeputy&, cmd,
+             const uint64_t&, leaderNextLogTerm,
+             uint64_t*, followerAppendOK,
+             uint64_t*, followerCurrentTerm,
+             uint64_t*, followerLastLogIndex) {
+    *followerAppendOK = false;
+    *followerCurrentTerm = 0;
+    *followerLastLogIndex = 0;
+  }
 
-  void RequestVote(const uint64_t& leaderTerm,
-                   const uint64_t& candidateId,
-                   const uint64_t& lastLogIndex,
-                   const uint64_t& lastLogTerm,
-                   uint64_t* receiverTerm,
-                   bool_t* voteGranted,
-                   rrr::DeferredReply* defer) override;
-
-  void AppendEntries(const uint64_t& leaderTerm,
-                     const uint64_t& leaderId,
-                     const uint64_t& prevLogIndex,
-                     const uint64_t& prevLogTerm,
-                     const MarshallDeputy& entry,
-                     const uint64_t& entryTerm,
-                     const uint64_t& leaderCommit,
-                     uint64_t* receiverTerm,
-                     bool_t* success,
-                     rrr::DeferredReply* defer) override;
-
-  void EmptyAppendEntries(const uint64_t& leaderTerm,
-                          const uint64_t& leaderId,
-                          const uint64_t& prevLogIndex,
-                          const uint64_t& prevLogTerm,
-                          const uint64_t& leaderCommit,
-                          uint64_t* receiverTerm,
-                          bool_t* success,
-                          rrr::DeferredReply* defer) override;
-
-  void HelloRpc(const std::string& req,
-                std::string* res,
-                rrr::DeferredReply* defer) override;
+  RpcHandler(EmptyAppendEntries, 9,
+             const uint64_t&, slot,
+             const ballot_t&, ballot,
+             const uint64_t&, leaderCurrentTerm,
+             const uint64_t&, leaderPrevLogIndex,
+             const uint64_t&, leaderPrevLogTerm,
+             const uint64_t&, leaderCommitIndex,
+             uint64_t*, followerAppendOK,
+             uint64_t*, followerCurrentTerm,
+             uint64_t*, followerLastLogIndex) {
+    *followerAppendOK = false;
+    *followerCurrentTerm = 0;
+    *followerLastLogIndex = 0;
+  }
 
 };
 

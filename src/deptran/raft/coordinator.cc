@@ -5,75 +5,92 @@
 #include "commo.h"
 
 #include "server.h"
-#include "../RW_command.h"
 
 namespace janus {
 
-// CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
-//                                              int32_t benchmark,
-//                                              ClientControlServiceImpl* ccsi,
-//                                              uint32_t thread_id)
-//     : Coordinator(coo_id, benchmark, ccsi, thread_id) {
-// }
+CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
+                                             int32_t benchmark,
+                                             ClientControlServiceImpl* ccsi,
+                                             uint32_t thread_id)
+    : Coordinator(coo_id, benchmark, ccsi, thread_id) {
+}
 
-// CoordinatorRaft::~CoordinatorRaft() {
-// }
+bool CoordinatorRaft::IsLeader() {
+   return this->svr_->IsLeader() ;
+}
 
-// bool CoordinatorRaft::IsLeader() {
-//    return this->sch_->IsLeader() ;
-// }
+bool CoordinatorRaft::IsFPGALeader() {
+   return this->svr_->IsFPGALeader() ;
+}
 
-// void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
-//                                    const function<void()>& func,
-//                                    const function<void()>& exe_callback) {
-//   // if (!IsLeader()) {
-//   //   //forward to leader
-//   //   return ;
-//   // }
+void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
+                                   const function<void()>& func,
+                                   const function<void()>& exe_callback) {
+  if (!IsLeader()) {
+    verify(0);
+    return ;
+  }
   
-// 	std::lock_guard<std::recursive_mutex> lock(mtx_);
-//   verify(!in_submission_);
-//   verify(cmd_ == nullptr);
-// //  verify(cmd.self_cmd_ != nullptr);
-//   in_submission_ = true;
-//   cmd_ = cmd;
-//   verify(cmd_->kind_ != MarshallDeputy::UNKNOWN);
-//   commit_callback_ = func;
-//   GotoNextPhase();
-// }
+	std::lock_guard<std::recursive_mutex> lock(mtx_);
+  verify(!in_submission_);
+  verify(cmd_ == nullptr);
+//  verify(cmd.self_cmd_ != nullptr);
+  in_submission_ = true;
+  cmd_ = cmd;
+  verify(cmd_->kind_ != MarshallDeputy::UNKNOWN);
+  commit_callback_ = func;
+  GotoNextPhase();
+}
+
+void CoordinatorRaft::AppendEntries() {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+    verify(!in_append_entries);
+    // verify(this->svr_->IsLeader()); TODO del it yidawu
+    in_append_entries = true;
+    uint64_t index, term;
+    bool ok = this->svr_->Start(cmd_, &index, &term); // slot_id_, curr_ballot_);
+    verify(ok);
+
+    while (this->svr_->commitIndex < index) {
+      Reactor::CreateSpEvent<TimeoutEvent>(1000)->Wait();
+      verify(this->svr_->currentTerm == term);
+    }
+    committed_ = true;
+}
 
 // void CoordinatorRaft::AppendEntries() {
 //     std::lock_guard<std::recursive_mutex> lock(mtx_);
 //     verify(!in_append_entries);
-//     // verify(this->sch_->IsLeader()); TODO del it yidawu
+//     // verify(this->svr_->IsLeader()); TODO del it yidawu
 //     in_append_entries = true;
 //     Log_debug("fpga-raft coordinator broadcasts append entries, "
 //                   "par_id_: %lx, slot_id: %llx, lastLogIndex: %d",
-//               par_id_, slot_id_, this->sch_->lastLogIndex);
+//               par_id_, slot_id_, this->svr_->lastLogIndex);
 //     /* Should we use slot_id instead of lastLogIndex and balot instead of term? */
-//     uint64_t prevLogIndex = this->sch_->lastLogIndex;
+//     uint64_t prevLogIndex = this->svr_->lastLogIndex;
 
-//     /*this->sch_->lastLogIndex += 1;
-//     auto instance = this->sch_->GetRaftInstance(this->sch_->lastLogIndex);
+//     /*this->svr_->lastLogIndex += 1;
+//     auto instance = this->svr_->GetRaftInstance(this->svr_->lastLogIndex);
 
 //     instance->log_ = cmd_;
-//     instance->term = this->sch_->currentTerm;*/
+//     instance->term = this->svr_->currentTerm;*/
 
 //     /* TODO: get prevLogTerm based on the logs */
-//     uint64_t prevLogTerm = this->sch_->currentTerm;
-// 		this->sch_->SetLocalAppend(cmd_, &prevLogTerm, &prevLogIndex, slot_id_) ;
+//     uint64_t prevLogTerm = this->svr_->GetRaftInstance(prevLogIndex)->term;
+// 		this->svr_->SetLocalAppend(cmd_, &prevLogTerm, &prevLogIndex, slot_id_, curr_ballot_) ;
 		
-// #ifdef RAFT_LEADER_ELECTION_DEBUG
-//     Log_info("loc_id %d BroadcastAppendEntries", loc_id_);
-// #endif
+
 //     auto sp_quorum = commo()->BroadcastAppendEntries(par_id_,
-//                                                      this->sch_->site_id_,
+//                                                      this->svr_->site_id_,
 //                                                      slot_id_,
-//                                                      this->sch_->IsLeader(),
-//                                                      this->sch_->currentTerm,
+//                                                      dep_id_,
+//                                                      curr_ballot_,
+//                                                      this->svr_->IsLeader(),
+//                                                      this->svr_->currentTerm,
 //                                                      prevLogIndex,
 //                                                      prevLogTerm,
-//                                                      this->sch_->commitIndex,
+//                                                      /* ents, */
+//                                                      this->svr_->commitIndex,
 //                                                      cmd_);
 
 // 		struct timespec start_;
@@ -125,127 +142,24 @@ namespace janus {
 // 		//Log_info("slow?: %d", slow_);
 //     if (sp_quorum->Yes()) {
 //         minIndex = sp_quorum->minIndex;
-// 				//Log_info("%d vs %d", minIndex, this->sch_->commitIndex);
-//         verify(minIndex >= this->sch_->commitIndex) ;
+// 				//Log_info("%d vs %d", minIndex, this->svr_->commitIndex);
+//         verify(minIndex >= this->svr_->commitIndex) ;
 //         committed_ = true;
 //         Log_debug("fpga-raft append commited loc:%d minindex:%d", loc_id_, minIndex ) ;
 //     }
 //     else if (sp_quorum->No()) {
 //         verify(0);
 //         // TODO should become a follower if the term is smaller
+//         //if(!IsLeader())
+//         {
+//             Forward(cmd_,commit_callback_) ;
+//             return ;
+//         }
 //     }
 //     else {
 //         verify(0);
 //     }
-//     GotoNextPhase();
 // }
-
-// void CoordinatorRaft::Commit() {
-//     std::lock_guard<std::recursive_mutex> lock(mtx_);
-//     commit_callback_();
-//     uint64_t prevCommitIndex = this->sch_->commitIndex;
-//     verify(minIndex >= prevCommitIndex);
-//     this->sch_->commitIndex = std::max(this->sch_->commitIndex, minIndex);
-//     Log_debug("fpga-raft commit for partition: %d, slot %d, commit %d minIndex %d in loc:%d", 
-//       (int) par_id_, (int) slot_id_, sch_->commitIndex, minIndex, loc_id_);
-
-//     /* if (prevCommitIndex < this->sch_->commitIndex) { */
-//     /*     auto instance = this->sch_->GetRaftInstance(this->sch_->commitIndex); */
-//     /*     this->sch_->app_next_(*instance->log_); */
-//     /* } */
-
-//     commo()->BroadcastDecide(par_id_, slot_id_, cmd_);
-//     verify(phase_ == Phase::COMMIT);
-//     GotoNextPhase();
-// }
-
-// void CoordinatorRaft::GotoNextPhase() {
-//   int n_phase = 3;
-//   int current_phase = phase_ % n_phase;
-//   phase_++;
-//   switch (current_phase) {
-//     case Phase::INIT_END:
-//       if (IsLeader()) {
-//         verify(phase_ % n_phase == Phase::ACCEPT);
-// #ifdef RAFT_LEADER_ELECTION_DEBUG
-//         Log_info("before server %d AppendEntries", loc_id_);
-// #endif
-//         AppendEntries();
-//       } else {
-// #ifdef RAFT_LEADER_ELECTION_DEBUG
-//         Log_info("server %d received a command as a follower", loc_id_);
-// #endif
-//         // TODO: forward to leader or do nothing just waiting for client resend to others
-//         // verify(0);
-//       }
-//       break;
-//     case Phase::ACCEPT:
-//       verify(phase_ % n_phase == Phase::COMMIT);
-//       if (committed_) {
-//         Commit();
-//       } else {
-//         verify(0);
-//       }
-//       break;
-//     case Phase::COMMIT:
-//       // do nothing.
-//       break;
-//     default:
-//       verify(0);
-//   }
-// }
-
-CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
-                                             int32_t benchmark,
-                                             ClientControlServiceImpl* ccsi,
-                                             uint32_t thread_id)
-    : Coordinator(coo_id, benchmark, ccsi, thread_id) {
-}
-
-bool CoordinatorRaft::IsLeader() {
-   return this->svr_->IsLeader() ;
-}
-
-bool CoordinatorRaft::IsFPGALeader() {
-   return this->svr_->IsFPGALeader() ;
-}
-
-void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
-                                   const function<void()>& func,
-                                   const function<void()>& exe_callback) {
-  verify(0);
-  if (!IsLeader()) {
-    verify(0);
-    return ;
-  }
-  
-	std::lock_guard<std::recursive_mutex> lock(mtx_);
-  verify(!in_submission_);
-  verify(cmd_ == nullptr);
-//  verify(cmd.self_cmd_ != nullptr);
-  in_submission_ = true;
-  cmd_ = cmd;
-  verify(cmd_->kind_ != MarshallDeputy::UNKNOWN);
-  commit_callback_ = func;
-  GotoNextPhase();
-}
-
-void CoordinatorRaft::AppendEntries() {
-    std::lock_guard<std::recursive_mutex> lock(mtx_);
-    verify(!in_append_entries);
-    // verify(this->svr_->IsLeader()); TODO del it yidawu
-    in_append_entries = true;
-    uint64_t index, term;
-
-    bool ok = this->svr_->Start(cmd_, &index, &term); //, slot_id_, curr_ballot_);
-    verify(ok);
-
-    // while (this->sch_->commitIndex < index) {
-    //   Reactor::CreateSpEvent<TimeoutEvent>(1000)->Wait();
-    //   verify(this->sch_->currentTerm == term);
-    // }
-    committed_ = true;
-}
 
 void CoordinatorRaft::Commit() {
   verify(0);

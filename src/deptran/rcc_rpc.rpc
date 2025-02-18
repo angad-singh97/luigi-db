@@ -202,41 +202,36 @@ abstract service FpgaRaft {
 }
 
 abstract service Raft {  
-  defer RequestVote(
-    uint64_t leaderTerm,
-    uint64_t candidateId,
-    uint64_t lastLogIndex,
-    uint64_t lastLogTerm
-    |
-    uint64_t receiverTerm,
-    bool_t voteGranted
-  );
 
-  defer AppendEntries(
-    uint64_t leaderTerm,
-    uint64_t leaderId,
-    uint64_t prevLogIndex,
-    uint64_t prevLogTerm,
-    MarshallDeputy entry,
-    uint64_t entryTerm,
-    uint64_t leaderCommit
-    |
-    uint64_t receiverTerm,
-    bool_t success
-  );
+  defer Vote(uint64_t lst_log_idx,
+                ballot_t lst_log_term,
+                siteid_t site_id,
+                ballot_t cur_term|
+                ballot_t max_ballot,
+                bool_t vote_granted );
 
-  defer EmptyAppendEntries(
-    uint64_t leaderTerm,
-    uint64_t leaderId,
-    uint64_t prevLogIndex,
-    uint64_t prevLogTerm,
-    uint64_t leaderCommit
-    |
-    uint64_t receiverTerm,
-    bool_t success
-  );
+  defer AppendEntries(uint64_t slot,
+                      ballot_t ballot,
+                      uint64_t leaderCurrentTerm,
+                      uint64_t leaderPrevLogIndex,
+                      uint64_t leaderPrevLogTerm,
+                      uint64_t leaderCommitIndex,
+                      MarshallDeputy cmd,
+                      uint64_t leaderNextLogTerm |
+                      uint64_t followerAppendOK,
+                      uint64_t followerCurrentTerm,
+                      uint64_t followerLastLogIndex);
 
-  defer HelloRpc(string req | string res);                       
+  defer EmptyAppendEntries(uint64_t slot,
+                           ballot_t ballot,
+                           uint64_t leaderCurrentTerm,
+                           uint64_t leaderPrevLogIndex,
+                           uint64_t leaderPrevLogTerm,
+                           uint64_t leaderCommitIndex |
+                           uint64_t followerAppendOK,
+                           uint64_t followerCurrentTerm,
+                           uint64_t followerLastLogIndex);
+                    
 }
 
 abstract service FpgaRaftPlus {
