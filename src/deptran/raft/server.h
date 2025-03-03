@@ -64,6 +64,7 @@ class RaftServer : public TxLogServer {
 
   bool looping_ = false;
   bool heartbeat_ = true;
+  bool heartbeat_setup_ = false;
 	enum { STOPPED, RUNNING } status_;
   
 	bool RequestVote() ;

@@ -22,18 +22,6 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
-  if (heartbeat_) {
-		Log_debug("starting heartbeat loop at site %d", site_id_);
-    Coroutine::CreateRun([this](){
-      this->HeartbeatLoop(); 
-    });
-    // Start election timeout loop
-    if (failover_) {
-      Coroutine::CreateRun([this](){
-        StartElectionTimer(); 
-      });
-    }
-	}
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
@@ -455,6 +443,22 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        slotid_t slot_id,
                        ballot_t ballot) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+  if (!heartbeat_setup_) {
+    heartbeat_setup_ = true;
+    if (heartbeat_) {
+      Log_debug("starting heartbeat loop at site %d", site_id_);
+      Coroutine::CreateRun([this](){
+        this->HeartbeatLoop(); 
+      });
+      // Start election timeout loop
+      if (failover_) {
+        Coroutine::CreateRun([this](){
+          StartElectionTimer(); 
+        });
+      }
+    }
+  }
   if (!IsLeader()) {
     *index = 0;
     *term = 0;
