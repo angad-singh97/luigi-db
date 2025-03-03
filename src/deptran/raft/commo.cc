@@ -42,6 +42,10 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [ret,ret_status,ret_term,ret_last_log_index](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       // std::lock_guard<std::recursive_mutex> lk(res->mtx);
       fu->get_reply() >> *ret_status >> *ret_term >> *ret_last_log_index;
       // fu->get_reply() >> res->followerTerm;
@@ -111,6 +115,10 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [res, cmd](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       // std::lock_guard<std::recursive_mutex> lk(res->mtx);
       fu->get_reply() >> res->ok;
       fu->get_reply() >> res->followerTerm;
@@ -173,6 +181,10 @@ RaftCommo::BroadcastVote(parid_t par_id,
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       ballot_t term = 0;
       bool_t vote = false ;
       fu->get_reply() >> term;
