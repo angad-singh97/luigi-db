@@ -587,7 +587,7 @@ class TxLogServer {
 
   void ApplyToDatabase(shared_ptr<Marshallable> cmd) {
     SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
-    Log_info("Apply Write %d key %d value %d", parsed_cmd.IsWrite(), parsed_cmd.key_, parsed_cmd.value_);
+    // Log_info("Apply Write %d key %d value %d", parsed_cmd.IsWrite(), parsed_cmd.key_, parsed_cmd.value_);
     if (parsed_cmd.IsWrite()) {
       database_[parsed_cmd.key_] = parsed_cmd.value_;
       database_operation_count_++;

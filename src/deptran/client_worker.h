@@ -93,7 +93,7 @@ class ClientWorker {
   void Work();
   Coordinator* FindOrCreateCoordinator();
   void FailoverPreprocess(Coordinator* coo);
-  void DispatchRequest(Coordinator *coo);
+  void DispatchRequest(Coordinator *coo, bool void_request=false);
   void SearchLeader(Coordinator* coo);
   void Pause(locid_t locid);
   void Resume(locid_t locid);

@@ -3,7 +3,7 @@
 #include "frame.h"
 #include "procedure.h"
 #include "coordinator.h"
-#include "workload.h"
+#include "../bench/rw/workload.h"
 #include "benchmark_control_rpc.h"
 
 namespace janus {
@@ -254,12 +254,20 @@ void ClientWorker::Work() {
       // Reactor::CreateSpEvent<NeverEvent>()->Wait(RandomGenerator::rand(0, 1000000)); // [Ze]: I disable this for Mencius, I think it's safe
       auto beg_time = Time::now() ;
       auto end_time = beg_time + duration * pow(10, 6);
+#ifdef DB_CHECKSUM
+      auto read_end_time = end_time + 20 * pow(10, 6);
+#endif
 #ifdef COPILOT_DEBUG
       end_time = beg_time + duration * 5 * pow(10, 2);
 #endif 
       while (true) { // start while
         auto cur_time = Time::now(); // optimize: this call is not scalable.
+#ifndef DB_CHECKSUM
         if (cur_time > end_time) {
+#endif
+#ifdef DB_CHECKSUM
+        if (cur_time > read_end_time) {
+#endif
           break;
         }
         n_tx_issued_++;
@@ -301,7 +309,13 @@ void ClientWorker::Work() {
 					auto t = Reactor::CreateSpEvent<TimeoutEvent>(0.1*1000*1000);
 					t->Wait();
 				}
-				this->DispatchRequest(coo);
+#ifdef DB_CHECKSUM
+        // [Ze] This hacking is for rw workload only: once consensus finished, send empty (read) request for 10s
+        if (cur_time > end_time)
+				  this->DispatchRequest(coo, true);
+        else
+#endif
+          this->DispatchRequest(coo);
         if (config_->client_type_ == Config::Closed) {
           auto ev = coo->sp_ev_commit_;
 #if 1
@@ -573,7 +587,7 @@ void ClientWorker::FailoverPreprocess(Coordinator* coo) {
   }
 }
 
-void ClientWorker::DispatchRequest(Coordinator* coo) {
+void ClientWorker::DispatchRequest(Coordinator* coo, bool void_request) {
 //  FailoverPreprocess(coo);
   const char* f = __FUNCTION__;
   std::function<void()> task = [=]() {
@@ -587,6 +601,11 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
       // set unique command ID
       req->client_id_ = coo->coo_id_;
       req->cmd_id_in_client_ = coo->cmd_in_client_count++;
+#ifdef DB_CHECKSUM
+      // [Ze] This hacking is for rw workload only: once consensus finished, send empty (read) request for 10s
+      if (void_request)
+        req->tx_type_ = RW_BENCHMARK_R_TXN;
+#endif
     }
 //     req.callback_ = std::bind(&ClientWorker::RequestDone,
 //                               this,
