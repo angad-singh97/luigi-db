@@ -29,24 +29,18 @@ bool* volatile failover_triggers;
 volatile bool failover_server_quit = false;
 volatile locid_t failover_server_idx;
 volatile double total_throughput = 0;
-int fastpath_count = 0;
-int coordinatoraccept_count = 0;
-int original_protocol_count = 0;
-int fastpath_attempted_count = 0;
-int fastpath_successed_count = 0;
-int fastpath_efficient_successed_count = 0;
-Distribution cli2cli[7];
-  // 0: fastpath protocol attempts, 1 RTT (mid 1/3 duration)
-  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT) [abandoned]
-  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT [abandoned]
-  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout [abandoned]
-  // 4: original protocol attempts, 2 RTT (mid 1/3 duration)
-  // 5: all original protocol even fastpath success, 2 RTT (full duration)
-  // 6: merge 0~4, all attempts (mid 1/3 duration)
+// All the following statistics only count mid 1/3 duration
+// 2 \subseteq 1 \subseteq 0, 4 \subseteq 3, 5 = 2 \cup 4, 2 \cap 4 = \emptyset
+// 0: all fast path attempts (even fail or slower than original path), 1 RTT
+// 1: success fast path attempts (success only, may slower than original path), 1 RTT
+// 2: efficient fast path attempts (only success and faster than original path), 1 RTT
+// 3: all original path attempts (even slower than fast path), 2 RTTs
+// 4: efficient original path attempts (only faster than fast path, or fast path failed), 2 RTTs
+// 5: all efficient attempts (count all faster one) (should equals to category 2 merge category 4)
+Distribution cli2cli[6];
+// commit_time for all (default 30s) duration
 Distribution commit_time;
 Frequency frequency;
-// definition of first 4 elements refer to "Distribution cli2cli_[4];" in coordinator.h
-// 5nd element is for merge first 4
 #ifdef LATENCY_DEBUG
   Distribution client2leader, client2leader_send, client2test_point;
 #endif
@@ -237,13 +231,6 @@ void client_shutdown() {
     client2test_point.merge(client->client2test_point_);
     client2leader_send.merge(client->client2leader_send_);
 #endif
-    fastpath_count += client->fastpath_count_;
-    coordinatoraccept_count += client->coordinatoraccept_count_;
-    original_protocol_count += client->original_protocol_count_;
-
-    fastpath_attempted_count += client->fastpath_attempted_count_;
-    fastpath_successed_count += client->fastpath_successed_count_;
-    fastpath_efficient_successed_count += client->fastpath_efficient_successed_count_;
   }
   client_workers_g.clear();
 }
@@ -614,7 +601,6 @@ int main(int argc, char *argv[]) {
     failover_server_quit = true;
     Log_info("all clients have shut down.");
   }
-  // Log_info("Total throughtput is %.2f, Latency-50% is %.2f ms, Latency-90% is %.2f ms, Latency-99% is %.2f ms ", total_throughput, cli2cli.pct50(), cli2cli.pct90(), cli2cli.pct99());
   Log_info("Total throughtput is %.2f", total_throughput);
 #ifdef DB_CHECKSUM
   sleep(90); // hopefully servers can finish hanging RPCs in 90 seconds.
@@ -661,19 +647,15 @@ int main(int argc, char *argv[]) {
   client_shutdown();
   Log_info("After client_shutdown");
   
-  for (int i = 0; i < 5; i++)
-    cli2cli[6].merge(cli2cli[i]);
-  Log_info("Fastpath count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
-  Log_info("CoordinatorAccept count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
-  Log_info("Fast-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
-  Log_info("Slow-Original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
-  Log_info("Original-Protocol count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("All original count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
-  Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms, ave is %.2f ms", cli2cli[6].pct50(), cli2cli[6].pct90(), cli2cli[6].pct99(), cli2cli[6].ave());
-  Log_info("Mid throughput is %.2f", cli2cli[6].count() / (Config::GetConfig()->duration_ / 3.0));
-  Log_info("Total Original throughput is %.2f", cli2cli[5].count() * 1.0 / Config::GetConfig()->duration_);
+  Log_info("All-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
+  Log_info("Success-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
+  Log_info("Efficient-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
+  Log_info("All-original-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
+  Log_info("Efficient-original-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
+  Log_info("All-efficient-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f efficient_successed %d efficient_rate(pct) %.2f", 
-    fastpath_attempted_count, fastpath_successed_count, fastpath_successed_count * 100.0 / fastpath_attempted_count, fastpath_efficient_successed_count, fastpath_efficient_successed_count * 100.0 / fastpath_attempted_count);
+    cli2cli[0].count(), cli2cli[1].count(), cli2cli[1].count() * 100.0 / cli2cli[0].count(), cli2cli[2].count(), cli2cli[2].count() * 100.0 / cli2cli[0].count());
   Log_info("Frequency: %s", frequency.top_keys_pcts().c_str());
 
   string dump_file_name = "results/recent_csv/" + Config::GetConfig()->exp_setting_name_ + ".csv";
@@ -681,14 +663,14 @@ int main(int argc, char *argv[]) {
   if (!file.is_open()) {
     Log_info("Failed to open file for writing %s", dump_file_name.c_str());
   } else {
-    file << "Fastpath" << "," << "CoordinatorAccept" << "," << "Fast-Original" << "," << "Slow-Original" << ","  << "Original-Protocol" << ","  << "All-Original" << "," << "Overall" << "," << "Commit-Time" << "\n";
+    file << "All-fast-path-attempts" << "," << "Success-fast-path-attempts" << "," << "Efficient-fast-path-attempts" << "," << "All-original-path-attempts" << ","  << "Efficient-original-path-attempts" << ","  << "All-efficient-attempts" << "," << "Commit-Time" << "\n";
     size_t max_size = commit_time.count();
     commit_time.pct50();
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 6; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
     for (size_t i = 0; i < max_size; ++i) {
-        for (int k = 0; k < 7; k++) {
+        for (int k = 0; k < 6; k++) {
           if (i < cli2cli[k].count())
             file << cli2cli[k].data_[i];
           file << ",";

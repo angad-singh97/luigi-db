@@ -24,8 +24,6 @@ class CoordinatorRule : public CoordinatorClassic {
                   ClientControlServiceImpl *ccsi,
                   uint32_t thread_id);
   ~CoordinatorRule() {
-    // Log_info("fastpath_count=%d, coordinatoraccept_count=%d, original_protocol_count=%d, cli2cli_50pct=%.2f ms, cli2cli_90pct=%.2f ms, cli2cli_99pct=%.2f ms",
-    //   fastpath_count_, coordinatoraccept_count_, original_protocol_count_, cli2cli_->pct50(), cli2cli_->pct90(), cli2cli_->pct99());
   }
   // CommunicatorRule* commo();
   void GotoNextPhase() override;

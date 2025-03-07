@@ -56,7 +56,6 @@ void CoordinatorCurp::GotoNextPhase() {
         committed_ = true;
         phase_ += 2;
         verify(phase_ % n_phase == Phase::INIT_END);
-        fastpath_count_++;
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
           cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
@@ -86,7 +85,6 @@ void CoordinatorCurp::GotoNextPhase() {
         committed_ = true;
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
-        coordinatoraccept_count_++;
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
           cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         End();
@@ -103,7 +101,6 @@ void CoordinatorCurp::GotoNextPhase() {
       Log_info("[CURP] coo_id=%d cmd<%d, %d> Original Protocol success", coo_id_, SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
       committed_ = true;
-      original_protocol_count_++;
       if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
         if (!go_to_fastpath_)
           cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);

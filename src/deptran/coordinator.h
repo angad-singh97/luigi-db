@@ -101,13 +101,15 @@ class Coordinator {
   /******global unique id end********/
 
   // For latency test
+  // All the following statistics only count mid 1/3 duration
+  // 2 \subseteq 1 \subseteq 0, 4 \subseteq 3, 5 = 2 \cup 4, 2 \cap 4 = \emptyset
+  // 0: all fast path attempts (even fail or slower than original path), 1 RTT
+  // 1: success fast path attempts (success only, may slower than original path), 1 RTT
+  // 2: efficient fast path attempts (only success and faster than original path), 1 RTT
+  // 3: all original path attempts (even slower than fast path), 2 RTTs
+  // 4: efficient original path attempts (only faster than fast path, or fast path failed), 2 RTTs
+  // 5: all efficient attempts (count all faster one) (should equals to category 1 merge category 3)
   Distribution cli2cli_[6];
-  // 0: fastpath protocol attempts, 1 RTT (mid 1/3 duration)
-  // 1: coordinator accept, fastpath 1 RTT + coordinator accept 1 RTT + reply client 0.5 RTT = 2.5 RTT (wait_commit_timeout should > 0.5 RTT) [abandoned]
-  // 2: fast original protocol, fastpath 1 RTT + original protocol 2 RTT = 3 RTT [abandoned]
-  // 3: slow original protocol, fastpath 1 RTT + coordinator accept 1 RTT + wait_commit_timeout + original protocol 2 RTT = 4 RTT + wait_commit_timeout [abandoned]
-  // 4: original protocol attempts, 2 RTT (mid 1/3 duration)
-  // 5: all original protocol even fastpath success, 2 RTT (full duration)
 
   Frequency frequency_;
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
@@ -116,17 +118,6 @@ class Coordinator {
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;
 #endif
-
-  // For Curp Coordinator Count
-  int fastpath_count_ = 0;
-  int coordinatoraccept_count_ = 0;
-  int original_protocol_count_ = 0;
-
-  // For Rule Coordinator Count
-  int fastpath_attempted_count_ = 0;
-  int fastpath_successed_count_ = 0; // this count all the fast path success
-  int fastpath_efficient_successed_count_ = 0; // this only count that fast path success and success before original path
-  // RecentAverage recent_fastpath_success_ = RecentAverage(1000);
 
   // For Curp && Rule
   // int fastpath_p_ = 1024;
