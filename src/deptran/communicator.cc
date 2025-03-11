@@ -26,10 +26,16 @@ void RuleSpeculativeExecuteQuorumEvent::FeedResponse(bool y, value_t result, boo
     }
     if (is_leader)
       n_leader_yes_++;
+#ifdef JETPACK_FASTPATH_DEBUG
+    Log_info("RuleSpeculativeExecuteQuorumEvent VoteYes");
+#endif
     VoteYes();
   } else {
     if (is_leader)
       n_leader_no_++;
+#ifdef JETPACK_FASTPATH_DEBUG
+    Log_info("RuleSpeculativeExecuteQuorumEvent VoteNo");
+#endif
     VoteNo();
   }
 }
@@ -41,7 +47,7 @@ bool RuleSpeculativeExecuteQuorumEvent::Yes() {
 
 bool RuleSpeculativeExecuteQuorumEvent::No() {
   // if ((n_voted_no_ > (n_total_ - quorum_)) || (n_leader_no_ > 0))
-  //   Log_info("RuleSpeculativeExecuteQuorumEventNo: %d %d", n_voted_no_, n_leader_no_);
+  // Log_info("RuleSpeculativeExecuteQuorumEventNo: %d %d", n_voted_no_, n_leader_no_);
   return (n_voted_no_ > (n_total_ - quorum_)) || (n_leader_no_ > 0);
 }
 

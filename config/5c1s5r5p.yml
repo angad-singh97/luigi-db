@@ -6,20 +6,20 @@ site:
     - ["c101", "c201", "c301", "c401", "c501"]
 
 process:
-  s101: aws0
-  s201: aws1
-  s301: aws2
-  s401: aws3
-  s501: aws4
-  c101: aws0
-  c201: aws1
-  c301: aws2
-  c401: aws3
-  c501: aws4
+  s101: server0
+  s201: server1
+  s301: server2
+  s401: server3
+  s501: server4
+  c101: server0
+  c201: server1
+  c301: server2
+  c401: server3
+  c501: server4
 
 host:
-  aws0: 184.72.49.232
-  aws1: 16.163.96.221
-  aws2: 54.253.53.26
-  aws3: 18.198.73.192
-  aws4: 18.229.52.109
+  server0: 184.72.49.232
+  server1: 44.205.230.205
+  server2: 3.133.214.75
+  server3: 44.225.32.130
+  server4: 35.179.49.225

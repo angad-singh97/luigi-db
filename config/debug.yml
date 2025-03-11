@@ -4,8 +4,7 @@ site:
   server: # each line is a partition, the first is the master site_name:port
     - ["s101:38000", "s201:38001", "s301:38002", "s401:38003", "s501:38004"]
   client: # each line is a partition
-    - ["c01", "c02", "c03", "c04", "c05",
-       "c06", "c07", "c08", "c09", "c10",]
+    - ["c01", "c02", "c03", "c04", "c05"]
 
 process:
   s101: server0
@@ -18,11 +17,11 @@ process:
   c03: server2
   c04: server3
   c05: server4
-  c06: server5
-  c07: server6
-  c08: server7
-  c09: server8
-  c10: server9
+  # c06: server5
+  # c07: server6
+  # c08: server7
+  # c09: server8
+  # c10: server9
   
 host:
   server0: 184.72.49.232
