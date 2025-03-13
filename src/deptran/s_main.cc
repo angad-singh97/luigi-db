@@ -647,12 +647,20 @@ int main(int argc, char *argv[]) {
   client_shutdown();
   Log_info("After client_shutdown");
   
-  Log_info("All-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[0].count(), cli2cli[0].pct(0.0), cli2cli[0].pct50(), cli2cli[0].pct90(), cli2cli[0].pct99(), cli2cli[0].ave());
-  Log_info("Success-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[1].count(), cli2cli[1].pct(0.0), cli2cli[1].pct50(), cli2cli[1].pct90(), cli2cli[1].pct99(), cli2cli[1].ave());
-  Log_info("Efficient-fast-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[2].count(), cli2cli[2].pct(0.0), cli2cli[2].pct50(), cli2cli[2].pct90(), cli2cli[2].pct99(), cli2cli[2].ave());
-  Log_info("All-original-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[3].count(), cli2cli[3].pct(0.0), cli2cli[3].pct50(), cli2cli[3].pct90(), cli2cli[3].pct99(), cli2cli[3].ave());
-  Log_info("Efficient-original-path-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[4].count(), cli2cli[4].pct(0.0), cli2cli[4].pct50(), cli2cli[4].pct90(), cli2cli[4].pct99(), cli2cli[4].ave());
-  Log_info("All-efficient-attempts count %d 0pct %.2f 50pct %.2f 90pct %.2f 99pct %.2f ave %.2f", cli2cli[5].count(), cli2cli[5].pct(0.0), cli2cli[5].pct50(), cli2cli[5].pct90(), cli2cli[5].pct99(), cli2cli[5].ave());
+  Log_info("All-fast-path-attempts           statistics %s", cli2cli[0].statistics().c_str());
+  Log_info("Success-fast-path-attempts       statistics %s", cli2cli[1].statistics().c_str());
+  Log_info("Efficient-fast-path-attempts     statistics %s", cli2cli[2].statistics().c_str());
+  Log_info("All-original-path-attempts       statistics %s", cli2cli[3].statistics().c_str());
+  Log_info("Efficient-original-path-attempts statistics %s", cli2cli[4].statistics().c_str());
+  Log_info("All-efficient-attempts           statistics %s", cli2cli[5].statistics().c_str());
+
+  Log_info("All-fast-path-attempts           distribution %s", cli2cli[0].distribution().c_str());
+  Log_info("Success-fast-path-attempts       distribution %s", cli2cli[1].distribution().c_str());
+  Log_info("Efficient-fast-path-attempts     distribution %s", cli2cli[2].distribution().c_str());
+  Log_info("All-original-path-attempts       distribution %s", cli2cli[3].distribution().c_str());
+  Log_info("Efficient-original-path-attempts distribution %s", cli2cli[4].distribution().c_str());
+  Log_info("All-efficient-attempts           distribution %s", cli2cli[5].distribution().c_str());
+  
   Log_info("Mid throughput is %.2f", cli2cli[5].count() / (Config::GetConfig()->duration_ / 3.0));
   Log_info("Fastpath statistics attempted %d successed %d rate(pct) %.2f efficient_successed %d efficient_rate(pct) %.2f", 
     cli2cli[0].count(), cli2cli[1].count(), cli2cli[1].count() * 100.0 / cli2cli[0].count(), cli2cli[2].count(), cli2cli[2].count() * 100.0 / cli2cli[0].count());

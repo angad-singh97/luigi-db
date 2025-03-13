@@ -128,11 +128,15 @@ class Distribution {
     return data_.size();
   }
   double pct(double pct) {
+    verify(pct >= 0.0 - 1e-6 && pct <= 100.0 + 1e-6);
     // pct_lock = true;
     if (data_.size() == 0)
       return -1;
     sort(data_.begin(), data_.end());
-    return data_[floor(data_.size() * pct)];
+    int pick = floor(data_.size() * pct);
+    if (pick == data_.size())
+      pick -= 1;
+    return data_[pick];
   }
   double pct50() {
     return pct(0.5);
@@ -150,6 +154,24 @@ class Distribution {
     for (int i = 0; i < data_.size(); i++)
       sum += data_[i];
     return sum / data_.size();
+  }
+  string statistics() {
+    std::ostringstream oss;
+    oss << std::setw(7) << "count" << std::setw(7) << count();
+    oss << std::setw(7) << " 0pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.0);
+    oss << std::setw(7) << "50pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.5);
+    oss << std::setw(7) << "90pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.9);
+    oss << std::setw(7) << "99pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.99);
+    oss << std::setw(7) << "  ave" << std::setw(7) << std::fixed << std::setprecision(2) << ave();
+    return oss.str();
+  }
+  string distribution() {
+    std::ostringstream oss;
+    for (int i = 0; i <= 100; i += 10) {
+      // oss << i << "pct ";
+      oss << std::setw(7) << std::fixed << std::setprecision(2) << pct(i / 100.0);
+    }
+    return oss.str();
   }
 };
 
