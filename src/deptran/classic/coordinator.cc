@@ -477,9 +477,6 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
       return;
     }
     // Log_info("AllDispatchAcked Successed CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
-#ifdef JETPACK_FASTPATH_DEBUG
-    Log_info("Original path finished!");
-#endif
     GotoNextPhase();
   }
 }
