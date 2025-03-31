@@ -1452,6 +1452,9 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
 void RevoveryCandidates::push_back(uint64_t cmd_id, bool is_write) {
   candidates_[cmd_id] = make_pair(++maximal_, is_write);
   total_write_ += is_write;
+#ifdef JETPACK_DEDUPLICATE_OPTIMIZATION
+  cmd_count_[cmd_id]++;
+#endif
 }
 
 bool RevoveryCandidates::remove(uint64_t cmd_id) {
@@ -1464,6 +1467,10 @@ bool RevoveryCandidates::remove(uint64_t cmd_id) {
     return 0;
   }
   // return candidates_.erase(cmd_id);
+}
+
+bool RevoveryCandidates::has_appeared(uint64_t cmd_id) {
+  return cmd_count_[cmd_id];
 }
 
 size_t RevoveryCandidates::size() {
@@ -1553,6 +1560,27 @@ int Witness::remove(const shared_ptr<Marshallable>& cmd) {
 #endif
     }
     return total_removed;
+  }
+}
+
+bool Witness::has_appeared(const shared_ptr<Marshallable>& cmd) {
+  // For a batched command, return whether all of them have appeared
+  if (cmd->kind_ != MarshallDeputy::CMD_TPC_BATCH) {
+    SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+    uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+    return candidates_[parsed_cmd.key_].has_appeared(cmd_id);
+  } else {
+    auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
+    bool all_has_appeared = true;
+    for (auto& c: cmds->cmds_) {
+      SimpleRWCommand parsed_cmd = SimpleRWCommand(c);
+      uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+      if (!candidates_[parsed_cmd.key_].has_appeared(cmd_id)) {
+        all_has_appeared = false;
+        break;
+      }
+    }
+    return all_has_appeared;
   }
 }
 

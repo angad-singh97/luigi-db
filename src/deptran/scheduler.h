@@ -209,11 +209,15 @@ class Frequency {
 class RevoveryCandidates {
   int maximal_ = -1;
   int total_write_ = 0;
+  // <cmd_id, <cnt_for_this_key, is_write> >
   unordered_map<uint64_t, pair<int, bool>> candidates_;
+  // <cmd_id, cnt_for_this_cmd_id>
+  unordered_map<uint64_t, int> cmd_count_;
  public:
   RevoveryCandidates() {}
   void push_back(uint64_t cmd_id, bool is_write);
   bool remove(uint64_t cmd_id);
+  bool has_appeared(uint64_t cmd_id);
   size_t size();
   int total_write();
   uint64_t id_of_candidate_to_recover();
@@ -257,6 +261,8 @@ class Witness {
   bool push_back(const shared_ptr<Marshallable>& cmd);
   // return how many cmd have been removed (cmd may be CMD_TPC_BATCH)
   int remove(const shared_ptr<Marshallable>& cmd);
+  // return whether all cmds appeared before
+  bool has_appeared(const shared_ptr<Marshallable>& cmd);
   void set_belongs_to_leader(bool belongs_to_leader);
   // return 50pct, 90pct, 99pct, ave of the witness_size_distribution_
   std::vector<double> witness_size_distribution();

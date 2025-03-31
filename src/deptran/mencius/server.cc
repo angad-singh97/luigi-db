@@ -95,6 +95,15 @@ void MenciusServer::OnCommit(const slotid_t slot_id,
   // auto next_instance = GetInstance(slot_id);
   // app_next_(*next_instance->committed_cmd_);
   
+#ifdef JETPACK_DEDUPLICATE_OPTIMIZATION
+  // deduplicate optimization: Accepted duplicated cmd can be ignored
+  for (slotid_t id = max_committed_slot_; id < max_active_slot_; id++) {
+    auto next_instance = GetInstance(id);
+    if (next_instance->cmd_ && witness_.has_appeared(next_instance->cmd_)) {
+      max_committed_slot_++;
+    }
+  }
+#endif
 
   slotid_t tmp_max_executed_slot_ = max_executed_slot_;
   for (slotid_t id = max_executed_slot_ + 1; id <= max_committed_slot_; id++) {
