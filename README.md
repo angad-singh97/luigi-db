@@ -14,6 +14,12 @@ build src code
 python3 waf configure build -J
 ```
 
+### simple test
+
+```
+build/deptran_server -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml —d 30 -m 100 —P localhost
+```
+
 ### run
 
 ```
