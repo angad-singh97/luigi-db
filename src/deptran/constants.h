@@ -172,4 +172,8 @@ namespace janus {
 // #define FAILOVER_DEBUG
 // #define RAFT_LEADER_ELECTION_LOGIC
 // #define RAFT_LEADER_ELECTION_DEBUG
+
+
+#define RAFT_BATCH_OPTIMIZATION
+
 } // namespace janus

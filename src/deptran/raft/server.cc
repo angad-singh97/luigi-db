@@ -196,6 +196,8 @@ void RaftServer::HeartbeatLoop() {
         uint64_t prevLogTerm = instance->term;
         shared_ptr<Marshallable> cmd = nullptr;
         uint64_t cmdLogTerm = 0;
+
+#ifndef RAFT_BATCH_OPTIMIZATION
         if (it->second <= lastLogIndex) {
           auto curInstance = GetRaftInstance(it->second);
           cmd = curInstance->log_;
@@ -203,6 +205,25 @@ void RaftServer::HeartbeatLoop() {
           Log_debug("loc %d Sending AppendEntries for %d to loc %d cmd=%p",
               loc_id_, it->second, it->first, cmd.get());
         }
+#endif
+
+#ifdef RAFT_BATCH_OPTIMIZATION
+        vector<shared_ptr<TpcCommitCommand> > batch_buffer_;
+        for (int idx = it->second; idx <= lastLogIndex; idx++) {
+          auto curInstance = GetRaftInstance(it->second);
+          shared_ptr<TpcCommitCommand> curCmd = dynamic_pointer_cast<TpcCommitCommand>(curInstance->log_);
+          curCmd->term = curInstance->term;
+          batch_buffer_.push_back(curCmd);
+        }
+        // Log_info("batch size: %d", batch_buffer_.size());
+        shared_ptr<TpcBatchCommand> batch_cmd = std::make_shared<TpcBatchCommand>();
+        batch_cmd->AddCmds(batch_buffer_);
+
+        if (batch_buffer_.size() > 0) {
+          cmd = dynamic_pointer_cast<Marshallable>(batch_cmd);
+        }
+#endif
+
         uint64_t ret_status = false;
         uint64_t ret_term = 0;
         uint64_t ret_last_log_index = 0;
@@ -217,7 +238,7 @@ void RaftServer::HeartbeatLoop() {
                                             prevLogTerm,
                                             commitIndex,
                                             cmd,
-                                            cmdLogTerm, 
+                                            cmdLogTerm, // deprecated in batched version cmdLogTerm
                                             &ret_status,
                                             &ret_term,
                                             &ret_last_log_index);
@@ -269,7 +290,13 @@ void RaftServer::HeartbeatLoop() {
             Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id, ret_last_log_index, next_index, match_index);
             match_index = next_index;
+            // Log_info("About to update next_index %d to %d", next_index, ret_last_log_index + 1);
+#ifndef RAFT_BATCH_OPTIMIZATION
             next_index++;
+#endif
+#ifdef RAFT_BATCH_OPTIMIZATION
+            next_index = ret_last_log_index + 1;
+#endif
             Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id_, site_id, ret_last_log_index, next_index, match_index);
           }
@@ -483,7 +510,7 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const uint64_t leaderPrevLogTerm,
                                  const uint64_t leaderCommitIndex,
                                  shared_ptr<Marshallable> &cmd,
-                                 const uint64_t leaderNextLogTerm,
+                                 const uint64_t leaderNextLogTerm, // disabled in batched version (term recorded in the TpcCommitCommand)
                                  uint64_t *followerAppendOK,
                                  uint64_t *followerCurrentTerm,
                                  uint64_t *followerLastLogIndex,
@@ -505,10 +532,24 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
       }
 
       if (cmd != nullptr) {
+#ifndef RAFT_BATCH_OPTIMIZATION
         lastLogIndex = leaderPrevLogIndex + 1;
         auto instance = GetRaftInstance(lastLogIndex);
         instance->log_ = cmd;
         instance->term = leaderNextLogTerm;
+#endif
+#ifdef RAFT_BATCH_OPTIMIZATION
+        auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
+        int cnt = 0;
+        for (shared_ptr<TpcCommitCommand>& c: cmds->cmds_) {
+          // SimpleRWCommand parsed_cmd = SimpleRWCommand(c);
+          cnt++;
+          lastLogIndex = leaderPrevLogIndex + cnt;
+          auto instance = GetRaftInstance(lastLogIndex);
+          instance->log_ = c;
+          instance->term = dynamic_pointer_cast<TpcCommitCommand>(c)->term;
+        }
+#endif
       }
 
       // update commitIndex and apply logs if necessary

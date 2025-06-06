@@ -260,7 +260,7 @@ class RaftServer : public TxLogServer {
                        const uint64_t leaderPrevLogTerm,
                        const uint64_t leaderCommitIndex,
                        shared_ptr<Marshallable> &cmd,
-                       const uint64_t leaderNextLogTerm,
+                       const uint64_t leaderNextLogTerm, // disabled in batched version (term recorded in the TpcCommitCommand)
                        uint64_t *followerAppendOK,
                        uint64_t *followerCurrentTerm,
                        uint64_t *followerLastLogIndex,
