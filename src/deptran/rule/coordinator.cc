@@ -52,13 +52,14 @@ void CoordinatorRule::GotoNextPhase() {
         go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
       } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
         // static int printed_times = 0;
-        std::vector<double> cpu_info = rrr::CPUInfo::per_cpu_stat();
+        // std::vector<double> cpu_info = rrr::CPUInfo::per_cpu_stat();
         // if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000) {
         //   Log_info("cpu_info %d %.6f %.6f %.6f %.6f", cpu_info.size(), cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
         //   // printed_times++;
         // }
         // go_to_fastpath_ = true;
-        go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
+        // go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
+        go_to_fastpath_ = one_armed_bandit_.ConsultAttempt();
       } else {
         verify(0);
       }
@@ -102,6 +103,7 @@ void CoordinatorRule::GotoNextPhase() {
         phase_++;
         verify(phase_ % n_phase == Phase::INIT_END);
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before dispatch end] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
+        one_armed_bandit_.Record(fast_path_success_); // record succee only when efficient fast path success
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           verify(!(fast_path_success_ && dispatch_ack_));
           if (fast_path_success_) {
@@ -116,6 +118,7 @@ void CoordinatorRule::GotoNextPhase() {
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
+        one_armed_bandit_.RecordFail(); // record fail since fast path fail
         // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before into WAITING_ORIGIN] fast_path_success_=%d dispatch_ack_=%d", coo_id_, thread_id_, cmd_ver_, current_phase, fast_path_success_, dispatch_ack_);
       }
       break;

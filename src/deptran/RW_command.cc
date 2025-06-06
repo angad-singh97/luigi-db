@@ -3,6 +3,7 @@
 #include "bench/rw/procedure.h"
 #include "bench/rw/workload.h"
 #include "classic/tpc_command.h"
+#include "../rrr/misc/rand.hpp"
 
 namespace janus {
 
@@ -229,6 +230,45 @@ void KeyDistribution::Print() {
   for (auto it = sort_vec_.begin(); it != sort_vec_.end() && cnt <= 100; it++, cnt++) {
     Log_info("[KeyDistribution] key = %d occur = %d pct= %.2f", it->second, -it->first, -it->first * 100.0 / sum);
   }
+}
+
+
+
+void OneArmedBandit::Record(bool success) {
+  if (attempt_cnt == 100) {
+    // overwrite old records
+    success_cnt = success_cnt - records[ptr] + success;
+    records[ptr++] = success;
+    if (ptr == 100) ptr = 0;
+  } else {
+    // write new records
+    attempt_cnt ++;
+    success_cnt += success;
+    records[ptr++] = success;
+    if (ptr == 100) ptr = 0;
+  }
+}
+
+void OneArmedBandit::RecordSuccess() {
+  Record(1);
+}
+
+void OneArmedBandit::RecordFail() {
+  Record(0);
+}
+
+double OneArmedBandit::ConsultAttemptRate() {
+  if (attempt_cnt == 0)
+    return 1;
+  else
+    return success_cnt / attempt_cnt;
+}
+
+bool OneArmedBandit::ConsultAttempt() {
+  if (attempt_cnt == 0)
+    return true;
+  else
+    return RandomGenerator::rand(0, attempt_cnt - 1) < success_cnt;
 }
 
 

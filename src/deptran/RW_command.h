@@ -61,4 +61,23 @@ class KeyDistribution {
   void Print();
 };
 
+class OneArmedBandit {
+  static const int prediction_granularity = 100;
+  bool records[100];
+  int attempt_cnt = 0;
+  int success_cnt = 0;
+  int ptr = 0;
+ public:
+  // Record an attempt
+  void Record(bool success);
+  // Record a success attempt
+  void RecordSuccess();
+  // Record a fail attempt
+  void RecordFail();
+  // Consult attempt rate (0~1)
+  double ConsultAttemptRate();
+  // Consult attempt or not
+  bool ConsultAttempt();
+};
+
 }
