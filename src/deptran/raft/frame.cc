@@ -7,7 +7,7 @@
 #include "service.h"
 #include "commo.h"
 #include "config.h"
-// #include "test.h"
+#include "test.h"
 // #include "../kv/server.h"
 
 namespace janus {
