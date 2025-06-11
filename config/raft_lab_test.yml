@@ -8,11 +8,12 @@ mode:
   retry: 20
   ongoing: 1 # per client
 
-# Sites: 1 server, 5 replicas
-
+# Sites: 5 servers (replicas) and 1 client
 site:
   server:
     - ["s101:8101", "s102:8102", "s103:8103", "s104:8104", "s105:8105"]
+  client:
+    - ["c01"]
 
 process:
   s101: localhost
@@ -20,6 +21,34 @@ process:
   s103: localhost
   s104: localhost
   s105: localhost
+  c01: localhost
 
 host:
   localhost: 127.0.0.1
+
+# Test framework settings
+bench:
+  workload: rw
+  scale: 1
+  weight:
+    read: 0
+    write: 1
+  population:
+    history: 1000
+  range: 1000
+
+client:
+  type: closed
+  max_undone: -1
+  rate: -1
+  forwarding: false
+
+n_concurrent: 1
+
+# Raft test specific settings
+raft_test:
+  enable: true
+  election_timeout: 5000000  # 5 seconds in microseconds
+  heartbeat_interval: 100000  # 100ms in microseconds
+  max_slow: 27  # Maximum network delay in milliseconds
+  down_rate: 0.1  # 1/10 chance of server disconnection

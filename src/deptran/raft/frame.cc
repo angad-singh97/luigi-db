@@ -53,10 +53,10 @@ bool RaftFrame::all_sites_created_s = false;
 bool RaftFrame::tests_done_ = false;
 #endif
 
-// Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
-//   Executor *exec = new RaftExecutor(cmd_id, sched);
-//   return exec;
-// }
+Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
+  Executor *exec = new RaftExecutor(cmd_id, sched);
+  return exec;
+}
 
 Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
                                                 Config *config,

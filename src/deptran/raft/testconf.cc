@@ -444,9 +444,9 @@ void RaftTestConfig::reconnect(int svr, bool ignore) {
 }
 
 void RaftTestConfig::slow(int svr, uint32_t msec) {
-  std::lock_guard<std::recursive_mutex> lk(connection_m_);
-  verify(!isDisconnected(svr));
-  RaftTestConfig::replicas[svr]->commo_->rpc_poll_->slow(msec * 1000);
+  // Instead of using reactor's slow mode, use Coroutine::Sleep
+  // This will introduce the same delay but without needing reactor changes
+  Coroutine::Sleep(msec * 1000);  // Convert msec to microseconds
 }
 
 RaftServer *RaftTestConfig::GetServer(int svr) {

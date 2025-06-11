@@ -186,7 +186,7 @@ def build(bld):
     bld.objects(source=bld.path.ant_glob("src/deptran/*.cc "
                                        "src/deptran/*/*.cc "
                                        "src/bench/*/*.cc",
-                                       excl=['src/deptran/s_main.cc', 'src/deptran/paxos_main_helper.cc']),
+                                       excl=['src/deptran/s_main.cc', 'src/deptran/paxos_main_helper.cc','src/deptran/lab_solution_raft/*.cc']),
               target="deptran_objects",
               includes="src src/rrr src/deptran ",
               uselib="YAML-CPP BOOST",

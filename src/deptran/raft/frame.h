@@ -25,7 +25,7 @@ class RaftFrame : public Frame {
   RaftCommo *commo_ = nullptr;
   /* TODO: have another class for common data */
   RaftServer *svr_ = nullptr;
-//   Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;
+  Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;
   Coordinator *CreateCoordinator(cooid_t coo_id,
                                  Config *config,
                                  int benchmark,
