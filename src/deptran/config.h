@@ -155,6 +155,9 @@ class Config {
   map<string, string> site_proc_map_;
 
   Sharding* sharding_;
+  
+  // Store the raw YAML configuration
+  YAML::Node yaml_config_;
 
  protected:
 

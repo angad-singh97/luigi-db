@@ -345,47 +345,47 @@ void Config::Load() {
 
 void Config::LoadYML(std::string &filename) {
   Log_info("%s: %s", __FUNCTION__, filename.c_str());
-  YAML::Node config = YAML::LoadFile(filename);
+  yaml_config_ = YAML::LoadFile(filename);
 
-  if (config["process"]) {
-    BuildSiteProcMap(config["process"]);
+  if (yaml_config_["process"]) {
+    BuildSiteProcMap(yaml_config_["process"]);
   }
-  if (config["site"]) {
-    LoadSiteYML(config["site"]);
+  if (yaml_config_["site"]) {
+    LoadSiteYML(yaml_config_["site"]);
   }
-  if (config["process"]) {
-    LoadProcYML(config["process"]);
+  if (yaml_config_["process"]) {
+    LoadProcYML(yaml_config_["process"]);
   }
-  if (config["host"]) {
-    LoadHostYML(config["host"]);
+  if (yaml_config_["host"]) {
+    LoadHostYML(yaml_config_["host"]);
   }
-  if (config["mode"]) {
-    LoadModeYML(config["mode"]);
+  if (yaml_config_["mode"]) {
+    LoadModeYML(yaml_config_["mode"]);
   }
-  if (config["bench"]) {
-    LoadBenchYML(config["bench"]);
+  if (yaml_config_["bench"]) {
+    LoadBenchYML(yaml_config_["bench"]);
   }
-  if (config["bench_update_weight"]){
-    UpdateWeights(config["bench_update_weight"]);
+  if (yaml_config_["bench_update_weight"]){
+    UpdateWeights(yaml_config_["bench_update_weight"]);
   }
-  if (config["schema"]) {
-    LoadSchemaYML(config["schema"]);
+  if (yaml_config_["schema"]) {
+    LoadSchemaYML(yaml_config_["schema"]);
   }
-  if (config["sharding"]) {
-    LoadShardingYML(config["sharding"]);
+  if (yaml_config_["sharding"]) {
+    LoadShardingYML(yaml_config_["sharding"]);
   }
-  if (config["client"]) {
-    LoadClientYML(config["client"]);
+  if (yaml_config_["client"]) {
+    LoadClientYML(yaml_config_["client"]);
   }
-  if (config["failover"]) {
-    LoadFailoverYML(config["failover"]);
+  if (yaml_config_["failover"]) {
+    LoadFailoverYML(yaml_config_["failover"]);
   }
-  if (config["n_concurrent"]) {
-    n_concurrent_ = config["n_concurrent"].as<uint16_t>();
+  if (yaml_config_["n_concurrent"]) {
+    n_concurrent_ = yaml_config_["n_concurrent"].as<uint16_t>();
     Log_info("# of concurrent requests: %d", n_concurrent_);
   }
-  if (config["n_parallel_dispatch"]) {
-    n_parallel_dispatch_ = config["n_parallel_dispatch"].as<int32_t>();
+  if (yaml_config_["n_parallel_dispatch"]) {
+    n_parallel_dispatch_ = yaml_config_["n_parallel_dispatch"].as<int32_t>();
   }
 }
 
