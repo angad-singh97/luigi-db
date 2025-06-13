@@ -260,6 +260,13 @@ void ServerWorker::SetupCommo() {
 
   //   curp_rep_commo_->rep_sched_ = rep_sched_;
   // }
+    #ifdef RAFT_TEST_CORO
+  // dead loop this thread for coroutine scheduling 
+  // TODO, figure out a better approach
+    if (rep_sched_->site_id_ == 0) {
+      Reactor::GetReactor()->Loop(true, true);
+    }
+  #endif
 }
 
 void ServerWorker::Pause() {

@@ -126,14 +126,17 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
 
   #ifdef RAFT_TEST_CORO
   raft_test_mutex_.lock();
-  // verify(n_replicas_ == 5);
-  // for (int i = 0; i < 5; i++) {
-  //   if (frames_[i] == this) {
-  //     // verify(n_commo_ < 5);
-  //     // n_commo_++;
-  //     break;
-  //   }
-  // }
+  // Verify we have exactly 5 replicas
+  verify(frames_.size() == 5);
+  // Check if this frame is already registered
+  bool found = false;
+  for (const auto& pair : frames_) {
+    if (pair.second == this) {
+      found = true;
+      break;
+    }
+  }
+  verify(found); // This frame should be in the map
   raft_test_mutex_.unlock();
 
   if (site_info_->id == 0) {
@@ -143,12 +146,9 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       // Yield until all communicators are initialized
       Coroutine::CurrentCoroutine()->Yield();
       // Run tests
-      verify(RaftFrame::all_sites_created_s);
+      verify(frames_.size() == 5); // Verify we have all replicas
       auto testconfig = new RaftTestConfig(frames_);
       RaftLabTest test(testconfig);
-      test.kv_svr_ = this->kv_svr_;
-      test.sm_svr_ = this->sm_svr_;
-      verify(test.kv_svr_!= nullptr || test.sm_svr_ != nullptr);
       test.Run();
       test.Cleanup();
       // Turn off Reactor loop
@@ -156,24 +156,33 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       return;
     });
     Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
-    // wait until n_commo_ == 5, then resume the coroutine
+    
+    // Wait until all frames are created and their communicators are initialized
     raft_test_mutex_.lock();
-    while (!RaftFrame::all_sites_created_s) {
+    while (frames_.size() < 5) {
       raft_test_mutex_.unlock();
       sleep(0.1);
       raft_test_mutex_.lock();
-    } 
-    // wait until all comms are set 
-    auto& frames = RaftFrame::frames_;
-    for (auto& pair : frames) {
-      auto& f= pair.second;
-      while (f->commo_ == nullptr) {
+    }
+    
+    // Wait for all communicators to be set
+    bool all_commos_ready = false;
+    while (!all_commos_ready) {
+      all_commos_ready = true;
+      for (const auto& pair : frames_) {
+        if (pair.second->commo_ == nullptr) {
+          all_commos_ready = false;
+          break;
+        }
+      }
+      if (!all_commos_ready) {
         raft_test_mutex_.unlock();
         sleep(0.1);
         raft_test_mutex_.lock();
       }
-    } 
+    }
     raft_test_mutex_.unlock();
+    
     Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
   #endif

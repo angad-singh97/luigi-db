@@ -2,6 +2,7 @@
 
 #include "frame.h"
 #include "coordinator.h"
+#include <map>
 
 namespace janus {
 
@@ -44,18 +45,18 @@ class CommitIndex {
 class RaftTestConfig {
 
  private:
-  static RaftFrame **replicas;
-  static std::function<void(Marshallable &)> commit_callbacks[NSERVERS];
-  static std::vector<int> committed_cmds[NSERVERS];
-  static uint64_t rpc_count_last[NSERVERS];
+  static std::map<siteid_t, RaftFrame*> replicas;
+  static std::map<siteid_t, std::function<void(Marshallable &)>> commit_callbacks;
+  static std::map<siteid_t, std::vector<int>> committed_cmds;
+  static std::map<siteid_t, uint64_t> rpc_count_last;
 
   // disconnected_[svr] true if svr is disconnected by Disconnect()/Reconnect()
-  bool disconnected_[NSERVERS];
+  std::map<siteid_t, bool> disconnected_;
   // guards disconnected_ between Disconnect()/Reconnect() and netctlLoop
   std::mutex disconnect_mtx_;
 
  public:
-  RaftTestConfig(RaftFrame **replicas);
+  RaftTestConfig(std::map<siteid_t, RaftFrame*>& replicas);
 
   // sets up learner action functions for the servers
   // so that each committed command on each server is
@@ -83,10 +84,10 @@ class RaftTestConfig {
   int NCommitted(uint64_t index);
 
   // Submits a command with value cmd to server svr
-  shared_ptr<CommitIndex> StartAgreement(int svr, int cmd);
+  shared_ptr<CommitIndex> StartAgreement(siteid_t svr, int cmd);
 
   // Calls Start() to specified server
-  bool Start(int svr, int cmd, uint64_t *index, uint64_t *term);
+  bool Start(siteid_t svr, int cmd, uint64_t *index, uint64_t *term);
 
   // Waits for at least n servers to commit index
   // If commit takes too long, gives up after a while.
@@ -106,10 +107,10 @@ class RaftTestConfig {
   uint64_t DoAgreement(int cmd, int n, bool retry);
 
   // Disconnects server from rest of servers
-  void Disconnect(int svr);
+  void Disconnect(siteid_t svr);
 
   // Reconnects disconnected server
-  void Reconnect(int svr);
+  void Reconnect(siteid_t svr);
 
   // Returns number of disconnected servers
   int NDisconnected(void);
@@ -132,14 +133,14 @@ class RaftTestConfig {
   // Returns total RPC count for a server
   // if reset, the next time RpcCount called for
   // svr, the count will exclude all RPCs before this call
-  uint64_t RpcCount(int svr, bool reset = true);
+  uint64_t RpcCount(siteid_t svr, bool reset = true);
 
   // Returns total RPC count across all servers
   // since server setup.
   uint64_t RpcTotal(void);
 
   // Returns true if svr committed a log entry at index with value cmd
-  bool ServerCommitted(int svr, uint64_t index, int cmd);
+  bool ServerCommitted(siteid_t svr, uint64_t index, int cmd);
 
  private:
   // vars & subroutine for unreliable network setting
@@ -152,16 +153,16 @@ class RaftTestConfig {
 
   // internal disconnect/reconnect/slow functions
   std::recursive_mutex connection_m_;
-  bool isDisconnected(int svr);
-  void disconnect(int svr, bool ignore = false);
-  void reconnect(int svr, bool ignore = false);
-  void slow(int svr, uint32_t msec);
+  bool isDisconnected(siteid_t svr);
+  void disconnect(siteid_t svr, bool ignore = false);
+  void reconnect(siteid_t svr, bool ignore = false);
+  void slow(siteid_t svr, uint32_t msec);
 
   // other internal helpers
   int waitOneLeader(bool want_leader, int expected);
 
  public:
-  RaftServer *GetServer(int svr);
+  RaftServer *GetServer(siteid_t svr);
 
 };
 
