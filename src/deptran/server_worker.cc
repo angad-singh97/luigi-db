@@ -38,6 +38,19 @@ void ServerWorker::SetupHeartbeat() {
 void ServerWorker::SetupBase() {
   auto config = Config::GetConfig();
   Log_info("tx_proto_=%d replica_proto_=%d", config->tx_proto_, config->replica_proto_);
+
+#ifdef RAFT_TEST_CORO
+  // In test mode, only initialize replication frame services
+  if (config->IsReplicated()) {
+    rep_frame_ = Frame::GetFrame(config->replica_proto_);
+    rep_frame_->site_info_ = site_info_;
+    rep_sched_ = rep_frame_->CreateScheduler();
+    rep_sched_->loc_id_ = site_info_->locale_id;
+    rep_sched_->site_id_ = site_info_->id;
+    rep_sched_->rep_frame_ = rep_frame_;
+  }
+#else
+  // Normal mode - initialize both transaction and replication services
   tx_frame_ = Frame::GetFrame(config->tx_proto_);
   tx_frame_->site_info_ = site_info_;
   // this needs to be done before poping table
@@ -50,9 +63,8 @@ void ServerWorker::SetupBase() {
   tx_sched_->SetPartitionId(site_info_->partition_id_);
   tx_sched_->loc_id_ = site_info_->locale_id;
   tx_sched_->site_id_ = site_info_->id;
-//  Log_info("initialize site id: %d", (int) site_info_->id);
   sharding_->tx_sched_ = tx_sched_;
-	Log_info("Is it replicated: %d", config->IsReplicated());
+
   if (config->IsReplicated() &&
       config->replica_proto_ != config->tx_proto_) {
     rep_frame_ = Frame::GetFrame(config->replica_proto_);
@@ -68,7 +80,6 @@ void ServerWorker::SetupBase() {
     }
 #endif
     rep_sched_->tx_sched_ = tx_sched_;
-    // [CURP] TODO: should I add this?
     rep_sched_->rep_frame_ = rep_frame_;
 
     tx_sched_->rep_frame_ = rep_frame_;
@@ -80,9 +91,15 @@ void ServerWorker::SetupBase() {
                                            tx_sched_,
                                            std::placeholders::_1));
   }
+#endif
 }
 
 void ServerWorker::PopTable() {
+#ifdef RAFT_TEST_CORO
+  // In test mode, we don't need to populate tables since we're only testing Raft
+  Log_info("Skipping table population in test mode");
+  return;
+#else
   // populate table
   int ret = 0;
   // get all tables
@@ -118,15 +135,22 @@ void ServerWorker::PopTable() {
   Log_info("data populated for site: %x, partition: %x",
            site_info_->id, site_info_->partition_id_);
   verify(ret > 0);
+#endif
 }
 
 void ServerWorker::RegisterWorkload() {
+#ifdef RAFT_TEST_CORO
+  // In test mode, we don't need to register workload since we're only testing Raft
+  Log_info("Skipping workload registration in test mode");
+  return;
+#else
   Workload* workload = Workload::CreateWorkload(Config::GetConfig());
   verify(tx_reg_ != nullptr);
   verify(sharding_ != nullptr);
   workload->sss_ = sharding_;
   workload->txn_reg_ = tx_reg_;
   workload->RegisterPrecedures();
+#endif
 }
 
 void ServerWorker::SetupService() {
@@ -146,7 +170,16 @@ void ServerWorker::SetupService() {
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
   // init service implementation
-
+#ifdef RAFT_TEST_CORO
+  // In test mode, only initialize replication services
+  if (rep_frame_ != nullptr) {
+    auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
+                                            rep_sched_,
+                                            svr_poll_mgr_,
+                                            scsi_);
+    services_.insert(services_.end(), s2.begin(), s2.end());
+  }
+#else
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
@@ -159,18 +192,9 @@ void ServerWorker::SetupService() {
                                             rep_sched_,
                                             svr_poll_mgr_,
                                             scsi_);
-
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
-
-  // if (curp_rep_frame_ != nullptr) {
-  //   auto s3 = curp_rep_frame_->CreateRpcServices(site_info_->id,
-  //                                               curp_rep_sched_,
-  //                                               svr_poll_mgr_,
-  //                                               scsi_);
-
-  //   services_.insert(services_.end(), s3.begin(), s3.end());
-  // }
+#endif
 
 //  auto& alarm = TimeoutALock::get_alarm_s();
 //  ServerWorker::svr_poll_mgr_->add(&alarm);

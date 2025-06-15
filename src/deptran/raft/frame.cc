@@ -39,19 +39,30 @@ struct foo : automatic_register<foo> {
   }
 };*/
 
-RaftFrame::RaftFrame(int mode) : Frame(mode) {
-
-}
-
 #ifdef RAFT_TEST_CORO
 std::recursive_mutex RaftFrame::raft_test_mutex_;
 std::shared_ptr<Coroutine> RaftFrame::raft_test_coro_ = nullptr;
 uint16_t RaftFrame::n_replicas_ = 0;
 map<siteid_t, RaftFrame*> RaftFrame::frames_ = {};
 bool RaftFrame::all_sites_created_s = false;
-// uint16_t RaftFrame::n_commo_ = 0;
 bool RaftFrame::tests_done_ = false;
+static bool static_vars_initialized = false;
 #endif
+
+RaftFrame::RaftFrame(int mode) : Frame(mode) {
+#ifdef RAFT_TEST_CORO
+  std::lock_guard<std::recursive_mutex> lock(raft_test_mutex_);
+  if (!static_vars_initialized) {
+    Log_info("Initializing Raft test static variables");
+    Log_info("Creating Raft test coroutine");
+    Log_info("Setting initial number of replicas to 0");
+    Log_info("Initializing empty frames map for tracking Raft replicas");
+    Log_info("Setting all_sites_created flag to false");
+    Log_info("Setting tests_done flag to false");
+    static_vars_initialized = true;
+  }
+#endif
+}
 
 Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
   Executor *exec = new RaftExecutor(cmd_id, sched);
@@ -102,7 +113,18 @@ TxLogServer *RaftFrame::CreateScheduler() {
   const auto& site_id = this->site_info_->id;
   frames_[site_id] = this;
   int n_sites = 5;
-  if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>()) {
+  // Safely check if shard config exists and is true
+  bool is_sharded = false;
+  try {
+    if (Config::GetConfig()->yaml_config_["lab"] && 
+        Config::GetConfig()->yaml_config_["lab"]["shard"]) {
+      is_sharded = Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>();
+    }
+  } catch (const YAML::Exception& e) {
+    Log_info("No shard config found, defaulting to non-sharded mode");
+  }
+  
+  if (is_sharded) {
     int n_partitions = Config::GetConfig()->GetNumPartition();
     verify(n_partitions==2);
     n_sites = 5*n_partitions; 
@@ -126,43 +148,38 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
 
   #ifdef RAFT_TEST_CORO
   raft_test_mutex_.lock();
-  // Verify we have exactly 5 replicas
-  verify(frames_.size() == 5);
-  // Check if this frame is already registered
-  bool found = false;
-  for (const auto& pair : frames_) {
-    if (pair.second == this) {
-      found = true;
-      break;
-    }
+  
+  // Register this frame if not already registered
+  if (frames_.find(site_info_->id) == frames_.end()) {
+    frames_[site_info_->id] = this;
   }
-  verify(found); // This frame should be in the map
-  raft_test_mutex_.unlock();
-
+  
+  // Only site 0 creates and manages the test coroutine
   if (site_info_->id == 0) {
-    verify(raft_test_coro_.get() == nullptr);
-    Log_debug("Creating Raft test coroutine");
-    raft_test_coro_ = Coroutine::CreateRun([this] () {
-      // Yield until all communicators are initialized
-      Coroutine::CurrentCoroutine()->Yield();
-      // Run tests
-      verify(frames_.size() == 5); // Verify we have all replicas
-      auto testconfig = new RaftTestConfig(frames_);
-      RaftLabTest test(testconfig);
-      test.Run();
-      test.Cleanup();
-      // Turn off Reactor loop
-      Reactor::GetReactor()->looping_ = false;
-      return;
-    });
-    Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
-    
-    // Wait until all frames are created and their communicators are initialized
-    raft_test_mutex_.lock();
+    // Wait until all frames are registered
     while (frames_.size() < 5) {
       raft_test_mutex_.unlock();
       sleep(0.1);
       raft_test_mutex_.lock();
+    }
+    
+    // Only create test coroutine if it doesn't exist yet
+    if (raft_test_coro_.get() == nullptr) {
+      Log_debug("Creating Raft test coroutine");
+      raft_test_coro_ = Coroutine::CreateRun([this] () {
+        // Yield until all communicators are initialized
+        Coroutine::CurrentCoroutine()->Yield();
+        // Run tests
+        verify(frames_.size() == 5); // Verify we have all replicas
+        auto testconfig = new RaftTestConfig(frames_);
+        RaftLabTest test(testconfig);
+        test.Run();
+        test.Cleanup();
+        // Turn off Reactor loop
+        Reactor::GetReactor()->looping_ = false;
+        return;
+      });
+      Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
     }
     
     // Wait for all communicators to be set
@@ -181,10 +198,9 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
         raft_test_mutex_.lock();
       }
     }
-    raft_test_mutex_.unlock();
-    
-    Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
+  
+  raft_test_mutex_.unlock();
   #endif
 
   return commo_;

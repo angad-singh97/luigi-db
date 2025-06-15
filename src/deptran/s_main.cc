@@ -1,4 +1,3 @@
-
 #include "__dep__.h"
 #include "frame.h"
 #include "client_worker.h"
@@ -158,10 +157,15 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
       worker.DbChecksum();
 #endif
       // start server service
+#ifdef RAFT_TEST_CORO
+      // In test mode, only initialize replication services
+      if (worker.rep_sched_)
+        worker.rep_sched_->svr_workers_g = &svr_workers_g;
+#else
       worker.tx_sched_->svr_workers_g = &svr_workers_g;
       if (worker.rep_sched_)
         worker.rep_sched_->svr_workers_g = &svr_workers_g;
-      // worker.curp_rep_sched_->svr_workers_g = &svr_workers_g;
+#endif
       worker.SetupService();
       Log_info("start communication for site %d", (int)worker.site_info_->id);
       worker.SetupCommo();

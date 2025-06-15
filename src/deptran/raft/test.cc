@@ -8,8 +8,11 @@ namespace janus {
 #define TEST_EXPAND(x) x 
 
 int RaftLabTest::Run(void) {
+  Log_info("Starting Raft lab tests");
+  Log_info("Setting up learner action callbacks");
   config_->SetLearnerAction();
   uint64_t start_rpc = config_->RpcTotal();
+  Log_info("Beginning test sequence");
   if (testInitialElection()
       || TEST_EXPAND(testReElection())
       || TEST_EXPAND(testBasicAgree())
@@ -22,10 +25,13 @@ int RaftLabTest::Run(void) {
       || TEST_EXPAND(testUnreliableAgree())
       || TEST_EXPAND(testFigure8())
     ) {
+    Log_info("Test sequence failed");
     Print("TESTS FAILED");
     return 1;
   }
+  Log_info("Test sequence completed successfully");
   Print("ALL TESTS PASSED");
+  Log_info("Calculating final RPC count");
   Print("Total RPC count: %ld", config_->RpcTotal() - start_rpc);
   return 0;
 }
