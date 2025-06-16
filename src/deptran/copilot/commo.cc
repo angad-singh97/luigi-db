@@ -153,7 +153,9 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CopilotFastAcceptQuorumEvent>(n, fastQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
-
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered site %d CopilotCommo::BroadcastFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
+#endif
   WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (CopilotProxy *)p.second;
@@ -171,7 +173,7 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
       e->FeedRetDep(dep);
     } else {
       FutureAttr fuattr;
-      fuattr.callback = [e, dep, ballot, site](Future *fu) {
+      fuattr.callback = [e, dep, ballot, site, cmd](Future *fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -181,6 +183,9 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
 
         fu->get_reply() >> b >> sgst_dep;
         bool ok = (ballot == b);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> sgst_dep=%" PRId64 " dep=%" PRId64 "", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, sgst_dep, dep);
+#endif
         e->FeedResponse(ok, sgst_dep == dep);
         if (ok) {
           e->FeedRetDep(sgst_dep);

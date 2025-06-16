@@ -273,6 +273,10 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   Log_debug("server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
             toString(is_pilot), slot, dep);
 
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered site %d CopilotServer::OnFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
+#endif
+
   auto ins = GetInstance(slot, is_pilot);
   verify(ins);
   log_infos_[is_pilot].current_slot = std::max(slot, log_infos_[is_pilot].current_slot);

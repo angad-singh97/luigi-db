@@ -48,6 +48,9 @@ void CoordinatorCopilot::Submit(shared_ptr<Marshallable> &cmd,
   verify(IsPilot() || IsCopilot());  // only pilot or copilot can initiate command submission
   done_ = false;
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered site %d CoordinatorCopilot::Submit", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
+#endif
   verify(!cmd_now_);
 
   begin = Time::now(true);
@@ -180,6 +183,9 @@ void CoordinatorCopilot::FastAccept() {
   // Log_debug("current coroutine's dep_id: %d", Coroutine::CurrentCoroutine()->dep_id_);
 
   sq_quorum->Wait();
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> site %d Finish commo()->BroadcastFastAccept->Wait()", SimpleRWCommand::GetCmdID(cmd_now_).first, SimpleRWCommand::GetCmdID(cmd_now_).second, loc_id_);
+#endif
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
@@ -207,6 +213,9 @@ void CoordinatorCopilot::FastAccept() {
     Log_debug("commit on fast path");
   } else {
     if (sq_quorum->Yes()) {
+#ifdef CURP_FULL_LOG_DEBUG
+      Log_info("[CURP] cmd<%d, %d> site %d sq_quorum->Yes()", SimpleRWCommand::GetCmdID(cmd_now_).first, SimpleRWCommand::GetCmdID(cmd_now_).second, loc_id_);
+#endif
       /**
        * go to accept phase (regular-path):
        * it must use the (f+1)-th dependency to ensure quorum intersection

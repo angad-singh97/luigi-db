@@ -69,7 +69,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   // usleep(20000);
 
 #ifdef LATENCY_LOG_DEBUG
-  Log_info("!!!!!!!!!!!!! enter ClassicServiceImpl::Dispatch");
+  Log_info("!!!!!!!!!!!!! cmd %d enter ClassicServiceImpl::Dispatch (after client RPC) at loc_id %d", cmd_id, dtxn_sched()->loc_id_);
 #endif
 
 #ifdef CURP_FULL_LOG_DEBUG
