@@ -152,6 +152,10 @@ class RaftServer : public TxLogServer {
   map<slotid_t, shared_ptr<RaftData>> raft_logs_{};
 //  vector<shared_ptr<RaftData>> raft_logs_{};
 
+  // For looping_ control usage, once ready_for_replication_ is ready (set to 1), a specific coroutine will do replication
+  std::recursive_mutex ready_for_replication_mtx_{};
+  shared_ptr<IntEvent> ready_for_replication_;
+
   void StartElectionTimer() ;
 
   bool IsLeader()

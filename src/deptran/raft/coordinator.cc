@@ -30,8 +30,11 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     verify(0);
     return ;
   }
-  
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered CoordinatorRaft::Submit", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#endif
 	std::lock_guard<std::recursive_mutex> lock(mtx_);
+
   verify(!in_submission_);
   verify(cmd_ == nullptr);
 //  verify(cmd.self_cmd_ != nullptr);
@@ -43,6 +46,9 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
 }
 
 void CoordinatorRaft::AppendEntries() {
+#ifdef CURP_FULL_LOG_DEBUG
+  Log_info("[CURP] cmd<%d, %d> entered CoordinatorRaft::AppendEntries", SimpleRWCommand::GetCmdID(cmd_).first, SimpleRWCommand::GetCmdID(cmd_).second);
+#endif
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     verify(!in_append_entries);
     // verify(this->svr_->IsLeader()); TODO del it yidawu
@@ -50,11 +56,25 @@ void CoordinatorRaft::AppendEntries() {
     uint64_t index, term;
     bool ok = this->svr_->Start(cmd_, &index, &term); // slot_id_, curr_ballot_);
     verify(ok);
+    {
+      std::lock_guard<std::recursive_mutex> lock(svr_->ready_for_replication_mtx_);
+#ifdef CURP_FULL_LOG_DEBUG
+      Log_info("Before svr_->ready_for_replication_->Set(1);");
+#endif
+      if (svr_->ready_for_replication_)
+        svr_->ready_for_replication_->Set(1);
+#ifdef CURP_FULL_LOG_DEBUG
+      Log_info("After svr_->ready_for_replication_->Set(1);");
+#endif
+    }
 
     while (this->svr_->commitIndex < index) {
       Reactor::CreateSpEvent<TimeoutEvent>(1000)->Wait();
       verify(this->svr_->currentTerm == term);
     }
+    
+    
+    
     committed_ = true;
 }
 
