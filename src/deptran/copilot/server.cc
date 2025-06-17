@@ -312,6 +312,10 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
          * as its suggested dependency.
          * //TODO: definition on "latest"
          */
+#ifdef CURP_FULL_LOG_DEBUG
+        Log_info("[CURP] cmd<%d, %d> entered site %d for j(%d) dep_id(%d)<slot(%d) thus set suggest_dep(%d) log_info.max_accepted_slot(%d)",
+          SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, j, dep_id, slot, suggest_dep, log_info.max_accepted_slot);
+#endif
         suggest_dep = log_info.max_accepted_slot;
         Log_debug(
             "copilot server %d find imcompatiable dependence for %s : "
