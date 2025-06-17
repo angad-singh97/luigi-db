@@ -133,7 +133,7 @@ void RaftServer::HeartbeatLoop() {
     uint64_t term;
     {
       {
-        std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
+        // std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
         // if (ready_for_replication_ == nullptr)
           ready_for_replication_ = Reactor::CreateSpEvent<IntEvent>();
 #ifdef CURP_FULL_LOG_DEBUG
@@ -152,7 +152,7 @@ void RaftServer::HeartbeatLoop() {
       Log_info("After ready_for_replication_->Wait(HEARTBEAT_INTERVAL);");
 #endif
       {
-        std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
+        // std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
         ready_for_replication_ = nullptr;
       }
       // Coroutine::Sleep(HEARTBEAT_INTERVAL);

@@ -57,7 +57,7 @@ void CoordinatorRaft::AppendEntries() {
     bool ok = this->svr_->Start(cmd_, &index, &term); // slot_id_, curr_ballot_);
     verify(ok);
     {
-      std::lock_guard<std::recursive_mutex> lock(svr_->ready_for_replication_mtx_);
+      // std::lock_guard<std::recursive_mutex> lock(svr_->ready_for_replication_mtx_);
 #ifdef CURP_FULL_LOG_DEBUG
       Log_info("Before svr_->ready_for_replication_->Set(1);");
 #endif
