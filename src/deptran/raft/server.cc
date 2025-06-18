@@ -1,4 +1,3 @@
-
 #include "server.h"
 // #include "paxos_worker.h"
 #include "exec.h"
@@ -61,7 +60,7 @@ void RaftServer::setIsLeader(bool isLeader) {
   is_leader_ = isLeader ;
   if (isLeader) {
     if (!failover_) {
-      verify(frame_->site_info_->id == 0);
+      verify(frame_->site_info_->locale_id == 0);
       return;
     }
     // Reset leader volatile state
@@ -283,7 +282,7 @@ void RaftServer::HeartbeatLoop() {
             currentTerm = ret_term;
           }
         } else if (ret_status == 0) {
-          // case 2: AppendEntries rejected because log doesn’t contain an
+          // case 2: AppendEntries rejected because log doesn't contain an
           // entry at prevLogIndex whose term matches prevLogTerm
           // if (currentTerm > term)
           //   break;

@@ -18,6 +18,7 @@ class RaftFrame : public Frame {
   static map<siteid_t, RaftFrame*> frames_;
   static bool all_sites_created_s;
   static bool tests_done_;
+  static uint16_t n_commo_created_;
 #endif
  public:
   RaftFrame(int mode);

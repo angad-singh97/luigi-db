@@ -39,6 +39,10 @@ struct foo : automatic_register<foo> {
   }
 };*/
 
+RaftFrame::RaftFrame(int mode) : Frame(mode) {
+  
+}
+
 #ifdef RAFT_TEST_CORO
 std::mutex RaftFrame::raft_test_mutex_;
 std::shared_ptr<Coroutine> RaftFrame::raft_test_coro_ = nullptr;
@@ -46,11 +50,10 @@ uint16_t RaftFrame::n_replicas_ = 0;
 map<siteid_t, RaftFrame*> RaftFrame::frames_ = {};
 bool RaftFrame::all_sites_created_s = false;
 bool RaftFrame::tests_done_ = false;
+uint16_t RaftFrame::n_commo_created_ = 0;
 #endif
 
-RaftFrame::RaftFrame(int mode) : Frame(mode) {
 
-}
 
 Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
   Executor *exec = new RaftExecutor(cmd_id, sched);
@@ -99,6 +102,7 @@ TxLogServer *RaftFrame::CreateScheduler() {
   raft_test_mutex_.lock();
   verify(n_replicas_ < 5);
   frames_[this->site_info_->locale_id] = this;
+  n_replicas_++;
   raft_test_mutex_.unlock();
 #endif
 
@@ -116,64 +120,58 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   #ifdef RAFT_TEST_CORO
   raft_test_mutex_.lock();
   
-  // Register this frame if not already registered
-  if (frames_.find(site_info_->id) == frames_.end()) {
-    frames_[site_info_->id] = this;
-  }
+  // Simple verification: ensure all 5 schedulers are created
+  verify(n_replicas_ == 5);
   
+  // Simple counter increment: track communicator creation
+  // Find this frame in the map and increment counter
+  bool found = false;
+  for (const auto& pair : frames_) {
+    if (pair.second == this) {
+      found = true;
+      break;
+    }
+  }
+  verify(found); // This frame should exist in frames_
+  
+  // Use a simple counter approach like lab solution
+  n_commo_created_++;
+  
+  raft_test_mutex_.unlock();
+
   // Only site 0 creates and manages the test coroutine
-  if (site_info_->id == 0) {
-    // Wait until all frames are registered
-    while (frames_.size() < 5) {
-      raft_test_mutex_.unlock();
-      sleep(0.1);
-      raft_test_mutex_.lock();
-    }
+  if (site_info_->locale_id == 0) {
+    verify(raft_test_coro_.get() == nullptr);
+    Log_debug("Creating Raft test coroutine");
+    raft_test_coro_ = Coroutine::CreateRun([this] () {
+      // Yield until all 5 communicators are initialized
+      Coroutine::CurrentCoroutine()->Yield();
+      Log_info("Resuming Raft test coroutine...");
+      // Run tests
+      verify(n_replicas_ == 5);
+      auto testconfig = new RaftTestConfig(frames_);
+      RaftLabTest test(testconfig);
+      test.Run();
+      test.Cleanup();
+      // Turn off Reactor loop
+      Reactor::GetReactor()->looping_ = false;
+      return;
+    });
+    Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
     
-    // Only create test coroutine if it doesn't exist yet
-    if (raft_test_coro_.get() == nullptr) {
-      Log_debug("Creating Raft test coroutine");
-      raft_test_coro_ = Coroutine::CreateRun([this] () {
-        // Yield immediately until all communicators are initialized
-        Coroutine::CurrentCoroutine()->Yield();
-        // Run tests
-        verify(frames_.size() == 5); // Verify we have all replicas
-        auto testconfig = new RaftTestConfig(frames_);
-        RaftLabTest test(testconfig);
-        test.Run();
-        test.Cleanup();
-        // Turn off Reactor loop
-        Reactor::GetReactor()->looping_ = false;
-        return;
-      });
-      Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
-    }
-  }
-  
-  // Wait for all communicators to be set (for all sites)
-  bool all_commos_ready = false;
-  while (!all_commos_ready) {
-    all_commos_ready = true;
-    for (const auto& pair : frames_) {
-      if (pair.second->commo_ == nullptr) {
-        all_commos_ready = false;
-        break;
-      }
-    }
-    if (!all_commos_ready) {
+    // Simple wait and resume like lab solution
+    raft_test_mutex_.lock();
+    while (n_commo_created_ < 5) {
       raft_test_mutex_.unlock();
       sleep(0.1);
       raft_test_mutex_.lock();
     }
-  }
-  
-  // Only site 0 resumes the test coroutine
-  if (site_info_->id == 0 && raft_test_coro_ && all_commos_ready) {
+    raft_test_mutex_.unlock();
+    
+    // Direct resume like lab solution (no wrapper needed)
     Log_debug("All communicators ready, resuming Raft test coroutine");
     Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
-  
-  raft_test_mutex_.unlock();
   #endif
 
   return commo_;

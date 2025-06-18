@@ -14,6 +14,18 @@ build src code
 python3 waf configure build -J
 ```
 
+### build for raft testing
+
+```
+python3 waf configure build -J --enable-raft-test
+```
+
+### run raft tests
+
+```
+build/deptran_server -f config/raft_lab_test.yml
+```
+
 ### simple test
 
 ```
