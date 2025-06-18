@@ -34,7 +34,7 @@ int SchedulerNoneCopilot::OnCommit(cmdid_t tx_id,
 	gettimeofday(&tp, NULL);
 	Log_info("[CURP] [0/start] [tx=%d] before submit %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
-		bool enable_pingpong_batching = true;
+		bool enable_pingpong_batching = false;
 		if (enable_pingpong_batching) {
 			auto copilot_server = static_cast<CopilotServer*>(rep_sched_);
 			batch_buffer_.push_back(cmd);
