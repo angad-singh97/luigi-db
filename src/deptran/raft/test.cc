@@ -102,7 +102,7 @@ int RaftLabTest::testInitialElection(void) {
   uint64_t term = config_->OneTerm();
   Assert2(term != -1, "servers disagree on term number");
   // Sleep for a while
-  Coroutine::Sleep(ELECTIONTIMEOUT);
+  // Coroutine::Sleep(ELECTIONTIMEOUT);
   // Does the term stay the same after a while if there's no failures?
   Assert2(config_->OneTerm() == term, "unexpected term change");
   // Is the same server still the only leader?

@@ -40,28 +40,16 @@ struct foo : automatic_register<foo> {
 };*/
 
 #ifdef RAFT_TEST_CORO
-std::recursive_mutex RaftFrame::raft_test_mutex_;
+std::mutex RaftFrame::raft_test_mutex_;
 std::shared_ptr<Coroutine> RaftFrame::raft_test_coro_ = nullptr;
 uint16_t RaftFrame::n_replicas_ = 0;
 map<siteid_t, RaftFrame*> RaftFrame::frames_ = {};
 bool RaftFrame::all_sites_created_s = false;
 bool RaftFrame::tests_done_ = false;
-static bool static_vars_initialized = false;
 #endif
 
 RaftFrame::RaftFrame(int mode) : Frame(mode) {
-#ifdef RAFT_TEST_CORO
-  std::lock_guard<std::recursive_mutex> lock(raft_test_mutex_);
-  if (!static_vars_initialized) {
-    Log_info("Initializing Raft test static variables");
-    Log_info("Creating Raft test coroutine");
-    Log_info("Setting initial number of replicas to 0");
-    Log_info("Initializing empty frames map for tracking Raft replicas");
-    Log_info("Setting all_sites_created flag to false");
-    Log_info("Setting tests_done flag to false");
-    static_vars_initialized = true;
-  }
-#endif
+
 }
 
 Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
@@ -109,29 +97,8 @@ TxLogServer *RaftFrame::CreateScheduler() {
 
 #ifdef RAFT_TEST_CORO
   raft_test_mutex_.lock();
-  // verify(n_replicas_ < 5);
-  const auto& site_id = this->site_info_->id;
-  frames_[site_id] = this;
-  int n_sites = 5;
-  // Safely check if shard config exists and is true
-  bool is_sharded = false;
-  try {
-    if (Config::GetConfig()->yaml_config_["lab"] && 
-        Config::GetConfig()->yaml_config_["lab"]["shard"]) {
-      is_sharded = Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>();
-    }
-  } catch (const YAML::Exception& e) {
-    Log_info("No shard config found, defaulting to non-sharded mode");
-  }
-  
-  if (is_sharded) {
-    int n_partitions = Config::GetConfig()->GetNumPartition();
-    verify(n_partitions==2);
-    n_sites = 5*n_partitions; 
-  }
-  if (frames_.size() == n_sites) {
-    all_sites_created_s = true;
-  }
+  verify(n_replicas_ < 5);
+  frames_[this->site_info_->locale_id] = this;
   raft_test_mutex_.unlock();
 #endif
 
@@ -167,7 +134,7 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
     if (raft_test_coro_.get() == nullptr) {
       Log_debug("Creating Raft test coroutine");
       raft_test_coro_ = Coroutine::CreateRun([this] () {
-        // Yield until all communicators are initialized
+        // Yield immediately until all communicators are initialized
         Coroutine::CurrentCoroutine()->Yield();
         // Run tests
         verify(frames_.size() == 5); // Verify we have all replicas
@@ -181,23 +148,29 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       });
       Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
     }
-    
-    // Wait for all communicators to be set
-    bool all_commos_ready = false;
-    while (!all_commos_ready) {
-      all_commos_ready = true;
-      for (const auto& pair : frames_) {
-        if (pair.second->commo_ == nullptr) {
-          all_commos_ready = false;
-          break;
-        }
-      }
-      if (!all_commos_ready) {
-        raft_test_mutex_.unlock();
-        sleep(0.1);
-        raft_test_mutex_.lock();
+  }
+  
+  // Wait for all communicators to be set (for all sites)
+  bool all_commos_ready = false;
+  while (!all_commos_ready) {
+    all_commos_ready = true;
+    for (const auto& pair : frames_) {
+      if (pair.second->commo_ == nullptr) {
+        all_commos_ready = false;
+        break;
       }
     }
+    if (!all_commos_ready) {
+      raft_test_mutex_.unlock();
+      sleep(0.1);
+      raft_test_mutex_.lock();
+    }
+  }
+  
+  // Only site 0 resumes the test coroutine
+  if (site_info_->id == 0 && raft_test_coro_ && all_commos_ready) {
+    Log_debug("All communicators ready, resuming Raft test coroutine");
+    Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
   
   raft_test_mutex_.unlock();
