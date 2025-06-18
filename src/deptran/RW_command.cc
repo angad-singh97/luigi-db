@@ -259,16 +259,16 @@ void OneArmedBandit::RecordFail() {
 
 double OneArmedBandit::ConsultAttemptRate() {
   if (attempt_cnt == 0)
-    return 1;
+    return 1.0;
   else
-    return success_cnt / attempt_cnt;
+    return std::min((success_cnt + 5.0) / attempt_cnt, 1.0);
 }
 
 bool OneArmedBandit::ConsultAttempt() {
   if (attempt_cnt == 0)
     return true;
   else
-    return RandomGenerator::rand(0, attempt_cnt - 1) < success_cnt;
+    return RandomGenerator::rand(0, attempt_cnt - 1) < success_cnt + 5; // success_cnt + 5 > attempt_cnt is fine, still 100%
 }
 
 

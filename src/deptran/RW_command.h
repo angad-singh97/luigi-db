@@ -74,9 +74,9 @@ class OneArmedBandit {
   void RecordSuccess();
   // Record a fail attempt
   void RecordFail();
-  // Consult attempt rate (0~1)
+  // Consult attempt rate (0~1) --- Success rate +5% (maximum 100%), addition 5% is for recovery from pessimism
   double ConsultAttemptRate();
-  // Consult attempt or not
+  // Consult attempt or not --- Success rate +5% (maximum 100%), addition 5% is for recovery from pessimism
   bool ConsultAttempt();
 };
 
