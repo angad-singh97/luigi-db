@@ -12,10 +12,10 @@ namespace janus {
 class MongodbServer : public TxLogServer {
   
 #ifdef AWS
-  const int mongodb_connection_ = 600; // [JetPack] seems mongodb community default maximum connextion between 4000 and 4500 in rs
+  const int mongodb_connection_ = 1500; // maximum connection maybe limited by ulimit, increase ulimit may solve connection limit problem. 1500 is designed for 0.5s latency 3000 clients open loop
 #endif
 #ifndef AWS
-  const int mongodb_connection_ = 80; // [JetPack] seems mongodb community default maximum connextion between 95 * 5 and 100 * 5 at local
+  const int mongodb_connection_ = 80; // seems maximum connextion between 95 * 5 and 100 * 5 at local
 #endif
   shared_ptr<MongodbConnectionThreadPool> mongodb_;
   std::thread execution_thread;
