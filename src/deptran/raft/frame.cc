@@ -109,16 +109,24 @@ TxLogServer *RaftFrame::CreateScheduler() {
   return svr_ ;
 }
 
+
+// Make = sure that this function is a coroutine function
+// and it is called from a coroutine context.
 Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
   // clients of this method.
+  Log_info("CreateCommo: Thread ID = %lu", std::this_thread::get_id());
+  Log_info("CreateCommo: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
   if (commo_ == nullptr) {
+    Log_info("CreateCommo: Creating new RaftCommo");
     commo_ = new RaftCommo(poll);
   }
 
   #ifdef RAFT_TEST_CORO
+  Log_info("CreateCommo: RAFT_TEST_CORO enabled");
   raft_test_mutex_.lock();
+  Log_info("CreateCommo: n_replicas_ = %d, n_commo_ = %d", n_replicas_, n_commo_created_);
   
   // Simple verification: ensure all 5 schedulers are created
   verify(n_replicas_ == 5);
@@ -136,30 +144,39 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   
   // Use a simple counter approach like lab solution
   n_commo_created_++;
-  
+  Log_info("CreateCommo: n_commo_ now = %d", n_commo_created_);
   raft_test_mutex_.unlock();
 
   // Only site 0 creates and manages the test coroutine
   if (site_info_->locale_id == 0) {
+    Log_info("CreateCommo: About to create test coroutine");
     verify(raft_test_coro_.get() == nullptr);
-    Log_debug("Creating Raft test coroutine");
+    Log_info("Creating Raft test coroutine");
+    
     raft_test_coro_ = Coroutine::CreateRun([this] () {
+      Log_info("Test coroutine: Starting execution");
+      Log_info("Test coroutine: Thread ID = %lu", std::this_thread::get_id());
+      Log_info("Test coroutine: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
+      
       // Yield until all 5 communicators are initialized
+      Log_info("Test coroutine: About to yield");
       Coroutine::CurrentCoroutine()->Yield();
-      Log_info("Resuming Raft test coroutine...");
+      Log_info("Test coroutine: Resumed after yield");
+      
       // Run tests
       verify(n_replicas_ == 5);
       auto testconfig = new RaftTestConfig(frames_);
       RaftLabTest test(testconfig);
       test.Run();
       test.Cleanup();
+      Log_info("Test coroutine: Tests completed, turning off reactor loop");
       // Turn off Reactor loop
       Reactor::GetReactor()->looping_ = false;
       return;
     });
     Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
     
-    // Simple wait and resume like lab solution
+    // wait until n_commo_created_ == 5, then resume the coroutine
     raft_test_mutex_.lock();
     while (n_commo_created_ < 5) {
       raft_test_mutex_.unlock();
@@ -167,13 +184,11 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
       raft_test_mutex_.lock();
     }
     raft_test_mutex_.unlock();
-    
-    // Direct resume like lab solution (no wrapper needed)
-    Log_debug("All communicators ready, resuming Raft test coroutine");
     Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
   #endif
 
+  Log_info("CreateCommo: Returning commo_ = %p", commo_);
   return commo_;
 }
 
