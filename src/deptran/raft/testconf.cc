@@ -54,7 +54,7 @@ int RaftTestConfig::waitOneLeader(bool want_leader, int expected) {
   siteid_t leader = -1;
   bool isleader;
   for (int retry = 0; retry < 10; retry++) {
-    usleep(ELECTIONTIMEOUT/10);
+    Coroutine::Sleep(ELECTIONTIMEOUT/10);
     leader = -1;
     mostRecentTerm = 0;
     for (auto& pair : replicas) {
@@ -193,8 +193,7 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
   Log_debug("Doing 1 round of Raft agreement");
   auto start = chrono::steady_clock::now();
   while ((chrono::steady_clock::now() - start) < chrono::seconds{10}) {
-    usleep(50000);
-    // Coroutine::Sleep(50000);
+    Coroutine::Sleep(50000);
     // Call Start() to all servers until leader is found
     siteid_t ldr = -1;
     uint64_t index, term;
@@ -233,8 +232,7 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
           }
           break;
         }
-        usleep(20000);
-        // Coroutine::Sleep(50000);
+        Coroutine::Sleep(50000);
       }
       Log_debug("%d committed server at index %d", nc, index);
       if (!retry) {
@@ -243,8 +241,7 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
         }
     } else {
       // If no leader found, sleep and retry.
-      usleep(50000);
-      // Coroutine::Sleep(50000);
+      Coroutine::Sleep(50000);
     }
   }
   Log_debug("Failed to reach agreement end");
@@ -421,7 +418,6 @@ void RaftTestConfig::netctlLoop(void) {
     }
     // change unreliable state every 0.1s
     usleep(100000);
-    // Coroutine::Sleep(100000);
     lk.unlock();
     // cv_m_ unlocked state 2 (unreliable_ == true && finished_ == false)
     lk.lock();
@@ -471,7 +467,7 @@ void RaftTestConfig::reconnect(siteid_t svr, bool ignore) {
 void RaftTestConfig::slow(siteid_t svr, uint32_t msec) {
   // Instead of using reactor's slow mode, use Coroutine::Sleep
   // This will introduce the same delay but without needing reactor changes
-  Coroutine::Sleep(msec * 1000);  // Convert msec to microseconds
+  usleep(msec * 1000);  // Convert msec to microseconds
 }
 
 RaftServer *RaftTestConfig::GetServer(siteid_t svr) {
