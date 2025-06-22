@@ -5,6 +5,7 @@
 #include "scheduler.h"
 #include "frame.h"
 #include "communicator.h"
+#include "raft/server.h"
 
 #include <gperftools/profiler.h>
 
@@ -48,6 +49,11 @@ void ServerWorker::SetupBase() {
     rep_sched_->loc_id_ = site_info_->locale_id;
     rep_sched_->site_id_ = site_info_->id;
     rep_sched_->rep_frame_ = rep_frame_;
+    
+    // Start election timer after site_id_ is properly initialized
+    // if (RaftServer* raft_server = dynamic_cast<RaftServer*>(rep_sched_)) {
+    //   raft_server->StartElectionTimerForTest();
+    // }
   }
 #else
   // Normal mode - initialize both transaction and replication services
@@ -268,8 +274,6 @@ void ServerWorker::SetupCommo() {
     verify(rep_commo_ != nullptr);
     rep_sched_->commo_ = rep_commo_;
     verify(rep_sched_->commo_ != nullptr);
-		rep_sched_->Setup();
-
     rep_commo_->rep_sched_ = rep_sched_;
   }
   // if (curp_rep_frame_) {
@@ -280,17 +284,30 @@ void ServerWorker::SetupCommo() {
   //   verify(curp_rep_commo_ != nullptr);
   //   rep_sched_->commo_ = curp_rep_commo_;
   //   verify(rep_sched_->commo_ != nullptr);
-	// 	rep_sched_->Setup();
+  //   rep_sched_->Setup();
 
   //   curp_rep_commo_->rep_sched_ = rep_sched_;
   // }
-    #ifdef RAFT_TEST_CORO
-  // dead loop this thread for coroutine scheduling 
-  // TODO, figure out a better approach
-    if (rep_sched_->site_id_ == 0) {
-      Reactor::GetReactor()->Loop(true, true);
+
+  Reactor::GetReactor()->server_id_ = site_info_->id;
+//  svr_thread_pool_ = new rrr::ThreadPool(1);
+  std::shared_ptr<OneTimeJob> sp_j  = std::make_shared<OneTimeJob>(
+    [this]() { 
+      if (rep_sched_) {
+        rep_sched_->Setup();
+      }
     }
-  #endif
+  );
+  auto sp_job = std::dynamic_pointer_cast<Job>(sp_j);
+  svr_poll_mgr_->add(sp_j);
+
+#ifdef RAFT_TEST_CORO
+// dead loop this thread for coroutine scheduling 
+// TODO, figure out a better approach
+  if (rep_sched_->site_id_ == 0) {
+    Reactor::GetReactor()->Loop(true, true);
+  }
+#endif
 }
 
 void ServerWorker::Pause() {

@@ -17,23 +17,22 @@ RaftServer::RaftServer(Frame * frame) {
 #endif
   stop_ = false ;
   timer_ = new Timer() ;
-  
-  // Start election timer immediately for test mode
-#ifdef RAFT_TEST_CORO
-  Log_debug("RaftServer constructor: failover_=%d, site_id_=%d", failover_, site_id_);
-  if (failover_) {
-    Log_debug("Starting election timer for server %d", site_id_);
-    Coroutine::CreateRun([this](){
-      Log_debug("Election timer coroutine started for server %d", site_id_);
-      StartElectionTimer(); 
-    });
-  } else {
-    Log_debug("Not starting election timer for server %d (failover_=false)", site_id_);
-  }
-#endif
 }
 
 void RaftServer::Setup() {
+  if (heartbeat_) {
+    Log_debug("starting heartbeat loop at site %d", site_id_);
+    Coroutine::CreateRun([this](){
+      this->HeartbeatLoop(); 
+    });
+    // Start election timeout loop
+    if (failover_) {
+      Log_debug("starting election timer at site %d", site_id_);
+      Coroutine::CreateRun([this](){
+        StartElectionTimer(); 
+      });
+    }
+  }
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
