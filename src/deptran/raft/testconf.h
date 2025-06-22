@@ -55,7 +55,19 @@ class RaftTestConfig {
   // guards disconnected_ between Disconnect()/Reconnect() and netctlLoop
   std::mutex disconnect_mtx_;
 
+
+
  public:
+
+  // Helper function to map server IDs to 0-4 range for test framework
+  siteid_t mapServerId(siteid_t server_id) const;
+  
+  // Helper function to get server ID by index (0-4)
+  siteid_t getServerIdByIndex(int index) const;
+  
+  // Helper function to get next server ID in sequence
+  siteid_t getNextServerId(siteid_t current_server_id, int offset = 1) const;
+
   RaftTestConfig(std::map<siteid_t, RaftFrame*>& replicas);
 
   // sets up learner action functions for the servers

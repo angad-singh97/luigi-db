@@ -18,7 +18,7 @@ RaftTestConfig::RaftTestConfig(std::map<siteid_t, RaftFrame*>& replicas) {
   for (auto& pair : replicas) {
     auto svr = pair.first;
     auto frame = pair.second;
-    frame->svr_->rep_frame_ = frame->svr_->frame_;
+    frame->svr_->rep_frame_ = frame->svr_->frame_;  // Set rep_frame_ directly like lab solution
     RaftTestConfig::committed_cmds[svr].push_back(-1);
     RaftTestConfig::rpc_count_last[svr] = 0;
     disconnected_[svr] = false;
@@ -30,6 +30,7 @@ void RaftTestConfig::SetLearnerAction(void) {
   for (auto& pair : replicas) {
     auto svr = pair.first;
     auto frame = pair.second;
+    // rep_frame_ is already set in constructor, no need to set it here
     RaftTestConfig::commit_callbacks[svr] = [svr](Marshallable& cmd) {
       verify(cmd.kind_ == MarshallDeputy::CMD_TPC_COMMIT);
       auto& command = dynamic_cast<TpcCommitCommand&>(cmd);
@@ -51,8 +52,15 @@ bool RaftTestConfig::NoLeader(void) {
 
 int RaftTestConfig::waitOneLeader(bool want_leader, int expected) {
   uint64_t mostRecentTerm = 0, term;
-  siteid_t leader = -1;
+  int leader = -1;  // Use int instead of siteid_t to avoid unsigned conversion
   bool isleader;
+  
+  Log_info("waitOneLeader: want_leader=%d, expected=%d", want_leader, expected);
+  Log_info("waitOneLeader: replicas map contains %zu servers", replicas.size());
+  for (const auto& pair : replicas) {
+    Log_info("waitOneLeader: server ID %d in replicas map", pair.first);
+  }
+  
   for (int retry = 0; retry < 10; retry++) {
     Coroutine::Sleep(ELECTIONTIMEOUT/10);
     leader = -1;
@@ -61,9 +69,12 @@ int RaftTestConfig::waitOneLeader(bool want_leader, int expected) {
       auto svr = pair.first;
       auto frame = pair.second;
       // ignore disconnected servers
-      if (frame->svr_->IsDisconnected())
+      if (frame->svr_->IsDisconnected()) {
+        Log_info("waitOneLeader: server %d is disconnected, skipping", svr);
         continue;
+      }
       frame->svr_->GetState(&isleader, &term);
+      Log_info("waitOneLeader: server %d isleader=%d, term=%ld", svr, isleader, term);
       if (isleader) {
         if (term == mostRecentTerm) {
           Failed("multiple leaders elected in term %ld", term);
@@ -82,13 +93,16 @@ int RaftTestConfig::waitOneLeader(bool want_leader, int expected) {
         Failed("unexpected leader change, expecting %d, got %d", expected, leader);
         return -3;
       }
+      Log_info("waitOneLeader: returning leader %d", leader);
       return leader;
     }
+    Log_info("waitOneLeader: retry %d, no leader found", retry);
   }
   if (want_leader) {
     Log_debug("failing, timeout?");
     Failed("waited too long for leader election");
   }
+  Log_info("waitOneLeader: returning -1 (no leader found)");
   return -1;
 }
 
@@ -278,19 +292,21 @@ shared_ptr<CommitIndex> RaftTestConfig::StartAgreement(siteid_t svr, int cmd) {
 }
 
 void RaftTestConfig::Disconnect(siteid_t svr) {
-  verify(svr >= 0 && svr < NSERVERS);
+  Log_info("Disconnect: disconnecting server %d", svr);
   std::lock_guard<std::mutex> lk(disconnect_mtx_);
   verify(!disconnected_[svr]);
   disconnect(svr, true);
   disconnected_[svr] = true;
+  Log_info("Disconnect: server %d disconnected successfully", svr);
 }
 
 void RaftTestConfig::Reconnect(siteid_t svr) {
-  verify(svr >= 0 && svr < NSERVERS);
+  Log_info("Reconnect: reconnecting server %d", svr);
   std::lock_guard<std::mutex> lk(disconnect_mtx_);
   verify(disconnected_[svr]);
   reconnect(svr);
   disconnected_[svr] = false;
+  Log_info("Reconnect: server %d reconnected successfully", svr);
 }
 
 int RaftTestConfig::NDisconnected(void) {
@@ -375,7 +391,6 @@ bool RaftTestConfig::ServerCommitted(siteid_t svr, uint64_t index, int cmd) {
 }
 
 void RaftTestConfig::netctlLoop(void) {
-  int i;
   bool isdown;
   // cv_m_ unlocked state 0 (finished_ == false)
   std::unique_lock<std::mutex> lk(cv_m_);
@@ -384,10 +399,11 @@ void RaftTestConfig::netctlLoop(void) {
       {
         std::lock_guard<std::mutex> prlk(disconnect_mtx_);
         // unset all unreliable-related disconnects and slows
-        for (i = 0; i < NSERVERS; i++) {
-          if (!disconnected_[i]) {
-            reconnect(i, true);
-            slow(i, 0);
+        for (const auto& pair : replicas) {
+          siteid_t svr = pair.first;
+          if (!disconnected_[svr]) {
+            reconnect(svr, true);
+            slow(svr, 0);
           }
         }
       }
@@ -398,21 +414,22 @@ void RaftTestConfig::netctlLoop(void) {
     }
     {
       std::lock_guard<std::mutex> prlk(disconnect_mtx_);
-      for (i = 0; i < NSERVERS; i++) {
+      for (const auto& pair : replicas) {
+        siteid_t svr = pair.first;
         // skip server if it was disconnected using Disconnect()
-        if (disconnected_[i]) {
+        if (disconnected_[svr]) {
           continue;
         }
         // server has DOWNRATE_N / DOWNRATE_D chance of being down
         if ((rand() % DOWNRATE_D) < DOWNRATE_N) {
           // disconnect server if not already disconnected in the previous period
-          disconnect(i, true);
+          disconnect(svr, true);
         } else {
           // Server not down: random slow timeout
           // Reconnect server if it was disconnected in the previous period
-          reconnect(i, true);
+          reconnect(svr, true);
           // server's slow timeout should be btwn 0-(MAXSLOW-1) ms
-          slow(i, rand() % MAXSLOW);
+          slow(svr, rand() % MAXSLOW);
         }
       }
     }
@@ -428,10 +445,11 @@ void RaftTestConfig::netctlLoop(void) {
     {
       std::lock_guard<std::mutex> prlk(disconnect_mtx_);
       // unset all unreliable-related disconnects and slows
-      for (i = 0; i < NSERVERS; i++) {
-        if (!disconnected_[i]) {
-          reconnect(i, true);
-          slow(i, 0);
+      for (const auto& pair : replicas) {
+        siteid_t svr = pair.first;
+        if (!disconnected_[svr]) {
+          reconnect(svr, true);
+          slow(svr, 0);
         }
       }
     }
@@ -472,6 +490,82 @@ void RaftTestConfig::slow(siteid_t svr, uint32_t msec) {
 
 RaftServer *RaftTestConfig::GetServer(siteid_t svr) {
   return RaftTestConfig::replicas[svr]->svr_;
+}
+
+siteid_t RaftTestConfig::mapServerId(siteid_t server_id) const {
+  // Find the server_id in the replicas map and return its position (0-4)
+  int index = 0;
+  for (const auto& pair : replicas) {
+    if (pair.first == server_id) {
+      return index;
+    }
+    index++;
+  }
+  // If not found, return the original ID (this should not happen in normal operation)
+  return server_id;
+}
+
+siteid_t RaftTestConfig::getServerIdByIndex(int index) const {
+  // Get server ID by its position in the replicas map (0-4)
+  if (index < 0 || index >= NSERVERS) {
+    // Index out of range, return -1
+    Log_info("getServerIdByIndex: index %d out of range [0, %d), returning -1", index, NSERVERS);
+    return -1;
+  }
+  
+  int i = 0;
+  for (const auto& pair : replicas) {
+    if (i == index) {
+      Log_info("getServerIdByIndex: index %d maps to server ID %d", index, pair.first);
+      return pair.first;
+    }
+    i++;
+  }
+  // If we get here, something is wrong with the replicas map
+  // This should not happen in normal operation
+  Log_info("getServerIdByIndex: index %d not found in replicas map, returning -1", index);
+  return -1;
+}
+
+siteid_t RaftTestConfig::getNextServerId(siteid_t current_server_id, int offset) const {
+  Log_info("getNextServerId: finding next server from %d with offset %d", current_server_id, offset);
+  
+  // Find current server's index and add offset, wrapping around
+  int current_index = -1;
+  int i = 0;
+  for (const auto& pair : replicas) {
+    if (pair.first == current_server_id) {
+      current_index = i;
+      break;
+    }
+    i++;
+  }
+  
+  if (current_index == -1) {
+    Log_info("getNextServerId: server ID %d not found in replicas map, returning original", current_server_id);
+    return current_server_id; // Return original if not found
+  }
+  
+  Log_info("getNextServerId: server %d is at index %d", current_server_id, current_index);
+  
+  // Calculate new index with wrapping
+  int new_index = (current_index + offset) % NSERVERS;
+  if (new_index < 0) {
+    new_index += NSERVERS;
+  }
+  
+  Log_info("getNextServerId: calculated new index %d", new_index);
+  
+  siteid_t result = getServerIdByIndex(new_index);
+  if (result == -1) {
+    // If getServerIdByIndex returns -1, return the original server ID
+    // This should not happen in normal operation, but provides safety
+    Log_info("getNextServerId: getServerIdByIndex returned -1, returning original server ID %d", current_server_id);
+    return current_server_id;
+  }
+  
+  Log_info("getNextServerId: returning server ID %d", result);
+  return result;
 }
 
 #endif

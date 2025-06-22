@@ -96,7 +96,8 @@ int RaftLabTest::testInitialElection(void) {
   // calculate RPC count for initial election for later use
   init_rpcs_ = 0;
   for (int i = 0; i < NSERVERS; i++) {
-    init_rpcs_ += config_->RpcCount(i);
+    siteid_t server_id = config_->getServerIdByIndex(i);
+    init_rpcs_ += config_->RpcCount(server_id);
   }
   // Does everyone agree on the term number?
   uint64_t term = config_->OneTerm();
@@ -112,36 +113,83 @@ int RaftLabTest::testInitialElection(void) {
 
 int RaftLabTest::testReElection(void) {
   Init2(2, "Re-election after network failure");
+  Log_info("TEST 2: Starting re-election test");
+  
   // find current leader
+  Log_info("TEST 2: Finding current leader");
   int leader = config_->OneLeader();
+  Log_info("TEST 2: Current leader is %d", leader);
+  
+  // Check if OneLeader returned a valid leader
+  if (leader == -1) {
+    Log_info("TEST 2: No leader found, test cannot proceed");
+    Failed("No leader found in initial election");
+    return -1;
+  }
+  
   AssertOneLeader(leader);
+  
   // disconnect leader - make sure a new one is elected
-  Log_debug("disconnecting old leader");
+  Log_info("TEST 2: Disconnecting old leader %d", leader);
   config_->Disconnect(leader);
   int oldLeader = leader;
+  Log_info("TEST 2: Old leader %d disconnected, sleeping for election timeout", oldLeader);
   Coroutine::Sleep(ELECTIONTIMEOUT);
+  
+  Log_info("TEST 2: Finding new leader after old leader disconnected");
   leader = config_->OneLeader();
+  Log_info("TEST 2: New leader is %d", leader);
+  
+  // Check if OneLeader returned a valid leader
+  if (leader == -1) {
+    Log_info("TEST 2: No new leader found after disconnecting old leader");
+    Failed("No new leader elected after disconnecting old leader");
+    return -1;
+  }
+  
   AssertOneLeader(leader);
   AssertReElection(leader, oldLeader);
+  
   // reconnect old leader - should not disturb new leader
+  Log_info("TEST 2: Reconnecting old leader %d", oldLeader);
   config_->Reconnect(oldLeader);
-  Log_debug("reconnecting old leader");
+  Log_info("TEST 2: Old leader reconnected, sleeping for election timeout");
   Coroutine::Sleep(ELECTIONTIMEOUT);
   AssertOneLeader(config_->OneLeader(leader));
+  
   // no quorum -> no leader
-  Log_debug("disconnecting more servers");
-  config_->Disconnect((leader + 1) % NSERVERS);
-  config_->Disconnect((leader + 2) % NSERVERS);
+  Log_info("TEST 2: Disconnecting more servers to break quorum");
+  Log_info("TEST 2: Current leader is %d", leader);
+  
+  siteid_t next1 = config_->getNextServerId(leader, 1);
+  Log_info("TEST 2: Next server 1 offset from leader %d is %d", leader, next1);
+  config_->Disconnect(next1);
+  
+  siteid_t next2 = config_->getNextServerId(leader, 2);
+  Log_info("TEST 2: Next server 2 offset from leader %d is %d", leader, next2);
+  config_->Disconnect(next2);
+  
+  Log_info("TEST 2: Disconnecting leader %d", leader);
   config_->Disconnect(leader);
+  
+  Log_info("TEST 2: Checking for no leader condition");
   Assert(config_->NoLeader());
+  
   // quorum restored
-  Log_debug("reconnecting a server to enable majority");
-  config_->Reconnect((leader + 2) % NSERVERS);
+  Log_info("TEST 2: Reconnecting a server to restore quorum");
+  siteid_t reconnect_server = config_->getNextServerId(leader, 2);
+  Log_info("TEST 2: Reconnecting server %d", reconnect_server);
+  config_->Reconnect(reconnect_server);
   Coroutine::Sleep(ELECTIONTIMEOUT);
   AssertOneLeader(config_->OneLeader());
+  
   // rejoin all servers
-  Log_debug("rejoining all servers");
-  config_->Reconnect((leader + 1) % NSERVERS);
+  Log_info("TEST 2: Rejoining all servers");
+  siteid_t rejoin1 = config_->getNextServerId(leader, 1);
+  Log_info("TEST 2: Rejoining server %d", rejoin1);
+  config_->Reconnect(rejoin1);
+  
+  Log_info("TEST 2: Rejoining leader %d", leader);
   config_->Reconnect(leader);
   Coroutine::Sleep(ELECTIONTIMEOUT);
   AssertOneLeader(config_->OneLeader());
@@ -165,8 +213,8 @@ int RaftLabTest::testFailAgree(void) {
   auto leader = config_->OneLeader();
   AssertOneLeader(leader);
   Log_debug("disconnecting two followers leader");
-  config_->Disconnect((leader + 1) % NSERVERS);
-  config_->Disconnect((leader + 2) % NSERVERS);
+  config_->Disconnect(config_->getNextServerId(leader, 1));
+  config_->Disconnect(config_->getNextServerId(leader, 2));
   // Agreement despite 2 disconnected servers
   Log_debug("try commit a few commands after disconnect");
   DoAgreeAndAssertIndex(401, NSERVERS - 2, index_++);
@@ -176,8 +224,8 @@ int RaftLabTest::testFailAgree(void) {
   DoAgreeAndAssertIndex(404, NSERVERS - 2, index_++);
   // reconnect followers
   Log_debug("reconnect servers");
-  config_->Reconnect((leader + 1) % NSERVERS);
-  config_->Reconnect((leader + 2) % NSERVERS);
+  config_->Reconnect(config_->getNextServerId(leader, 1));
+  config_->Reconnect(config_->getNextServerId(leader, 2));
   Coroutine::Sleep(ELECTIONTIMEOUT);
   Log_debug("try commit a few commands after reconnect");
   DoAgreeAndAssertWaitSuccess(405, NSERVERS);
@@ -190,9 +238,9 @@ int RaftLabTest::testFailNoAgree(void) {
   // disconnect 3 followers
   auto leader = config_->OneLeader();
   AssertOneLeader(leader);
-  config_->Disconnect((leader + 1) % NSERVERS);
-  config_->Disconnect((leader + 2) % NSERVERS);
-  config_->Disconnect((leader + 3) % NSERVERS);
+  config_->Disconnect(config_->getNextServerId(leader, 1));
+  config_->Disconnect(config_->getNextServerId(leader, 2));
+  config_->Disconnect(config_->getNextServerId(leader, 3));
   // attempt to do an agreement
   uint64_t index, term;
   AssertStartOk(config_->Start(leader, 501, &index, &term));
@@ -202,9 +250,9 @@ int RaftLabTest::testFailNoAgree(void) {
   Coroutine::Sleep(ELECTIONTIMEOUT);
   AssertNoneCommitted(index);
   // reconnect followers
-  config_->Reconnect((leader + 1) % NSERVERS);
-  config_->Reconnect((leader + 2) % NSERVERS);
-  config_->Reconnect((leader + 3) % NSERVERS);
+  config_->Reconnect(config_->getNextServerId(leader, 1));
+  config_->Reconnect(config_->getNextServerId(leader, 2));
+  config_->Reconnect(config_->getNextServerId(leader, 3));
   // do agreement in restored quorum
   Coroutine::Sleep(ELECTIONTIMEOUT);
   DoAgreeAndAssertWaitSuccess(502, NSERVERS);
@@ -344,9 +392,9 @@ int RaftLabTest::testBackup(void) {
   int leader1 = config_->OneLeader();
   AssertOneLeader(leader1);
   Log_debug("disconnect 3 followers");
-  config_->Disconnect((leader1 + 2) % NSERVERS);
-  config_->Disconnect((leader1 + 3) % NSERVERS);
-  config_->Disconnect((leader1 + 4) % NSERVERS);
+  config_->Disconnect(config_->getNextServerId(leader1, 2));
+  config_->Disconnect(config_->getNextServerId(leader1, 3));
+  config_->Disconnect(config_->getNextServerId(leader1, 4));
   // Start() a bunch of commands that won't be committed
   uint64_t index, term;
   for (int i = 0; i < 50; i++) {
@@ -355,11 +403,11 @@ int RaftLabTest::testBackup(void) {
   Coroutine::Sleep(ELECTIONTIMEOUT);
   // disconnect the leader and its 1 follower, then reconnect the 3 servers
   Log_debug("disconnect the leader and its 1 follower, reconnect the 3 followers");
-  config_->Disconnect((leader1 + 1) % NSERVERS);
+  config_->Disconnect(config_->getNextServerId(leader1, 1));
   config_->Disconnect(leader1);
-  config_->Reconnect((leader1 + 2) % NSERVERS);
-  config_->Reconnect((leader1 + 3) % NSERVERS);
-  config_->Reconnect((leader1 + 4) % NSERVERS);
+  config_->Reconnect(config_->getNextServerId(leader1, 2));
+  config_->Reconnect(config_->getNextServerId(leader1, 3));
+  config_->Reconnect(config_->getNextServerId(leader1, 4));
   // do a bunch of agreements among the new quorum
   Coroutine::Sleep(ELECTIONTIMEOUT);
   Log_debug("try to commit a lot of commands");
@@ -368,7 +416,7 @@ int RaftLabTest::testBackup(void) {
   }
   // reconnect the old leader and its follower
   Log_debug("reconnect the old leader and the follower");
-  config_->Reconnect((leader1 + 1) % NSERVERS);
+  config_->Reconnect(config_->getNextServerId(leader1, 1));
   config_->Reconnect(leader1);
   Coroutine::Sleep(ELECTIONTIMEOUT);
   // do an agreement all together to check the old leader's incorrect
@@ -389,13 +437,15 @@ int RaftLabTest::testCount(void) {
 
   // reset RPC counts before starting
   for (int i = 0; i < NSERVERS; i++) {
-    config_->RpcCount(i, true);
+    siteid_t server_id = config_->getServerIdByIndex(i);
+    config_->RpcCount(server_id, true);
   }
 
   auto rpcs = [this]() {
     uint64_t total = 0;
     for (int i = 0; i < NSERVERS; i++) {
-      total += config_->RpcCount(i);
+      siteid_t server_id = config_->getServerIdByIndex(i);
+      total += config_->RpcCount(server_id);
     }
     return total;
   };
@@ -539,42 +589,43 @@ int RaftLabTest::testFigure8(void) {
     AssertWaitNoTimeout(r, index1, NSERVERS);
     index_ = index1;
     // Start() a command (C1) and only let it get replicated to 1 follower (S2)
-    config_->Disconnect((leader1 + 1) % NSERVERS);
-    config_->Disconnect((leader1 + 2) % NSERVERS);
-    config_->Disconnect((leader1 + 3) % NSERVERS);
+    config_->Disconnect(config_->getNextServerId(leader1, 1));
+    config_->Disconnect(config_->getNextServerId(leader1, 2));
+    config_->Disconnect(config_->getNextServerId(leader1, 3));
     ok = config_->Start(leader1, 1101, &index1, &term1);
     if (!ok) {
-      config_->Reconnect((leader1 + 1) % NSERVERS);
-      config_->Reconnect((leader1 + 2) % NSERVERS);
-      config_->Reconnect((leader1 + 3) % NSERVERS);
+      config_->Reconnect(config_->getNextServerId(leader1, 1));
+      config_->Reconnect(config_->getNextServerId(leader1, 2));
+      config_->Reconnect(config_->getNextServerId(leader1, 3));
       continue;
     }
     Coroutine::Sleep(ELECTIONTIMEOUT);
     // C1 is at index i1 for S1 and S2
     AssertNoneCommitted(index1);
     // Elect new leader (S3) among other 3 servers
-    config_->Disconnect((leader1 + 4) % NSERVERS);
+    config_->Disconnect(config_->getNextServerId(leader1, 4));
     config_->Disconnect(leader1);
-    config_->Reconnect((leader1 + 1) % NSERVERS);
-    config_->Reconnect((leader1 + 2) % NSERVERS);
-    config_->Reconnect((leader1 + 3) % NSERVERS);
+    config_->Reconnect(config_->getNextServerId(leader1, 1));
+    config_->Reconnect(config_->getNextServerId(leader1, 2));
+    config_->Reconnect(config_->getNextServerId(leader1, 3));
     auto leader2 = config_->OneLeader();
     AssertOneLeader(leader2);
     // let old leader (S1) and follower (S2) become a follower in the new term
-    config_->Reconnect((leader1 + 4) % NSERVERS);
+    config_->Reconnect(config_->getNextServerId(leader1, 4));
     config_->Reconnect(leader1);
     Coroutine::Sleep(ELECTIONTIMEOUT);
     AssertOneLeader(config_->OneLeader(leader2));
     Log_debug("disconnect all followers and Start() a cmd (C2) to isolated new leader");
     for (int i = 0; i < NSERVERS; i++) {
-      if (i != leader2) {
-        config_->Disconnect(i);
+      siteid_t server_id = config_->getServerIdByIndex(i);
+      if (server_id != leader2) {
+        config_->Disconnect(server_id);
       }
     }
     ok = config_->Start(leader2, 1102, &index2, &term2);
     if (!ok) {
       for (int i = 1; i < 5; i++) {
-        config_->Reconnect((leader2 + i) % NSERVERS);
+        config_->Reconnect(config_->getNextServerId(leader2, i));
       }
       continue;
     }
@@ -586,15 +637,15 @@ int RaftLabTest::testFigure8(void) {
     // Let first leader (S1) or its initial follower (S2) become next leader
     config_->Disconnect(leader2);
     config_->Reconnect(leader1);
-    verify((leader1 + 4) % NSERVERS != leader2);
-    config_->Reconnect((leader1 + 4) % NSERVERS);
-    if (leader2 == leader1 + 1)
-      config_->Reconnect((leader1 + 2) % NSERVERS);
+    verify(config_->getNextServerId(leader1, 4) != leader2);
+    config_->Reconnect(config_->getNextServerId(leader1, 4));
+    if (leader2 == config_->getNextServerId(leader1, 1))
+      config_->Reconnect(config_->getNextServerId(leader1, 2));
     else
-      config_->Reconnect((leader1 + 1) % NSERVERS);
+      config_->Reconnect(config_->getNextServerId(leader1, 1));
     auto leader3 = config_->OneLeader();
     AssertOneLeader(leader3);
-    if (leader3 != leader1 && leader3 != ((leader1 + 4) % NSERVERS)) {
+    if (leader3 != leader1 && leader3 != config_->getNextServerId(leader1, 4)) {
       continue; // failed this step with a 1/3 chance. just start over until success.
     }
     // give leader3 more than enough time to replicate index1 to a third server
@@ -610,11 +661,11 @@ int RaftLabTest::testFigure8(void) {
             "value 1101 is not committed at index %ld when it should be", index1);
     success = true;
     // Reconnect all servers
-    config_->Reconnect((leader1 + 3) % NSERVERS);
-    if (leader2 == leader1 + 1)
-      config_->Reconnect((leader1 + 1) % NSERVERS);
+    config_->Reconnect(config_->getNextServerId(leader1, 3));
+    if (leader2 == config_->getNextServerId(leader1, 1))
+      config_->Reconnect(config_->getNextServerId(leader1, 1));
     else
-      config_->Reconnect((leader1 + 2) % NSERVERS);
+      config_->Reconnect(config_->getNextServerId(leader1, 2));
     break;
   }
   Assert2(success, "Failed to test figure 8");

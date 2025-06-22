@@ -17,6 +17,20 @@ RaftServer::RaftServer(Frame * frame) {
 #endif
   stop_ = false ;
   timer_ = new Timer() ;
+  
+  // Start election timer immediately for test mode
+#ifdef RAFT_TEST_CORO
+  Log_debug("RaftServer constructor: failover_=%d, site_id_=%d", failover_, site_id_);
+  if (failover_) {
+    Log_debug("Starting election timer for server %d", site_id_);
+    Coroutine::CreateRun([this](){
+      Log_debug("Election timer coroutine started for server %d", site_id_);
+      StartElectionTimer(); 
+    });
+  } else {
+    Log_debug("Not starting election timer for server %d (failover_=false)", site_id_);
+  }
+#endif
 }
 
 void RaftServer::Setup() {
@@ -175,7 +189,7 @@ void RaftServer::HeartbeatLoop() {
         uint64_t t2 = Time::now();
         if (ttt+1000000 < t2) {
           ttt = t2;
-          Log_debug("heartbeat from site: %d", site_id_);
+          Log_debug("heartbeat from site: %d", site_id);
           // Log_info("site %d in heartbeat_loop, not leader", site_id_);
         }
         mtx_.lock();
