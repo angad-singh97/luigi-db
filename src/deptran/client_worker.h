@@ -75,6 +75,8 @@ class ClientWorker {
   int curp_fastpath_p_ = 1024;
   int curp_fastpath_q_ = 1024;
 
+  OneArmedBandit one_armed_bandit_; // For fast path attempt prediction
+
  public:
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
       ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,

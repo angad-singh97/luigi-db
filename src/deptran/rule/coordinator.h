@@ -16,7 +16,6 @@ class CoordinatorRule : public CoordinatorClassic {
 
   // CommunicatorRule* commo_;
   // double margin_success_rate_;
-  OneArmedBandit one_armed_bandit_; // For fast path attempt prediction
 
   value_t result_;
 
