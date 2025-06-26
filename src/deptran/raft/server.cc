@@ -20,19 +20,6 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
-  if (heartbeat_) {
-    Log_debug("starting heartbeat loop at site %d", site_id_);
-    Coroutine::CreateRun([this](){
-      this->HeartbeatLoop(); 
-    });
-    // Start election timeout loop
-    if (failover_) {
-      Log_debug("starting election timer at site %d", site_id_);
-      Coroutine::CreateRun([this](){
-        StartElectionTimer(); 
-      });
-    }
-  }
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
@@ -73,7 +60,7 @@ void RaftServer::setIsLeader(bool isLeader) {
   is_leader_ = isLeader ;
   if (isLeader) {
     if (!failover_) {
-      verify(frame_->site_info_->locale_id == 0);
+      verify(frame_->site_info_->id == 0);
       return;
     }
     // Reset leader volatile state
@@ -94,25 +81,20 @@ void RaftServer::setIsLeader(bool isLeader) {
 }
 
 void RaftServer::applyLogs() {
-  Log_info("APPLYLOGS: Leader %d (term %ld) applyLogs called, commitIndex=%ld, executeIndex=%ld", loc_id_, currentTerm, commitIndex, executeIndex);
-  while (executeIndex < commitIndex) {
-    uint64_t applyIdx = executeIndex + 1;
-    // Defensive: Check if log entry exists before accessing
-    if (raft_logs_.find(applyIdx) == raft_logs_.end()) {
-      Log_error("APPLYLOGS ERROR: No log entry at index %ld (raft_logs_ size: %zu)", applyIdx, raft_logs_.size());
+  // This prevents the log entry from being applied twice
+  if (in_applying_logs_) {
+    return;
+  }
+  in_applying_logs_ = true;
+  
+  for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
+    auto next_instance = GetRaftInstance(id);
+    if (next_instance && next_instance->log_) {
+      app_next_(*next_instance->log_);
+      executeIndex = id;
+    } else {
       break;
     }
-    auto entry = raft_logs_[applyIdx];
-    if (!entry) {
-      Log_error("APPLYLOGS ERROR: Null log entry at index %ld", applyIdx);
-      break;
-    }
-    if (entry->log_ == nullptr) {
-      Log_error("APPLYLOGS ERROR: Null command pointer at index %ld", applyIdx);
-    }
-    Log_info("APPLIED: Leader %d (term %ld) applied log at index %ld (cmd=%p)", loc_id_, currentTerm, applyIdx, entry->log_.get());
-    app_next_(*entry->log_);
-    executeIndex = applyIdx;
   }
 
   in_applying_logs_ = false;
@@ -209,14 +191,12 @@ void RaftServer::HeartbeatLoop() {
         uint64_t newCommitIndex = matchedIndices[(nservers - 1) / 2];
         verify(newCommitIndex <= lastLogIndex);
         if (newCommitIndex > commitIndex && (GetRaftInstance(newCommitIndex)->term == currentTerm)) {
-          Log_info("COMMIT: Leader %d (term %ld) advancing commitIndex from %ld to %ld", loc_id_, currentTerm, commitIndex, newCommitIndex);
+          Log_debug("newCommitIndex %d", newCommitIndex);
           commitIndex = newCommitIndex;
         }
         // leader apply logs applicable
-        if (commitIndex > executeIndex) {
-          Log_info("APPLYLOGS: Leader %d (term %ld) calling applyLogs, commitIndex=%ld, executeIndex=%ld", loc_id_, currentTerm, commitIndex, executeIndex);
+        if (commitIndex > executeIndex)
           applyLogs();
-        }
 
         term = currentTerm;
         mtx_.unlock();
@@ -296,19 +276,17 @@ void RaftServer::HeartbeatLoop() {
         } else if (ret_status == 0 && ret_term > term) {
           // case 1: AppendEntries rejected because leader's term is expired
           if (currentTerm == term) {
-            Log_debug("case 1: %d setting leader=false and currentTerm=%ld (received from %d)", loc_id_, ret_term, site_id);
+            // Log_debug("case 1: %d setting leader=false and currentTerm=%ld (received from %d)", loc_id_, ret_term, site_id);
             setIsLeader(false); // TODO problem here. When Raft requests votes, should it increase its term before sending requestvote?
             currentTerm = ret_term;
           }
         } else if (ret_status == 0) {
           // case 2: AppendEntries rejected because log doesn't contain an
           // entry at prevLogIndex whose term matches prevLogTerm
-          Log_info("DEBUG: [case 2] Before decrement: site %d next_index=%ld", site_id, next_index);
+          Log_debug("case 2: decrementing nextIndex (%ld)", next_index);
           if (next_index > 1) {
             next_index--; // todo: better backup
-            Log_info("DEBUG: [case 2] After decrement: site %d next_index=%ld", site_id, next_index);
           } else {
-            Log_warn("next_index for site %d tried to go below 1!", site_id);
             next_index = 1;
           }
         } else {
@@ -317,29 +295,29 @@ void RaftServer::HeartbeatLoop() {
           if (cmd == nullptr) {
             Log_debug("case 3A: AppendEntries accepted for heartbeat msg");
             verify(ret_term == term);
-            Log_info("DEBUG: [case 3A] ret_last_log_index=%ld, next_index-1=%ld, site_id=%d", ret_last_log_index, next_index-1, site_id);
+            // follower could have log entries after the prevLogIndex the AppendEntries was sent for.
+            // neither party can detect if the entries are incorrect or not yet
             verify(ret_last_log_index >= next_index - 1);
             if (ret_last_log_index >= next_index) {
               if (next_index <= lastLogIndex) {
-                Log_info("DEBUG: [case 3A] Before increment: site %d next_index=%ld", site_id, next_index);
                 next_index++;
-                Log_info("DEBUG: [case 3A] After increment: site %d next_index=%ld", site_id, next_index);
+                Log_debug("empty heartbeat incrementing next_index for site: %d, next_index: %d", site_id, next_index);
               }
             }
           } else {
             Log_debug("case 3B: AppendEntries accepted for non-empty msg");
-            Log_info("DEBUG: [case 3B] ret_last_log_index=%ld, next_index=%ld, site_id=%d", ret_last_log_index, next_index, site_id);
-            if (!(ret_last_log_index >= next_index)) {
-              Log_error("ASSERTION FAIL: ret_last_log_index(%ld) < next_index(%ld) for site %d", ret_last_log_index, next_index, site_id);
-            }
+            // follower could have log entries after the prevLogIndex the AppendEntries was sent for.
+            // neither party can detect if the entries are incorrect or not yet
             verify(ret_last_log_index >= next_index);
-            Log_info("DEBUG: [case 3B] Before match_index update: site %d match_index=%ld", site_id, match_index);
+            Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
+                site_id, ret_last_log_index, next_index, match_index);
             match_index = next_index;
-            Log_info("DEBUG: [case 3B] After match_index update: site %d match_index=%ld", site_id, match_index);
+            // Log_info("About to update next_index %d to %d", next_index, ret_last_log_index + 1);
 #ifndef RAFT_BATCH_OPTIMIZATION
-            Log_info("DEBUG: [case 3B] Before update: site %d next_index=%ld", site_id, next_index);
+            next_index++;
+#endif
+#ifdef RAFT_BATCH_OPTIMIZATION
             next_index = ret_last_log_index + 1;
-            Log_info("DEBUG: [case 3B] After update: site %d next_index=%ld", site_id, next_index);
 #endif
             Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id_, site_id, ret_last_log_index, next_index, match_index);
@@ -598,10 +576,8 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 
       // update commitIndex and apply logs if necessary
       if (leaderCommitIndex > commitIndex) {
-        Log_info("COMMIT: Follower %d (term %ld) advancing commitIndex from %ld to %ld (leaderCommitIndex=%ld, lastLogIndex=%ld)", loc_id_, currentTerm, commitIndex, std::min(leaderCommitIndex, lastLogIndex), leaderCommitIndex, lastLogIndex);
         commitIndex = std::min(leaderCommitIndex, lastLogIndex);
         verify(lastLogIndex >= commitIndex);
-        Log_info("APPLYLOGS: Follower %d (term %ld) calling applyLogs, commitIndex=%ld, executeIndex=%ld", loc_id_, currentTerm, commitIndex, executeIndex);
         applyLogs();
       }
 

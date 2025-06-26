@@ -14,7 +14,7 @@ int RaftLabTest::Run(void) {
   uint64_t start_rpc = config_->RpcTotal();
   Log_info("Beginning test sequence");
   if (testInitialElection()
-      // || TEST_EXPAND(testReElection())
+      || TEST_EXPAND(testReElection())
       || TEST_EXPAND(testBasicAgree())
       || TEST_EXPAND(testFailAgree())
       || TEST_EXPAND(testFailNoAgree())
