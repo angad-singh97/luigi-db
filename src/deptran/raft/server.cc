@@ -20,6 +20,11 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
+      if (failover_) {
+      Coroutine::CreateRun([this](){
+        StartElectionTimer(); 
+      });
+    }
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
