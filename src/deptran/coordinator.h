@@ -100,20 +100,7 @@ class Coordinator {
   int cmd_in_client_count = 0;
   /******global unique id end********/
 
-  // For latency test
-  // All the following statistics only count mid 1/3 duration
-  // 2 \subseteq 1 \subseteq 0, 4 \subseteq 3, 5 = 2 \cup 4, 2 \cap 4 = \emptyset
-  // 0: all fast path attempts (even fail or slower than original path), 1 RTT
-  // 1: success fast path attempts (success only, may slower than original path), 1 RTT
-  // 2: efficient fast path attempts (only success and faster than original path), 1 RTT
-  // 3: all original path attempts (even slower than fast path), 2 RTTs
-  // 4: efficient original path attempts (only faster than fast path, or fast path failed), 2 RTTs
-  // 5: all efficient attempts (count all faster one) (should equals to category 1 merge category 3)
-  Distribution cli2cli_[6];
-
-  Frequency frequency_;
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
-  Distribution commit_time_;
   
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;

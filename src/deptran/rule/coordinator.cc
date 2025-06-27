@@ -77,7 +77,7 @@ void CoordinatorRule::GotoNextPhase() {
           c->rule_mode_on_and_is_original_path_only_command_ = !go_to_fastpath_;
           dispatch_acks_[c->inn_id_] = false;
           sp_vec_piece->push_back(c);
-          frequency_.append(SimpleRWCommand::GetKey(c));
+          client_worker_->frequency_.append(SimpleRWCommand::GetKey(c));
         }
         sp_vec_piece_by_par_[par_id] = sp_vec_piece;
       }
@@ -107,14 +107,14 @@ void CoordinatorRule::GotoNextPhase() {
         if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
           verify(!(fast_path_success_ && dispatch_ack_));
           if (fast_path_success_) {
-            cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+            client_worker_->cli2cli_[2].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
           }
           else {
-            cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+            client_worker_->cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
           }
-          cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+          client_worker_->cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
-        commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+        client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
@@ -127,10 +127,10 @@ void CoordinatorRule::GotoNextPhase() {
       verify(phase_ % n_phase == Phase::INIT_END);
       // Log_info("CoordinatorRule coo_id=%d thread_id=%d cmd_ver_=%d current_phase=%d [before WAITING_ORIGIN end]", coo_id_, thread_id_, cmd_ver_, current_phase);
       if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
-        cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-        cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        client_worker_->cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+        client_worker_->cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
-      commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+      client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
       // Log_info("End");
       End();
       break;
@@ -179,11 +179,11 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
 #endif
   // Log_info("[CURP] After Wait");
   if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
-    cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+    client_worker_->cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   if (e->Yes()) {
     fast_path_success_ = true;
     if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
-      cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+      client_worker_->cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   } else if (e->No() || e->timeouted_) {
     fast_path_success_ = false;
   } else {

@@ -20,18 +20,19 @@ ClientWorker::~ClientWorker() {
 }
 
 void ClientWorker::retrive_statistic() {
-  for (auto c : created_coordinators_) {
-    for (int i = 0; i < 6; i++)
-      cli2cli_[i].merge(c->cli2cli_[i]);
-    frequency_.merge(c->frequency_);
-    commit_time_.merge(c->commit_time_);
-#ifdef LATENCY_DEBUG
-    // Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
-    client2leader_.merge(c->client2leader_);
-    client2leader_send_.merge(c->client2leader_send_);
-    client2test_point_.merge(c->client2test_point_);
-#endif
-  }
+  verify(0); // No longer need since date are recorded directly to ClientWorker instead of Coordinator
+//   for (auto c : created_coordinators_) {
+//     for (int i = 0; i < 6; i++)
+//       cli2cli_[i].merge(c->cli2cli_[i]);
+//     frequency_.merge(c->frequency_);
+//     commit_time_.merge(c->commit_time_);
+// #ifdef LATENCY_DEBUG
+//     // Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
+//     client2leader_.merge(c->client2leader_);
+//     client2leader_send_.merge(c->client2leader_send_);
+//     client2test_point_.merge(c->client2test_point_);
+// #endif
+//   }
   // Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli_.pct50(), cli2cli_.pct90(), cli2cli_.pct99());
 }
 
