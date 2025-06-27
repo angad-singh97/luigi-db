@@ -98,12 +98,16 @@ class CurpPlusDataCol {
 
 class Distribution {
   double created_time_ = SimpleRWCommand::GetCurrentMsTime();
+  double recent_100_sum_ = 0;
   // bool pct_lock = false;
  public:
   vector<double> data_;
   void append(double x) {
     // if (pct_lock) return;
     data_.push_back(x);
+    recent_100_sum_ += x;
+    if (data_.size() > 100)
+      recent_100_sum_ -= data_[data_.size() - 101];
   }
   // only append if append_time is in mid 1/3 time (10~20s if duration is 30s)
   void mid_time_append(double x, double append_time) {
@@ -126,6 +130,12 @@ class Distribution {
   }
   size_t count() {
     return data_.size();
+  }
+  double recent_100_ave() { // only work when append only
+    if (data_.size() > 100)
+      return recent_100_sum_ / 100;
+    else
+      return recent_100_sum_ / data_.size();
   }
   double pct(double pct) {
     verify(pct >= 0.0 - 1e-6 && pct <= 100.0 + 1e-6);

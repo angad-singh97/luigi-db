@@ -71,7 +71,13 @@ class ClientWorker {
   // 3: all original path attempts (even slower than fast path), 2 RTTs
   // 4: efficient original path attempts (only faster than fast path, or fast path failed), 2 RTTs
   // 5: all efficient attempts (count all faster one) (should equals to category 1 merge category 3)
-  Distribution cli2cli_[6];
+
+  // All the following statistics count all duration
+  // 6: all fast path read attempts 
+  // 7: all fast path write attempts
+  // 8: all original path read attempts 
+  // 9: all original path write attempts
+  Distribution cli2cli_[10];
   Distribution commit_time_;
   Frequency frequency_;
 #ifdef LATENCY_DEBUG

@@ -47,6 +47,14 @@ void CoordinatorRule::GotoNextPhase() {
       fast_path_success_ = false;
       dispatch_ack_ = false;
 
+      // [Ze] Get cmds_by_par_ and sp_vec_piece_by_par_ in advance here since both original path and fastpath need this
+      cmds_by_par_ = ((TxData*) cmd_)->GetReadyPiecesData(100); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
+      for (auto& pair: cmds_by_par_) {
+        auto& cmds = pair.second;
+        if (cmds.size() > 0)
+          cmd_is_write_ = SimpleRWCommand(cmds[0]).IsWrite();
+      }
+
       if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
         // fixed percentage
         go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
@@ -59,13 +67,12 @@ void CoordinatorRule::GotoNextPhase() {
         // }
         // go_to_fastpath_ = true;
         // go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
-        go_to_fastpath_ = client_worker_->one_armed_bandit_.ConsultAttempt();
+        // go_to_fastpath_ = client_worker_->one_armed_bandit_.ConsultAttempt();
+        go_to_fastpath_ = client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave() < client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave();
       } else {
         verify(0);
       }
 
-      // [Ze] Get cmds_by_par_ and sp_vec_piece_by_par_ in advance here since both original path and fastpath need this
-      cmds_by_par_ = ((TxData*) cmd_)->GetReadyPiecesData(100); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
       sp_vec_piece_by_par_.clear();
       for (auto& pair: cmds_by_par_) {
         const parid_t& par_id = pair.first;
@@ -178,8 +185,10 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
   Log_info("%.2f BroadcastRuleSpeculativeExecute after wait <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
   // Log_info("[CURP] After Wait");
-  if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
+  if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
     client_worker_->cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+  }
+  client_worker_->cli2cli_[6+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   if (e->Yes()) {
     fast_path_success_ = true;
     if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)

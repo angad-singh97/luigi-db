@@ -21,6 +21,9 @@ class CoordinatorClassic : public Coordinator {
 	map<parid_t, SiteProxyPair> leaders;
   enum Phase { INIT_END = 0, DISPATCH = 1, PREPARE = 2, COMMIT = 3 };
 
+  // [Jetpack] For protocol like MongoDB which has read optimization, if batched cmd, only sample 1 (but MongoDB will not have this problem)
+  bool cmd_is_write_{false}; 
+
   // For latency test
   double dispatch_time_ = -1;
   // For mid 1/3 sampling
