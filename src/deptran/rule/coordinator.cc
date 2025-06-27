@@ -68,10 +68,12 @@ void CoordinatorRule::GotoNextPhase() {
         // go_to_fastpath_ = true;
         // go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
         // go_to_fastpath_ = client_worker_->one_armed_bandit_.ConsultAttempt();
-        go_to_fastpath_ = client_worker_->cli2cli_[6+cmd_is_write_].count() < 10 || client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave() < client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave();
+        go_to_fastpath_ = client_worker_->go_to_jetpack_fastpath_cnt_ < 10 || (client_worker_->cli2cli_[6+cmd_is_write_].count() > 0 && client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave() < client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave()) || client_worker_->one_armed_bandit_.ConsultAttempt();
+        // Log_info("client_worker_->go_to_jetpack_fastpath_cnt_ %d %d %.2f %.2f %d", client_worker_->go_to_jetpack_fastpath_cnt_, client_worker_->cli2cli_[6+cmd_is_write_].count(), client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave(), client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave(), client_worker_->one_armed_bandit_.ConsultAttempt());
       } else {
         verify(0);
       }
+      client_worker_->go_to_jetpack_fastpath_cnt_ += go_to_fastpath_;
 
       sp_vec_piece_by_par_.clear();
       for (auto& pair: cmds_by_par_) {
@@ -121,6 +123,8 @@ void CoordinatorRule::GotoNextPhase() {
           }
           client_worker_->cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         }
+        if (!fast_path_success_)
+          client_worker_->cli2cli_[8+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
         End();
       } else {
@@ -137,6 +141,7 @@ void CoordinatorRule::GotoNextPhase() {
         client_worker_->cli2cli_[4].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
         client_worker_->cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
+      client_worker_->cli2cli_[8+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
       // Log_info("End");
       End();
@@ -188,11 +193,11 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
   if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
     client_worker_->cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   }
-  client_worker_->cli2cli_[6+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   if (e->Yes()) {
     fast_path_success_ = true;
     if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000)
       client_worker_->cli2cli_[1].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
+    client_worker_->cli2cli_[6+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   } else if (e->No() || e->timeouted_) {
     fast_path_success_ = false;
   } else {

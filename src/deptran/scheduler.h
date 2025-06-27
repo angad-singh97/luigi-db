@@ -132,6 +132,8 @@ class Distribution {
     return data_.size();
   }
   double recent_100_ave() { // only work when append only
+    if (data_.size() == 0)
+      return 0;
     if (data_.size() > 100)
       return recent_100_sum_ / 100;
     else

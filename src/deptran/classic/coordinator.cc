@@ -437,7 +437,6 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
   if (dispatch_time > 0 && dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
     client_worker_->cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time);
   }
-  client_worker_->cli2cli_[8+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time);
   if (phase != phase_) return;
   auto* txn = (TxData*) cmd_;
   if (res == REJECT) {
