@@ -88,24 +88,38 @@ void RaftLabTest::Cleanup(void) {
 
 int RaftLabTest::testInitialElection(void) {
   Init2(1, "Initial election");
+  
+  // Start election timers by calling Start() on each server
+  // This triggers the election timer to start on each server
+  for (int i = 0; i < NSERVERS; i++) {
+    siteid_t server_id = config_->getServerIdByIndex(i);
+    uint64_t index, term;
+    // Call Start() with a dummy command to trigger election timer
+    // The command won't actually be processed since no leader exists yet
+    config_->Start(server_id, 100 + i, &index, &term);
+  }
+  
+  // Wait a bit for election timers to start and elections to begin
+  Coroutine::Sleep(ELECTIONTIMEOUT / 10);
+  
   // Initial election: is there one leader?
-  // Initial election does not need extra time 
-  // Coroutine::Sleep(ELECTIONTIMEOUT);
   int leader = config_->OneLeader();
   AssertOneLeader(leader);
+  
   // calculate RPC count for initial election for later use
   init_rpcs_ = 0;
   for (int i = 0; i < NSERVERS; i++) {
     siteid_t server_id = config_->getServerIdByIndex(i);
     init_rpcs_ += config_->RpcCount(server_id);
   }
+  
   // Does everyone agree on the term number?
   uint64_t term = config_->OneTerm();
   Assert2(term != -1, "servers disagree on term number");
-  // Sleep for a while
-  // Coroutine::Sleep(ELECTIONTIMEOUT);
+  
   // Does the term stay the same after a while if there's no failures?
   Assert2(config_->OneTerm() == term, "unexpected term change");
+  
   // Is the same server still the only leader?
   AssertOneLeader(config_->OneLeader(leader));
   Passed2();

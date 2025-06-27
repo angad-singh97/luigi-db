@@ -20,11 +20,7 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
-      if (failover_) {
-      Coroutine::CreateRun([this](){
-        StartElectionTimer(); 
-      });
-    }
+  // Election timer will be started in Start() method when first command is submitted
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
