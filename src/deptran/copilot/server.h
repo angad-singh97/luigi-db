@@ -132,6 +132,9 @@ class CopilotServer : public TxLogServer {
                 const uint64_t& slot,
                 const uint64_t& dep,
                 shared_ptr<Marshallable>& cmd);
+  
+  void Print(std::string log);
+  void Print();
  private:
   bool executeCmd(shared_ptr<CopilotData>& ins);
   bool executeCmds(shared_ptr<CopilotData>& ins);

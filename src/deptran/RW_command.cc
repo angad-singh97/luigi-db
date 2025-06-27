@@ -21,6 +21,7 @@ SimpleRWCommand::SimpleRWCommand(): Marshallable(MarshallDeputy::CMD_KV) {
 }
 
 SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(MarshallDeputy::CMD_KV) {
+  verify(cmd != nullptr);
   //Log_info("[copilot+] SimpleRWCommand created");
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece{nullptr};
   shared_ptr<TxPieceData> vector0;
@@ -42,6 +43,8 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
     vector0 = *(sp_vec_piece->begin());
   } else if (cmd->kind_ == MarshallDeputy::CONTAINER_CMD) {
     vector0 = dynamic_pointer_cast<TxPieceData>(cmd);
+  } else {
+    verify(0);
   }
   
   TxWorkspace tx_ws = vector0->input;

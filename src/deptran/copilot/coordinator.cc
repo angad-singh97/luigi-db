@@ -174,6 +174,8 @@ void CoordinatorCopilot::FastAccept() {
       coo_id_, par_id_, indicator[is_pilot_], slot_id_, dep_);
       // dynamic_pointer_cast<TpcCommitCommand>(cmd_now_)->tx_id_);
   begin = Time::now(true);
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd_now_);
+  // Log_info("FastAccept loc_id_=%d is_pilot_=%d slot_id_=%d cmd<%d, %d> dep_=%d", loc_id_, is_pilot_, slot_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, dep_);
   auto sq_quorum = commo()->BroadcastFastAccept(par_id_,
                                                 is_pilot_, slot_id_,
                                                 curr_ballot_,
@@ -246,6 +248,8 @@ void CoordinatorCopilot::Accept() {
       coo_id_, par_id_, indicator[is_pilot_], slot_id_, dep_);
 
   begin = Time::now(true);
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd_now_);
+  // Log_info("Accept loc_id_=%d is_pilot_=%d slot_id_=%d cmd<%d, %d> dep_=%d", loc_id_, is_pilot_, slot_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, dep_);
   auto sp_quorum = commo()->BroadcastAccept(par_id_,
                                             is_pilot_, slot_id_,
                                             curr_ballot_,
@@ -287,6 +291,8 @@ void CoordinatorCopilot::Commit() {
   Log_debug("Copilot coordinator %u broadcast COMMIT for partition: %d, %s : %lu -> %lu",
             coo_id_, (int)par_id_, indicator[is_pilot_], slot_id_, dep_);
 
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd_now_);
+  // Log_info("Commit loc_id_=%d is_pilot_=%d slot_id_=%d cmd<%d, %d> dep_=%d", loc_id_, is_pilot_, slot_id_, parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second, dep_);
   auto sp_quorum = commo()->BroadcastCommit(par_id_,
                                             is_pilot_, slot_id_,
                                             dep_,

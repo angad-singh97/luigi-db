@@ -272,7 +272,9 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("server %d [FAST_ACCEPT] %s : %lu -> %lu", id_,
             toString(is_pilot), slot, dep);
-
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " Start OnFastAccept is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
 #ifdef CURP_FULL_LOG_DEBUG
   Log_info("[CURP] cmd<%d, %d> entered site %d CopilotServer::OnFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
 #endif
@@ -316,6 +318,7 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
         Log_info("[CURP] cmd<%d, %d> entered site %d for j(%d) dep_id(%d)<slot(%d) thus set suggest_dep(%d) log_info.max_accepted_slot(%d)",
           SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, j, dep_id, slot, suggest_dep, log_info.max_accepted_slot);
 #endif
+        // Log_info("loc_id_=%d isPilot_=%d slot=%d j=%d dep_id=%d, dep_id!=0 && dep_id<slot suggest_dep(%d->%d)", loc_id_, isPilot_, slot, j, dep_id, suggest_dep, log_info.max_accepted_slot);
         suggest_dep = log_info.max_accepted_slot;
         Log_debug(
             "copilot server %d find imcompatiable dependence for %s : "
@@ -348,6 +351,8 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   gettimeofday(&tp, NULL);
   Log_info("[CURP] [2-] [tx=%d] Before on FastAccept cb() %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " After OnFastAccept is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
   if (cb) {
     pingpong_event_.Set(1);
     pingpong_ok_ = true;
@@ -367,6 +372,9 @@ void CopilotServer::OnAccept(const uint8_t& is_pilot,
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   Log_debug("server %d [ACCEPT     ] %s : %lu -> %lu", id_, toString(is_pilot), slot, dep);
 
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " Start OnAccept is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
   auto ins = GetInstance(slot, is_pilot);
   verify(ins);
   auto& log_info = log_infos_[is_pilot];
@@ -387,6 +395,8 @@ void CopilotServer::OnAccept(const uint8_t& is_pilot,
   }
 
   *max_ballot = ballot;
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " After OnAccept is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
   if (cb) {
     cb();
     WAN_WAIT;
@@ -398,6 +408,9 @@ void CopilotServer::OnCommit(const uint8_t& is_pilot,
                              const uint64_t& dep,
                              shared_ptr<Marshallable>& cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
+  // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " Start OnCommit is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
   Log_debug("server %d [COMMIT     ] %s : %ld -> %ld", id_, toString(is_pilot), slot, dep);
   auto ins = GetInstance(slot, is_pilot);
   log_infos_[is_pilot].current_slot = std::max(slot, log_infos_[is_pilot].current_slot);
@@ -473,7 +486,65 @@ void CopilotServer::OnCommit(const uint8_t& is_pilot,
     removeCmd(log_info, i++);
   }
   log_info.min_active_slot = i;
+  // Print("loc_id_ = " + std::to_string(loc_id_) + " After OnCommit is_pilot=" + std::to_string(is_pilot) +
+  //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
   // Log_info("server %d [COMMIT     ] %s : %ld -> %ld finish", id_, toString(is_pilot), slot, dep);
+}
+
+void CopilotServer::Print(std::string log) {
+  // Log_info("111");
+  std::ostringstream oss;
+  oss << "\n[at " << log << "] ";
+  oss << "isPilot_ " << isPilot_ << " ";
+  // Log_info("222");
+  for (int ispilot = 0; ispilot < 2; ispilot++) {
+    // Log_info("333 %d", ispilot);
+    oss << "\n[";
+    if (ispilot)
+      oss << " (ispilot) ";
+    else
+      oss << " (iscopilot) ";
+    // Log_info("444 size %d", log_infos_[ispilot].logs.size());
+    for (auto const& entry : log_infos_[ispilot].logs) {
+        auto const& key      = entry.first;
+        auto const& data_ptr = entry.second;
+        // Log_info("555 %d", key);
+        // if (data_ptr->cmd != nullptr) {
+        //   Log_info("cmd_type %d", data_ptr->cmd->kind_ == MarshallDeputy::CMD_TPC_BATCH);
+        //   SimpleRWCommand parsed_cmd = SimpleRWCommand(data_ptr->cmd);
+        // } else {
+        //   Log_info("nullptr");
+        // }
+        
+        // Log_info("666 %d", key);
+        // key is the map’s slotid_t; data_ptr is shared_ptr<CopilotData>
+        oss 
+          << " is_pilot=" << static_cast<int>(data_ptr->is_pilot)  // uint8_t → int for printing
+          // << " key=" << key // key is the same as slot id
+          << " slot_id=" << data_ptr->slot_id;
+
+        if (data_ptr->cmd != nullptr) {
+          // Log_info("cmd_type %d", data_ptr->cmd->kind_ == MarshallDeputy::CMD_TPC_BATCH);
+          SimpleRWCommand parsed_cmd = SimpleRWCommand(data_ptr->cmd);
+          oss << " cmd_id=<" << parsed_cmd.cmd_id_.first << ", " << parsed_cmd.cmd_id_.second << "> ";
+        } else {
+          // Log_info("nullptr");
+          oss << " cmd_id=nullptr";
+        }
+
+        oss
+          // << " cmd_id=" << static_cast<const void*>(data_ptr->cmd.get()) 
+          << " dep_id="   << data_ptr->dep_id
+          << "\n";
+    }
+    oss << "] ";
+  }
+  // Log_info("777");
+  Log_info("Copilot Server Status: %s\n", oss.str().c_str());
+}
+
+void CopilotServer::Print() {
+  Print("");
 }
 
 void CopilotServer::setIsPilot(bool isPilot) {
