@@ -68,7 +68,7 @@ void CoordinatorRule::GotoNextPhase() {
         // go_to_fastpath_ = true;
         // go_to_fastpath_ = Config::GetConfig()->replica_proto_ != MODE_MENCIUS || cpu_info[1] < 0.9;
         // go_to_fastpath_ = client_worker_->one_armed_bandit_.ConsultAttempt();
-        go_to_fastpath_ = client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave() < client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave();
+        go_to_fastpath_ = client_worker_->cli2cli_[6+cmd_is_write_].count() < 10 || client_worker_->cli2cli_[6+cmd_is_write_].recent_100_ave() < client_worker_->cli2cli_[8+cmd_is_write_].recent_100_ave();
       } else {
         verify(0);
       }
