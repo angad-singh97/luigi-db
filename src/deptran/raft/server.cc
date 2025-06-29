@@ -20,6 +20,20 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
+  #ifdef RAFT_TEST_CORO
+  if (heartbeat_) {
+		Log_debug("starting heartbeat loop at site %d", site_id_);
+    Coroutine::CreateRun([this](){
+      this->HeartbeatLoop(); 
+    });
+    // Start election timeout loop
+    if (failover_) {
+      Coroutine::CreateRun([this](){
+        StartElectionTimer(); 
+      });
+    }
+	}
+  #endif
   // Election timer will be started in Start() method when first command is submitted
 }
 
@@ -132,6 +146,8 @@ void RaftServer::HeartbeatLoop() {
     uint64_t term;
     {
       {
+      Coroutine::Sleep(HEARTBEAT_INTERVAL);
+
         // std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
         // if (ready_for_replication_ == nullptr)
           ready_for_replication_ = Reactor::CreateSpEvent<IntEvent>();
@@ -494,6 +510,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        ballot_t ballot) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
+  #ifndef RAFT_TEST_CORO
   if (!heartbeat_setup_) {
     heartbeat_setup_ = true;
     if (heartbeat_) {
@@ -509,6 +526,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
       }
     }
   }
+  #endif
   if (!IsLeader()) {
     *index = 0;
     *term = 0;

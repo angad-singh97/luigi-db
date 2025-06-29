@@ -127,28 +127,38 @@ uint64_t RaftTestConfig::OneTerm(void) {
 }
 
 int RaftTestConfig::NCommitted(uint64_t index) {
-  int cmd = -1;
-  int n = 0;
+  int cmd,n = 0;
+  Log_info("NCommitted: Checking how many servers committed index %ld", index);
   for (auto& pair : replicas) {
     auto svr = pair.first;
+    Log_info("NCommitted: Server %d has committed_cmds size %ld", svr, committed_cmds[svr].size());
     if (committed_cmds[svr].size() > index) {
       auto curcmd = committed_cmds[svr][index];
+      Log_info("NCommitted: Server %d committed command %d at index %ld", svr, curcmd, index);
       if (n == 0) {
         cmd = curcmd;
       } else {
         if (curcmd != cmd) {
+          Log_info("NCommitted: ERROR - Server %d committed %d but expected %d at index %ld", svr, curcmd, cmd, index);
           return -1;
         }
       }
       n++;
+    } else {
+      Log_info("NCommitted: Server %d has not committed index %ld (log size: %ld)", svr, index, committed_cmds[svr].size());
     }
   }
+  Log_info("NCommitted: %d servers committed index %ld with command %d", n, index, cmd);
   return n;
 }
 
 bool RaftTestConfig::Start(siteid_t svr, int cmd, uint64_t *index, uint64_t *term) {
   auto it = replicas.find(svr);
-  if (it == replicas.end()) return false;
+  if (it == replicas.end()) 
+  {
+    Log_error("Server %d not found in replicas map", svr);
+    return false;
+  }
   
   // Construct an empty TpcCommitCommand containing cmd as its tx_id_
   auto cmdptr = std::make_shared<TpcCommitCommand>();
@@ -158,8 +168,11 @@ bool RaftTestConfig::Start(siteid_t svr, int cmd, uint64_t *index, uint64_t *ter
   cmdptr->cmd_ = vpd_p;
   auto cmdptr_m = dynamic_pointer_cast<Marshallable>(cmdptr);
   // call Start()
-  Log_debug("Starting agreement on svr %d for cmd id %d", svr, cmdptr->tx_id_);
-  return it->second->svr_->Start(cmdptr_m, index, term);
+  Log_info("Start: Calling Start() on server %d for command %d", svr, cmd);
+  bool result = it->second->svr_->Start(cmdptr_m, index, term);
+  Log_info("Start: Server %d Start() for command %d returned %s, index=%ld, term=%ld", 
+           svr, cmd, result ? "SUCCESS" : "FAILED", *index, *term);
+  return result;
 }
 
 int RaftTestConfig::Wait(uint64_t index, int n, uint64_t term) {
@@ -193,61 +206,80 @@ int RaftTestConfig::Wait(uint64_t index, int n, uint64_t term) {
 }
 
 uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
-  Log_debug("Doing 1 round of Raft agreement");
+  Log_info("DoAgreement: Starting agreement for command %d, expecting %d servers, retry=%s", cmd, n, retry ? "true" : "false");
   auto start = chrono::steady_clock::now();
   while ((chrono::steady_clock::now() - start) < chrono::seconds{10}) {
-    Coroutine::Sleep(50000);
+    // Coroutine::Sleep(50000);
+    usleep(50000);
     // Call Start() to all servers until leader is found
     siteid_t ldr = -1;
     uint64_t index, term;
+    Log_info("DoAgreement: Trying to find leader for command %d", cmd);
     for (auto& pair : replicas) {
       auto svr = pair.first;
       auto frame = pair.second;
       // skip disconnected servers
-      if (frame->svr_->IsDisconnected())
+      if (frame->svr_->IsDisconnected()) {
+        Log_info("DoAgreement: Skipping disconnected server %d for command %d", svr, cmd);
         continue;
+      }
+      Log_info("DoAgreement: Attempting Start() on server %d for command %d", svr, cmd);
       if (Start(svr, cmd, &index, &term)) {
-        Log_debug("starting cmd ldr=%d cmd=%d index=%ld term=%ld", 
-            svr, cmd, index, term);
+        Log_info("DoAgreement: SUCCESS - found leader %d for command %d, index=%ld, term=%ld", svr, cmd, index, term);
         ldr = svr;
         break;
+      } else {
+        Log_info("DoAgreement: FAILED - server %d rejected Start() for command %d", svr, cmd);
       }
     }
     if (ldr != -1) {
       // If Start() successfully called, wait for agreement
+      Log_info("DoAgreement: Waiting for agreement on command %d at index %ld", cmd, index);
       auto start2 = chrono::steady_clock::now();
       int nc;
+      int iteration = 0;
       while ((chrono::steady_clock::now() - start2) < chrono::seconds{10}) {
         nc = NCommitted(index);
+        Log_info("DoAgreement: Iteration %d - NCommitted(%ld) returned %d for command %d", iteration++, index, nc, cmd);
         if (nc < 0) {
+          Log_info("DoAgreement: ERROR - NCommitted returned %d (values differ) for command %d at index %ld", nc, cmd, index);
           break;
         } else if (nc >= n) {
+          Log_info("DoAgreement: SUCCESS - %d servers committed index %ld for command %d", nc, index, cmd);
           for (auto& pair : replicas) {
             auto svr = pair.first;
             if (committed_cmds[svr].size() > index) {
-              Log_debug("found commit log");
+              Log_info("DoAgreement: Found commit log on server %d at index %ld", svr, index);
               auto cmd2 = committed_cmds[svr][index];
+              Log_info("DoAgreement: Server %d committed command %d at index %ld (expected %d)", svr, cmd2, index, cmd);
               if (cmd == cmd2) {
+                Log_info("DoAgreement: AGREEMENT REACHED - command %d successfully committed at index %ld", cmd, index);
                 return index;
+              } else {
+                Log_info("DoAgreement: COMMAND MISMATCH - expected %d, got %d at index %ld", cmd, cmd2, index);
+                break;
               }
-              break;
             }
           }
           break;
         }
-        Coroutine::Sleep(50000);
+        Log_info("DoAgreement: Waiting... only %d/%d servers committed index %ld for command %d", nc, n, index, cmd);
+        // Coroutine::Sleep(50000);
+        usleep(20000);
       }
-      Log_debug("%d committed server at index %d", nc, index);
+      Log_info("DoAgreement: Agreement wait loop ended - %d committed server at index %ld for command %d", nc, index, cmd);
       if (!retry) {
-          Log_debug("failed to reach agreement");
+          Log_info("DoAgreement: FAILED - no retry allowed for command %d", cmd);
           return 0;
         }
     } else {
       // If no leader found, sleep and retry.
-      Coroutine::Sleep(50000);
+      Log_info("DoAgreement: No leader found for command %d, sleeping and retrying", cmd);
+      // Coroutine::Sleep(50000)
+      usleep(50000);
     }
   }
-  Log_debug("Failed to reach agreement end");
+  Log_info("DoAgreement: FAILED - timeout reached for command %d", cmd);
   return 0;
 }
 
