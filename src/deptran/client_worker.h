@@ -79,7 +79,7 @@ class ClientWorker {
   // 9: all original path write attempts
   Distribution cli2cli_[10];
   int go_to_jetpack_fastpath_cnt_ = 0;
-  Distribution commit_time_;
+  vector<std::pair<double, double>> commit_time_; // <dispatch_time, duration>
   Frequency frequency_;
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;

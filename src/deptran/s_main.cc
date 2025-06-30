@@ -39,7 +39,7 @@ volatile double total_throughput = 0;
 // 5: all efficient attempts (count all faster one) (should equals to category 2 merge category 4)
 Distribution cli2cli[6];
 // commit_time for all (default 30s) duration
-Distribution commit_time;
+vector<std::pair<double, double>> commit_time; // <dispatch_time, duration>
 Frequency frequency;
 #ifdef LATENCY_DEBUG
   Distribution client2leader, client2leader_send, client2test_point;
@@ -225,7 +225,7 @@ void client_shutdown() {
     for (int i = 0; i < 6; i++)
       cli2cli[i].merge(client->cli2cli_[i]);
     frequency.merge(client->frequency_);
-    commit_time.merge(client->commit_time_);
+    commit_time.insert(commit_time.end(), client->commit_time_.begin(), client->commit_time_.end());
 #ifdef LATENCY_DEBUG
     client2leader.merge(client->client2leader_);
     client2test_point.merge(client->client2test_point_);
@@ -671,9 +671,13 @@ int main(int argc, char *argv[]) {
   if (!file.is_open()) {
     Log_info("Failed to open file for writing %s", dump_file_name.c_str());
   } else {
-    file << "All-fast-path-attempts" << "," << "Success-fast-path-attempts" << "," << "Efficient-fast-path-attempts" << "," << "All-original-path-attempts" << ","  << "Efficient-original-path-attempts" << ","  << "All-efficient-attempts" << "," << "Commit-Time" << "\n";
-    size_t max_size = commit_time.count();
-    commit_time.pct50();
+    file << "All-fast-path-attempts" << "," << "Success-fast-path-attempts" << "," << "Efficient-fast-path-attempts" << "," << "All-original-path-attempts" << ","  << "Efficient-original-path-attempts" << ","  << "All-efficient-attempts" << "," << "Start-Time" << "," << "End2End-Latency" << "\n";
+    size_t max_size = commit_time.size();
+    std::sort(commit_time.begin(),
+              commit_time.end(),
+              [](auto const& a, auto const& b) {
+                  return a.first < b.first;
+              });
     for (int i = 0; i < 6; i++)
       if (cli2cli[i].count() > max_size)
         max_size = cli2cli[i].count();
@@ -683,8 +687,11 @@ int main(int argc, char *argv[]) {
             file << cli2cli[k].data_[i];
           file << ",";
         }
-        if (i < commit_time.count())
-          file << commit_time.data_[i];
+        if (i < commit_time.size()) {
+          file << commit_time[i].first;
+          file << ",";
+          file << commit_time[i].second;
+        }
         file << "\n";
     }
     Log_info("Dumped to %s with %d lines data", dump_file_name.c_str(), max_size);

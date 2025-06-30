@@ -125,7 +125,7 @@ void CoordinatorRule::GotoNextPhase() {
         }
         if (!fast_path_success_)
           client_worker_->cli2cli_[8+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-        client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+        client_worker_->commit_time_.push_back(std::make_pair(dispatch_time_ - created_time_, SimpleRWCommand::GetCurrentMsTime() - dispatch_time_));
         End();
       } else {
         verify(phase_ % n_phase == Phase::WAITING_ORIGIN);
@@ -142,7 +142,7 @@ void CoordinatorRule::GotoNextPhase() {
         client_worker_->cli2cli_[5].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
       client_worker_->cli2cli_[8+cmd_is_write_].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
-      client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+      client_worker_->commit_time_.push_back(std::make_pair(dispatch_time_ - created_time_, SimpleRWCommand::GetCurrentMsTime() - dispatch_time_));
       // Log_info("End");
       End();
       break;

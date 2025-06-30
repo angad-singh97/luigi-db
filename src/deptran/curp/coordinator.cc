@@ -109,7 +109,7 @@ void CoordinatorCurp::GotoNextPhase() {
         else
           client_worker_->cli2cli_[3].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
       }
-      client_worker_->commit_time_.append(SimpleRWCommand::GetCurrentMsTime() - created_time_);
+      client_worker_->commit_time_.push_back(std::make_pair(dispatch_time_ - created_time_, SimpleRWCommand::GetCurrentMsTime() - dispatch_time_));
       End();
       break;
     default:
