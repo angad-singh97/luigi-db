@@ -14,7 +14,7 @@ int RaftLabTest::Run(void) {
   uint64_t start_rpc = config_->RpcTotal();
   Log_info("Beginning test sequence");
   if (testInitialElection()
-      // || TEST_EXPAND(testReElection())
+      || TEST_EXPAND(testReElection())
       || TEST_EXPAND(testBasicAgree())
       || TEST_EXPAND(testFailAgree())
       || TEST_EXPAND(testFailNoAgree())
@@ -75,10 +75,10 @@ void RaftLabTest::Cleanup(void) {
         Assert2(ret != -1, "waited too long for %d server(s) to commit index %ld", n, index); \
         Assert2(ret != -2, "term moved on before index %ld committed by %d server(s)", index, n)
 #define DoAgreeAndAssertIndex(cmd, n, index) { \
-        Log_info("DoAgreeAndAssertIndex: Starting agreement for command %d with %d servers, expected index %ld", cmd, n, index); \
+        /* Log_info("DoAgreeAndAssertIndex: Starting agreement for command %d with %d servers, expected index %ld", cmd, n, index); */ \
         auto r = config_->DoAgreement(cmd, n, false); \
         auto ind = index; \
-        Log_info("DoAgreeAndAssertIndex: DoAgreement returned %ld for command %d", r, cmd); \
+        /* Log_info("DoAgreeAndAssertIndex: DoAgreement returned %ld for command %d", r, cmd); */ \
         Assert2(r > 0, "failed to reach agreement for command %d among %d servers, expected commit index>0, got %" PRId64, cmd, n, r); \
         Assert2(r == ind, "agreement index incorrect. got %ld, expected %ld", r, ind); \
       }
@@ -126,14 +126,14 @@ int RaftLabTest::testInitialElection(void) {
   AssertOneLeader(config_->OneLeader(leader));
   
   // Log carryover context after test 1
-  Log_info("=== CARRYOVER CONTEXT AFTER TEST 1 (testInitialElection) ===");
-  Log_info("Current leader: %d", leader);
-  Log_info("Current term: %ld", term);
-  Log_info("init_rpcs_ value: %ld", init_rpcs_);
-  Log_info("index_ value: %ld", index_);
-  Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
-  Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
-  Log_info("==========================================================");
+  // Log_info("=== CARRYOVER CONTEXT AFTER TEST 1 (testInitialElection) ===");
+  // Log_info("Current leader: %d", leader);
+  // Log_info("Current term: %ld", term);
+  // Log_info("init_rpcs_ value: %ld", init_rpcs_);
+  // Log_info("index_ value: %ld", index_);
+  // Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
+  // Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
+  // Log_info("==========================================================");
   
   Passed2();
 }
@@ -222,16 +222,16 @@ int RaftLabTest::testReElection(void) {
   AssertOneLeader(config_->OneLeader());
   
   // Log carryover context after test 2
-  Log_info("=== CARRYOVER CONTEXT AFTER TEST 2 (testReElection) ===");
-  int final_leader = config_->OneLeader();
-  uint64_t final_term = config_->OneTerm();
-  Log_info("Current leader: %d", final_leader);
-  Log_info("Current term: %ld", final_term);
-  Log_info("init_rpcs_ value: %ld", init_rpcs_);
-  Log_info("index_ value: %ld", index_);
-  Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
-  Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
-  Log_info("==========================================================");
+  // Log_info("=== CARRYOVER CONTEXT AFTER TEST 2 (testReElection) ===");
+  // int final_leader = config_->OneLeader();
+  // uint64_t final_term = config_->OneTerm();
+  // Log_info("Current leader: %d", final_leader);
+  // Log_info("Current term: %ld", final_term);
+  // Log_info("init_rpcs_ value: %ld", init_rpcs_);
+  // Log_info("index_ value: %ld", index_);
+  // Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
+  // Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
+  // Log_info("==========================================================");
   
   Passed2();
 }
@@ -240,16 +240,16 @@ int RaftLabTest::testBasicAgree(void) {
   Init2(3, "Basic agreement");
   
   // Log carryover context at start of test 3
-  Log_info("=== CARRYOVER CONTEXT AT START OF TEST 3 (testBasicAgree) ===");
+  // Log_info("=== CARRYOVER CONTEXT AT START OF TEST 3 (testBasicAgree) ===");
   int current_leader = config_->OneLeader();
   uint64_t current_term = config_->OneTerm();
-  Log_info("Current leader: %d", current_leader);
-  Log_info("Current term: %ld", current_term);
-  Log_info("init_rpcs_ value: %ld", init_rpcs_);
-  Log_info("index_ value: %ld", index_);
-  Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
-  Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
-  Log_info("=============================================================");
+  // Log_info("Current leader: %d", current_leader);
+  // Log_info("Current term: %ld", current_term);
+  // Log_info("init_rpcs_ value: %ld", init_rpcs_);
+  // Log_info("index_ value: %ld", index_);
+  // Log_info("All servers connected: %s", config_->NDisconnected() == 0 ? "true" : "false");
+  // Log_info("Network reliable: %s", !config_->IsUnreliable() ? "true" : "false");
+  // Log_info("=============================================================");
   
   for (int i = 1; i <= 3; i++) {
     // make sure no commits exist before any agreements are started
@@ -257,11 +257,11 @@ int RaftLabTest::testBasicAgree(void) {
     // complete 1 agreement and make sure its index is as expected
     int temp_index = index_;
     int command_value = (int)(temp_index + 300);
-    Log_info("TEST 3: About to test agreement for command %d (iteration %d/3)", command_value, i);
-    Log_info("Starting Agreement for command %d", command_value);
+    // Log_info("TEST 3: About to test agreement for command %d (iteration %d/3)", command_value, i);
+    // Log_info("Starting Agreement for command %d", command_value);
     DoAgreeAndAssertIndex(command_value, NSERVERS, index_);
     index_++;
-    Log_info("Agreement for command %d completed", command_value);
+    // Log_info("Agreement for command %d completed", command_value);
   }
   Passed2();
 }

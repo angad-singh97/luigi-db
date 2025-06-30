@@ -146,8 +146,6 @@ void RaftServer::HeartbeatLoop() {
     uint64_t term;
     {
       {
-      Coroutine::Sleep(HEARTBEAT_INTERVAL);
-
         // std::lock_guard<std::recursive_mutex> lock(ready_for_replication_mtx_);
         // if (ready_for_replication_ == nullptr)
           ready_for_replication_ = Reactor::CreateSpEvent<IntEvent>();
@@ -247,7 +245,7 @@ void RaftServer::HeartbeatLoop() {
 #ifdef RAFT_BATCH_OPTIMIZATION
         vector<shared_ptr<TpcCommitCommand> > batch_buffer_;
         for (int idx = it->second; idx <= lastLogIndex; idx++) {
-          auto curInstance = GetRaftInstance(it->second);
+          auto curInstance = GetRaftInstance(idx);
           shared_ptr<TpcCommitCommand> curCmd = dynamic_pointer_cast<TpcCommitCommand>(curInstance->log_);
           curCmd->term = curInstance->term;
           batch_buffer_.push_back(curCmd);
@@ -328,12 +326,14 @@ void RaftServer::HeartbeatLoop() {
             verify(ret_last_log_index >= next_index);
             Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id, ret_last_log_index, next_index, match_index);
-            match_index = next_index;
-            // Log_info("About to update next_index %d to %d", next_index, ret_last_log_index + 1);
 #ifndef RAFT_BATCH_OPTIMIZATION
+            match_index = next_index;
             next_index++;
 #endif
 #ifdef RAFT_BATCH_OPTIMIZATION
+            // For batch optimization, match_index should be updated to the last index in the batch
+            // which is ret_last_log_index, not next_index
+            match_index = ret_last_log_index;
             next_index = ret_last_log_index + 1;
 #endif
             Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
@@ -583,7 +583,6 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
         auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
         int cnt = 0;
         for (shared_ptr<TpcCommitCommand>& c: cmds->cmds_) {
-          // SimpleRWCommand parsed_cmd = SimpleRWCommand(c);
           cnt++;
           lastLogIndex = leaderPrevLogIndex + cnt;
           auto instance = GetRaftInstance(lastLogIndex);
