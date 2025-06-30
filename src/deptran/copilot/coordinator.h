@@ -6,7 +6,7 @@
 
 namespace janus {
 
-const uint64_t takeover_timeout_us = 15000 * 1000;  // TODO: what to set here? // [JetPack] * 1000 for latency case
+const uint64_t takeover_timeout_us = 600000;  // TODO: what to set here? // old Copilot number is 15000
 const uint64_t finalize_timeout_us = 200000;
 
 class CopilotCommo;
