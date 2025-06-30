@@ -169,19 +169,19 @@ class Distribution {
   }
   string statistics() {
     std::ostringstream oss;
-    oss << std::setw(7) << "count" << std::setw(7) << count();
-    oss << std::setw(7) << " 0pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.0);
-    oss << std::setw(7) << "50pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.5);
-    oss << std::setw(7) << "90pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.9);
-    oss << std::setw(7) << "99pct" << std::setw(7) << std::fixed << std::setprecision(2) << pct(0.99);
-    oss << std::setw(7) << "  ave" << std::setw(7) << std::fixed << std::setprecision(2) << ave();
+    oss << std::setw(7) << "count" << std::setw(9) << count();
+    oss << std::setw(7) << " 0pct" << std::setw(9) << std::fixed << std::setprecision(2) << pct(0.0);
+    oss << std::setw(7) << "50pct" << std::setw(9) << std::fixed << std::setprecision(2) << pct(0.5);
+    oss << std::setw(7) << "90pct" << std::setw(9) << std::fixed << std::setprecision(2) << pct(0.9);
+    oss << std::setw(7) << "99pct" << std::setw(9) << std::fixed << std::setprecision(2) << pct(0.99);
+    oss << std::setw(7) << "  ave" << std::setw(9) << std::fixed << std::setprecision(2) << ave();
     return oss.str();
   }
   string distribution() {
     std::ostringstream oss;
     for (int i = 0; i <= 100; i += 10) {
       // oss << i << "pct ";
-      oss << std::setw(7) << std::fixed << std::setprecision(2) << pct(i / 100.0);
+      oss << std::setw(9) << std::fixed << std::setprecision(2) << pct(i / 100.0);
     }
     return oss.str();
   }
