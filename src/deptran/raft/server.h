@@ -34,7 +34,11 @@ struct KeyValue {
 	i32 value;
 };
 
+#ifdef RAFT_TEST_CORO
+#define HEARTBEAT_INTERVAL 100000
+#else
 #define HEARTBEAT_INTERVAL 5000
+#endif
 
 class RaftServer : public TxLogServer {
  private:

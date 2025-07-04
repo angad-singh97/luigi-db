@@ -173,6 +173,9 @@ namespace janus {
 // #define RAFT_LEADER_ELECTION_LOGIC
 // #define RAFT_LEADER_ELECTION_DEBUG
 
+// #ifndef RAFT_TEST_CORO   
+// #define RAFT_BATCH_OPTIMIZATION
+// #endif
 
 #define RAFT_BATCH_OPTIMIZATION
 

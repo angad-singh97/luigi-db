@@ -58,6 +58,8 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('', '--skip-txn-server', dest='skip_txn_server',
                    default=False, action='store_true')
+    opt.add_option('','--enable-raft-test',dest='enable_raft_test',
+                   default=False, action='store_true')
     # opt.add_option('', '--curp-fast-path', dest='curp_fast_path',
     #                default=False, action='store_true')
     opt.parse_args();
@@ -80,6 +82,7 @@ def configure(conf):
     _enable_piece_count(conf)
     _enable_txn_count(conf)
     _enable_conflict_count(conf)
+    _enable_raft_test(conf)
 #    _enable_snappy(conf)
     #_enable_logging(conf)
     _enable_reuse_coroutine(conf)
@@ -183,7 +186,7 @@ def build(bld):
     bld.objects(source=bld.path.ant_glob("src/deptran/*.cc "
                                        "src/deptran/*/*.cc "
                                        "src/bench/*/*.cc",
-                                       excl=['src/deptran/s_main.cc', 'src/deptran/paxos_main_helper.cc']),
+                                       excl=['src/deptran/s_main.cc', 'src/deptran/paxos_main_helper.cc','src/deptran/lab_solution_raft/*.cc']),
               target="deptran_objects",
               includes="src src/rrr src/deptran ",
               uselib="YAML-CPP BOOST",
@@ -216,6 +219,12 @@ def post(conf):
 #
 # waf helper functions
 #
+
+def _enable_raft_test(conf):
+    if Options.options.enable_raft_test:
+        Logs.pprint("PINK", "Raft lab testing coroutine enabled")
+        conf.env.append_value("CXXFLAGS", "-DRAFT_TEST_CORO")
+
 def _choose_compiler(conf):
     # use clang++ as default compiler (for c++11 support on mac)
     if Options.options.cxx:
@@ -368,4 +377,3 @@ def _depend(target, source, action):
 def _run_cmd(cmd):
     Logs.pprint('PINK', cmd)
     os.system(cmd)
-

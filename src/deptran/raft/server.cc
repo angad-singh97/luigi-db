@@ -1,5 +1,3 @@
-
-
 #include "server.h"
 // #include "paxos_worker.h"
 #include "exec.h"
@@ -22,6 +20,21 @@ RaftServer::RaftServer(Frame * frame) {
 }
 
 void RaftServer::Setup() {
+  #ifdef RAFT_TEST_CORO
+  if (heartbeat_) {
+		Log_debug("starting heartbeat loop at site %d", site_id_);
+    Coroutine::CreateRun([this](){
+      this->HeartbeatLoop(); 
+    });
+    // Start election timeout loop
+    if (failover_) {
+      Coroutine::CreateRun([this](){
+        StartElectionTimer(); 
+      });
+    }
+	}
+  #endif
+  // Election timer will be started in Start() method when first command is submitted
 }
 
 void RaftServer::Disconnect(const bool disconnect) {
@@ -88,15 +101,15 @@ void RaftServer::applyLogs() {
     return;
   }
   in_applying_logs_ = true;
+  
   for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
-      auto next_instance = GetRaftInstance(id);
-      if (next_instance->log_) {
-          Log_debug("raft par:%d loc:%d executed slot %lx now", partition_id_, loc_id_, id);
-          app_next_(*next_instance->log_);
-          executeIndex++;
-      } else {
-          break;
-      }
+    auto next_instance = GetRaftInstance(id);
+    if (next_instance && next_instance->log_) {
+      app_next_(*next_instance->log_);
+      executeIndex = id;
+    } else {
+      break;
+    }
   }
 
   in_applying_logs_ = false;
@@ -177,7 +190,7 @@ void RaftServer::HeartbeatLoop() {
         uint64_t t2 = Time::now();
         if (ttt+1000000 < t2) {
           ttt = t2;
-          Log_debug("heartbeat from site: %d", site_id_);
+          Log_debug("heartbeat from site: %d", site_id);
           // Log_info("site %d in heartbeat_loop, not leader", site_id_);
         }
         mtx_.lock();
@@ -192,8 +205,7 @@ void RaftServer::HeartbeatLoop() {
         // only update commitIndex if the entry at new index was replicated in the current term
         uint64_t newCommitIndex = matchedIndices[(nservers - 1) / 2];
         verify(newCommitIndex <= lastLogIndex);
-        if (newCommitIndex > commitIndex
-            && (GetRaftInstance(newCommitIndex)->term == currentTerm)) {
+        if (newCommitIndex > commitIndex && (GetRaftInstance(newCommitIndex)->term == currentTerm)) {
           Log_debug("newCommitIndex %d", newCommitIndex);
           commitIndex = newCommitIndex;
         }
@@ -233,7 +245,7 @@ void RaftServer::HeartbeatLoop() {
 #ifdef RAFT_BATCH_OPTIMIZATION
         vector<shared_ptr<TpcCommitCommand> > batch_buffer_;
         for (int idx = it->second; idx <= lastLogIndex; idx++) {
-          auto curInstance = GetRaftInstance(it->second);
+          auto curInstance = GetRaftInstance(idx);
           shared_ptr<TpcCommitCommand> curCmd = dynamic_pointer_cast<TpcCommitCommand>(curInstance->log_);
           curCmd->term = curInstance->term;
           batch_buffer_.push_back(curCmd);
@@ -279,17 +291,19 @@ void RaftServer::HeartbeatLoop() {
         } else if (ret_status == 0 && ret_term > term) {
           // case 1: AppendEntries rejected because leader's term is expired
           if (currentTerm == term) {
-            Log_debug("case 1: %d setting leader=false and currentTerm=%ld (received from %d)", loc_id_, ret_term, site_id);
+            // Log_debug("case 1: %d setting leader=false and currentTerm=%ld (received from %d)", loc_id_, ret_term, site_id);
             setIsLeader(false); // TODO problem here. When Raft requests votes, should it increase its term before sending requestvote?
             currentTerm = ret_term;
           }
         } else if (ret_status == 0) {
-          // case 2: AppendEntries rejected because log doesn’t contain an
+          // case 2: AppendEntries rejected because log doesn't contain an
           // entry at prevLogIndex whose term matches prevLogTerm
-          // if (currentTerm > term)
-          //   break;
           Log_debug("case 2: decrementing nextIndex (%ld)", next_index);
-          next_index--; // todo: better backup
+          if (next_index > 1) {
+            next_index--; // todo: better backup
+          } else {
+            next_index = 1;
+          }
         } else {
           // case 3: AppendEntries accepted
           verify(ret_status == true);
@@ -312,12 +326,14 @@ void RaftServer::HeartbeatLoop() {
             verify(ret_last_log_index >= next_index);
             Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id, ret_last_log_index, next_index, match_index);
-            match_index = next_index;
-            // Log_info("About to update next_index %d to %d", next_index, ret_last_log_index + 1);
 #ifndef RAFT_BATCH_OPTIMIZATION
+            match_index = next_index;
             next_index++;
 #endif
 #ifdef RAFT_BATCH_OPTIMIZATION
+            // For batch optimization, match_index should be updated to the last index in the batch
+            // which is ret_last_log_index, not next_index
+            match_index = ret_last_log_index;
             next_index = ret_last_log_index + 1;
 #endif
             Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
@@ -494,6 +510,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        ballot_t ballot) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
+  #ifndef RAFT_TEST_CORO
   if (!heartbeat_setup_) {
     heartbeat_setup_ = true;
     if (heartbeat_) {
@@ -509,6 +526,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
       }
     }
   }
+  #endif
   if (!IsLeader()) {
     *index = 0;
     *term = 0;
@@ -565,7 +583,6 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
         auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
         int cnt = 0;
         for (shared_ptr<TpcCommitCommand>& c: cmds->cmds_) {
-          // SimpleRWCommand parsed_cmd = SimpleRWCommand(c);
           cnt++;
           lastLogIndex = leaderPrevLogIndex + cnt;
           auto instance = GetRaftInstance(lastLogIndex);

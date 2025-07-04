@@ -7,7 +7,7 @@
 #include "service.h"
 #include "commo.h"
 #include "config.h"
-// #include "test.h"
+#include "test.h"
 // #include "../kv/server.h"
 
 namespace janus {
@@ -40,23 +40,25 @@ struct foo : automatic_register<foo> {
 };*/
 
 RaftFrame::RaftFrame(int mode) : Frame(mode) {
-
+  
 }
 
 #ifdef RAFT_TEST_CORO
-std::recursive_mutex RaftFrame::raft_test_mutex_;
+std::mutex RaftFrame::raft_test_mutex_;
 std::shared_ptr<Coroutine> RaftFrame::raft_test_coro_ = nullptr;
 uint16_t RaftFrame::n_replicas_ = 0;
 map<siteid_t, RaftFrame*> RaftFrame::frames_ = {};
 bool RaftFrame::all_sites_created_s = false;
-// uint16_t RaftFrame::n_commo_ = 0;
 bool RaftFrame::tests_done_ = false;
+uint16_t RaftFrame::n_commo_created_ = 0;
 #endif
 
-// Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
-//   Executor *exec = new RaftExecutor(cmd_id, sched);
-//   return exec;
-// }
+
+
+Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
+  Executor *exec = new RaftExecutor(cmd_id, sched);
+  return exec;
+}
 
 Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
                                                 Config *config,
@@ -98,86 +100,95 @@ TxLogServer *RaftFrame::CreateScheduler() {
 
 #ifdef RAFT_TEST_CORO
   raft_test_mutex_.lock();
-  // verify(n_replicas_ < 5);
-  const auto& site_id = this->site_info_->id;
-  frames_[site_id] = this;
-  int n_sites = 5;
-  if (Config::GetConfig()->yaml_config_["lab"]["shard"].as<bool>()) {
-    int n_partitions = Config::GetConfig()->GetNumPartition();
-    verify(n_partitions==2);
-    n_sites = 5*n_partitions; 
-  }
-  if (frames_.size() == n_sites) {
-    all_sites_created_s = true;
-  }
+  verify(n_replicas_ < 5);
+  frames_[this->site_info_->locale_id] = this;
+  n_replicas_++;
   raft_test_mutex_.unlock();
 #endif
 
   return svr_ ;
 }
 
+
+// Make = sure that this function is a coroutine function
+// and it is called from a coroutine context.
 Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
   // clients of this method.
+  Log_info("CreateCommo: Thread ID = %lu", std::this_thread::get_id());
+  Log_info("CreateCommo: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
   if (commo_ == nullptr) {
+    Log_info("CreateCommo: Creating new RaftCommo");
     commo_ = new RaftCommo(poll);
   }
 
   #ifdef RAFT_TEST_CORO
+  Log_info("CreateCommo: RAFT_TEST_CORO enabled");
   raft_test_mutex_.lock();
-  // verify(n_replicas_ == 5);
-  // for (int i = 0; i < 5; i++) {
-  //   if (frames_[i] == this) {
-  //     // verify(n_commo_ < 5);
-  //     // n_commo_++;
-  //     break;
-  //   }
-  // }
+  Log_info("CreateCommo: n_replicas_ = %d, n_commo_ = %d", n_replicas_, n_commo_created_);
+  
+  // Simple verification: ensure all 5 schedulers are created
+  verify(n_replicas_ == 5);
+  
+  // Simple counter increment: track communicator creation
+  // Find this frame in the map and increment counter
+  bool found = false;
+  for (const auto& pair : frames_) {
+    if (pair.second == this) {
+      found = true;
+      break;
+    }
+  }
+  verify(found); // This frame should exist in frames_
+  
+  // Use a simple counter approach like lab solution
+  n_commo_created_++;
+  Log_info("CreateCommo: n_commo_ now = %d", n_commo_created_);
   raft_test_mutex_.unlock();
 
-  if (site_info_->id == 0) {
+  // Only site 0 creates and manages the test coroutine
+  if (site_info_->locale_id == 0) {
+    Log_info("CreateCommo: About to create test coroutine");
     verify(raft_test_coro_.get() == nullptr);
-    Log_debug("Creating Raft test coroutine");
+    Log_info("Creating Raft test coroutine");
+    
     raft_test_coro_ = Coroutine::CreateRun([this] () {
-      // Yield until all communicators are initialized
+      Log_info("Test coroutine: Starting execution");
+      Log_info("Test coroutine: Thread ID = %lu", std::this_thread::get_id());
+      Log_info("Test coroutine: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
+      
+      // Yield until all 5 communicators are initialized
+      Log_info("Test coroutine: About to yield");
       Coroutine::CurrentCoroutine()->Yield();
+      Log_info("Test coroutine: Resumed after yield");
+      
       // Run tests
-      verify(RaftFrame::all_sites_created_s);
+      verify(n_replicas_ == 5);
       auto testconfig = new RaftTestConfig(frames_);
       RaftLabTest test(testconfig);
-      test.kv_svr_ = this->kv_svr_;
-      test.sm_svr_ = this->sm_svr_;
-      verify(test.kv_svr_!= nullptr || test.sm_svr_ != nullptr);
       test.Run();
       test.Cleanup();
+      Log_info("Test coroutine: Tests completed, turning off reactor loop");
       // Turn off Reactor loop
       Reactor::GetReactor()->looping_ = false;
       return;
     });
     Log_info("raft_test_coro_ id=%d", raft_test_coro_->id);
-    // wait until n_commo_ == 5, then resume the coroutine
+    
+    // wait until n_commo_created_ == 5, then resume the coroutine
     raft_test_mutex_.lock();
-    while (!RaftFrame::all_sites_created_s) {
+    while (n_commo_created_ < 5) {
       raft_test_mutex_.unlock();
       sleep(0.1);
       raft_test_mutex_.lock();
-    } 
-    // wait until all comms are set 
-    auto& frames = RaftFrame::frames_;
-    for (auto& pair : frames) {
-      auto& f= pair.second;
-      while (f->commo_ == nullptr) {
-        raft_test_mutex_.unlock();
-        sleep(0.1);
-        raft_test_mutex_.lock();
-      }
-    } 
+    }
     raft_test_mutex_.unlock();
     Reactor::GetReactor()->ContinueCoro(raft_test_coro_);
   }
   #endif
 
+  Log_info("CreateCommo: Returning commo_ = %p", commo_);
   return commo_;
 }
 
