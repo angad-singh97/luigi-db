@@ -51,164 +51,6 @@ value_t RuleSpeculativeExecuteQuorumEvent::GetResult() {
 
 /************************RULE end*********************************/
 
-/************************CURP begin*********************************/
-
-int CurpMaxFailure(int total) {
-  return (total - 1) / 2;
-}
-
-int CurpFastQuorumSize(int total) {
-  return CurpMaxFailure(total) + (CurpMaxFailure(total) + 1) / 2 + 1;
-}
-
-int CurpQuorumSize(int total) {
-  return total - CurpMaxFailure(total);
-}
-
-int CurpSmallQuorumSize(int total) {
-  return (CurpMaxFailure(total) + 1) / 2 + 1;
-}
-
-void CurpDispatchQuorumEvent::FeedResponse(bool_t accepted, ver_t ver, value_t result, int32_t finish_countdown, int32_t key_hotness, siteid_t coo_id) {
-  // Log_info("[copilot+] CurpDispatchQuorumEvent FeedResponse accepted=%d i=%d j=%d ballot=%d", accepted, pos[0], pos[1], ballot);
-  coo_id_vec_.push_back(coo_id);
-
-  finish_countdown_ = max(finish_countdown_, finish_countdown);
-  key_hotness_ = max(key_hotness_, key_hotness);
-  if (accepted) {
-    VoteYes();
-    responses_.push_back(ResponsePack{ver, result});
-  }
-  else
-    VoteNo();
-}
-
-bool CurpDispatchQuorumEvent::FastYes() {
-  if (n_voted_yes_ < CurpFastQuorumSize(n_total_)) return false;
-  // if (response_.size() == 0) return false;
-  int max_len = FindMax();
-  // Log_info("[copilot+] FastYes max_len=%d, CurpFastQuorumSize=%d judgement=%d", max_len, CurpFastQuorumSize(n_total_), max_len >= CurpFastQuorumSize(n_total_));
-  // tmp1 = max_len;
-  // tmp2 = CurpFastQuorumSize(n_total_);
-  return max_len >= CurpFastQuorumSize(n_total_);
-}
-
-bool CurpDispatchQuorumEvent::FastNo() {
-  // [CURP] TODO: rm below one line
-  if (n_voted_yes_ + n_voted_no_ < CurpFastQuorumSize(n_total_)) return false;
-  int max_len = FindMax();
-  // Log_info("[copilot+] FastNo max_possible=%d, CurpFastQuorumSize=%d judgement=%d", max_len + (n_total_ - n_voted_yes_ - n_voted_no_), CurpFastQuorumSize(n_total_), max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < CurpFastQuorumSize(n_total_));
-  // tmp1 = max_len + (n_total_ - n_voted_yes_ - n_voted_no_);
-  // tmp2 = CurpFastQuorumSize(n_total_);
-  return max_len + (n_total_ - n_voted_yes_ - n_voted_no_) < CurpFastQuorumSize(n_total_);
-}
-
-bool CurpDispatchQuorumEvent::IsReady() {
-  // Log_info("CurpDispatchQuorumEvent::IsReady");
-  if (timeouted_) {
-    // judgement_ = 0;
-    // Log_info("[copilot+] timeouted_ ready");
-    return true;
-  }
-  if (FastYes()) {
-    // judgement_ = 1;
-    // Log_info("[copilot+] FastYes ready");
-    return true;
-  } else if (FastNo()) {
-    // judgement_ = 2;
-    // Log_info("[copilot+] FastNo ready");
-    return true;
-  }
-  return false;
-}
-
-siteid_t CurpDispatchQuorumEvent::GetCooId() {
-  
-  int max_len, max_value, cur_len;
-  for (int i = 0; i < coo_id_vec_.size(); i++) {
-    if (i == 0) {
-      max_value = coo_id_vec_[i];
-      max_len = cur_len = 1;
-    } else if (coo_id_vec_[i] == coo_id_vec_[i - 1]) {
-      if (++cur_len > max_len) {
-        max_value = coo_id_vec_[i];
-        max_len = cur_len;
-      } else {
-        cur_len = 1;
-      }
-    }
-  }
-  // [CURP] TODO: How much of max_len is enough?
-  return max_value;
-}
-
-
-void CurpPrepareQuorumEvent::FeedResponse(bool y,
-                                          int status,
-                                          ballot_t last_accepted_ballot,
-                                          MarshallDeputy md_cmd) {
-  count_++;
-  // max_seen_ballot_ = max(max_seen_ballot_, max_seen_ballot);
-  shared_ptr<Marshallable> cmd = md_cmd.sp_data_;
-  shared_ptr<SimpleRWCommand> parsed_cmd = make_shared<SimpleRWCommand>(cmd);
-  if (status == CurpPlusData::CurpPlusStatus::COMMITTED || status == CurpPlusData::CurpPlusStatus::EXECUTED) {
-    committed_cmd_ = cmd;
-  }
-  if (y) {
-    pair<int, int> cmd_id = parsed_cmd->cmd_id_;
-    if (status == CurpPlusData::CurpPlusStatus::ACCEPTED) {
-      accepted_count_++;
-      if (last_accepted_ballot > max_last_accepted_ballot_) {
-        max_last_accepted_ballot_ = last_accepted_ballot;
-        to_accept_cmd_ = cmd;
-      }
-    } else if (status == CurpPlusData::CurpPlusStatus::PREACCEPT) {
-      fast_accept_[cmd_id].first++;
-      fast_accept_[cmd_id].second = cmd;
-      if (fast_accept_[cmd_id].first > max_fast_accept_count_) {
-        max_fast_accept_count_ = fast_accept_[cmd_id].first;
-#ifdef CURP_REPEAR_COMMIT_DEBUG
-        Log_info("FeedResponse [%s] max_fast_accept_count_ updated to %d", parsed_cmd->cmd_to_string().c_str(), max_fast_accept_count_);
-#endif
-        max_fast_accept_id_ = cmd_id;
-      }
-    } else {
-      // Do nothing
-    }
-    VoteYes();
-  } else {
-    VoteNo();
-  }
-}
-
-bool CurpPrepareQuorumEvent::CommitYes() {
-  return committed_cmd_ != nullptr;
-}
-
-bool CurpPrepareQuorumEvent::AcceptYes() {
-  return Yes() && accepted_count_ > 0;
-}
-
-bool CurpPrepareQuorumEvent::FastAcceptYes() {
-  return Yes() && max_fast_accept_count_ >= CurpSmallQuorumSize(n_total_);
-}
-
-bool CurpPrepareQuorumEvent::IsReady() {
-  return timeouted_ || CommitYes() || AcceptYes() || FastAcceptYes() || Yes();
-}
-
-void CurpAcceptQuorumEvent::FeedResponse(bool y, ballot_t seen_ballot) {
-  max_seen_ballot_ = max(max_seen_ballot_, seen_ballot);
-  if (y)
-    VoteYes();
-  else
-    VoteNo();
-}
-
-
-/************************CURP end*********************************/
-
-
 uint64_t Communicator::global_id = 0;
 
 Communicator::Communicator(PollMgr* poll_mgr) {
@@ -491,7 +333,7 @@ void Communicator::BroadcastDispatch(
       };
   
   std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
-  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS) {
     // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
     // If not, round-robin with all proposors.
     auto server_infos = Config::GetConfig()->GetMyServers();
@@ -522,22 +364,16 @@ void Communicator::BroadcastDispatch(
 	DepId di;
 	di.str = "dep";
 	di.id = Communicator::global_id++;
-  
-#ifdef CURP_TIME_DEBUG
-  struct timeval tp;
-  gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
 
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[Jetpack] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
   WAN_WAIT;
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
+#ifdef FULL_LOG_DEBUG
+  Log_info("[Jetpack] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif
 #ifdef LATENCY_LOG_DEBUG
   Log_info("!!!!!!!! Before proxy->async_Dispatch(cmd_id, di, md, fuattr);");
@@ -557,7 +393,7 @@ void Communicator::SyncBroadcastDispatch(
   auto par_id = sp_vec_piece->at(0)->PartitionId();
   
   std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
-  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+  if (Config::GetConfig()->replica_proto_==MODE_MENCIUS) {
     // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
     // If not, round-robin with all proposors.
     auto server_infos = Config::GetConfig()->GetMyServers();
@@ -588,22 +424,16 @@ void Communicator::SyncBroadcastDispatch(
 	DepId di;
 	di.str = "dep";
 	di.id = Communicator::global_id++;
-  
-#ifdef CURP_TIME_DEBUG
-  struct timeval tp;
-  gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
 
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[Jetpack] [C-] BroadcastDispatch at Communicator %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
   WAN_WAIT;
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
+#ifdef FULL_LOG_DEBUG
+  Log_info("[Jetpack] cmd<%d, %d> before async_Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif
   int32_t ret;
   TxnOutput outputs;
@@ -1369,261 +1199,5 @@ void Communicator::SendSimpleCmd(groupid_t gid, SimpleCommand& cmd,
   Future::safe_release(proxy->async_SimpleCmd(cmd, fuattr));
 }
 
-// below are about CURP
-
-// [CURP] TODO: Haven't consider partition
-shared_ptr<CurpDispatchQuorumEvent>
-Communicator::CurpBroadcastDispatch(shared_ptr<Marshallable> cmd) {
-  // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  // VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-  shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = dynamic_pointer_cast<VecPieceData>(cmd)->sp_vec_piece_data_;
-  verify(!sp_vec_piece->empty());
-  auto par_id = sp_vec_piece->at(0)->PartitionId();
-  
-  MarshallDeputy md(cmd);
-
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpDispatchQuorumEvent>(n, CurpQuorumSize(n));
-  WAN_WAIT;
-  for (auto& pair : rpc_par_proxies_[par_id]) {
-    rrr::FutureAttr fuattr;
-    fuattr.callback =
-        [e, this](Future* fu) {
-          if (fu->get_error_code() != 0) {
-            Log_info("Get a error message in reply");
-            return;
-          }
-          bool_t accepted;
-          ver_t ver;
-          value_t result;
-          int32_t finish_countdown;
-          int32_t key_hotness;
-          siteid_t coo_id;
-          fu->get_reply() >> accepted >> ver >> result >> finish_countdown >> key_hotness >> coo_id;
-          e->FeedResponse(accepted, ver, result, finish_countdown, key_hotness, coo_id);
-        };
-    
-    DepId di;
-    di.str = "dep";
-    di.id = Communicator::global_id++;
-    
-    auto proxy = (CurpProxy *)pair.second;
-
-#ifdef CURP_TIME_DEBUG
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    Log_info("[CURP] [1-] [tx=%d] async_PoorDispatch called by Submit %.3f", tpc_cmd->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
-    // Record Time
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    dynamic_pointer_cast<VecPieceData>(cmd)->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
-    
-    // Log_info("[CURP] async_CurpPoorDispatch of cmd<%d, %d>", sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_);
-    auto future = proxy->async_CurpDispatch(sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_, md, fuattr);
-    Future::safe_release(future);
-  }
-
-  e->Wait();
-
-  return e;
-}
-
-// shared_ptr<IntEvent>
-// Communicator::OriginalDispatch(shared_ptr<Marshallable> cmd, siteid_t target_site, i64 dep_id) {
-//   shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-//   VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-//   shared_ptr<vector<shared_ptr<TxPieceData>>> sp_vec_piece = cmd_cast->sp_vec_piece_data_;
-//   verify(!sp_vec_piece->empty());
-//   auto par_id = sp_vec_piece->at(0)->PartitionId();
-  
-//   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
-//   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
-//   MarshallDeputy md(cmd);
-
-//   auto e = Reactor::CreateSpEvent<IntEvent>();
-//   for (auto& pair : rpc_par_proxies_[par_id]) 
-//     if (pair.first == target_site) {
-//       rrr::FutureAttr fuattr;
-//       fuattr.callback =
-//           [e, this](Future* fu) {
-//             bool_t slow;
-//             fu->get_reply() >> slow;
-//             this->slow = slow;
-//             e->Set(1);
-//           };
-      
-//       auto proxy = (CurpProxy *)pair.second;
-
-//       auto future = proxy->async_OriginalSubmit(md, dep_id, fuattr);
-//       Future::safe_release(future);
-//     }
-
-//   e->Wait();
-
-//   return e;
-// }
-
-shared_ptr<CurpWaitCommitQuorumEvent>
-Communicator::CurpBroadcastWaitCommit(shared_ptr<Marshallable> cmd,
-                                            siteid_t coo_id) {
-  // shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
-  // VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
-  shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
-  shared_ptr<vector<shared_ptr<TxPieceData>>> vec_piece_data = cmd_cast->sp_vec_piece_data_;
-
-  int32_t client_id_ = vec_piece_data->at(0)->client_id_;
-  int32_t cmd_id_in_client_ = vec_piece_data->at(0)->cmd_id_in_client_;
-  auto par_id = vec_piece_data->at(0)->PartitionId();
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpWaitCommitQuorumEvent>();
-
-  shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
-  // sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
-  sp_vpd->sp_vec_piece_data_ = vec_piece_data;
-  MarshallDeputy md(sp_vpd);
-  WAN_WAIT;
-  for (auto& pair : rpc_par_proxies_[par_id])
-    if (pair.first == coo_id) {
-      rrr::FutureAttr fuattr;
-      fuattr.callback =
-          [this, e](Future* fu) {
-            if (fu->get_error_code() != 0) {
-              Log_info("Get a error message in reply");
-              return;
-            }
-            bool_t committed;
-            value_t commit_result;
-            fu->get_reply() >> committed >> commit_result;
-#ifdef CURP_FULL_LOG_DEBUG
-            Log_info("[CURP] loc=%d CurpBroadcastWaitCommit reply committed=%d commit_result=%d", loc_id_, committed, commit_result);
-#endif
-            e->FeedResponse(committed, commit_result);
-          };
-      auto proxy = (CurpProxy *)pair.second;
-      auto future = proxy->async_CurpWaitCommit(client_id_, cmd_id_in_client_, fuattr);
-      Future::safe_release(future);
-  }
-  return e;
-}
-
-shared_ptr<IntEvent>
-Communicator::CurpForwardResultToCoordinator(parid_t par_id,
-                                              bool_t accepted,
-                                              ver_t ver,
-                                              const shared_ptr<Marshallable>& cmd) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<IntEvent>();
-  auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy cmd_deputy(cmd);
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-    // TODO: generelize
-    if (0 == site) {
-      FutureAttr fuattr;
-      fuattr.callback = [](Future *fu) {};
-
-#ifdef CURP_TIME_DEBUG
-      struct timeval tp;
-      gettimeofday(&tp, NULL);
-      Log_info("[CURP] [2-] [tx=%d] Forward %.3f", dynamic_pointer_cast<TpcCommitCommand>(cmd)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
-
-      Future *f = proxy->async_CurpForward(accepted, ver, cmd_deputy, fuattr);
-      Future::safe_release(f);
-    }
-  }
-  return e;
-}
-
-shared_ptr<CurpPrepareQuorumEvent>
-Communicator::CurpBroadcastPrepare(parid_t par_id,
-                  key_t key,
-                  ver_t ver,
-                  ballot_t ballot,
-                  uint32_t self_loc) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpPrepareQuorumEvent>(n, ballot);
-  auto proxies = rpc_par_proxies_[par_id];
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-    FutureAttr fuattr;
-    fuattr.callback = [e, site, self_loc](Future *fu) {
-      if (fu->get_error_code() != 0) {
-        Log_info("Get a error message in reply");
-        return;
-      }
-      bool_t accepted;
-      i32 status;
-      ballot_t last_accepted_ballot;
-      MarshallDeputy cmd;
-      fu->get_reply() >> accepted >> status >> last_accepted_ballot >> cmd;
-      accepted = accepted || (site == self_loc);
-      e->FeedResponse(accepted, status, last_accepted_ballot, cmd);
-    };
-    // Log_info("[CURP] async_CurpPrepare(%d, %d, %d)", key, ver, ballot);
-    Future *f = proxy->async_CurpPrepare(key, ver, ballot, fuattr);
-    Future::safe_release(f);
-  }
-  return e;
-}
-
-shared_ptr<CurpAcceptQuorumEvent>
-Communicator::CurpBroadcastAccept(parid_t par_id,
-                                  ver_t ver,
-                                  ballot_t ballot,
-                                  shared_ptr<Marshallable> cmd) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<CurpAcceptQuorumEvent>(n);
-  auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy cmd_deputy(cmd);
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-    FutureAttr fuattr;
-    fuattr.callback = [e](Future *fu) {
-      if (fu->get_error_code() != 0) {
-        Log_info("Get a error message in reply");
-        return;
-      }
-      bool_t accepted;
-      ballot_t seen_ballot;
-      fu->get_reply() >> accepted >> seen_ballot;
-      e->FeedResponse(accepted, seen_ballot);
-    };
-    Future *f = proxy->async_CurpAccept(ver, ballot, cmd_deputy, fuattr);
-    Future::safe_release(f);
-  }
-  return e;
-}
-
-shared_ptr<IntEvent>
-Communicator::CurpBroadcastCommit(parid_t par_id,
-                                ver_t ver,
-                                shared_ptr<Marshallable> cmd,
-                                uint16_t ban_site) {
-  int n = Config::GetConfig()->GetPartitionSize(par_id);
-  auto e = Reactor::CreateSpEvent<IntEvent>();
-  auto proxies = rpc_par_proxies_[par_id];
-  MarshallDeputy cmd_deputy(cmd);
-  WAN_WAIT;
-  for (auto& p : proxies) {
-    auto proxy = (CurpProxy *)p.second;
-    auto site = p.first;
-    if (site != ban_site) {
-      FutureAttr fuattr;
-      fuattr.callback = [](Future *fu) {};
-      // Log_info("[CURP] Broadcast Commit to site %d", site);
-      Future *f = proxy->async_CurpCommit(ver, cmd_deputy, fuattr);
-      Future::safe_release(f);
-    }
-  }
-  return e;
-}
 
 } // namespace janus

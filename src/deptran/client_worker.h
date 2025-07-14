@@ -89,9 +89,6 @@ class ClientWorker {
   bool failover_trigger_loc{false};
   bool failover_pause_start{false};
 
-  int curp_fastpath_p_ = 1024;
-  int curp_fastpath_q_ = 1024;
-
   OneArmedBandit one_armed_bandit_; // For fast path attempt prediction
 
  public:

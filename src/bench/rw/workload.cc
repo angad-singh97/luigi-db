@@ -70,13 +70,11 @@ void RwWorkload::GetTxRequest(TxRequest* req, uint32_t cid) {
     case 0: // read
       GenerateReadRequest(req, cid);
       key = req->input_.values_->at(0).get_i32();
-      // Log_info("[CURP] Generate RW Read %d", key);
       break;
     case 1: // write
       GenerateWriteRequest(req, cid);
       key = req->input_.values_->at(0).get_i32();
       value = req->input_.values_->at(1).get_i32();
-      // Log_info("[CURP] Generate RW Write %d %d", key, value);
       break;
     default:
       verify(0);
@@ -91,7 +89,6 @@ void RwWorkload::GenerateWriteRequest(
       {0, Value((i32) id)},
       {1, Value((i32) RandomGenerator::rand(0, 10000))}
   };
-  // Log_info("[CURP] key=%d", id);
 }
 
 void RwWorkload::GenerateReadRequest(
@@ -105,7 +102,6 @@ void RwWorkload::GenerateReadRequest(
 
 int32_t RwWorkload::GetId(uint32_t cid) {
   // verify(cid < 1000000);
-  // Log_info("[CURP] GetId %d", cid);
   int32_t id;
   auto& dist = Config::GetConfig()->dist_;
   static int32_t key_range = Config::GetConfig()->range_ == -1 ? rw_benchmark_para_.n_table_ : Config::GetConfig()->range_;
@@ -114,7 +110,7 @@ int32_t RwWorkload::GetId(uint32_t cid) {
     static ZipfDist d(theta, key_range);
     id = d(rand_gen_);
   } else if (fix_id_ == -1) {
-    // Log_info("[CURP] id range is (0, %d)", key_range - 1);
+    // Log_info("[Jetpack] id range is (0, %d)", key_range - 1);
     id = RandomGenerator::rand(0, key_range - 1);
   } else {
     auto it = this->key_ids_.find(cid);

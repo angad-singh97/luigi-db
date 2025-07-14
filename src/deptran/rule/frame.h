@@ -4,7 +4,7 @@
 
 namespace janus {
 
-// [CURP] Note: This can only be created as Tx Frame, but not Replica Frame
+// [Jetpack] Note: This can only be created as Tx Frame, but not Replica Frame
 
 class RuleFrame : public Frame {
  public:

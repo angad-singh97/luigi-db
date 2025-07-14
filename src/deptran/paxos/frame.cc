@@ -37,7 +37,6 @@ struct foo : automatic_register<foo> {
 };*/
 
 MultiPaxosFrame::MultiPaxosFrame(int mode) : Frame(mode) {
-  Log_info("[CURP] MultiPaxosFrame Created");
 }
 
 Executor *MultiPaxosFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {

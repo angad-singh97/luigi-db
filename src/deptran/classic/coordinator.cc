@@ -223,11 +223,7 @@ void CoordinatorClassic::DispatchAsync() {
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
   ReadyPiecesData cmds_by_par;
-  // if (curp_stored_cmd_) {
-  //   cmds_by_par = cmds_by_par_;
-  // } else {
-    cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  // }
+  cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
@@ -240,11 +236,7 @@ void CoordinatorClassic::DispatchAsync() {
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
     }
-    // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
 
-#ifndef SKIP_TXN_SERVER
-    // Log_info("SKIP_TXN_SERVER off");
-    
     commo()->BroadcastDispatch(sp_vec_piece,
                                this,
                                std::bind(&CoordinatorClassic::DispatchAck,
@@ -253,13 +245,6 @@ void CoordinatorClassic::DispatchAsync() {
                                          -1, 
                                          std::placeholders::_1,
                                          std::placeholders::_2));
-#endif
-
-#ifdef SKIP_TXN_SERVER
-  verify(0);
-  Log_info("SKIP_TXN_SERVER on");
-  CurpBroadcastDispatch(sp_vec_piece);
-#endif
   }
 
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
@@ -274,11 +259,7 @@ void CoordinatorClassic::DispatchSync() {
   auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
   n_pd = 100;
   ReadyPiecesData cmds_by_par;
-  // if (curp_stored_cmd_) {
-  //   cmds_by_par = cmds_by_par_;
-  // } else {
-    cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  // }
+  cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
   for (auto& pair: cmds_by_par) {
     const parid_t& par_id = pair.first;
@@ -291,11 +272,7 @@ void CoordinatorClassic::DispatchSync() {
       dispatch_acks_[c->inn_id_] = false;
       sp_vec_piece->push_back(c);
     }
-    // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
 
-#ifndef SKIP_TXN_SERVER
-    // Log_info("SKIP_TXN_SERVER off");
-    
     commo()->SyncBroadcastDispatch(sp_vec_piece,
                                     this,
                                     std::bind(&CoordinatorClassic::DispatchAck,
@@ -304,73 +281,7 @@ void CoordinatorClassic::DispatchSync() {
                                               -1, 
                                               std::placeholders::_1,
                                               std::placeholders::_2));
-#endif
 
-#ifdef SKIP_TXN_SERVER
-  verify(0);
-  Log_info("SKIP_TXN_SERVER on");
-  CurpBroadcastDispatch(sp_vec_piece);
-#endif
-  }
-
-  Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
-}
-
-// [Ze] The Only difference between this and DispatchAsync is that this function do not need n_dispatch_, since it just redispatch
-// And GetReadyPiecesData
-void CoordinatorClassic::CurpDispatchAsync() {
-  Log_debug("commo Broadcast to the server on client worker");
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  auto txn = (TxData*) cmd_;
-
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered CurpDispatchAsync", cmd_->client_id_, cmd_->cmd_id_in_client_);
-#endif
-
-  int cnt = 0;
-  auto n_pd = Config::GetConfig()->n_parallel_dispatch_;
-  n_pd = 100;
-  ReadyPiecesData cmds_by_par;
-  // if (curp_stored_cmd_) {
-    cmds_by_par = cmds_by_par_;
-  // } else {
-  //   cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
-  // }
-  Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
-  for (auto& pair: cmds_by_par) {
-    const parid_t& par_id = pair.first;
-    auto& cmds = pair.second;
-    // n_dispatch_ += cmds.size();
-    cnt += cmds.size();
-    auto sp_vec_piece = std::make_shared<vector<shared_ptr<TxPieceData>>>();
-    for (auto c: cmds) {
-      c->id_ = next_pie_id();
-      dispatch_acks_[c->inn_id_] = false;
-      sp_vec_piece->push_back(c);
-    }
-    // Log_info("[CURP] loc_id_=%d phase_=%d", this->loc_id_, phase_);
-
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> before BroadcastDispatch", cmd_->client_id_, cmd_->cmd_id_in_client_);
-#endif
-
-#ifndef SKIP_TXN_SERVER
-    // Log_info("SKIP_TXN_SERVER off");
-    commo()->BroadcastDispatch(sp_vec_piece,
-                               this,
-                               std::bind(&CoordinatorClassic::DispatchAck,
-                                         this,
-                                         phase_,
-                                         -1, 
-                                         std::placeholders::_1,
-                                         std::placeholders::_2));
-#endif
-
-#ifdef SKIP_TXN_SERVER
-  verify(0);
-  Log_info("SKIP_TXN_SERVER on");
-  CurpBroadcastDispatch(sp_vec_piece);
-#endif
   }
 
   Log_debug("Dispatch cnt: %d for tx_id: %" PRIx64, cnt, txn->root_id_);
@@ -416,9 +327,6 @@ bool CoordinatorClassic::AllDispatchAcked() {
                             return pair.second;
                           });
   if (ret1){
-#ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] n_dispatch_ack_ = %d n_dispatch_ = %d", n_dispatch_ack_, n_dispatch_);
-#endif
     verify(n_dispatch_ack_ == n_dispatch_);
   }
   return ret1;
@@ -761,8 +669,8 @@ void CoordinatorClassic::End() {
   tx_reply_buf.tx_id_ = ongoing_tx_id_;
   Log_debug("call reply for tx_id: %"
                 PRIx64, ongoing_tx_id_);
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] callback for cmd<%d, %d>", tx_data->client_id_, tx_data->cmd_id_in_client_);
+#ifdef FULL_LOG_DEBUG
+  Log_info("callback for cmd<%d, %d>", tx_data->client_id_, tx_data->cmd_id_in_client_);
 #endif
   tx_data->callback_(tx_reply_buf);
   ongoing_tx_id_ = 0;

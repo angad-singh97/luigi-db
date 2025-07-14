@@ -82,7 +82,6 @@ void ServerWorker::SetupBase() {
 #ifdef CPU_PROFILE_SEVER
     if (rep_sched_->site_id_ == 0) {
       ProfilerStart("server.prof");
-      Log_info("[CURP] Start to profile");
     }
 #endif
     rep_sched_->tx_sched_ = tx_sched_;
@@ -171,7 +170,7 @@ void ServerWorker::SetupService() {
 
   // init rrr::PollMgr 1 threads
   int n_io_threads = 1;
-  svr_poll_mgr_ = new rrr::PollMgr(n_io_threads, config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS);  // Fpga Raft needs a disk thread
+  svr_poll_mgr_ = new rrr::PollMgr(n_io_threads, config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT);  // Fpga Raft needs a disk thread
   Reactor::GetReactor()->server_id_ = site_info_->id;
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
@@ -276,18 +275,6 @@ void ServerWorker::SetupCommo() {
     verify(rep_sched_->commo_ != nullptr);
     rep_commo_->rep_sched_ = rep_sched_;
   }
-  // if (curp_rep_frame_) {
-  //   curp_rep_commo_ = curp_rep_frame_->CreateCommo(svr_poll_mgr_);
-  //   if (curp_rep_commo_) {
-  //     curp_rep_commo_->loc_id_ = site_info_->locale_id;
-  //   }
-  //   verify(curp_rep_commo_ != nullptr);
-  //   rep_sched_->commo_ = curp_rep_commo_;
-  //   verify(rep_sched_->commo_ != nullptr);
-  //   rep_sched_->Setup();
-
-  //   curp_rep_commo_->rep_sched_ = rep_sched_;
-  // }
 
   Reactor::GetReactor()->server_id_ = site_info_->id;
 //  svr_thread_pool_ = new rrr::ThreadPool(1);

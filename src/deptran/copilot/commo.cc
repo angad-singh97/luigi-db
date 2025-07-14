@@ -153,8 +153,8 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
   auto e = Reactor::CreateSpEvent<CopilotFastAcceptQuorumEvent>(n, fastQuorumSize(n));
   auto proxies = rpc_par_proxies_[par_id];
   struct DepId di;
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered site %d CopilotCommo::BroadcastFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
+#ifdef FULL_LOG_DEBUG
+  Log_info("cmd<%d, %d> entered site %d CopilotCommo::BroadcastFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
 #endif
   WAN_WAIT;
   for (auto& p : proxies) {
@@ -183,8 +183,8 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
 
         fu->get_reply() >> b >> sgst_dep;
         bool ok = (ballot == b);
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> sgst_dep=%" PRId64 " dep=%" PRId64 "", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, sgst_dep, dep);
+#ifdef FULL_LOG_DEBUG
+  Log_info("cmd<%d, %d> sgst_dep=%" PRId64 " dep=%" PRId64 "", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, sgst_dep, dep);
 #endif
         e->FeedResponse(ok, sgst_dep == dep);
         if (ok) {
@@ -200,7 +200,7 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [1-] [tx=%d] async_FastAccept called by Submit %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[1-] [tx=%d] async_FastAccept called by Submit %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
       Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
       e->AddXid(site, f->get_xid());

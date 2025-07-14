@@ -23,7 +23,6 @@ CoordinatorRule::CoordinatorRule(uint32_t coo_id,
   // } else {
   //   verify(0);
   // }
-  // Log_info("[CURP] CoordinatorRule created for coo_id=%d thread_id=%d", coo_id, thread_id);
 }
 
 // CommunicatorRule* CoordinatorRule::commo() {
@@ -55,10 +54,10 @@ void CoordinatorRule::GotoNextPhase() {
           cmd_is_write_ = SimpleRWCommand(cmds[0]).IsWrite();
       }
 
-      if (0 <= Config::GetConfig()->curp_or_rule_fastpath_rate_ && Config::GetConfig()->curp_or_rule_fastpath_rate_ <= 100) {
+      if (0 <= Config::GetConfig()->jetpack_fastpath_attempt_rate_ && Config::GetConfig()->jetpack_fastpath_attempt_rate_ <= 100) {
         // fixed percentage
-        go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->curp_or_rule_fastpath_rate_;
-      } else if (Config::GetConfig()->curp_or_rule_fastpath_rate_ == 101) {
+        go_to_fastpath_ = RandomGenerator::rand(0, 99) < Config::GetConfig()->jetpack_fastpath_attempt_rate_;
+      } else if (Config::GetConfig()->jetpack_fastpath_attempt_rate_ == 101) {
         // static int printed_times = 0;
         // std::vector<double> cpu_info = rrr::CPUInfo::per_cpu_stat();
         // if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000) {
@@ -157,9 +156,8 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
   n_pd = 100;
   // auto cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
   auto cmds_by_par = cmds_by_par_;
-  // curp_stored_cmd_ = true;
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
-  // [CURP] TODO: only support partition = 1 now
+  // [Jetpack] TODO: only support partition = 1 now
   verify(cmds_by_par.size() == 1);
   shared_ptr<RuleSpeculativeExecuteQuorumEvent> e;
   for (auto& pair: cmds_by_par) {
@@ -172,7 +170,7 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
     //   dispatch_acks_[c->inn_id_] = false;
     //   sp_vec_piece->push_back(c);
     // }
-    verify(sp_vec_piece->size() == 1); // for Curp setting
+    verify(sp_vec_piece->size() == 1); // for Jetpack setting
     cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
     verify(sp_vec_piece->size() > 0);
     verify(par_id == sp_vec_piece->at(0)->PartitionId());
@@ -189,7 +187,6 @@ void CoordinatorRule::BroadcastRuleSpeculativeExecute(int phase) {
 #ifdef MONGODB_DEBUG
   Log_info("%.2f BroadcastRuleSpeculativeExecute after wait <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(sp_vpd_).first, SimpleRWCommand::GetCmdID(sp_vpd_).second);
 #endif
-  // Log_info("[CURP] After Wait");
   if (dispatch_duration_3_times_ > Config::GetConfig()->duration_ * 1000 && dispatch_duration_3_times_ < Config::GetConfig()->duration_ * 2 * 1000) {
     client_worker_->cli2cli_[0].append(SimpleRWCommand::GetCurrentMsTime() - dispatch_time_);
   }

@@ -80,14 +80,6 @@ class Config {
   int32_t failover_run_int_;
   int32_t failover_stop_int_;
 
-  // CURP related
-  int curp_finish_countdown_;
-  int curp_fastpath_timeout_;
-  int curp_wait_commit_timeout_;
-  int curp_instance_commit_timeout_;
-  int curp_or_rule_fastpath_rate_;
-  int curp_execution_in_advance_enabled_;
-
   // TODO remove, will cause problems.
   uint32_t num_site_;
   uint32_t start_coordinator_id_;
@@ -99,6 +91,9 @@ class Config {
 
   // carousel mode choice
   bool carousel_basic_mode_ = false;
+
+  // Jetpack fast path mode
+  int jetpack_fastpath_attempt_rate_ = 0;
 
   enum SiteInfoType { CLIENT, SERVER };
   struct SiteInfo {
@@ -174,12 +169,7 @@ class Config {
          bool heart_beat,
          single_server_t single_server,
          string logging_path,
-         int curp_finish_countdown,
-         int curp_fastpath_timeout,
-         int curp_wait_commit_timeout,
-         int curp_instance_commit_timeout,
-         int curp_or_rule_fastpath_rate,
-         int curp_execution_in_advance_enabled
+         int jetpack_fastpath_attempt_rate
   );
   int GetClientPort(std::string site_name);
 

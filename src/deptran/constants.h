@@ -82,7 +82,6 @@ namespace janus {
 #define MODE_RO6    (0x08)
 #define MODE_BRQ    (0x10)
 #define MODE_JANUS    (0x10)
-#define MODE_CURP    (0x11)
 #define MODE_RULE    (0x15)
 #define MODE_FEBRUUS    (0x20)
 #define MODE_MDCC   (0x12)
@@ -100,13 +99,10 @@ namespace janus {
 #define MODE_EPAXOS        (0x80)
 #define MODE_TAPIR         (0x100)
 #define MODE_MENCIUS       (0x200)
-#define MODE_MENCIUS_PLUS       (0x201)
 #define MODE_CAROUSEL (0x2000)
 #define MODE_RAFT (0x400)
 #define MODE_FPGA_RAFT (0x401)
-#define MODE_FPGA_RAFT_PLUS (0x402)
 #define MODE_COPILOT        (0x4000)
-#define MODE_COPILOT_PLUS (0x4001)
 #define MODE_MONGODB (0x9000)
 #define MODE_NOT_READY     (0x00)
 
@@ -140,25 +136,16 @@ namespace janus {
 #define NO  (0)
 
 // #define COPILOT_DEBUG
-// #define CURP_TIME_DEBUG
 // #define COPILOT_TIME_DEBUG
 // #define FINISH_COUNTDOWN_MAX (1)
 // #define TC
 
-// #define CURP_FAST_PATH_TIMEOUT (25) -> Config::GetConfig()->curp_fastpath_timeout_
-// #define CURP_WAIT_COMMIT_TIMEOUT (70) -> Config::GetConfig()->curp_wait_commit_timeout_
-// #define CURP_INSTANCE_COMMIT_TIMEOUT (100) -> Config::GetConfig()->curp_instance_commit_timeout_
-
 #define AWS
 // #define SIMULATE_WAN
-// #define CURP_CONFLICT_DEBUG
-// #define CURP_FULL_LOG_DEBUG
+// #define FULL_LOG_DEBUG
 // #define LATENCY_DEBUG
 // #define LATENCY_LOG_DEBUG
-// #define CURP_REPEAR_COMMIT_DEBUG
-// #define CURP_AVOID_CurpSkipFastpath_DEBUG
 // #define MONGODB_DEBUG
-// #define CURP_INSTANCE_CREATED_ONLY_ONCE_CHECK
 #define CHECK_KEY_DISTRIBUTION
 #define READ_NOT_CONFLICT_OPTIMIZATION
 #define JETPACK_DEDUPLICATE_OPTIMIZATION

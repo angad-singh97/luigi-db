@@ -69,13 +69,8 @@ int Config::CreateConfig(int argc, char **argv) {
   int32_t tot_req_num           = 10000;
   int16_t n_concurrent          = 1;
 
-  // CURP related
-  int finish_countdown = 100;
-  int curp_fastpath_timeout = 3;
-  int curp_wait_commit_timeout = 10;
-  int curp_instance_commit_timeout = 3;
-  int curp_or_rule_fastpath_rate = 101; // [0, 100]   101: adaptive
-  int curp_execution_in_advance_enabled = 1; // 0: disabled;  1: enabled
+  int jetpack_fastpath_attempt_rate = 101; // [0, 100]   101: adaptive
+
   string timeouts;
   size_t pos;
 
@@ -151,32 +146,8 @@ int Config::CreateConfig(int argc, char **argv) {
         if (server_or_client != -1) return -4;
         server_or_client = 0;
         break;
-      case 'F': // finish countdown
-        finish_countdown = strtoul(optarg, &end_ptr, 10);
-        break;
-      case 'O': // timeout: CURP_FAST_PATH_TIMEOUT - CURP_WAIT_COMMIT_TIMEOUT - CURP_INSTANCE_COMMIT_TIMEOUT
-        timeouts = string(optarg);
-
-        pos = timeouts.find("-");
-        if (pos == string::npos) return -4;
-        curp_fastpath_timeout = stoi(timeouts.substr(0, pos));
-
-        timeouts = timeouts.substr(pos + 1, string::npos);
-
-        pos = timeouts.find("-");
-        if (pos == string::npos) return -4;
-        curp_wait_commit_timeout = stoi(timeouts.substr(0, pos));
-
-        timeouts = timeouts.substr(pos + 1, string::npos);
-
-        curp_instance_commit_timeout = stoi(timeouts);
-
-        break;
       case 'm': // fastpath possibility mode
-        curp_or_rule_fastpath_rate = strtoul(optarg, &end_ptr, 10);
-        break;
-      case 'a': // execution in advance optimization: 0 for false, 1 for true
-        curp_execution_in_advance_enabled = strtoul(optarg, &end_ptr, 10);
+        jetpack_fastpath_attempt_rate = strtoul(optarg, &end_ptr, 10);
         break;
       case 'S': // client touch only single server
       {
@@ -246,12 +217,7 @@ int Config::CreateConfig(int argc, char **argv) {
     heart_beat,
     single_server,
     logging_path,
-    finish_countdown,
-    curp_fastpath_timeout,
-    curp_wait_commit_timeout,
-    curp_instance_commit_timeout,
-    curp_or_rule_fastpath_rate,
-    curp_execution_in_advance_enabled);
+    jetpack_fastpath_attempt_rate);
   config_s->proc_name_ = proc_name;
   config_s->exp_setting_name_ = exp_setting_name;
   config_s->config_paths_ = config_paths;
@@ -279,12 +245,7 @@ Config::Config(char           *ctrl_hostname,
                bool            heart_beat,
                single_server_t single_server,
                string           logging_path,
-               int              curp_finish_countdown,
-               int              curp_fastpath_timeout,
-               int              curp_wait_commit_timeout,
-               int              curp_instance_commit_timeout,
-               int              curp_or_rule_fastpath_rate,
-               int              curp_execution_in_advance_enabled) :
+               int              jetpack_fastpath_attempt_rate) :
   heart_beat_(heart_beat),
   ctrl_hostname_(ctrl_hostname),
   ctrl_port_(ctrl_port),
@@ -320,13 +281,8 @@ Config::Config(char           *ctrl_hostname,
   next_site_id_(0),
   proc_host_map_(map<string, string>()),
   sharding_(nullptr),
+  jetpack_fastpath_attempt_rate_(jetpack_fastpath_attempt_rate_)
 
-  curp_finish_countdown_(curp_finish_countdown),
-  curp_fastpath_timeout_(curp_fastpath_timeout),
-  curp_wait_commit_timeout_(curp_wait_commit_timeout),
-  curp_instance_commit_timeout_(curp_instance_commit_timeout),
-  curp_or_rule_fastpath_rate_(curp_or_rule_fastpath_rate),
-  curp_execution_in_advance_enabled_(curp_execution_in_advance_enabled)
 {
 }
 

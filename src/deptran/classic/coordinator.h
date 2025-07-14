@@ -30,11 +30,10 @@ class CoordinatorClassic : public Coordinator {
   double dispatch_duration_3_times_ = -1;
   // For Rule SpeculativeExecute & Dispatch 2 replies
 
-  // For original protocol use after curp fastpath OR rule use after original protocol
+  // For original protocol use after rule use after original protocol
   ReadyPiecesData cmds_by_par_;
   // For rule use after original protocol
   unordered_map<parid_t, shared_ptr<vector<shared_ptr<SimpleCommand>>>> sp_vec_piece_by_par_;
-  // bool curp_stored_cmd_{false};
   // For rule 
   bool dispatch_ack_{false};
 
@@ -102,7 +101,6 @@ class CoordinatorClassic : public Coordinator {
 
   virtual void DispatchAsync();
   virtual void DispatchSync();
-  void CurpDispatchAsync();
   virtual void DispatchAsync(bool last);
   virtual void DispatchAck(phase_t phase,
                            double dispatch_time,

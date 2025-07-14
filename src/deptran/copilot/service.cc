@@ -50,7 +50,7 @@ void CopilotServiceImpl::FastAccept(const uint8_t& is_pilot,
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [1+] [tx=%d] on FastAccept %.3f", dynamic_pointer_cast<TpcBatchCommand>(const_cast<MarshallDeputy&>(cmd).sp_data_)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[1+] [tx=%d] on FastAccept %.3f", dynamic_pointer_cast<TpcBatchCommand>(const_cast<MarshallDeputy&>(cmd).sp_data_)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
   // auto coro = Coroutine::CreateRun([&]() {

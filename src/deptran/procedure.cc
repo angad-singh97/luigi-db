@@ -248,8 +248,6 @@ void TxData::Merge(innid_t inn_id, map<int32_t, Value>& output) {
   verify(outputs_.find(inn_id) == outputs_.end());
   n_pieces_dispatch_acked_++;
   // Log_info("n_pieces_all_=%d n_pieces_dispatchable_=%d", n_pieces_all_, n_pieces_dispatchable_);
-  // verify(n_pieces_all_ == 1); // [CURP] used for curp rw test
-  // verify(n_pieces_dispatchable_ == 1); // [CURP] used for curp rw test
   verify(n_pieces_all_ >= n_pieces_dispatchable_);
   verify(n_pieces_dispatchable_ >= n_pieces_dispatched_);
   verify(n_pieces_dispatched_ >= n_pieces_dispatch_acked_);

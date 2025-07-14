@@ -72,20 +72,14 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   Log_info("!!!!!!!!!!!!! cmd %d enter ClassicServiceImpl::Dispatch (after client RPC) at loc_id %d", cmd_id, dtxn_sched()->loc_id_);
 #endif
 
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered ClassicServiceImpl::Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
-#endif
-
-#ifdef CURP_TIME_DEBUG
-  struct timeval tp;
-  gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C+] Received Dispatch %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+#ifdef FULL_LOG_DEBUG
+  Log_info("[Jetpack] cmd<%d, %d> entered ClassicServiceImpl::Dispatch", SimpleRWCommand::GetCmdID(md.sp_data_).first, SimpleRWCommand::GetCmdID(md.sp_data_).second);
 #endif
 
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [C+] Received Dispatch %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[Jetpack] [C+] Received Dispatch %.3f", tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 
   Log_debug("The server side receives a message from the client worker");

@@ -8,9 +8,6 @@
 namespace janus {
 bool SchedulerNone::Dispatch(cmdid_t cmd_id, shared_ptr<Marshallable> cmd,
 								TxnOutput& ret_output) {
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered SchedulerNone::Dispatch", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
-#endif
 	Log_debug("Dispatch the request to the correct protocol on the server side");
 	auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(cmd_id));
 	DepId di;

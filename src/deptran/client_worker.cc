@@ -167,7 +167,7 @@ Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
 
   cooid_t coo_id = cli_id_;
   coo_id = (coo_id << 16) + offset_id;
-  // Log_info("[CURP] coordinator %d %d -> %d have been created", cli_id_, offset_id, coo_id);
+  // Log_info("[Jetpack] coordinator %d %d -> %d have been created", cli_id_, offset_id, coo_id);
   auto coo = frame_->CreateCoordinator(coo_id,
                                        config_,
                                        benchmark,
@@ -338,9 +338,6 @@ void ClientWorker::Work() {
             success++;
           }
           sp_n_tx_done_.Set(sp_n_tx_done_.value_+1);
-#ifdef CURP_FULL_LOG_DEBUG
-          Log_info("[CURP] sp_n_tx_done_ increased to %d n_tx_issued_=%d", sp_n_tx_done_.value_, n_tx_issued_);
-#endif
           num_try.fetch_add(coo->n_retry_);
           coo->sp_ev_done_.reset();
           coo->sp_ev_commit_.reset();
@@ -361,9 +358,6 @@ void ClientWorker::Work() {
     Log_info("wait for all outstanding requests to finish.");
     // TODO uncomment this, otherwise many requests are still outstanding there.
     sp_n_tx_done_.WaitUntilGreaterOrEqualThan(n_tx_issued_);
-#ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] sp_n_tx_done_=%d n_tx_issued_=%d", sp_n_tx_done_.value_, n_tx_issued_);
-#endif
     // for debug purpose
 //    Reactor::CreateSpEvent<NeverEvent>()->Wait(5*1000*1000);
     *failover_server_quit_ = true;
@@ -614,9 +608,6 @@ void ClientWorker::DispatchRequest(Coordinator* coo, bool void_request) {
       coo->sp_ev_done_->Set(1);
       delete req;
     };
-#ifdef CURP_FULL_LOG_DEBUG
-    Log_info("[CURP] Request generated for cmd<%d, %d>", req->client_id_, req->cmd_id_in_client_);
-#endif
     coo->DoTxAsync(*req); // coo -> CoordinatorNone
   };
   task();
@@ -681,7 +672,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
     failover_server_idx_(failover_server_idx),
     total_throughput_(total_throughput)
     {
-  Log_info("[CURP] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
+  Log_info("[Jetpack] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
   poll_mgr_ = poll_mgr == nullptr ? new PollMgr(1) : poll_mgr;
   frame_ = Frame::GetFrame(config->tx_proto_, config->replica_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
@@ -692,7 +683,7 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   commo_ = frame_->CreateCommo(poll_mgr_);
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
-      ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT || config->replica_proto_ == MODE_FPGA_RAFT_PLUS) && site_info.locale_id != 0) ? true :
+      ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT) && site_info.locale_id != 0) ? true :
                                                                                false;
   Log_debug("client %d created; forward %d",
             cli_id_,

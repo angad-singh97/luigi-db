@@ -49,7 +49,6 @@ profile-results/
 /log
 /archive
 /results
-curp.log
 *.log
 *.csv
 prof

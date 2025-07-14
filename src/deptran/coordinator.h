@@ -106,9 +106,6 @@ class Coordinator {
   Distribution client2leader_, client2test_point_, client2leader_send_;
 #endif
 
-  // For Curp && Rule
-  // int fastpath_p_ = 1024;
-  // int fastpath_q_ = 1024;
   bool go_to_fastpath_;
 
 #ifdef TXN_STAT
@@ -211,15 +208,6 @@ class Coordinator {
   virtual void restart(TxData *ch) {verify(0);};
   virtual void Restart() = 0;
 
-  // // below are about CURP
-  
-  // void CurpSubmit(shared_ptr<Marshallable>& cmd,
-  //                     const std::function<void()>& commit_callback = [](){},
-  //                     const std::function<void()>& exe_callback = [](){});
-
-  // void OriginalSubmit(shared_ptr<Marshallable>& cmd,
-  //                     const std::function<void()>& commit_callback = [](){},
-  //                     const std::function<void()>& exe_callback = [](){});
 };
 
 } // namespace janus

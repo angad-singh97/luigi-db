@@ -86,8 +86,8 @@ bool SchedulerClassic::Dispatch(cmdid_t cmd_id,
                                 struct DepId dep_id,
                                 shared_ptr<Marshallable> cmd,
                                 TxnOutput& ret_output) {
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered SchedulerClassic::Dispatch", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
+#ifdef FULL_LOG_DEBUG
+  Log_info("cmd<%d, %d> entered SchedulerClassic::Dispatch", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
   
   auto sp_vec_piece =
@@ -225,7 +225,6 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
   Log_debug("%s: at site %d, tx: %" PRIx64,
             __FUNCTION__, this->site_id_, tx_id);
   Log_debug("Coordinator invokes Submit to submit a request to a specific protocol");
-  // Log_info("[CURP] SchedulerClassic::OnCommit");
   // auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetTx(tx_id));
   verify(sp_tx != nullptr);
@@ -235,14 +234,13 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 //  sp_tx->inuse = true;
 //
   //always true
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered SchedulerClassic::OnCommit, Config::GetConfig()->IsReplicated()=%d",
+#ifdef FULL_LOG_DEBUG
+  Log_info("cmd<%d, %d> entered SchedulerClassic::OnCommit, Config::GetConfig()->IsReplicated()=%d",
     SimpleRWCommand::GetCmdID(sp_tx->cmd_).first, SimpleRWCommand::GetCmdID(sp_tx->cmd_).second, Config::GetConfig()->IsReplicated());
 #endif
   if (Config::GetConfig()->IsReplicated()) {
     auto cmd = std::make_shared<TpcCommitCommand>();
     cmd->tx_id_ = tx_id;
-    // Log_info("[CURP] tx_id=%d");
     cmd->ret_ = commit_or_abort;
     cmd->cmd_ = sp_tx->cmd_;
     sp_tx->is_leader_hint_ = true;
@@ -256,8 +254,6 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     double start_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     cli2tx.append(start_ms - client_ms);
 
-    // FastPathManagerSubmit(coo, sp_m);
-    // Log_info("[CURP] Before OnCommit Submit");
     coo->Submit(sp_m);
     sp_tx->commit_result->Wait();
     gettimeofday(&tp, NULL);
@@ -266,9 +262,6 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     
 		slow_ = coo->slow_;
   } else {
-#ifdef CURP_FULL_LOG_DEBUG
-  verify(0);
-#endif
     if (commit_or_abort == SUCCESS) {
       DoCommit(*sp_tx);
     } else if (commit_or_abort == REJECT) {
@@ -375,18 +368,6 @@ void SchedulerClassic::Next(Marshallable& cmd) {
     verify(0);
   }
 }
-
-// void SchedulerClassic::FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m) {
-//   // coo->Submit(sp_m);
-//   // return;
-//   bool fast_path_enabled = true;
-//   if (fast_path_enabled) {
-//     coo->CurpSubmit(sp_m);
-//   } else {
-//     coo->OriginalSubmit(sp_m);
-//   }
-// }
-
 
 
 } // namespace janus

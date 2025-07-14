@@ -24,79 +24,6 @@ abstract service MultiPaxos {
 	       
 }
 
-abstract service MultiPaxosPlus {
-
-  defer Forward(MarshallDeputy cmd,
-                uint64_t dep_id |
-                uint64_t coro_id);
-
-  defer Prepare(uint64_t slot,
-                ballot_t ballot |
-                ballot_t max_ballot,
-                uint64_t coro_id);
-
-  defer Accept(uint64_t slot,
-               uint64_t time,
-               ballot_t ballot,
-               MarshallDeputy cmd,
-               uint64_t commit_finish |
-               ballot_t max_ballot,
-               uint64_t coro_id,
-               bool_t finish_accept,
-               uint64_t finish_ver);
-
-  defer Decide(uint64_t slot,
-               ballot_t ballot,
-               MarshallDeputy cmd);
-
-}
-
-abstract service Curp {
-  
-  defer CurpDispatch(int32_t client_id,
-                    int32_t cmd_id_in_client,
-                    MarshallDeputy cmd |
-                    bool_t accepted,
-                    int32_t ver,
-                    int32_t result,
-                    int32_t finish_countdown,
-                    int32_t key_hotness,
-                    siteid_t coo_id);
-
-  defer CurpWaitCommit(int32_t client_id,
-                  int32_t cmd_id_in_client |
-                  bool_t committed,
-                  int32_t commit_result);
-
-  defer CurpForward(bool_t accepted,
-                    int32_t ver,
-                    MarshallDeputy cmd);
-
-  defer CurpPrepare(int32_t k,
-                    int32_t ver,
-                    ballot_t ballot |
-                    bool_t accepted,
-                    i32 status,
-                    ballot_t last_accepted_ballot,
-                    MarshallDeputy cmd);
-
-  defer CurpAccept(int32_t ver,
-                    ballot_t ballot,
-                    MarshallDeputy md_cmd |
-                    bool_t accepted,
-                    ballot_t seen_ballot);
-
-  defer CurpCommit(int32_t ver,
-                    MarshallDeputy md_cmd);
-  
-//  defer OriginalSubmit(MarshallDeputy cmd,
-//                        i64 dep_id |
-//                        bool_t slow);
-  
-  defer CurpTest(int32_t a |
-                int32_t b);
-
-}
 
 abstract service Mongodb {
   defer Commit(MarshallDeputy cmd);
@@ -118,31 +45,6 @@ abstract service Mencius {
                MarshallDeputy cmd |
                ballot_t max_ballot,
                uint64_t coro_id);
-
-  defer Decide(uint64_t slot,
-               ballot_t ballot,
-               MarshallDeputy cmd);
-}
-
-abstract service MenciusPlus {
-
-  defer Prepare(uint64_t slot,
-                ballot_t ballot |
-                ballot_t max_ballot,
-                uint64_t coro_id);
-
-  defer Suggest(uint64_t slot,
-               uint64_t time,
-               ballot_t ballot,
-               uint64_t sender,
-               vector<uint64_t> skip_commits,
-               vector<uint64_t> skip_potentials,
-               MarshallDeputy cmd,
-               uint64_t commit_finish |
-               ballot_t max_ballot,
-               uint64_t coro_id,
-               bool_t finish_accept,
-               uint64_t finish_ver);
 
   defer Decide(uint64_t slot,
                ballot_t ballot,
@@ -234,61 +136,6 @@ abstract service Raft {
                     
 }
 
-abstract service FpgaRaftPlus {
-	defer Heartbeat(uint64_t leaderPrevLogIndex,
-									DepId dep_id |
-									uint64_t followerPrevLogIndex);
-
-  defer Forward(MarshallDeputy cmd |
-                uint64_t cmt_idx );
-
-  defer Vote(uint64_t lst_log_idx,
-                ballot_t lst_log_term,
-                parid_t par_id,
-                ballot_t cur_term|
-                ballot_t max_ballot,
-                bool_t vote_granted );
-
-  defer Vote2FPGA(uint64_t lst_log_idx,
-                ballot_t lst_log_term,
-                parid_t par_id,
-                ballot_t cur_term |
-                ballot_t max_ballot,
-                bool_t vote_granted );
-
-  defer AppendEntries(uint64_t slot,
-                      ballot_t ballot,
-                      uint64_t leaderCurrentTerm,
-                      uint64_t leaderPrevLogIndex,
-                      uint64_t leaderPrevLogTerm,
-                      uint64_t leaderCommitIndex,
-											DepId dep_id,
-                      MarshallDeputy cmd,
-                      uint64_t commit_finish |
-                      uint64_t followerAppendOK,
-                      uint64_t followerCurrentTerm,
-                      uint64_t followerLastLogIndex,
-                      bool_t finish_accept,
-                      uint64_t finish_ver);
- 
-	defer AppendEntries2(uint64_t slot,
-                      ballot_t ballot,
-                      uint64_t leaderCurrentTerm,
-                      uint64_t leaderPrevLogIndex,
-                      uint64_t leaderPrevLogTerm,
-                      uint64_t leaderCommitIndex,
-											DepId dep_id,
-                      MarshallDeputy cmd |
-                      uint64_t followerAppendOK,
-                      uint64_t followerCurrentTerm,
-                      uint64_t followerLastLogIndex);
-
-  defer Decide(uint64_t slot,
-               ballot_t ballot,
-							 DepId dep_id,
-               MarshallDeputy cmd);
-}
-
 abstract service Copilot {
   defer Forward(MarshallDeputy cmd);
 
@@ -309,44 +156,6 @@ abstract service Copilot {
                    DepId dep_id |
                    ballot_t max_ballot,
                    uint64_t ret_dep);
-
-  defer Accept(uint8_t is_pilot,
-               uint64_t slot,
-               ballot_t ballot,
-               uint64_t dep,
-               MarshallDeputy cmd,
-               DepId dep_id |
-               ballot_t max_ballot);
-
-  defer Commit(uint8_t is_pilot,
-               uint64_t slot,
-               uint64_t dep,
-               MarshallDeputy cmd);
-}
-
-abstract service CopilotPlus {
-  defer Forward(MarshallDeputy cmd);
-
-  defer Prepare(uint8_t is_pilot,
-                uint64_t slot,
-                ballot_t ballot,
-                DepId dep_id |
-                MarshallDeputy ret_cmd,
-                ballot_t max_ballot,
-                uint64_t dep,
-                status_t status);
-
-  defer FastAccept(uint8_t is_pilot,
-                   uint64_t slot,
-                   ballot_t ballot,
-                   uint64_t dep,
-                   MarshallDeputy cmd,
-                   DepId dep_id,
-                   uint64_t commit_finish |
-                   ballot_t max_ballot,
-                   uint64_t ret_dep,
-                   bool_t finish_accept,
-                   uint64_t finish_ver);
 
   defer Accept(uint8_t is_pilot,
                uint64_t slot,

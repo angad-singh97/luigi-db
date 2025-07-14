@@ -60,8 +60,6 @@ def options(opt):
                    default=False, action='store_true')
     opt.add_option('','--enable-raft-test',dest='enable_raft_test',
                    default=False, action='store_true')
-    # opt.add_option('', '--curp-fast-path', dest='curp_fast_path',
-    #                default=False, action='store_true')
     opt.parse_args();
 
 def configure(conf):

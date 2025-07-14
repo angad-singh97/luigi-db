@@ -39,10 +39,8 @@ class Frame {
   int replica_mode_;
   Config::SiteInfo *site_info_ = nullptr;
   Frame(int mode) : mode_(mode) {
-    // Log_info("[CURP] Frame Created");
   };
   Frame(int mode, int replica_mode) : mode_(mode), replica_mode_(replica_mode) {
-    // Log_info("[CURP] Frame Created");
   };
   virtual ~Frame() {};
   // for both dtxn and rep

@@ -17,9 +17,7 @@
 #include "occ/coordinator.h"
 #include "none_copilot/commo.h"
 #include "none_copilot/scheduler.h"
-#include "copilotplus/coordinator.h"
-#include "copilotplus/commo.h"
-#include "curp/coordinator.h"
+
 #include "rule/commo.h"
 #include "rule/coordinator.h"
 
@@ -85,7 +83,6 @@ Frame* Frame::GetFrame(int mode, int replica_mode) {
     case MODE_MDCC:
     case MODE_2PL:
     case MODE_OCC:
-    case MODE_CURP:
     case MODE_RULE:
       frame = new Frame(mode, replica_mode);
       break;
@@ -220,18 +217,6 @@ Coordinator* Frame::CreateCoordinator(cooid_t coo_id,
     case MODE_MDCC:
 //      coo = (Coordinator*)new mdcc::MdccCoordinator(coo_id, id, config, ccsi);
       break;
-    // case MODE_COPILOT_PLUS:
-    //   coo = new CopilotPlusCoordinator(coo_id,
-    //                                     benchmark,
-    //                                     ccsi,
-    //                                     id);
-    case MODE_CURP:
-      coo = new CoordinatorCurp(coo_id,
-                         benchmark,
-                         ccsi,
-                         id);
-      ((Coordinator*)coo)->txn_reg_ = txn_reg;
-      break;
     case MODE_RULE:
       coo = new CoordinatorRule(coo_id,
                          benchmark,
@@ -332,9 +317,6 @@ Communicator* Frame::CreateCommo(PollMgr* pollmgr) {
       case MODE_NONE_COPILOT:
         commo_ = new CommunicatorNoneCopilot(pollmgr);
         break;
-      // case MODE_COPILOT_PLUS:
-      //   commo_ = new CopilotPlusCommo(pollmgr);
-      //   break;
       default:
         commo_ = new Communicator(pollmgr);
         break;
@@ -367,17 +349,12 @@ shared_ptr<Tx> Frame::CreateTx(epoch_t epoch, txnid_t tid,
       sp_tx.reset(new TxSnow(tid, mgr, ro));
       break;
     case MODE_MULTI_PAXOS:
-    case MODE_MULTI_PAXOS_PLUS:
     case MODE_MENCIUS:
-    case MODE_MENCIUS_PLUS:
     case MODE_RAFT:
     case MODE_FPGA_RAFT:
-    case MODE_FPGA_RAFT_PLUS:
       break;
     case MODE_NONE:
     case MODE_NOTX:
-    case MODE_COPILOT_PLUS:
-      //sp_tx.reset(new xxx());//TODO
     default:
       sp_tx.reset(new TxClassic(epoch, tid, mgr));
       break;
@@ -425,7 +402,6 @@ TxLogServer* Frame::CreateScheduler() {
         break;
       case MODE_NOTX:
       case MODE_NONE:
-      case MODE_CURP:
       case MODE_RULE:
         sch = new SchedulerNone();
         break;
@@ -516,16 +492,11 @@ map<string, int> &Frame::FrameNameToMode() {
       {"extern_c",      MODE_EXTERNC},
       {"mdcc",          MODE_MDCC},
       {"multi_paxos",   MODE_MULTI_PAXOS},
-      {"multi_paxos_plus",   MODE_MULTI_PAXOS_PLUS},
       {"mencius",       MODE_MENCIUS},
-      {"mencius_plus",       MODE_MENCIUS_PLUS},
       {"raft",          MODE_RAFT},
       {"fpga_raft",     MODE_FPGA_RAFT},
-      {"fpga_raft_plus",     MODE_FPGA_RAFT_PLUS},
       {"epaxos",        MODE_NOT_READY},
       {"rep_commit",    MODE_NOT_READY},
-      {"copilot_plus",  MODE_COPILOT_PLUS},
-      {"curp",          MODE_CURP},
       {"rule",          MODE_RULE},
       {"mongodb",       MODE_MONGODB},
   };

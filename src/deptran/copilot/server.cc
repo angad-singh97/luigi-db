@@ -275,8 +275,8 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
   // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   // Print("loc_id_ = " + std::to_string(loc_id_) + " Start OnFastAccept is_pilot=" + std::to_string(is_pilot) +
   //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));
-#ifdef CURP_FULL_LOG_DEBUG
-  Log_info("[CURP] cmd<%d, %d> entered site %d CopilotServer::OnFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
+#ifdef FULL_LOG_DEBUG
+  Log_info("cmd<%d, %d> entered site %d CopilotServer::OnFastAccept", SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_);
 #endif
 
   auto ins = GetInstance(slot, is_pilot);
@@ -314,8 +314,8 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
          * as its suggested dependency.
          * //TODO: definition on "latest"
          */
-#ifdef CURP_FULL_LOG_DEBUG
-        Log_info("[CURP] cmd<%d, %d> entered site %d for j(%d) dep_id(%d)<slot(%d) thus set suggest_dep(%d) log_info.max_accepted_slot(%d)",
+#ifdef FULL_LOG_DEBUG
+        Log_info("cmd<%d, %d> entered site %d for j(%d) dep_id(%d)<slot(%d) thus set suggest_dep(%d) log_info.max_accepted_slot(%d)",
           SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second, loc_id_, j, dep_id, slot, suggest_dep, log_info.max_accepted_slot);
 #endif
         // Log_info("loc_id_=%d isPilot_=%d slot=%d j=%d dep_id=%d, dep_id!=0 && dep_id<slot suggest_dep(%d->%d)", loc_id_, isPilot_, slot, j, dep_id, suggest_dep, log_info.max_accepted_slot);
@@ -349,7 +349,7 @@ void CopilotServer::OnFastAccept(const uint8_t& is_pilot,
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
   gettimeofday(&tp, NULL);
-  Log_info("[CURP] [2-] [tx=%d] Before on FastAccept cb() %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+  Log_info("[2-] [tx=%d] Before on FastAccept cb() %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
   // Print("loc_id_ = " + std::to_string(loc_id_) + " After OnFastAccept is_pilot=" + std::to_string(is_pilot) +
   //       " cmd<" + std::to_string(parsed_cmd.cmd_id_.first) + ", " + std::to_string(parsed_cmd.cmd_id_.second) + "> suggest_dep=" + std::to_string(dep));

@@ -138,17 +138,11 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
     
     auto proxy = pair.second;
 
-#ifdef CURP_TIME_DEBUG
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    Log_info("[CURP] [1-] [tx=%d] async_PoorDispatch called by Submit %.3f", tpc_cmd->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
-#endif
     // Record Time
     struct timeval tp;
     gettimeofday(&tp, NULL);
     sp_vpd->time_sent_from_client_ = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     
-    // Log_info("[CURP] async_CurpPoorDispatch of cmd<%d, %d>", sp_vec_piece->at(0)->client_id_, sp_vec_piece->at(0)->cmd_id_in_client_);
     auto future = proxy->async_RuleSpeculativeExecute(md, fuattr);
     Future::safe_release(future);
   }
@@ -204,7 +198,7 @@ void CommunicatorRule::BroadcastDispatch(
     pair_leader_proxies = LeaderProxyForPartition(par_id);
   } else {
     std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
-    if (Config::GetConfig()->replica_proto_==MODE_MENCIUS || Config::GetConfig()->replica_proto_==MODE_MENCIUS_PLUS) {
+    if (Config::GetConfig()->replica_proto_==MODE_MENCIUS) {
       // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
       // If not, round-robin with all proposors.
       auto server_infos = Config::GetConfig()->GetMyServers();

@@ -22,15 +22,6 @@ class SchedulerClassic: public TxLogServer {
   SchedulerClassic() {}
 
   ~SchedulerClassic() {
-    if (cli2tx.count() != 0 || tx2tx.count() != 0)
-      Log_info("[CURP] TxSvr loc_id_=%d site_id_=%d \
-                cli2tx 50% = %.2f ms; cli2tx 90% = %.2f ms; cli2tx 99% = %.2f ms; \
-                tx2tx 50% = %.2f ms; tx2tx 90% = %.2f ms; tx2tx 99% = %.2f ms;",
-                loc_id_, site_id_,
-                cli2tx.pct50(), cli2tx.pct90(), cli2tx.pct99(),
-                tx2tx.pct50(), tx2tx.pct90(), tx2tx.pct99());
-    else
-      Log_info("[CURP] TxSvr loc_id_=%d site_id_=%d No Latency Measured", loc_id_, site_id_);
   }
 
   void MergeCommands(vector<shared_ptr<TxPieceData>>&,
@@ -92,10 +83,6 @@ class SchedulerClassic: public TxLogServer {
   int CommitReplicated(TpcCommitCommand& commit_cmd);
 
   bool CheckCommitted(Marshallable& commit_cmd) override;
-
-private:
-
-  void FastPathManagerSubmit(shared_ptr<Coordinator> coo, shared_ptr<Marshallable> sp_m);
 
 };
 

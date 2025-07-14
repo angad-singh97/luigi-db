@@ -32,7 +32,7 @@ int SchedulerNoneCopilot::OnCommit(cmdid_t tx_id,
 #ifdef COPILOT_TIME_DEBUG
 	struct timeval tp;
 	gettimeofday(&tp, NULL);
-	Log_info("[CURP] [0/start] [tx=%d] before submit %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+	Log_info("[0/start] [tx=%d] before submit %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 		bool enable_pingpong_batching = false;
 		if (enable_pingpong_batching) {
@@ -76,7 +76,7 @@ int SchedulerNoneCopilot::OnCommit(cmdid_t tx_id,
 #ifdef COPILOT_TIME_DEBUG
 	struct timeval tp;
     gettimeofday(&tp, NULL);
-    Log_info("[CURP] [end] [tx=%d] after commit_result wait %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
+    Log_info("[end] [tx=%d] after commit_result wait %.3f", tx_id, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
 	} else {
 		if (commit_or_abort == SUCCESS) {

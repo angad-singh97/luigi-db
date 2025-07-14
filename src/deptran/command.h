@@ -14,7 +14,7 @@ class CmdData : public Marshallable {
   cmdtype_t root_type_ = 0;
 
   /****global unique id begin******/
-  // [CURP] TODO: initialize?
+  // [Jetpack] TODO: initialize?
   int32_t client_id_ = -1;
   int32_t cmd_id_in_client_ = -1;
   // pair<int, int> cmd_id_ = make_pair<int, int>(-1, -1);
