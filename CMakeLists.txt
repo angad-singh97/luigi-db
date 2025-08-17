@@ -571,7 +571,9 @@ endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
 add_apps(simpleTransaction examples/simpleTransaction.cc)
-add_apps(basic src/mako/benchmarks/ut/basic.cc)
+add_apps(simplePaxos examples/simplePaxos.cc)
+
 add_apps(paxos_async_commit_test src/mako/benchmarks/paxos_async_commit_test.cc)
+add_apps(basic src/mako/benchmarks/ut/basic.cc)
 add_apps(erpc_client src/mako/benchmarks/ut/erpc_client.cc)
 add_apps(erpc_server src/mako/benchmarks/ut/erpc_server.cc)

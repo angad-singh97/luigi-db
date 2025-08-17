@@ -26,6 +26,7 @@ You should now see libmako.a and dbtest in the build folder.
 Helloworld
 ```bash
 ./build/simpleTransaction
+./examples/simplePaxos.sh
 ```
 
 <!-- Config hosts
