@@ -50,12 +50,6 @@ std::mutex lm_;
 //     std::cout << "callback_paxos_exp is expired: " << res << ", # of invoked: " << cnt << ", TPUT: " << cnt / 30.0 << std::endl;
 // }
 
-std::string intToString(long long num) {
-    std::ostringstream ss;
-    ss << std::setw(16) << std::setfill('0') << num;
-    return ss.str();
-}
-
 // long long getCurrentTimeMillis() {
 //     return std::chrono::duration_cast<std::chrono::milliseconds>(
 //                std::chrono::system_clock::now().time_since_epoch()).count();

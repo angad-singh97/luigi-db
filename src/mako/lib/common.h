@@ -444,6 +444,12 @@ namespace srolis
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch()).count();
     }
+
+    static std::string intToString(long long num) {
+        std::ostringstream ss;
+        ss << std::setw(16) << std::setfill('0') << num;
+        return ss.str();
+    }
 }
 
 #endif
