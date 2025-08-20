@@ -1,4 +1,8 @@
 
-echo "Completed"
+#!/bin/bash
 
-exit 0
+set -e  # Exit on error
+
+make -j32 
+
+./build/simpleTransaction

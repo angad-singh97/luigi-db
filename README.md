@@ -1,6 +1,5 @@
 # Mako
-Status: [![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)](https://github.com/makodb/mako/actions/workflows/ci.yml)
-
+![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)
 
 ## Quickstart 
 

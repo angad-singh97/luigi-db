@@ -23,7 +23,7 @@ jobs:
         with:
           submodules: recursive  # if you use submodules (e.g., third-party libs)
 
-      - name: Show where I'm running
+      - name: Environments 
         run: |
           pwd
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
@@ -38,3 +38,7 @@ jobs:
           else
             echo "ci/ci.sh not found"
           fi
+
+      - name: Cleanup
+        if: always()
+        run: ./ci/clean.sh

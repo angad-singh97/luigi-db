@@ -25,6 +25,8 @@ rebuild: clean all
 
 run: build
 	./$(BUILD_DIR)/dbtest
+	./$(BUILD_DIR)/simpleTransction
+	./$(BUILD_DIR)/simplePaxos
 
 
 
