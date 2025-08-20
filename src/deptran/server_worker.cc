@@ -298,6 +298,7 @@ void ServerWorker::SetupCommo() {
 }
 
 void ServerWorker::Pause() {
+  Log_info("!!!!!!!! ServerWorker::Pause()");
   rep_sched_->Pause();
   svr_poll_mgr_->pause();
 }

@@ -13,6 +13,7 @@ RaftServer::RaftServer(Frame * frame) {
 #ifdef RAFT_TEST_CORO
   setIsLeader(false);
 #else
+  Log_info("id %d loc_id %d name %s proc_name %s host %s", frame_->site_info_->id, frame_->site_info_->locale_id, frame_->site_info_->name.c_str(), frame_->site_info_->proc_name.c_str(), frame_->site_info_->host.c_str());
   setIsLeader(frame_->site_info_->locale_id == 0) ;
 #endif
   stop_ = false ;
@@ -21,6 +22,20 @@ RaftServer::RaftServer(Frame * frame) {
 
 void RaftServer::Setup() {
   #ifdef RAFT_TEST_CORO
+  if (heartbeat_) {
+		Log_debug("starting heartbeat loop at site %d", site_id_);
+    Coroutine::CreateRun([this](){
+      this->HeartbeatLoop(); 
+    });
+    // Start election timeout loop
+    if (failover_) {
+      Coroutine::CreateRun([this](){
+        StartElectionTimer(); 
+      });
+    }
+	}
+  #endif
+  #ifndef RAFT_TEST_CORO
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
     Coroutine::CreateRun([this](){
@@ -71,13 +86,27 @@ bool RaftServer::IsDisconnected() {
 }
 
 void RaftServer::setIsLeader(bool isLeader) {
-  Log_debug("set siteid %d is leader %d", site_id_, isLeader) ;
+  Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
   is_leader_ = isLeader ;
   if (isLeader) {
-    if (!failover_) {
-      verify(frame_->site_info_->id == 0);
+    // JetpackRecovery();
+    // if (heartbeat_) {
+    //   Log_debug("starting heartbeat loop at site %d", site_id_);
+    //   Coroutine::CreateRun([this](){
+    //     this->HeartbeatLoop(); 
+    //   });
+    //   // Start election timeout loop
+    //   if (failover_) {
+    //     Coroutine::CreateRun([this](){
+    //       StartElectionTimer(); 
+    //     });
+    //   }
+    // }
+    // Log_info("!!!!!!! if (!failover_)");
+    // if (!failover_) {
+      // verify(frame_->site_info_->id == 0);
       return;
-    }
+    // }
     // Reset leader volatile state
     RaftCommo *c = (RaftCommo*) commo();
     auto proxies = c->rpc_par_proxies_[partition_id_];
@@ -125,7 +154,8 @@ void RaftServer::HeartbeatLoop() {
   hb_timer->start();
 
   parid_t partition_id = partition_id_;
-  if (!failover_) {
+  // Log_info("!!!!!!! if (!failover_)");
+  // if (!failover_) {
     auto proxies = commo()->rpc_par_proxies_[partition_id];
     for (auto& p : proxies) {
       if (p.first != loc_id_) {
@@ -138,7 +168,7 @@ void RaftServer::HeartbeatLoop() {
     // matchedIndex and nextIndex should have indices for all servers except self
     verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id) - 1);
     verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id) - 1);
-  }
+  // }
 
   Log_debug("heartbeat loop init from site: %d", site_id_);
   looping_ = true;
@@ -157,13 +187,17 @@ void RaftServer::HeartbeatLoop() {
         ready_for_replication_ = nullptr;
       }
       // Coroutine::Sleep(HEARTBEAT_INTERVAL);
+      // Log_info("heartbeat loop at loc %d", loc_id_);
       if (!IsLeader()) {
+        // Log_info("heartbeat loop at loc %d skip since not leader", loc_id_);
         continue;
       }
+      // Log_info("[1]heartbeat loop at loc %d continue since is leader", loc_id_);
       // Log_info("time b/f sleep %" PRIu64, Time::now());
       // Coroutine::Sleep(HEARTBEAT_INTERVAL);
       // Log_info("time a/f sleep %" PRIu64, Time::now());
       auto nservers = Config::GetConfig()->GetPartitionSize(partition_id);
+      // Log_info("next_index_ size %d", next_index_.size());
       for (auto it = next_index_.begin(); it != next_index_.end(); it++) {
         auto site_id = it->first;
         if (site_id == site_id_) {
@@ -174,6 +208,7 @@ void RaftServer::HeartbeatLoop() {
           // Log_info("wake 1");
           continue;
         }
+        // Log_info("[2]heartbeat loop at loc %d continue since is leader", loc_id_);
         static uint64_t ttt = 0;
         uint64_t t2 = Time::now();
         if (ttt+1000000 < t2) {
@@ -200,7 +235,7 @@ void RaftServer::HeartbeatLoop() {
         // leader apply logs applicable
         if (commitIndex > executeIndex)
           applyLogs();
-
+        // Log_info("[3]heartbeat loop at loc %d continue since is leader", loc_id_);
         term = currentTerm;
         mtx_.unlock();
 
@@ -251,6 +286,7 @@ void RaftServer::HeartbeatLoop() {
         uint64_t ret_term = 0;
         uint64_t ret_last_log_index = 0;
         mtx_.unlock();
+        // Log_info("!!!!!!!!! SendAppendEntries2");
         auto r = commo()->SendAppendEntries2(site_id,
                                             partition_id,
                                             -1,
@@ -389,6 +425,9 @@ bool RaftServer::RequestVote() {
     if(IsLeader()) {
 	  	//for(int i = 0; i < 100; i++) Log_info("wait wait wait");
       Log_debug("vote accepted %d curterm %d", loc_id, currentTerm);
+      Log_info("[JETPACK-RECOVERY] ===== LEADER ELECTION COMPLETED =====");
+      Log_info("[JETPACK-RECOVERY] New leader elected: site_id=%d, term=%d", loc_id, currentTerm);
+      JetpackRecoveryEntry(); // Trigger Jetpack recovery on new leader election
   		req_voting_ = false ;
 			return true;
     } else {
@@ -473,14 +512,16 @@ void RaftServer::StartElectionTimer() {
     Log_debug("start timer for election") ;
     double duration = randDuration() ;
     while(!stop_) {
-      Coroutine::Sleep(RandomGenerator::rand(5*HEARTBEAT_INTERVAL,10*HEARTBEAT_INTERVAL));
+      Coroutine::Sleep(RandomGenerator::rand((frame_->site_info_->locale_id + 1) * 5*HEARTBEAT_INTERVAL,(frame_->site_info_->locale_id + 1) *10*HEARTBEAT_INTERVAL));
       auto time_now = Time::now();
       auto time_elapsed = time_now - last_heartbeat_time_;
-      if (!IsLeader() && (time_now - last_heartbeat_time_ > 10 * HEARTBEAT_INTERVAL)) {
+      // Log_info("sleeped for %d ms bar %d ms", time_now - last_heartbeat_time_, 10 * HEARTBEAT_INTERVAL);
+      if (!IsLeader() && (time_now - last_heartbeat_time_ > 100 * HEARTBEAT_INTERVAL)) {
         Log_debug("site %d start election, time_elapsed: %d, last vote for: %d", 
           site_id_, time_elapsed, vote_for_);
         // ask to vote
         req_voting_ = true ;
+        Log_info("!!!!!!!!!!!!!!!! Before %d RequestVote() ;", loc_id_);
         RequestVote() ;
         while(req_voting_) {
           Coroutine::Sleep(wait_int_);
@@ -498,23 +539,24 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        ballot_t ballot) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
-  #ifndef RAFT_TEST_CORO
-  if (!heartbeat_setup_) {
-    heartbeat_setup_ = true;
-    if (heartbeat_) {
-      Log_debug("starting heartbeat loop at site %d", site_id_);
-      Coroutine::CreateRun([this](){
-        this->HeartbeatLoop(); 
-      });
-      // Start election timeout loop
-      if (failover_) {
-        Coroutine::CreateRun([this](){
-          StartElectionTimer(); 
-        });
-      }
-    }
-  }
-  #endif
+  // #ifndef RAFT_TEST_CORO
+  // if (!heartbeat_setup_) {
+  //   heartbeat_setup_ = true;
+  //   if (heartbeat_) {
+  //     Log_debug("starting heartbeat loop at site %d", site_id_);
+  //     Coroutine::CreateRun([this](){
+  //       this->HeartbeatLoop(); 
+  //     });
+  //     // Start election timeout loop
+  //     Log_info("!!!!!!! if (failover_)");
+  //     if (failover_) {
+  //       Coroutine::CreateRun([this](){
+  //         StartElectionTimer(); 
+  //       });
+  //     }
+  //   }
+  // }
+  // #endif
   if (!IsLeader()) {
     *index = 0;
     *term = 0;

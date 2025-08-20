@@ -122,6 +122,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
 
 #endif
     client_threads_g.push_back(std::move(th_));
+    Log_info("!!!!!!! Before client_workers_g.push_back");
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
   }
 
@@ -258,6 +259,23 @@ void wait_for_clients() {
   }
 }
 
+int find_current_leader() {
+    for (int i = 0; i < svr_workers_g.size(); i++) {
+        if (svr_workers_g[i].rep_sched_) {
+            // Cast to RaftServer to access IsLeader()
+            if (TxLogServer* server = dynamic_cast<TxLogServer*>(svr_workers_g[i].rep_sched_)) {
+                if (server->IsLeader()) {
+                    Log_info("Current leader found: index %d, site_id %d, locale_id %d",
+                              i, svr_workers_g[i].site_info_->id, svr_workers_g[i].site_info_->locale_id);
+                    return i;
+                }
+            }
+        }
+    }
+    Log_info("No current leader found");
+    return -1;
+}
+
 void server_failover_co(bool random, bool leader, int srv_idx)
 {
 #ifdef FAILOVER_DEBUG
@@ -353,10 +371,13 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         // TODO the idx of client
 #ifdef FAILOVER_DEBUG
         Log_info("!!!!!!!!!!!!!!before pause 0");
+        Log_info("client_workers_g size: %d", client_workers_g.size());
 #endif
-        client_workers_g[0]->Pause(idx) ;
-        Log_info("!!!!!!!!!!!!!! failover paused");
-//        svr_workers_g[idx].Pause() ;
+        // client_workers_g[0]->Pause(idx) ;
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ client_workers_g paused");
+        idx = find_current_leader();
+        svr_workers_g[idx].Pause() ;
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ svr_workers_g %d paused", idx);
         for (int i = 0; i < client_workers_g.size() ; ++i)
         {
           failover_triggers[i] = true ;
@@ -378,11 +399,11 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         //   }
         // }        
 #ifdef FAILOVER_DEBUG
-        Log_info("!!!!!!!!!!!!!!before resume 0");
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ before resume 0");
 #endif
-        client_workers_g[0]->Resume(idx) ;
-        Log_info("!!!!!!!!!!!!!! failover resumed");
-//        svr_workers_g[idx].Resume() ;
+        // client_workers_g[0]->Resume(idx) ;
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ failover resumed");
+        svr_workers_g[idx].Resume() ;
 #ifdef FAILOVER_DEBUG
         Log_info("server %d resumed for failover test", idx);
 #endif
@@ -396,6 +417,9 @@ void server_failover_co(bool random, bool leader, int srv_idx)
 }
 
 void server_failover_thread(bool random, bool leader, int srv_idx) {
+#ifdef AWS
+    sleep(15); // [JetPack] This is add for aws server test, this place need to wait the same time as client_launch_workers
+#endif
 #ifdef FAILOVER_DEBUG
   Log_info("!!!!!!!!!!!!!!!enter server_failover_thread");
 #endif
@@ -559,6 +583,7 @@ int main(int argc, char *argv[]) {
 
 
   auto client_infos = Config::GetConfig()->GetMyClients();
+  Log_info("!!!!!!!!!!!! client_infos size %d", client_infos.size());
   if (client_infos.size() > 0) {
     client_setup_heartbeat(client_infos.size());
   }
@@ -579,11 +604,13 @@ int main(int argc, char *argv[]) {
     Log_info("no servers on this process");
   }
 
+  Log_info("!!!!!!!!!! before if (!client_infos.empty()) %d", !client_infos.empty());
   if (!client_infos.empty()) {
     //client_setup_heartbeat(client_infos.size());
 #ifdef AWS
     sleep(15); // [JetPack] This is add for aws server test, otherwise client may start when server not ready (like *** verify failed: commo_ != nullptr at ../src/deptran/copilot/frame.cc, line 82)
 #endif
+    Log_info("!!!!!!!!!!!!! before client_launch_workers(client_infos);");
     client_launch_workers(client_infos);
 
 #ifdef AWS

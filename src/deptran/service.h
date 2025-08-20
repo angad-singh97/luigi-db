@@ -281,6 +281,88 @@ class ClassicServiceImpl : public ClassicService {
   void CommitFebruus(const txid_t& tx_id,
                      const uint64_t& timestamp,
                      int32_t* res, DeferredReply* defer) override;
+  
+  void JetpackBeginRecovery(const MarshallDeputy& old_view, 
+                            const MarshallDeputy& new_view, 
+                            const epoch_t& new_view_id, 
+                            rrr::DeferredReply* defer) override;
+  
+  void JetpackPullIdSet(const epoch_t& jepoch,
+                        const epoch_t& oepoch,
+                        bool_t* ok,
+                        epoch_t* reply_jepoch,
+                        epoch_t* reply_oepoch,
+                        MarshallDeputy* reply_old_view,
+                        MarshallDeputy* reply_new_view,
+                        MarshallDeputy* id_set,
+                        rrr::DeferredReply* defer) override;
+
+  void JetpackPullCmd(const epoch_t& jepoch,
+                      const epoch_t& oepoch,
+                      const key_t& key,
+                      bool_t* ok,
+                      epoch_t* reply_jepoch,
+                      epoch_t* reply_oepoch,
+                      MarshallDeputy* reply_old_view,
+                      MarshallDeputy* reply_new_view,
+                      MarshallDeputy* cmd,
+                      rrr::DeferredReply* defer) override;
+ 
+  void JetpackRecordCmd(const epoch_t& jepoch,
+                        const epoch_t& oepoch,
+                        const int32_t& sid,
+                        const int32_t& rid,
+                        const MarshallDeputy& cmd, 
+                        rrr::DeferredReply* defer) override;
+ 
+  void JetpackPrepare(const epoch_t& jepoch,
+                      const epoch_t& oepoch,
+                      const ballot_t& max_seen_ballot,
+                      bool_t* ok,
+                      epoch_t* reply_jepoch,
+                      epoch_t* reply_oepoch,
+                      MarshallDeputy* reply_old_view,
+                      MarshallDeputy* reply_new_view,
+                      ballot_t* reply_max_seen_ballot,
+                      ballot_t* accepted_ballot,
+                      int32_t* replied_sid,
+                      int32_t* replied_set_size,
+                      rrr::DeferredReply* defer) override;
+ 
+  void JetpackAccept(const epoch_t& jepoch,
+                     const epoch_t& oepoch,
+                     const ballot_t& max_seen_ballot,
+                     const int32_t& sid,
+                     const int32_t& set_size,
+                     bool_t* ok,
+                     epoch_t* reply_jepoch,
+                     epoch_t* reply_oepoch,
+                     MarshallDeputy* reply_old_view,
+                     MarshallDeputy* reply_new_view,
+                     ballot_t* reply_max_seen_ballot,
+                     rrr::DeferredReply* defer) override;
+ 
+  void JetpackCommit(const epoch_t& jepoch,
+                     const epoch_t& oepoch, 
+                     const int32_t& sid, 
+                     const int32_t& set_size, 
+                     rrr::DeferredReply* defer) override;
+ 
+  void JetpackPullRecSetIns(const epoch_t& jepoch,
+                            const epoch_t& oepoch,
+                            const int32_t& sid,
+                            const int32_t& rid,
+                            bool_t* ok,
+                            epoch_t* reply_jepoch,
+                            epoch_t* reply_oepoch,
+                            MarshallDeputy* reply_old_view,
+                            MarshallDeputy* reply_new_view,
+                            MarshallDeputy* cmd,
+                            rrr::DeferredReply* defer) override;
+
+  void JetpackFinishRecovery(const epoch_t& oepoch,
+                             rrr::DeferredReply* defer) override;
+
  protected:
   void RegisterStats();
 };

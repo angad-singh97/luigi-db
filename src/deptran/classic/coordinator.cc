@@ -742,6 +742,7 @@ retry:
 }
 
 void CoordinatorClassic::FailoverPauseSocketOut(parid_t par_id, locid_t loc_id) {
+  Log_info("!!!!!!!!!!! CoordinatorClassic::FailoverPauseSocketOut");
   auto e = commo()->FailoverPauseSocketOut(par_id, loc_id);
   e->Wait();
   if (e->No()) {

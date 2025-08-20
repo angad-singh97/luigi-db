@@ -44,9 +44,8 @@ class MarshallDeputy {
     CMD_NOOP = 10,
     CMD_TPC_BATCH = 11,
     CMD_KV = 12,
-    POSITION_CLASSIC = 13,
-    POSITION_COPILOT = 14,
-    POSITION = 15,
+    CMD_REC_VEC = 13,
+    CMD_VIEW_DATA = 14,
   };
   /**
    * This should be called by the rpc layer.

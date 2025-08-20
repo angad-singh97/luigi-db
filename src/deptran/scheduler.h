@@ -5,6 +5,7 @@
 #include "epochs.h"
 #include "kvdb.h"
 #include "procedure.h"
+#include "view.h"
 #include "tx.h"
 #include "rcc/tx.h"
 #include "classic/tpc_command.h"
@@ -141,20 +142,20 @@ class Frequency {
 };
 
 class RevoveryCandidates {
-  int maximal_ = -1;
+  // <cmd_id, cmd>
+  unordered_map<uint64_t, shared_ptr<Marshallable>> candidates_;
+  unordered_map<uint64_t, bool> appeared_;
   int total_write_ = 0;
-  // <cmd_id, <cnt_for_this_key, is_write> >
-  unordered_map<uint64_t, pair<int, bool>> candidates_;
-  // <cmd_id, cnt_for_this_cmd_id>
-  unordered_map<uint64_t, int> cmd_count_;
+  uint64_t to_recover_id_ = -1;
  public:
   RevoveryCandidates() {}
-  void push_back(uint64_t cmd_id, bool is_write);
+  void push_back(uint64_t cmd_id, shared_ptr<Marshallable> cmd, bool is_write);
   bool remove(uint64_t cmd_id);
   bool has_appeared(uint64_t cmd_id);
   size_t size();
   int total_write();
-  uint64_t id_of_candidate_to_recover();
+  bool has_cmd_to_recover() const;
+  shared_ptr<Marshallable> cmd_to_recover();
 };
 
 class Witness {
@@ -181,14 +182,21 @@ class Witness {
       }
     }
   };
-  bool belongs_to_leader_{false}; // i.e. This server can propose value
+  bool belongs_to_leader_{false}; // i.e. This server can propose value // discard
   unordered_map<key_t, RevoveryCandidates> candidates_;
   int witness_size_ = 0;
   Distribution witness_size_distribution_;
+
 #ifdef WITNESS_LOG_DEBUG
   vector<WitnessLog> witness_log_;
 #endif
  public:
+  /* Recover related begin */
+  ballot_t max_seen_ballot_ = -1, max_accepted_ballot_ = -1;
+  int sid_ = -1, set_size_ = 0;
+  bool committed_ = false;
+  /* Recover related end */
+
   Witness() {};
   ~Witness() {};
   // return whether meet conflict, but not whether push_back success
@@ -197,9 +205,19 @@ class Witness {
   int remove(const shared_ptr<Marshallable>& cmd);
   // return whether all cmds appeared before
   bool has_appeared(const shared_ptr<Marshallable>& cmd);
-  void set_belongs_to_leader(bool belongs_to_leader);
+  void set_belongs_to_leader(bool belongs_to_leader); // discard
   // return 50pct, 90pct, 99pct, ave of the witness_size_distribution_
   std::vector<double> witness_size_distribution();
+  /* Recover related begin */
+  bool has_cmd_to_recover(key_t key) {
+    return candidates_[key].has_cmd_to_recover();
+  }
+  shared_ptr<Marshallable> cmd_to_recover(key_t key) {
+    return candidates_[key].cmd_to_recover();
+  }
+  shared_ptr<VecRecData> id_set();
+  void reset();
+  /* Recover related end */
 #ifdef WITNESS_LOG_DEBUG
   void print_log();
 #endif
@@ -270,6 +288,21 @@ struct ResponseData {
   }
 };
 
+class RecoverySet {
+  std::unordered_map<int, std::vector<shared_ptr<Marshallable>>> rec_set_;
+ public:
+  void insert(int sid, int rid, shared_ptr<Marshallable> cmd) {
+    rec_set_[sid][rid] = cmd;
+  }
+  shared_ptr<Marshallable> get(int sid, int rid) {
+    return rec_set_[sid][rid];
+  }
+};
+
+// View class is defined in view.h
+
+
+
 struct CommitNotification {
   // client side
   bool client_stored_ = false;
@@ -291,6 +324,17 @@ class Frame;
 class Communicator;
 class TxLogServer {
  public:
+
+  /* Some Jetpack elements begin */
+  enum JetpackStatus {RECOVERY, READY};
+  int jetpack_status_ = JetpackStatus::READY;
+  epoch_t jepoch_, oepoch_;
+  View old_view_, new_view_;
+  int sid, rid, sid_cnt_ = 0;
+  RecoverySet rec_set_;
+  bool simulated_fail_ = false;
+  /* Some Jetpack elements end */
+
   void *svr_workers_g{nullptr};
 
   locid_t loc_id_ = -1;
@@ -512,6 +556,93 @@ class TxLogServer {
     return false;
   }
 #endif
+
+  void JetpackRecoveryEntry();
+
+  void JetpackBeginRecovery();
+
+  void JetpackRecovery();
+
+  void JetpackPrepare(int sid, int set_size);
+
+  void JetpackAccept(int sid, int set_size);
+
+  void JetpackCommit(int sid, int set_size);
+
+  void JetpackResubmit(int sid, int set_size);
+  
+  void OnJetpackBeginRecovery(const MarshallDeputy& old_view,
+                              const MarshallDeputy& new_view, 
+                              const epoch_t& new_view_id);
+  
+  void OnJetpackPullIdSet(const epoch_t& jepoch,
+                          const epoch_t& oepoch,
+                          bool_t* ok,
+                          epoch_t* reply_jepoch,
+                          epoch_t* reply_oepoch,
+                          MarshallDeputy* reply_old_view,
+                          MarshallDeputy* reply_new_view,
+                          shared_ptr<VecRecData> id_set);
+  
+  void OnJetpackPullCmd(const epoch_t& jepoch,
+                        const epoch_t& oepoch,
+                        const key_t& key,
+                        bool_t* ok, 
+                        epoch_t* reply_jepoch, 
+                        epoch_t* reply_oepoch,
+                        MarshallDeputy* reply_old_view,
+                        MarshallDeputy* reply_new_view,
+                        shared_ptr<Marshallable> cmd);
+  
+  void OnJetpackRecordCmd(const epoch_t& jepoch, 
+                          const epoch_t& oepoch, 
+                          const int32_t& sid, 
+                          const int32_t& rid, 
+                          shared_ptr<Marshallable>& cmd);
+  
+  void OnJetpackPrepare(const epoch_t& jepoch, 
+                        const epoch_t& oepoch, 
+                        const ballot_t& max_seen_ballot, 
+                        bool_t* ok, 
+                        epoch_t* reply_jepoch,
+                        epoch_t* reply_oepoch,
+                        MarshallDeputy* reply_old_view,
+                        MarshallDeputy* reply_new_view,
+                        ballot_t* reply_max_seen_ballot,
+                        ballot_t* accepted_ballot, 
+                        int32_t* replied_sid, 
+                        int32_t* replied_set_size);
+  
+  void OnJetpackAccept(const epoch_t& jepoch, 
+                       const epoch_t& oepoch, 
+                       const ballot_t& max_seen_ballot, 
+                       const int32_t& sid, 
+                       const int32_t& set_size,
+                       bool_t* ok,
+                       epoch_t* reply_jepoch,
+                       epoch_t* reply_oepoch,
+                       MarshallDeputy* reply_old_view,
+                       MarshallDeputy* reply_new_view,
+                       ballot_t* reply_max_seen_ballot);
+  
+  void OnJetpackCommit(const epoch_t& jepoch, 
+                       const epoch_t& oepoch, 
+                       const int32_t& sid, 
+                       const int32_t& set_size);
+  
+  void OnJetpackPullRecSetIns(const epoch_t& jepoch,
+                              const epoch_t& oepoch, 
+                              const int32_t& sid, 
+                              const int32_t& rid, 
+                              bool_t* ok, 
+                              epoch_t* reply_jepoch,
+                              epoch_t* reply_oepoch,
+                              MarshallDeputy* reply_old_view,
+                              MarshallDeputy* reply_new_view,
+                              shared_ptr<Marshallable> cmd);
+  
+  void OnJetpackFinishRecovery(const epoch_t& oepoch);
+
 
 };
 

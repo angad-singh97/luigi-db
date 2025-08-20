@@ -7,6 +7,7 @@
 #include "rcc/graph.h"
 #include "command_marshaler.h"
 #include "txn_reg.h"
+#include "view.h"
 
 namespace janus {
 
@@ -178,6 +179,73 @@ class VecPieceData : public Marshallable {
     }
     m >> time_sent_from_client_;
 //    m >> *sp_vec_piece_data_;
+    return m;
+  }
+};
+
+class VecRecData : public Marshallable {
+ public:
+  // TODO move shared_ptr into the vector.
+  shared_ptr<vector<key_t>> key_data_{};
+  VecRecData() : Marshallable(MarshallDeputy::CMD_REC_VEC) {
+
+  }
+
+  Marshal& ToMarshal(Marshal& m) const override {
+    verify(key_data_);
+    m << (int32_t) key_data_->size();
+    for (const key_t& k: *key_data_) {
+      m << k;
+    }
+//    m << *key_data_;
+    return m;
+  }
+
+  Marshal& FromMarshal(Marshal& m) override {
+    verify(!key_data_);
+    key_data_ = std::make_shared<vector<key_t>>();
+    int32_t sz;
+    m >> sz;
+    for (int i = 0; i < sz; i++) {
+      key_t x;
+      m >> x;
+      key_data_->push_back(x);
+    }
+//    m >> *key_data_;
+    return m;
+  }
+};
+
+class ViewData : public Marshallable {
+ public:
+  View view_;
+  
+  ViewData() : Marshallable(MarshallDeputy::CMD_VIEW_DATA) {}
+  
+  ViewData(const View& view) : Marshallable(MarshallDeputy::CMD_VIEW_DATA), view_(view) {}
+  
+  Marshal& ToMarshal(Marshal& m) const override {
+    m << view_.n_;
+    m << view_.view_id_;
+    m << (int32_t)view_.leaders_.size();
+    for (int leader : view_.leaders_) {
+      m << leader;
+    }
+    return m;
+  }
+  
+  Marshal& FromMarshal(Marshal& m) override {
+    m >> view_.n_;
+    m >> view_.view_id_;
+    int32_t leader_count;
+    m >> leader_count;
+    view_.leaders_.clear();
+    view_.leaders_.reserve(leader_count);
+    for (int i = 0; i < leader_count; i++) {
+      int leader;
+      m >> leader;
+      view_.leaders_.push_back(leader);
+    }
     return m;
   }
 };

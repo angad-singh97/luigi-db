@@ -93,6 +93,198 @@ class RuleSpeculativeExecuteQuorumEvent: public QuorumEvent {
   value_t GetResult();
 };
 
+class JetpackPullIdSetQuorumEvent: public QuorumEvent {
+ public:
+  using QuorumEvent::QuorumEvent;
+  std::vector<shared_ptr<VecRecData>> id_sets_;
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+  
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, const MarshallDeputy& id_set) {
+    if (y) {
+      VoteYes();
+      // If ok=true, jepoch and oepoch are not larger than local, so we can update id_sets
+      auto vec_rec_data = std::dynamic_pointer_cast<VecRecData>(id_set.sp_data_);
+      if (vec_rec_data) {
+        id_sets_.push_back(vec_rec_data);
+      }
+    } else {
+      VoteNo();
+      // If ok=false, we need to find max jepoch and oepoch for updating local values
+      if (jepoch > max_jepoch_) {
+        max_jepoch_ = jepoch;
+      }
+      if (oepoch > max_oepoch_) {
+        max_oepoch_ = oepoch;
+      }
+    }
+  }
+  
+  shared_ptr<vector<key_t>> GetMergedKeys() {
+    auto result = std::make_shared<vector<key_t>>();
+    std::set<key_t> unique_keys;
+    
+    for (const auto& id_set : id_sets_) {
+      if (id_set && id_set->key_data_) {
+        for (const auto& key : *id_set->key_data_) {
+          unique_keys.insert(key);
+        }
+      }
+    }
+    
+    for (const auto& key : unique_keys) {
+      result->push_back(key);
+    }
+    return result;
+  }
+};
+
+class JetpackPullCmdQuorumEvent: public QuorumEvent {
+ public:
+  using QuorumEvent::QuorumEvent;
+  std::map<shared_ptr<Marshallable>, int> cmd_counts_;
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+  
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, const MarshallDeputy& cmd) {
+    if (y) {
+      VoteYes();
+      // Count how many times each command appears
+      auto cmd_ptr = cmd.sp_data_;
+      if (cmd_ptr) {
+        cmd_counts_[cmd_ptr]++;
+      }
+    } else {
+      VoteNo();
+      // If ok=false, track max epochs for local update
+      if (jepoch > max_jepoch_) {
+        max_jepoch_ = jepoch;
+      }
+      if (oepoch > max_oepoch_) {
+        max_oepoch_ = oepoch;
+      }
+    }
+  }
+  
+  shared_ptr<Marshallable> GetCmdToRecover() {
+    int f = (n_total_ - 1) / 2;
+    int majority_threshold = (f + 2) / 2 + ((f + 2) % 2); // ⌈(f+2)/2⌉
+    
+    for (const auto& pair : cmd_counts_) {
+      if (pair.second >= majority_threshold) {
+        return pair.first;
+      }
+    }
+    return nullptr;
+  }
+};
+
+class JetpackPrepareQuorumEvent: public QuorumEvent {
+ public:
+  using QuorumEvent::QuorumEvent;
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+  ballot_t max_accepted_ballot_ = -1;
+  ballot_t max_seen_ballot_ = -1;
+  int accepted_sid_ = -1;
+  int accepted_set_size_ = 0;
+  bool has_accepted_value_ = false;
+  
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, ballot_t accepted_ballot, int sid, int set_size, ballot_t max_seen_ballot) {
+    if (y) {
+      VoteYes();
+      // Track the highest accepted ballot and its value
+      if (accepted_ballot > max_accepted_ballot_) {
+        max_accepted_ballot_ = accepted_ballot;
+        accepted_sid_ = sid;
+        accepted_set_size_ = set_size;
+        has_accepted_value_ = true;
+      }
+    } else {
+      VoteNo();
+      // Track max epochs and max_seen_ballot for local update
+      if (jepoch > max_jepoch_) {
+        max_jepoch_ = jepoch;
+      }
+      if (oepoch > max_oepoch_) {
+        max_oepoch_ = oepoch;
+      }
+      if (max_seen_ballot > max_seen_ballot_) {
+        max_seen_ballot_ = max_seen_ballot;
+      }
+    }
+  }
+  
+  bool HasValue() {
+    return has_accepted_value_;
+  }
+  
+  int GetSid() {
+    return accepted_sid_;
+  }
+  
+  int GetSetSize() {
+    return accepted_set_size_;
+  }
+};
+
+class JetpackAcceptQuorumEvent: public QuorumEvent {
+ public:
+  using QuorumEvent::QuorumEvent;
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+  ballot_t max_seen_ballot_ = -1;
+  
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, ballot_t max_seen_ballot) {
+    if (y) {
+      VoteYes();
+    } else {
+      VoteNo();
+      // Track max epochs and max_seen_ballot for local update
+      if (jepoch > max_jepoch_) {
+        max_jepoch_ = jepoch;
+      }
+      if (oepoch > max_oepoch_) {
+        max_oepoch_ = oepoch;
+      }
+      if (max_seen_ballot > max_seen_ballot_) {
+        max_seen_ballot_ = max_seen_ballot;
+      }
+    }
+  }
+};
+
+class JetpackPullRecSetInsQuorumEvent: public QuorumEvent {
+ public:
+  using QuorumEvent::QuorumEvent;
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+  shared_ptr<Marshallable> recovered_cmd_;
+  
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, const MarshallDeputy& cmd) {
+    if (y) {
+      VoteYes();
+      // Store the recovered command if we get one
+      if (!recovered_cmd_ && cmd.sp_data_) {
+        recovered_cmd_ = cmd.sp_data_;
+      }
+    } else {
+      VoteNo();
+      // Track max epochs for local update
+      if (jepoch > max_jepoch_) {
+        max_jepoch_ = jepoch;
+      }
+      if (oepoch > max_oepoch_) {
+        max_oepoch_ = oepoch;
+      }
+    }
+  }
+  
+  shared_ptr<Marshallable> GetRecoveredCmd() {
+    return recovered_cmd_;
+  }
+};
+
 /************************RULE end*********************************/
 
 class Communicator {
@@ -243,6 +435,33 @@ class Communicator {
   void SendSimpleCmd(groupid_t gid, SimpleCommand& cmd, std::vector<int32_t>& sids,
       const function<void(int)>& callback);
   
+  /* Jetpack recovery begin */
+  shared_ptr<QuorumEvent> JetpackBroadcastBeginRecovery(parid_t par_id, locid_t loc_id, 
+                                                       const View& old_view, 
+                                                       const View& new_view, 
+                                                       epoch_t new_view_id);
+  shared_ptr<JetpackPullIdSetQuorumEvent> JetpackBroadcastPullIdSet(parid_t par_id, locid_t loc_id,
+                                                                   epoch_t jepoch, epoch_t oepoch);
+  shared_ptr<JetpackPullCmdQuorumEvent> JetpackBroadcastPullCmd(parid_t par_id, locid_t loc_id, 
+                                                               key_t key, epoch_t jepoch, epoch_t oepoch);
+  shared_ptr<QuorumEvent> JetpackBroadcastRecordCmd(parid_t par_id, locid_t loc_id,
+                                                    epoch_t jepoch, epoch_t oepoch, 
+                                                    int sid, int rid, 
+                                                    shared_ptr<Marshallable> cmd);
+  shared_ptr<JetpackPrepareQuorumEvent> JetpackBroadcastPrepare(parid_t par_id, locid_t loc_id, 
+                                                               epoch_t jepoch, epoch_t oepoch, 
+                                                               ballot_t max_seen_ballot);
+  shared_ptr<JetpackAcceptQuorumEvent> JetpackBroadcastAccept(parid_t par_id, locid_t loc_id, 
+                                                            epoch_t jepoch, epoch_t oepoch, 
+                                                            ballot_t max_seen_ballot, int sid, int set_size);
+  shared_ptr<QuorumEvent> JetpackBroadcastCommit(parid_t par_id, locid_t loc_id, 
+                                                 epoch_t jepoch, epoch_t oepoch, 
+                                                 int sid, int set_size);
+  shared_ptr<JetpackPullRecSetInsQuorumEvent> JetpackBroadcastPullRecSetIns(parid_t par_id, locid_t loc_id, 
+                                                                           epoch_t jepoch, epoch_t oepoch, 
+                                                                           int sid, int rid);
+  shared_ptr<QuorumEvent> JetpackBroadcastFinishRecovery(parid_t par_id, locid_t loc_id, epoch_t oepoch);
+  /* Jetpack recovery end */
 };
 
 } // namespace janus

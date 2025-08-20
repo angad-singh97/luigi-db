@@ -312,6 +312,7 @@ void TxLogServer::DestroyExecutor(txnid_t txn_id) {
 }
 
 void TxLogServer::Pause() {
+  Log_info("!!!!!!!! TxLogServer::Pause()");
   commo_->Pause();
 };
 
@@ -457,28 +458,35 @@ void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
 }
 
 
-void RevoveryCandidates::push_back(uint64_t cmd_id, bool is_write) {
-  candidates_[cmd_id] = make_pair(++maximal_, is_write);
+void RevoveryCandidates::push_back(uint64_t cmd_id, shared_ptr<Marshallable> cmd, bool is_write) {
+  candidates_[cmd_id] = cmd;
+  if (total_write_ == 0 && is_write) {
+    verify(to_recover_id_ == (uint64_t)(-1));
+    to_recover_id_ = cmd_id;
+  }
   total_write_ += is_write;
 #ifdef JETPACK_DEDUPLICATE_OPTIMIZATION
-  cmd_count_[cmd_id]++;
+  appeared_[cmd_id] = true;
 #endif
 }
 
 bool RevoveryCandidates::remove(uint64_t cmd_id) {
   auto it = candidates_.find(cmd_id);
   if (it != candidates_.end()) {
-    total_write_ -= it->second.second;
+    SimpleRWCommand parsed_cmd = SimpleRWCommand(it->second);
+    if (total_write_ == 1 && parsed_cmd.IsWrite()) {
+      to_recover_id_ = (uint64_t)(-1);
+    }
+    total_write_ -= parsed_cmd.IsWrite();
     candidates_.erase(cmd_id);
     return 1;
   } else {
     return 0;
   }
-  // return candidates_.erase(cmd_id);
 }
 
 bool RevoveryCandidates::has_appeared(uint64_t cmd_id) {
-  return cmd_count_[cmd_id];
+  return appeared_[cmd_id];
 }
 
 size_t RevoveryCandidates::size() {
@@ -489,16 +497,15 @@ int RevoveryCandidates::total_write() {
   return total_write_;
 }
 
-uint64_t RevoveryCandidates::id_of_candidate_to_recover() {
-  uint64_t cmd_to_recover = -1;
-  int minimal = INT_MAX;
-  for (auto pair: candidates_) {
-    if (pair.second.first < minimal) {
-      cmd_to_recover = pair.first;
-      minimal = pair.second.first;
-    }
-  }
-  return cmd_to_recover;
+bool RevoveryCandidates::has_cmd_to_recover() const {
+  return to_recover_id_ != (uint64_t)(-1);
+}
+
+shared_ptr<Marshallable> RevoveryCandidates::cmd_to_recover() {
+  if (to_recover_id_ != (uint64_t)(-1))
+    return candidates_[to_recover_id_];
+  else
+    return nullptr;
 }
 
 bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
@@ -507,15 +514,13 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
 
 #ifdef READ_NOT_CONFLICT_OPTIMIZATION
-  // if (!(candidates_[key].size() == 0 || (candidates_[key].total_write() == 0 && parsed_cmd.IsRead())))
-  //   Log_info("total_write %d parsed_cmd.IsRead() %d parsed_cmd.IsWrite() %d", candidates_[key].total_write(), parsed_cmd.IsRead(), parsed_cmd.IsWrite());
-  if (candidates_[key].size() == 0 || (candidates_[key].total_write() == 0 && parsed_cmd.IsRead())) {
+  if (candidates_[key].total_write() == 0) {
 #endif
 #ifndef READ_NOT_CONFLICT_OPTIMIZATION
   if (candidates_[key].size() == 0) {
 #endif
     // not exist conflict
-    candidates_[key].push_back(cmd_id, parsed_cmd.IsWrite());
+    candidates_[key].push_back(cmd_id, cmd, parsed_cmd.IsWrite());
 #ifdef WITNESS_LOG_DEBUG
     witness_log_.push_back(WitnessLog(0, cmd, 1, witness_size_));
 #endif
@@ -523,17 +528,10 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
     return true;
   } else {
     // exist conflict, candidates_[key].size() >= 1
-    if (belongs_to_leader_) {
-      candidates_[key].push_back(cmd_id, parsed_cmd.IsWrite());
+    candidates_[key].push_back(cmd_id, cmd, parsed_cmd.IsWrite());
 #ifdef WITNESS_LOG_DEBUG
-      witness_log_.push_back(WitnessLog(0, cmd, 2, witness_size_));
+    witness_log_.push_back(WitnessLog(0, cmd, 0, witness_size_));
 #endif
-      witness_size_distribution_.mid_time_append(++witness_size_);
-    } else {
-#ifdef WITNESS_LOG_DEBUG
-      witness_log_.push_back(WitnessLog(0, cmd, 0, witness_size_));
-#endif
-    }
     return false;
   }
 }
@@ -610,6 +608,34 @@ std::vector<double> Witness::witness_size_distribution() {
   return ret;
 }
 
+shared_ptr<VecRecData> Witness::id_set() {
+  auto result = std::make_shared<VecRecData>();
+  result->key_data_ = std::make_shared<vector<key_t>>();
+  
+  for (const auto& kv : candidates_) {
+    key_t key = kv.first;
+    if (kv.second.has_cmd_to_recover()) {
+      result->key_data_->push_back(key);
+    }
+  }
+  
+  return result;
+}
+
+void Witness::reset() {
+  candidates_.clear();
+  witness_size_ = 0;
+  witness_size_distribution_ = Distribution();
+  
+  // Reset recovery related fields
+  max_seen_ballot_ = -1;
+  max_accepted_ballot_ = -1;
+  sid_ = -1;
+  set_size_ = 0;
+  committed_ = false;
+}
+
+
 #ifdef WITNESS_LOG_DEBUG
 void Witness::print_log() {
   if (witness_log_.size() == 0)
@@ -620,5 +646,447 @@ void Witness::print_log() {
 }
 #endif
 
+
+void TxLogServer::JetpackRecoveryEntry() {
+  Log_info("[JETPACK-RECOVERY] ===== STARTING JETPACK RECOVERY ======");
+  Log_info("[JETPACK-RECOVERY] Leader: site_id=%d, jepoch=%d, oepoch=%d", site_id_, jepoch_, oepoch_);
+  
+  // Step 1: Begin recovery - broadcast to all replicas in old_view
+  JetpackBeginRecovery();
+  
+  // Step 2: Pull ID sets and recover commands, then proceed with consensus
+  JetpackRecovery();
+  
+  Log_info("[JETPACK-RECOVERY] ===== JETPACK RECOVERY COMPLETED ======");
+}
+
+void TxLogServer::JetpackBeginRecovery() {
+  Log_info("[JETPACK-RECOVERY] Step 1: Broadcasting BeginRecovery to partition %d", partition_id_);
+  Log_info("[JETPACK-RECOVERY] BeginRecovery: old_view leader=%d, new_view leader=%d, oepoch=%d", 
+           old_view_.GetLeader(), new_view_.GetLeader(), oepoch_);
+  
+  // Wait for majority to receive BeginRecovery
+  auto e = commo()->JetpackBroadcastBeginRecovery(partition_id_, site_id_, old_view_, new_view_, oepoch_);
+  e->Wait();
+  
+  if (!e->Yes()) {
+    Log_info("[JETPACK-RECOVERY] BeginRecovery FAILED: got %d/%d responses", e->n_voted_yes_, e->n_total_);
+    return;
+  }
+  Log_info("[JETPACK-RECOVERY] BeginRecovery SUCCESS: got %d/%d responses", e->n_voted_yes_, e->n_total_);
+}
+
+void TxLogServer::JetpackRecovery() {
+  Log_info("[JETPACK-RECOVERY] Step 2: Broadcasting PullIdSet to collect command IDs");
+  
+  // Step 1: Broadcast PullIdSet and collect f+1 PullIdSetAck replies
+  auto id_set_e = commo()->JetpackBroadcastPullIdSet(partition_id_, site_id_, jepoch_, oepoch_);
+  id_set_e->Wait();
+  
+  if (!id_set_e->Yes()) {
+    Log_info("[JETPACK-RECOVERY] PullIdSet FAILED: got %d/%d responses", id_set_e->n_voted_yes_, id_set_e->n_total_);
+    // Update local jepoch, oepoch from the responses
+    if (id_set_e->max_jepoch_ > jepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, id_set_e->max_jepoch_);
+      jepoch_ = id_set_e->max_jepoch_;
+      witness_.reset(); // Reset witness when jepoch increases
+    }
+    if (id_set_e->max_oepoch_ > oepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, id_set_e->max_oepoch_);
+      oepoch_ = id_set_e->max_oepoch_;
+      // TODO: Update old_view_ and new_view_ from responses
+    }
+    return;
+  }
+  
+  Log_info("[JETPACK-RECOVERY] PullIdSet SUCCESS: got %d/%d responses", id_set_e->n_voted_yes_, id_set_e->n_total_);
+  
+  // Make union of all key_set with largest jepoch
+  shared_ptr<vector<key_t>> key_set = id_set_e->GetMergedKeys();
+  
+  // Step 2: Create unique sid (combine replica id and increasing number)
+  sid = ((sid_cnt_++) << 8) | loc_id_;
+  rid = 0;
+  
+  Log_info("[JETPACK-RECOVERY] Step 3: Processing %d keys for sid=%d", key_set->size(), sid);
+  
+  // Step 3: For every key in key_set, pull cmd and check if it achieves majority
+  for (auto k: *key_set) {
+    Log_info("[JETPACK-RECOVERY] PullCmd for key=%d", k);
+    auto pulled_cmd_e = commo()->JetpackBroadcastPullCmd(partition_id_, site_id_, k, jepoch_, oepoch_);
+    pulled_cmd_e->Wait();
+    
+    if (!pulled_cmd_e->Yes()) {
+      Log_info("[JETPACK-RECOVERY] PullCmd FAILED for key=%d: got %d/%d responses", 
+               k, pulled_cmd_e->n_voted_yes_, pulled_cmd_e->n_total_);
+      // Update local epochs from failed PullCmd responses
+      if (pulled_cmd_e->max_jepoch_ > jepoch_) {
+        Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, pulled_cmd_e->max_jepoch_);
+        jepoch_ = pulled_cmd_e->max_jepoch_;
+        witness_.reset();
+      }
+      if (pulled_cmd_e->max_oepoch_ > oepoch_) {
+        Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, pulled_cmd_e->max_oepoch_);
+        oepoch_ = pulled_cmd_e->max_oepoch_;
+        // TODO: Update views
+      }
+      continue;
+    }
+    
+    Log_info("[JETPACK-RECOVERY] PullCmd SUCCESS for key=%d: got %d/%d responses", 
+             k, pulled_cmd_e->n_voted_yes_, pulled_cmd_e->n_total_);
+    
+    // Check if cmd preaccept success in at least ⌈(f+2)/2⌉ replies
+    shared_ptr<Marshallable> cmd = pulled_cmd_e->GetCmdToRecover();
+    if (cmd) {
+      Log_info("[JETPACK-RECOVERY] Found command to recover for key=%d, broadcasting RecordCmd", k);
+      // Broadcast RecordCmd and increase rid
+      auto record_e = commo()->JetpackBroadcastRecordCmd(partition_id_, site_id_, jepoch_, oepoch_, sid, rid, cmd);
+      record_e->Wait();
+      if (record_e->Yes()) {
+        rid++;
+        Log_info("[JETPACK-RECOVERY] RecordCmd SUCCESS: key=%d at rid=%d", k, rid-1);
+      } else {
+        Log_info("[JETPACK-RECOVERY] RecordCmd FAILED: key=%d, got %d/%d responses", 
+                 k, record_e->n_voted_yes_, record_e->n_total_);
+      }
+    } else {
+      Log_info("[JETPACK-RECOVERY] No command to recover for key=%d", k);
+    }
+  }
+  
+  Log_info("[JETPACK-RECOVERY] Recorded %d total commands for sid=%d", rid, sid);
+  
+  // Step 3: Use Paxos-like procedure to make consensus on sid and set_size
+  JetpackPrepare(sid, rid);
+}
+
+void TxLogServer::JetpackPrepare(int default_sid, int default_set_size) {
+  Log_info("[JETPACK-RECOVERY] Step 4: Starting Paxos Prepare phase for consensus");
+  Log_info("[JETPACK-RECOVERY] Prepare: default_sid=%d, default_set_size=%d, ballot=%lld", 
+           default_sid, default_set_size, witness_.max_seen_ballot_);
+  
+  // Use Paxos-like procedure to make consensus on sid and set_size
+  auto e = commo()->JetpackBroadcastPrepare(partition_id_, site_id_, jepoch_, oepoch_, witness_.max_seen_ballot_);
+  e->Wait();
+  
+  if (!e->Yes()) {
+    Log_info("[JETPACK-RECOVERY] Prepare FAILED: got %d/%d responses", e->n_voted_yes_, e->n_total_);
+    // Update local epochs and ballots from failed responses
+    if (e->max_jepoch_ > jepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, e->max_jepoch_);
+      jepoch_ = e->max_jepoch_;
+      witness_.reset();
+    }
+    if (e->max_oepoch_ > oepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, e->max_oepoch_);
+      oepoch_ = e->max_oepoch_;
+    }
+    if (e->max_seen_ballot_ > witness_.max_seen_ballot_) {
+      Log_info("[JETPACK-RECOVERY] Updating ballot from %lld to %lld", 
+               witness_.max_seen_ballot_, e->max_seen_ballot_);
+      witness_.max_seen_ballot_ = e->max_seen_ballot_;
+    }
+    return;
+  }
+  
+  Log_info("[JETPACK-RECOVERY] Prepare SUCCESS: got %d/%d responses", e->n_voted_yes_, e->n_total_);
+  
+  // Determine which sid and set_size to propose
+  int propose_sid = default_sid;        // Default value from recovery
+  int propose_set_size = default_set_size;   // Default value from recovery
+  
+  if (e->HasValue()) {
+    // Use the value from the highest accepted ballot
+    propose_sid = e->GetSid();
+    propose_set_size = e->GetSetSize();
+    Log_info("[JETPACK-RECOVERY] Using previously accepted value: sid=%d, set_size=%d", propose_sid, propose_set_size);
+  } else {
+    Log_info("[JETPACK-RECOVERY] No previous value, proposing recovered values: sid=%d, set_size=%d", propose_sid, propose_set_size);
+  }
+  
+  JetpackAccept(propose_sid, propose_set_size);
+}
+
+void TxLogServer::JetpackAccept(int propose_sid, int propose_set_size) {
+  Log_info("[JETPACK-RECOVERY] Step 5: Starting Paxos Accept phase");
+  
+  // Update local max_seen_ballot before accept
+  witness_.max_seen_ballot_++;
+  Log_info("[JETPACK-RECOVERY] Accept: proposing sid=%d, set_size=%d, ballot=%lld", 
+           propose_sid, propose_set_size, witness_.max_seen_ballot_);
+  
+  auto e = commo()->JetpackBroadcastAccept(partition_id_, site_id_, jepoch_, oepoch_, 
+                                          witness_.max_seen_ballot_, propose_sid, propose_set_size);
+  e->Wait();
+  
+  if (!e->Yes()) {
+    Log_info("[JETPACK-RECOVERY] Accept FAILED: got %d/%d responses", e->n_voted_yes_, e->n_total_);
+    // Update local epochs and ballots from failed responses
+    if (e->max_jepoch_ > jepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, e->max_jepoch_);
+      jepoch_ = e->max_jepoch_;
+      witness_.reset();
+    }
+    if (e->max_oepoch_ > oepoch_) {
+      Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, e->max_oepoch_);
+      oepoch_ = e->max_oepoch_;
+    }
+    if (e->max_seen_ballot_ > witness_.max_seen_ballot_) {
+      Log_info("[JETPACK-RECOVERY] Updating ballot from %lld to %lld", 
+               witness_.max_seen_ballot_, e->max_seen_ballot_);
+      witness_.max_seen_ballot_ = e->max_seen_ballot_;
+    }
+    return;
+  }
+  
+  Log_info("[JETPACK-RECOVERY] Accept SUCCESS: got %d/%d responses, proceeding to commit sid=%d, set_size=%d", 
+           e->n_voted_yes_, e->n_total_, propose_sid, propose_set_size);
+  JetpackCommit(propose_sid, propose_set_size);
+}
+
+void TxLogServer::JetpackCommit(int commit_sid, int commit_set_size) {
+  Log_info("[JETPACK-RECOVERY] Step 6: Broadcasting Commit for consensus decision");
+  Log_info("[JETPACK-RECOVERY] Commit: sid=%d, set_size=%d", commit_sid, commit_set_size);
+  
+  // Commit cannot fail - it's just notification after successful Accept
+  auto e = commo()->JetpackBroadcastCommit(partition_id_, site_id_, jepoch_, oepoch_, commit_sid, commit_set_size);
+  e->Wait(); // Wait for at least 1 response (quorum size can be 1)
+  
+  Log_info("[JETPACK-RECOVERY] Commit sent for sid=%d, set_size=%d, proceeding to resubmit", commit_sid, commit_set_size);
+  JetpackResubmit(commit_sid, commit_set_size);
+}
+
+void TxLogServer::JetpackResubmit(int sid, int set_size) {
+  Log_info("[JETPACK-RECOVERY] Step 7: Starting resubmit process for sid=%d with %d commands", sid, set_size);
+  
+  // For committed (sid, set_size) pair, ensure all positions exist locally
+  for (int rid = 0; rid < set_size; rid++) {
+    auto cmd = rec_set_.get(sid, rid);
+    if (!cmd) {
+      Log_info("[JETPACK-RECOVERY] Missing command at sid=%d, rid=%d, pulling from replicas", sid, rid);
+      // Pull missing command from other replicas
+      auto pull_e = commo()->JetpackBroadcastPullRecSetIns(partition_id_, site_id_, jepoch_, oepoch_, sid, rid);
+      pull_e->Wait();
+      if (pull_e->Yes()) {
+        cmd = pull_e->GetRecoveredCmd();
+        if (cmd) {
+          rec_set_.insert(sid, rid, cmd);
+          Log_info("[JETPACK-RECOVERY] Successfully pulled missing command for sid=%d, rid=%d", sid, rid);
+        } else {
+          Log_info("[JETPACK-RECOVERY] PullRecSetIns returned no command for sid=%d, rid=%d", sid, rid);
+        }
+      } else {
+        Log_info("[JETPACK-RECOVERY] PullRecSetIns FAILED for sid=%d, rid=%d: got %d/%d responses", 
+                 sid, rid, pull_e->n_voted_yes_, pull_e->n_total_);
+      }
+    }
+    
+    // Resubmit command via original protocol (Raft Submit)
+    if (cmd) {
+      // TODO: Submit to Raft - this would be the integration point with original Raft protocol
+      Log_info("[JETPACK-RECOVERY] Resubmitting command for sid=%d, rid=%d via Raft", sid, rid);
+      // Example: raft_server->Submit(cmd);
+    } else {
+      Log_info("[JETPACK-RECOVERY] No command found for sid=%d, rid=%d, skipping resubmit", sid, rid);
+    }
+  }
+  
+  Log_info("[JETPACK-RECOVERY] Step 8: Broadcasting FinishRecovery to complete recovery");
+  
+  // Finally, broadcast FinishRecovery to update jepoch and make fast path available
+  auto e = commo()->JetpackBroadcastFinishRecovery(partition_id_, site_id_, oepoch_);
+  e->Wait();
+  
+  Log_info("[JETPACK-RECOVERY] FinishRecovery broadcast completed, fast path restored");
+}
+
+void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
+                                         const MarshallDeputy& new_view, 
+                                         const epoch_t& new_view_id) {
+  rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
+  rep_sched_->oepoch_ = new_view_id;
+  // TODO: Update old_view_ and new_view_ from MarshallDeputy
+}
+
+void TxLogServer::OnJetpackPullIdSet(const epoch_t& jepoch,
+                                     const epoch_t& oepoch,
+                                     bool_t* ok,
+                                     epoch_t* reply_jepoch,
+                                     epoch_t* reply_oepoch,
+                                     MarshallDeputy* reply_old_view,
+                                     MarshallDeputy* reply_new_view,
+                                     shared_ptr<VecRecData> id_set) {
+  
+  // Initialize MarshallDeputy objects with ViewData objects
+  reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
+  reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
+    rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
+    *ok = 1;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    // Copy data from witness id_set to the response parameter
+    auto witness_id_set = rep_sched_->witness_.id_set();
+    id_set->key_data_ = witness_id_set->key_data_;
+  } else {
+    *ok = 0;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    // Initialize empty key_data_ for failed case
+    id_set->key_data_ = std::make_shared<vector<key_t>>();
+  }
+}
+
+void TxLogServer::OnJetpackPullCmd(const epoch_t& jepoch,
+                                   const epoch_t& oepoch,
+                                   const key_t& key,
+                                   bool_t* ok, 
+                                   epoch_t* reply_jepoch, 
+                                   epoch_t* reply_oepoch,
+                                   MarshallDeputy* reply_old_view,
+                                   MarshallDeputy* reply_new_view,
+                                   shared_ptr<Marshallable> cmd) {
+  // Initialize MarshallDeputy objects with ViewData objects
+  reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
+  reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
+    rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
+    *ok = 1;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    // TODO: Set reply views and find cmd for key in witness
+    cmd = rep_sched_->witness_.cmd_to_recover(key);
+  } else {
+    *ok = 0;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+  }
+}
+
+void TxLogServer::OnJetpackRecordCmd(const epoch_t& jepoch, 
+                                     const epoch_t& oepoch, 
+                                     const int32_t& sid, 
+                                     const int32_t& rid, 
+                                     shared_ptr<Marshallable>& cmd) {
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
+    rep_sched_->rec_set_.insert(sid, rid, cmd);
+  }
+}
+
+void TxLogServer::OnJetpackPrepare(const epoch_t& jepoch, 
+                                   const epoch_t& oepoch, 
+                                   const ballot_t& max_seen_ballot, 
+                                   bool_t* ok, 
+                                   epoch_t* reply_jepoch,
+                                   epoch_t* reply_oepoch,
+                                   MarshallDeputy* reply_old_view,
+                                   MarshallDeputy* reply_new_view,
+                                   ballot_t* reply_max_seen_ballot,
+                                   ballot_t* accepted_ballot, 
+                                   int32_t* replied_sid, 
+                                   int32_t* replied_set_size) {
+  // Initialize MarshallDeputy objects with ViewData objects
+  reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
+  reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
+  if (max_seen_ballot > rep_sched_->witness_.max_seen_ballot_) {
+    rep_sched_->witness_.max_seen_ballot_ = max_seen_ballot;
+  }
+  *reply_max_seen_ballot = rep_sched_->witness_.max_seen_ballot_;
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_ && max_seen_ballot >= rep_sched_->witness_.max_seen_ballot_) {
+    *ok = 1;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    *accepted_ballot = rep_sched_->witness_.max_accepted_ballot_;
+    *replied_sid = rep_sched_->witness_.sid_;
+    *replied_set_size = rep_sched_->witness_.set_size_;
+  } else {
+    *ok = 0;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+  }
+}
+
+void TxLogServer::OnJetpackAccept(const epoch_t& jepoch, 
+                                  const epoch_t& oepoch, 
+                                  const ballot_t& max_seen_ballot, 
+                                  const int32_t& sid, 
+                                  const int32_t& set_size,
+                                  bool_t* ok,
+                                  epoch_t* reply_jepoch,
+                                  epoch_t* reply_oepoch,
+                                  MarshallDeputy* reply_old_view,
+                                  MarshallDeputy* reply_new_view,
+                                  ballot_t* reply_max_seen_ballot) {
+  // Initialize MarshallDeputy objects with ViewData objects
+  reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
+  reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
+  if (max_seen_ballot > rep_sched_->witness_.max_seen_ballot_) {
+    rep_sched_->witness_.max_seen_ballot_ = max_seen_ballot;
+  }
+  *reply_max_seen_ballot = rep_sched_->witness_.max_seen_ballot_;
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_ && max_seen_ballot >= rep_sched_->witness_.max_seen_ballot_) {
+    *ok = 1;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    rep_sched_->witness_.max_accepted_ballot_ = max_seen_ballot;
+    rep_sched_->witness_.sid_ = sid;
+    rep_sched_->witness_.set_size_ = set_size;
+  } else {
+    *ok = 0;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+  }
+}
+
+void TxLogServer::OnJetpackCommit(const epoch_t& jepoch, 
+                                  const epoch_t& oepoch, 
+                                  const int32_t& sid, 
+                                  const int32_t& set_size) {
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
+    rep_sched_->witness_.sid_ = sid;
+    rep_sched_->witness_.set_size_ = set_size;
+    rep_sched_->witness_.committed_ = true;
+  }
+}
+
+void TxLogServer::OnJetpackPullRecSetIns(const epoch_t& jepoch,
+                                         const epoch_t& oepoch, 
+                                         const int32_t& sid, 
+                                         const int32_t& rid, 
+                                         bool_t* ok, 
+                                         epoch_t* reply_jepoch,
+                                         epoch_t* reply_oepoch,
+                                         MarshallDeputy* reply_old_view,
+                                         MarshallDeputy* reply_new_view,
+                                         shared_ptr<Marshallable> cmd) {
+  // Initialize MarshallDeputy objects with ViewData objects
+  reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
+  reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
+  if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
+    *ok = 1;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+    cmd = rep_sched_->rec_set_.get(sid, rid);
+  } else {
+    *ok = 0;
+    *reply_jepoch = rep_sched_->jepoch_;
+    *reply_oepoch = rep_sched_->oepoch_;
+  }
+}
+
+void TxLogServer::OnJetpackFinishRecovery(const epoch_t& oepoch) {
+  if (oepoch >= rep_sched_->oepoch_) {
+    rep_sched_->jepoch_ = oepoch;
+    rep_sched_->oepoch_ = oepoch;
+    rep_sched_->witness_.reset();
+    rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::READY;
+  }
+}
 
 } // namespace janus

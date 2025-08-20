@@ -654,6 +654,123 @@ void ClassicServiceImpl::CommitFebruus(const txid_t& tx_id,
   defer->reply();
 }
 
+
+void ClassicServiceImpl::JetpackBeginRecovery(const MarshallDeputy& old_view, 
+                                              const MarshallDeputy& new_view, 
+                                              const epoch_t& new_view_id, 
+                                              rrr::DeferredReply* defer) {
+  dtxn_sched()->OnJetpackBeginRecovery(old_view, new_view, new_view_id);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackPullIdSet(const epoch_t& jepoch,
+                                          const epoch_t& oepoch,
+                                          bool_t* ok, 
+                                          epoch_t* reply_jepoch, 
+                                          epoch_t* reply_oepoch,
+                                          MarshallDeputy* reply_old_view,
+                                          MarshallDeputy* reply_new_view,
+                                          MarshallDeputy* id_set, 
+                                          rrr::DeferredReply* defer) {
+  id_set->SetMarshallable(std::make_shared<VecRecData>());
+  shared_ptr<VecRecData> sp_ret_id_set = dynamic_pointer_cast<VecRecData>(id_set->sp_data_);
+  dtxn_sched()->OnJetpackPullIdSet(jepoch, oepoch, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_ret_id_set);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackPullCmd(const epoch_t& jepoch,
+                                        const epoch_t& oepoch, 
+                                        const key_t& key, 
+                                        bool_t* ok, 
+                                        epoch_t* reply_jepoch, 
+                                        epoch_t* reply_oepoch,
+                                        MarshallDeputy* reply_old_view,
+                                        MarshallDeputy* reply_new_view,
+                                        MarshallDeputy* cmd, 
+                                        rrr::DeferredReply* defer) {
+  cmd->SetMarshallable(std::make_shared<TpcCommitCommand>());
+  shared_ptr<Marshallable> sp_ret_cmd = dynamic_pointer_cast<Marshallable>(cmd->sp_data_);
+  dtxn_sched()->OnJetpackPullCmd(jepoch, oepoch, key, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_ret_cmd);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackRecordCmd(const epoch_t& jepoch,
+                                          const epoch_t& oepoch,
+                                          const int32_t& sid,
+                                          const int32_t& rid,
+                                          const MarshallDeputy& md, 
+                                          rrr::DeferredReply* defer) {
+  shared_ptr<Marshallable> sp = md.sp_data_;
+  dtxn_sched()->OnJetpackRecordCmd(jepoch, oepoch, sid, rid, sp);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackPrepare(const epoch_t& jepoch, 
+                                        const epoch_t& oepoch, 
+                                        const ballot_t& max_seen_ballot, 
+                                        bool_t* ok, 
+                                        epoch_t* reply_jepoch,
+                                        epoch_t* reply_oepoch,
+                                        MarshallDeputy* reply_old_view,
+                                        MarshallDeputy* reply_new_view,
+                                        ballot_t* reply_max_seen_ballot,
+                                        ballot_t* accepted_ballot, 
+                                        int32_t* replied_sid, 
+                                        int32_t* replied_set_size, 
+                                        rrr::DeferredReply* defer) {
+  dtxn_sched()->OnJetpackPrepare(jepoch, oepoch, max_seen_ballot, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, reply_max_seen_ballot, accepted_ballot, replied_sid, replied_set_size);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackAccept(const epoch_t& jepoch, 
+                                       const epoch_t& oepoch, 
+                                       const ballot_t& max_seen_ballot, 
+                                       const int32_t& sid, 
+                                       const int32_t& set_size, 
+                                       bool_t* ok, 
+                                       epoch_t* reply_jepoch,
+                                       epoch_t* reply_oepoch,
+                                       MarshallDeputy* reply_old_view,
+                                       MarshallDeputy* reply_new_view,
+                                       ballot_t* reply_max_seen_ballot,
+                                       rrr::DeferredReply* defer) {
+  dtxn_sched()->OnJetpackAccept(jepoch, oepoch, max_seen_ballot, sid, set_size, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, reply_max_seen_ballot);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackCommit(const epoch_t& jepoch,
+                                       const epoch_t& oepoch, 
+                                       const int32_t& sid, 
+                                       const int32_t& set_size, 
+                                       rrr::DeferredReply* defer) {
+  dtxn_sched()->OnJetpackCommit(jepoch, oepoch, sid, set_size);
+  defer->reply();
+}
+
+void ClassicServiceImpl::JetpackPullRecSetIns(const epoch_t& jepoch,
+                                              const epoch_t& oepoch, 
+                                              const int32_t& sid, 
+                                              const int32_t& rid, 
+                                              bool_t* ok, 
+                                              epoch_t* reply_jepoch,
+                                              epoch_t* reply_oepoch,
+                                              MarshallDeputy* reply_old_view,
+                                              MarshallDeputy* reply_new_view,
+                                              MarshallDeputy* cmd, 
+                                              rrr::DeferredReply* defer) {
+  cmd->SetMarshallable(std::make_shared<TpcCommitCommand>());
+  shared_ptr<Marshallable> sp_ret_cmd = dynamic_pointer_cast<Marshallable>(cmd->sp_data_);
+  dtxn_sched()->OnJetpackPullRecSetIns(jepoch, oepoch, sid, rid, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_ret_cmd);
+  defer->reply();
+}
+
+ void ClassicServiceImpl::JetpackFinishRecovery(const epoch_t& oepoch,
+                                                rrr::DeferredReply* defer) {
+  dtxn_sched()->OnJetpackFinishRecovery(oepoch);
+  defer->reply();
+}
+
+
 void ClassicServiceImpl::RegisterStats() {
   if (scsi_) {
     scsi_->set_recorder(recorder_);

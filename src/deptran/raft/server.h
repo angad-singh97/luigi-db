@@ -61,7 +61,7 @@ class RaftServer : public TxLogServer {
 #ifdef RAFT_TEST_CORO
   bool failover_{true} ;
 #else
-  bool failover_{false} ;
+  bool failover_{true} ;
 #endif
   atomic<int64_t> counter_{0};
   const char *filename = "/db/data.txt";
@@ -114,6 +114,7 @@ class RaftServer : public TxLogServer {
 
   void resetTimerBatch()
   {
+    // Log_info("!!!!!!! if (!failover_)");
     if (!failover_) return ;
     auto cur_count = counter_++;
     if (cur_count > NUM_BATCH_TIMER_RESET ) {
@@ -127,6 +128,7 @@ class RaftServer : public TxLogServer {
   void resetTimer() {
     // Log_info("site %d resetting timer", site_id_);
     last_heartbeat_time_ = Time::now();
+    // Log_info("!!!!!!! if (failover_)");
     if (failover_) {
       timer_->start() ;
     }

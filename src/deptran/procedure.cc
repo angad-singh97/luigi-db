@@ -13,6 +13,18 @@ static int volatile x1 =
                                      return new VecPieceData;
                                    });
 
+static int volatile x2 =
+    MarshallDeputy::RegInitializer(MarshallDeputy::CMD_REC_VEC,
+                                   [] () -> Marshallable* {
+                                     return new VecRecData;
+                                   });
+
+static int volatile x3 =
+    MarshallDeputy::RegInitializer(MarshallDeputy::CMD_VIEW_DATA,
+                                   [] () -> Marshallable* {
+                                     return new ViewData;
+                                   });
+
 TxWorkspace::TxWorkspace() {
   values_ = std::make_shared<map<int32_t, Value>>();
 }

@@ -27,8 +27,11 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
   if (!IsLeader()) {
-    verify(0);
+    // verify(0);
+    Log_info("[XXXXX] Submit to loc_id %d, which is not leader", loc_id_);
     return ;
+  } else {
+    Log_info("[YYYYY] Submit to loc_id %d, which is leader", loc_id_);
   }
 	std::lock_guard<std::recursive_mutex> lock(mtx_);
 

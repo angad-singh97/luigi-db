@@ -1200,4 +1200,312 @@ void Communicator::SendSimpleCmd(groupid_t gid, SimpleCommand& cmd,
 }
 
 
+shared_ptr<QuorumEvent> Communicator::JetpackBroadcastBeginRecovery(parid_t par_id, locid_t loc_id, 
+                                                                const View& old_view, 
+                                                                const View& new_view, 
+                                                                epoch_t new_view_id) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  
+  MarshallDeputy old_view_deputy, new_view_deputy;
+  old_view_deputy.SetMarshallable(std::make_shared<ViewData>(old_view));
+  new_view_deputy.SetMarshallable(std::make_shared<ViewData>(new_view));
+  
+  for (auto& p : proxies) {
+    // TODO: Local call optimization temporarily commented out
+    // if (p.first == loc_id) {
+    //     e->VoteYes();
+    //     continue;
+    // }
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      e->VoteYes();
+    };
+    auto fu = proxy->async_JetpackBeginRecovery(old_view_deputy, new_view_deputy, new_view_id, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(parid_t par_id, locid_t loc_id,
+                                                                           epoch_t jepoch, epoch_t oepoch) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<JetpackPullIdSetQuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    // TODO: Local call optimization temporarily commented out
+    // if (p.first == loc_id) {
+    //     // Local call - call OnJetpackPullIdSet directly
+    //     bool_t ok;
+    //     epoch_t reply_jepoch, reply_oepoch;
+    //     MarshallDeputy reply_old_view, reply_new_view;
+    //     auto id_set = std::make_shared<VecRecData>();
+    //     dtxn_sched_->OnJetpackPullIdSet(jepoch, oepoch, &ok, &reply_jepoch, &reply_oepoch, 
+    //                                    &reply_old_view, &reply_new_view, id_set);
+    //     MarshallDeputy id_set_deputy;
+    //     id_set_deputy.SetMarshallable(id_set);
+    //     e->FeedResponse(ok, reply_jepoch, reply_oepoch, id_set_deputy);
+    //     continue;
+    // }
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      bool_t ok;
+      epoch_t reply_jepoch, reply_oepoch;
+      MarshallDeputy reply_old_view, reply_new_view, id_set;
+      fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view >> id_set;
+      e->FeedResponse(ok, reply_jepoch, reply_oepoch, id_set);
+    };
+    auto fu = proxy->async_JetpackPullIdSet(jepoch, oepoch, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(parid_t par_id, locid_t loc_id, 
+                                                                        key_t key, epoch_t jepoch, epoch_t oepoch) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<JetpackPullCmdQuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    // TODO: Local call optimization temporarily commented out
+    // if (p.first == loc_id) {
+    //     // Local call - call OnJetpackPullCmd directly
+    //     bool_t ok;
+    //     epoch_t reply_jepoch, reply_oepoch;
+    //     MarshallDeputy reply_old_view, reply_new_view;
+    //     auto cmd = std::make_shared<TpcCommitCommand>();
+    //     dtxn_sched_->OnJetpackPullCmd(jepoch, oepoch, key, &ok, &reply_jepoch, &reply_oepoch, 
+    //                                  &reply_old_view, &reply_new_view, cmd);
+    //     MarshallDeputy cmd_deputy;
+    //     cmd_deputy.SetMarshallable(cmd);
+    //     e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd_deputy);
+    //     continue;
+    // }
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      bool_t ok;
+      epoch_t reply_jepoch, reply_oepoch;
+      MarshallDeputy reply_old_view, reply_new_view, cmd;
+      fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view >> cmd;
+      e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd);
+    };
+    auto fu = proxy->async_JetpackPullCmd(jepoch, oepoch, key, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, locid_t loc_id,
+                                                               epoch_t jepoch, epoch_t oepoch, 
+                                                               int sid, int rid, 
+                                                               shared_ptr<Marshallable> cmd) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  
+  MarshallDeputy cmd_deputy;
+  cmd_deputy.SetMarshallable(cmd);
+  
+  for (auto& p : proxies) {
+    // TODO: Local call optimization temporarily commented out
+    // if (p.first == loc_id) {
+    //     // Local call - call OnJetpackRecordCmd directly
+    //     dtxn_sched_->OnJetpackRecordCmd(jepoch, oepoch, sid, rid, cmd);
+    //     e->VoteYes();
+    //     continue;
+    // }
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      e->VoteYes();
+    };
+    auto fu = proxy->async_JetpackRecordCmd(jepoch, oepoch, sid, rid, cmd_deputy, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<JetpackPrepareQuorumEvent> Communicator::JetpackBroadcastPrepare(parid_t par_id, locid_t loc_id, 
+                                                                      epoch_t jepoch, epoch_t oepoch, 
+                                                                      ballot_t max_seen_ballot) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<JetpackPrepareQuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    // TODO: Local call optimization temporarily commented out
+    // if (p.first == loc_id) {
+    //     // Local call - call OnJetpackPrepare directly
+    //     bool_t ok;
+    //     epoch_t reply_jepoch, reply_oepoch;
+    //     MarshallDeputy reply_old_view, reply_new_view;
+    //     ballot_t accepted_ballot;
+    //     int replied_sid, replied_set_size;
+    //     dtxn_sched_->OnJetpackPrepare(jepoch, oepoch, max_seen_ballot, &ok, &reply_jepoch, &reply_oepoch,
+    //                                  &reply_old_view, &reply_new_view, &accepted_ballot, &replied_sid, &replied_set_size);
+    //     e->FeedResponse(ok, reply_jepoch, reply_oepoch, accepted_ballot, replied_sid, replied_set_size, max_seen_ballot);
+    //     continue;
+    // }
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      bool_t ok;
+      epoch_t reply_jepoch, reply_oepoch;
+      MarshallDeputy reply_old_view, reply_new_view;
+      ballot_t reply_max_seen_ballot;
+      ballot_t accepted_ballot;
+      int replied_sid, replied_set_size;
+      fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view 
+                     >> reply_max_seen_ballot >> accepted_ballot >> replied_sid >> replied_set_size;
+      e->FeedResponse(ok, reply_jepoch, reply_oepoch, accepted_ballot, replied_sid, replied_set_size, reply_max_seen_ballot);
+    };
+    auto fu = proxy->async_JetpackPrepare(jepoch, oepoch, max_seen_ballot, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<JetpackAcceptQuorumEvent> Communicator::JetpackBroadcastAccept(parid_t par_id, locid_t loc_id, 
+                                                                          epoch_t jepoch, epoch_t oepoch, 
+                                                                          ballot_t max_seen_ballot, int sid, int set_size) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<JetpackAcceptQuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      bool_t ok;
+      epoch_t reply_jepoch, reply_oepoch;
+      MarshallDeputy reply_old_view, reply_new_view;
+      ballot_t reply_max_seen_ballot;
+      fu->get_reply() >> ok;
+      fu->get_reply() >> reply_jepoch;
+      fu->get_reply() >> reply_oepoch;
+      fu->get_reply() >> reply_old_view;
+      fu->get_reply() >> reply_new_view;
+      fu->get_reply() >> reply_max_seen_ballot;
+      e->FeedResponse(ok, reply_jepoch, reply_oepoch, reply_max_seen_ballot);
+    };
+    auto fu = proxy->async_JetpackAccept(jepoch, oepoch, max_seen_ballot, sid, set_size, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<QuorumEvent> Communicator::JetpackBroadcastCommit(parid_t par_id, locid_t loc_id, epoch_t jepoch, epoch_t oepoch, int sid, int set_size) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      e->VoteYes();
+    };
+    auto fu = proxy->async_JetpackCommit(jepoch, oepoch, sid, set_size, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<JetpackPullRecSetInsQuorumEvent> Communicator::JetpackBroadcastPullRecSetIns(parid_t par_id, locid_t loc_id, epoch_t jepoch, epoch_t oepoch, int sid, int rid) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<JetpackPullRecSetInsQuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      bool_t ok;
+      epoch_t reply_jepoch, reply_oepoch;
+      MarshallDeputy reply_old_view, reply_new_view, cmd;
+      fu->get_reply() >> ok;
+      fu->get_reply() >> reply_jepoch;
+      fu->get_reply() >> reply_oepoch;
+      fu->get_reply() >> reply_old_view;
+      fu->get_reply() >> reply_new_view;
+      fu->get_reply() >> cmd;
+      e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd);
+    };
+    auto fu = proxy->async_JetpackPullRecSetIns(jepoch, oepoch, sid, rid, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+shared_ptr<QuorumEvent> Communicator::JetpackBroadcastFinishRecovery(parid_t par_id, locid_t loc_id, epoch_t oepoch) {
+  int n = Config::GetConfig()->GetPartitionSize(par_id);
+  auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
+  auto proxies = rpc_par_proxies_[par_id];
+  vector<Future*> fus;
+	WAN_WAIT;
+  for (auto& p : proxies) {
+    auto proxy = (ClassicProxy*) p.second;
+    FutureAttr fuattr;
+    fuattr.callback = [e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
+      e->VoteYes();
+    };
+    auto fu = proxy->async_JetpackFinishRecovery(oepoch, fuattr);
+    fus.push_back(fu);
+  }
+  return e;
+}
+
+
 } // namespace janus
