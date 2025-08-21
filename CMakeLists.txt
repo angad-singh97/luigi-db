@@ -493,6 +493,22 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${W}/masstree/config.h")
   endif()
 endif()
 
+
+# Add rpc defined in Janus
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/deptran/rcc_rpc.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Create a target for the generated RPC files
+add_custom_target(rcc_rpc_gen DEPENDS 
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
+)
+
 # Custom command for lz4 library - build only if missing
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4/liblz4.so")
   message(STATUS "Building LZ4 library...")
@@ -548,6 +564,9 @@ add_library(txlog SHARED
     ${RRR_SRC}
     ${MEMDB_SRC}
 )
+
+# Add dependency to ensure rcc_rpc.h is generated before txlog is built
+add_dependencies(txlog rcc_rpc_gen)
 
 target_include_directories(txlog PRIVATE
     src
