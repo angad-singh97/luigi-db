@@ -6,6 +6,18 @@
 
 namespace janus {
 
+// Paxos status codes used for encoding with timestamps
+// Duplicated in ./src/mako/lib/common.h 
+enum PaxosStatus {
+    STATUS_NORMAL = 0,          // Normal/default status
+    STATUS_INIT = 1,            // Init/initialization
+    STATUS_ENDING = 2,          // Ending of Paxos group
+    STATUS_SAFETY_FAIL = 3,     // Can't pass safety check
+    STATUS_REPLAY_DONE = 4,     // Complete replay/replay done
+    STATUS_NOOPS = 5            // No-ops
+};
+
+
 class TxData;
 
 class MultiPaxosCommo : public Communicator {

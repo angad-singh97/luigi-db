@@ -208,11 +208,11 @@ int main(int argc, char **argv) {
         counters[par_id] = 0;
 
         register_for_leader_par_id_return([&lCnt](const char*& log, int len, int par_id, int slot_id, std::queue<std::tuple<int, int, int, int, const char *>> & un_replay_logs_) {
-            int status = 0;
+            int status = mako::PaxosStatus::STATUS_NORMAL;
             uint32_t timestamp = 0;
             
             if (len<10&&len>0) {
-                status = 5;
+                status = mako::PaxosStatus::STATUS_NOOPS;
             }
             if (len==0)
                 end_received_leader++;
@@ -236,14 +236,14 @@ int main(int argc, char **argv) {
         }, par_id);
 
         register_for_follower_par_id_return([&fCnt](const char*& log, int len, int par_id, int slot_id, std::queue<std::tuple<int, int, int, int, const char *>> & un_replay_logs_) {
-            int status = 0;
+            int status = mako::PaxosStatus::STATUS_NORMAL;
             uint32_t timestamp = static_cast<uint32_t>(getCurrentTimeMillis());
             
             if (len == 0) {
                 end_received++;
             }
             if (len<10&&len>0) {
-                status = 5;
+                status = mako::PaxosStatus::STATUS_NOOPS;
             }
 
             fCnt++;

@@ -153,14 +153,14 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
          // status: 1 => init, 2 => ending of paxos group, 3 => can't pass the safety check, 4 => complete replay
          //Log_info("par_id: %d, append a log into un_replay_logs, size: %lld, status: %d, first[0]: %llu, received: %d", 
          //         site_info_->partition_id_, un_replay_logs_.size(), status, latest_commit_id_v[0], sp_log_entry.length);
-         if (status == 3) {
+         if (status == janus::PaxosStatus::STATUS_SAFETY_FAIL) {
              char *dest = (char *)malloc(len) ;
              memcpy(dest, log, len) ;
              un_replay_logs_.push(std::make_tuple(timestamp, slot_id, status, len, (const char*)dest)) ;
              //un_replay_logs_.push(std::make_tuple(timestamp, slot_id, status, len, (const char*)log)) ;
-         } else if (status == 1) {
+         } else if (status == janus::PaxosStatus::STATUS_INIT) {
              std::cout << "this should never happen!!!" << std::endl;
-         } else if (status == 5) {
+         } else if (status == janus::PaxosStatus::STATUS_NOOPS) {
             Log_info("update the no-ops, par_id:%d, slot_id:%d",site_info_->partition_id_, slot_id);
             noops_received=true;
          }

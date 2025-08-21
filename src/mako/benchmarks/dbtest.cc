@@ -644,13 +644,13 @@ main(int argc, char **argv)
       //Warning("receive a register_for_follower_par_id_return, par_id:%d, slot_id:%d,len:%d",par_id, slot_id,len);
       // status: 1 => default, 2 => ending of Paxos group, 3 => fail to safety check
       //         4 => replay DONE for this log, 5 => noops
-      int status = 1;
+      int status = mako::PaxosStatus::STATUS_INIT;
       uint32_t timestamp = 0;  // Track timestamp for return value encoding
       abstract_db * db = tpool_mbta.getDBWrapper(par_id)->getDB () ;
       bool noops = false;
 
       if (len==2) { // start a advancer
-        status = 4;
+        status = mako::PaxosStatus::STATUS_REPLAY_DONE;
         if (par_id==0){
           std::cout << "we can start a advancer" << std::endl;
           sync_util::sync_logger::start_advancer();
@@ -661,7 +661,7 @@ main(int argc, char **argv)
       // ending of Paxos group
       if (len==0) {
         Warning("Recieved a zero length log");
-        status = 2;
+        status = mako::PaxosStatus::STATUS_ENDING;
         // update the timestamp for this Paxos stream so that not blocking other Paxos streams
         uint32_t min_so_far = numeric_limits<uint32_t>::max();
         sync_util::sync_logger::local_timestamp_[par_id].store(min_so_far, memory_order_release) ;
@@ -674,7 +674,7 @@ main(int argc, char **argv)
           Warning("receive a noops, par_id:%d on follower_callback_,%s",par_id,log);
           if (par_id==0) set_epoch(isNoops(log,len));
           noops=true;
-          status=5;
+          status = mako::PaxosStatus::STATUS_NOOPS;
         }
 
         if (noops) {
@@ -710,10 +710,10 @@ main(int argc, char **argv)
           if (sync_util::sync_logger::safety_check(commit_info.timestamp, w)) { // pass safety check
             treplay_in_same_thread_opt_mbta_v2(par_id, (char*)log, len, db, nshards);
             //Warning("replay[YES] par_id:%d,st:%u,slot_id:%d,un_replay_logs_:%d", par_id, commit_info.timestamp, slot_id,un_replay_logs_.size());
-            status = 4;
+            status = mako::PaxosStatus::STATUS_REPLAY_DONE;
           } else {
             //Warning("replay[NO] par_id:%d,st:%u,slot_id:%d,un_replay_logs_:%d", par_id, commit_info.timestamp, slot_id,un_replay_logs_.size());
-            status = 3;
+            status = mako::PaxosStatus::STATUS_SAFETY_FAIL;
           }
         }
       }
@@ -783,12 +783,12 @@ main(int argc, char **argv)
 
     register_for_leader_par_id_return([&,i](const char*& log, int len, int par_id, int slot_id, std::queue<std::tuple<int, int, int, int, const char *>> & un_replay_logs_) {
       //Warning("receive a register_for_leader_par_id_return, par_id:%d, slot_id:%d,len:%d",par_id, slot_id,len);
-      int status = 0;
+      int status = mako::PaxosStatus::STATUS_NORMAL;
       uint32_t timestamp = 0;  // Track timestamp for return value encoding
       bool noops = false;
 
       if (len==2) { // start a advancer
-        status = 4;
+        status = mako::PaxosStatus::STATUS_REPLAY_DONE;
         if (par_id==0){
           std::cout << "we can start a advancer" << std::endl;
           sync_util::sync_logger::start_advancer();
@@ -797,7 +797,7 @@ main(int argc, char **argv)
       }
 
       if (len==0) {
-        status = 2;
+        status = mako::PaxosStatus::STATUS_ENDING;
         Warning("Recieved a zero length log");
         uint32_t min_so_far = numeric_limits<uint32_t>::max();
         sync_util::sync_logger::local_timestamp_[par_id].store(min_so_far, memory_order_release) ;
@@ -808,7 +808,7 @@ main(int argc, char **argv)
         if (isNoops(log,len)!=-1) {
           //Warning("receive a noops, par_id:%d on leader_callback_,log:%s",par_id,log);
           noops=true;
-          status=5;
+          status = mako::PaxosStatus::STATUS_NOOPS;
         }
 
         if (noops) {

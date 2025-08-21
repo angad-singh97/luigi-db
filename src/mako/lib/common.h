@@ -34,6 +34,16 @@ static void _wan_wait_time() {
 
 namespace mako
 {
+    // Paxos status codes used for encoding with timestamps
+    enum PaxosStatus {
+        STATUS_NORMAL = 0,          // Normal/default status
+        STATUS_INIT = 1,            // Init/initialization
+        STATUS_ENDING = 2,          // Ending of Paxos group
+        STATUS_SAFETY_FAIL = 3,     // Can't pass safety check
+        STATUS_REPLAY_DONE = 4,     // Complete replay/replay done
+        STATUS_NOOPS = 5            // No-ops
+    };
+
   #if defined(MEGA_BENCHMARK)
     const int mega_batch_size = 100; // no more than max_batch_size?
   #elif defined(MEGA_BENCHMARK_MICRO) 
