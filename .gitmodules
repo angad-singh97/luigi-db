@@ -9,4 +9,4 @@
 	url = https://github.com/Jiyang-Wu/MakoCon
 [submodule "third-party/rustycpp"]
 	path = third-party/rustycpp
-	url = git@github.com:shuaimu/rustycpp
+	url = https://github.com/shuaimu/rustycpp
