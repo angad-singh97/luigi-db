@@ -3,11 +3,9 @@
 #include "rpc_constants.h"
 #include "consts.h"
 #include "benchmarks/sto/sync_util.hh"
-#include "benchmarks/common3.h"
 #include "lib/common.h"
 
 using namespace std;
-INIT_SYNC_UTIL_VARS
 
 int ut_counter = 0;
 erpc::Rpc<erpc::CTransport> *rpc;

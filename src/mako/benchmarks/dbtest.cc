@@ -4,26 +4,6 @@
 using namespace std;
 using namespace util;
 
-INIT_SYNC_UTIL_VARS
-
-static size_t
-parse_memory_spec(const string &s)
-{
-  string x(s);
-  size_t mult = 1;
-  if (x.back() == 'G') {
-    mult = static_cast<size_t>(1) << 30;
-    x.pop_back();
-  } else if (x.back() == 'M') {
-    mult = static_cast<size_t>(1) << 20;
-    x.pop_back();
-  } else if (x.back() == 'K') {
-    mult = static_cast<size_t>(1) << 10;
-    x.pop_back();
-  }
-  return strtoul(x.c_str(), nullptr, 10) * mult;
-}
-
 int
 main(int argc, char **argv)
 {
@@ -184,7 +164,7 @@ main(int argc, char **argv)
     case 'm':
       {
         pin_cpus = 1;
-        const size_t m = parse_memory_spec(optarg);
+        const size_t m = mako::parse_memory_spec(optarg);
         ALWAYS_ASSERT(m > 0);
         numa_memory = m;
       }
@@ -486,7 +466,7 @@ main(int argc, char **argv)
   // rpc client
   register_sync_util_sc([&]() {
 #if defined(FAIL_NEW_VERSION)
-     return 0; // get_epoch();
+     return get_epoch();
 #else
     return 0;
 #endif
@@ -495,7 +475,7 @@ main(int argc, char **argv)
   // rpc server
   register_sync_util_ss([&]() {
 #if defined(FAIL_NEW_VERSION)
-     return 0; // get_epoch();
+     return get_epoch();
 #else
     return 0;
 #endif
@@ -642,14 +622,12 @@ main(int argc, char **argv)
     //transport::ShardAddress addr = config->shard(shardIndex, mako::LEARNER_CENTER);
     register_for_follower_par_id_return([&,i](const char*& log, int len, int par_id, int slot_id, std::queue<std::tuple<int, int, int, int, const char *>> & un_replay_logs_) {
       //Warning("receive a register_for_follower_par_id_return, par_id:%d, slot_id:%d,len:%d",par_id, slot_id,len);
-      // status: 1 => default, 2 => ending of Paxos group, 3 => fail to safety check
-      //         4 => replay DONE for this log, 5 => noops
       int status = mako::PaxosStatus::STATUS_INIT;
       uint32_t timestamp = 0;  // Track timestamp for return value encoding
       abstract_db * db = tpool_mbta.getDBWrapper(par_id)->getDB () ;
       bool noops = false;
 
-      if (len==2) { // start a advancer
+      if (len==mako::ADVANCER_MARKER_NUM) { // start a advancer
         status = mako::PaxosStatus::STATUS_REPLAY_DONE;
         if (par_id==0){
           std::cout << "we can start a advancer" << std::endl;
@@ -787,7 +765,7 @@ main(int argc, char **argv)
       uint32_t timestamp = 0;  // Track timestamp for return value encoding
       bool noops = false;
 
-      if (len==2) { // start a advancer
+      if (len==mako::ADVANCER_MARKER_NUM) { // start a advancer
         status = mako::PaxosStatus::STATUS_REPLAY_DONE;
         if (par_id==0){
           std::cout << "we can start a advancer" << std::endl;

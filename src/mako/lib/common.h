@@ -44,6 +44,8 @@ namespace mako
         STATUS_NOOPS = 5            // No-ops
     };
 
+    const int ADVANCER_MARKER_NUM = 2;
+
   #if defined(MEGA_BENCHMARK)
     const int mega_batch_size = 100; // no more than max_batch_size?
   #elif defined(MEGA_BENCHMARK_MICRO) 
@@ -450,6 +452,23 @@ namespace mako
         std::ostringstream ss;
         ss << std::setw(16) << std::setfill('0') << num;
         return ss.str();
+    }
+
+    static size_t parse_memory_spec(const std::string &s)
+    {
+        std::string x(s);
+        size_t mult = 1;
+        if (x.back() == 'G') {
+            mult = static_cast<size_t>(1) << 30;
+            x.pop_back();
+        } else if (x.back() == 'M') {
+            mult = static_cast<size_t>(1) << 20;
+            x.pop_back();
+        } else if (x.back() == 'K') {
+            mult = static_cast<size_t>(1) << 10;
+            x.pop_back();
+        }
+        return strtoul(x.c_str(), nullptr, 10) * mult;
     }
 }
 

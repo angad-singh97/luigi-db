@@ -444,7 +444,7 @@ bench_runner::run()
     }
 
 #if defined(PAXOS_LIB_ENABLED)
-    string log = "aa";
+    std::string log(mako::ADVANCER_MARKER_NUM, 'a');
     for(int i=0;i<nthreads;i++)
       add_log_to_nc(log.c_str(), log.size(), i); // notify others start a advancer
 #endif

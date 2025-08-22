@@ -20,7 +20,6 @@
 #include "benchmarks/mbta_wrapper.hh"
 #include "benchmarks/common.h"
 #include "benchmarks/common2.h"
-#include "benchmarks/common3.h"
 
 #include "deptran/s_main.h"
 

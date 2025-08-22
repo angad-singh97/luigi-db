@@ -11,11 +11,9 @@
 #include "benchmarks/mbta_wrapper.hh"
 #include "benchmarks/tpcc.h"
 #include "common.h"
-#include "benchmarks/common3.h"
 #include "benchmarks/sto/sync_util.hh"
 using namespace std;
 
-INIT_SYNC_UTIL_VARS
 
 bool cmpFunc2_v3(const std::string& newValue,const std::string& oldValue)
 {

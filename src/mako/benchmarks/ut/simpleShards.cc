@@ -16,11 +16,8 @@
 #include "deptran/s_main.h"
 #include "benchmarks/sto/Transaction.hh"
 #include "benchmarks/sto/sync_util.hh"
-#include "benchmarks/common3.h"
 using namespace std;
 using namespace mako;
-
-INIT_SYNC_UTIL_VARS
 
 static FastTransport *server_transport;
 int par_id=0;

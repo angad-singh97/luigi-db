@@ -102,9 +102,6 @@ Here's a minimal example to get you started with Mako:
 #include <iostream>
 #include <mako.hh>
 
-// Required for sync utilities
-INIT_SYNC_UTIL_VARS
-
 using namespace std;
 
 int main() {

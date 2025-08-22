@@ -431,6 +431,7 @@ set(MAKO_SRCFILES
   "${W}/benchmarks/tpcc.cc"
   "${W}/benchmarks/tpcc_simple.cc"
   "${W}/benchmarks/ycsb.cc"
+  "${W}/benchmarks/sync_util_init.cc"
   "${W}/benchmarks/sto/Transaction.cc"
   "${W}/benchmarks/sto/MassTrans.cc"
   "${W}/benchmarks/sto/common.cc"

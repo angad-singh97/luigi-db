@@ -13,15 +13,12 @@
 #include <sstream>
 #include <iomanip>
 #include "benchmarks/sto/sync_util.hh"
-#include "benchmarks/common3.h"
 #include "lib/common.h"
 
 using namespace std;
 using namespace mako;
 bool use_fork=false;
 bool new_leader_elected=false;
-
-INIT_SYNC_UTIL_VARS
 
 // add a latency on the server
 /* 

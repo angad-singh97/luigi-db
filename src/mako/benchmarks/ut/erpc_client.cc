@@ -4,11 +4,9 @@
 #include "util/numautils.h"
 #include "consts.h"
 #include "benchmarks/sto/sync_util.hh"
-#include "benchmarks/common3.h"
 #include "lib/common.h"
 
 using namespace std;
-INIT_SYNC_UTIL_VARS
 
 //static int num_clients = 12;
 bool ut_running = true;

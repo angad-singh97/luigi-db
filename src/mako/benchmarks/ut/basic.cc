@@ -10,11 +10,8 @@
 #include "unordered_map"
 #include "util.h"
 #include "benchmarks/sto/sync_util.hh"
-#include "benchmarks/common3.h"
 using namespace std;
 using namespace util;
-
-INIT_SYNC_UTIL_VARS
 
 struct get_request_t
 {

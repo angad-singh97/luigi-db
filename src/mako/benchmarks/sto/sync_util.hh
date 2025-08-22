@@ -13,7 +13,6 @@ using namespace std;
 namespace sync_util {
     class sync_logger {
     public:
-        // initialize it in the benchmarks/common3.h
         // latest timestamp for each local Paxos stream
         // Please, we can keep this as vector
         static vector<std::atomic<uint32_t>> local_timestamp_; // timestamp*10+epoch

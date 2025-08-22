@@ -8,8 +8,6 @@
 #include <mako.hh>
 #include <examples/common.h>
 
-INIT_SYNC_UTIL_VARS
-
 using namespace std;
 
 class TransactionWorker {

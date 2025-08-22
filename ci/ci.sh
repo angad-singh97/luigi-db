@@ -35,6 +35,6 @@ case "${1:-}" in
         compile
         run_simple_transaction
         run_simple_paxos
-        log "All CI steps completed successfully!"
+        echo "All CI steps completed successfully!"
         ;;
 esac

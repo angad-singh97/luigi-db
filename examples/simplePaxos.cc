@@ -11,8 +11,6 @@
 using namespace std;
 using namespace mako;
 
-INIT_SYNC_UTIL_VARS
-
 // 1 shard server with 3 worker threads (3 Paxos streams)
 const int num_workers = 3;
 const int message_count = 100;
