@@ -50,7 +50,7 @@ public:
   txn_result
   txn_read()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     const string k = u64_varkey(r.next() % nkeys).str();
     try {
       string v;
@@ -101,7 +101,7 @@ protected:
       ALWAYS_ASSERT(batchsize > 0);
       const size_t nbatches = nkeys / batchsize;
       if (nbatches == 0) {
-        void *txn = db->new_txn(txn_flags, arena, txn_buf());
+        void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
         for (size_t j = 0; j < nkeys; j++) {
           const encstress_rec::key key(j);
           encstress_rec::value rec;
@@ -110,13 +110,13 @@ protected:
           string buf;
           tbl->insert(txn, Encode(key), Encode(buf, rec));
         }
-        if (verbose)
+        if (BenchmarkConfig::getInstance().getVerbose())
           cerr << "batch 1/1 done" << endl;
         ALWAYS_ASSERT(db->commit_txn(txn));
       } else {
         for (size_t i = 0; i < nbatches; i++) {
           size_t keyend = (i == nbatches - 1) ? nkeys : (i + 1) * batchsize;
-          void *txn = db->new_txn(txn_flags, arena, txn_buf());
+          void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           for (size_t j = i * batchsize; j < keyend; j++) {
             const encstress_rec::key key(j);
             encstress_rec::value rec;
@@ -125,7 +125,7 @@ protected:
             string buf;
             tbl->insert(txn, Encode(key), Encode(buf, rec));
           }
-          if (verbose)
+          if (BenchmarkConfig::getInstance().getVerbose())
             cerr << "batch " << (i + 1) << "/" << nbatches << " done" << endl;
           ALWAYS_ASSERT(db->commit_txn(txn));
         }
@@ -134,7 +134,7 @@ protected:
       // shouldn't abort on loading!
       ALWAYS_ASSERT(false);
     }
-    if (verbose)
+    if (BenchmarkConfig::getInstance().getVerbose())
       cerr << "[INFO] finished loading USERTABLE" << endl;
   }
 };
@@ -161,7 +161,7 @@ protected:
   {
     fast_random r(8544290);
     vector<bench_worker *> ret;
-    for (size_t i = 0; i < nthreads; i++)
+    for (size_t i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
       ret.push_back(
         new encstress_worker(
           i, r.next(), db, open_tables,
@@ -173,7 +173,7 @@ protected:
 void
 encstress_do_test(abstract_db *db, int argc, char **argv)
 {
-  nkeys = size_t(scale_factor * 1000.0);
+  nkeys = size_t(BenchmarkConfig::getInstance().getScaleFactor() * 1000.0);
   ALWAYS_ASSERT(nkeys > 0);
   encstress_bench_runner r(db);
   r.run();

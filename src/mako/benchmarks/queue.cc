@@ -50,7 +50,7 @@ public:
   txn_result
   txn_produce()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       const string k = queue_key(id, ctr);
       tbl->insert(txn, k, queue_values);
@@ -73,7 +73,7 @@ public:
   txn_result
   txn_consume()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       const string lowk = queue_key(id, 0);
       const string highk = queue_key(id, numeric_limits<uint64_t>::max());
@@ -103,7 +103,7 @@ public:
   txn_result
   txn_consume_scanhint()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       const string lowk = queue_key(id, ctr);
       const string highk = queue_key(id, numeric_limits<uint64_t>::max());
@@ -136,7 +136,7 @@ public:
   txn_result
   txn_consume_noscan()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       const string k = queue_key(id, ctr);
       string v;
@@ -201,27 +201,28 @@ protected:
         10000 : db->txn_max_batch_size();
       ALWAYS_ASSERT(batchsize > 0);
       const size_t nbatches = nkeys / batchsize;
-      for (size_t id = 0; id < nthreads / 2; id++) {
+      auto& cfg = BenchmarkConfig::getInstance();
+      for (size_t id = 0; id < cfg.getNthreads() / 2; id++) {
         if (nbatches == 0) {
-          void *txn = db->new_txn(txn_flags, arena, txn_buf());
+          void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           for (size_t j = 0; j < nkeys; j++) {
             const string k = queue_key(id, j);
             const string &v = queue_values;
             tbl->insert(txn, k, v);
           }
-          if (verbose)
+          if (BenchmarkConfig::getInstance().getVerbose())
             cerr << "batch 1/1 done" << endl;
           ALWAYS_ASSERT(db->commit_txn(txn));
         } else {
           for (size_t i = 0; i < nbatches; i++) {
             size_t keyend = (i == nbatches - 1) ? nkeys : (i + 1) * batchsize;
-            void *txn = db->new_txn(txn_flags, arena, txn_buf());
+            void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
             for (size_t j = i * batchsize; j < keyend; j++) {
               const string k = queue_key(id, j);
               const string &v = queue_values;
               tbl->insert(txn, k, v);
             }
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "batch " << (i + 1) << "/" << nbatches << " done" << endl;
             ALWAYS_ASSERT(db->commit_txn(txn));
           }
@@ -231,7 +232,7 @@ protected:
       // shouldn't abort on loading!
       ALWAYS_ASSERT(false);
     }
-    if (verbose)
+    if (BenchmarkConfig::getInstance().getVerbose())
       cerr << "[INFO] finished loading table" << endl;
   }
 };
@@ -259,16 +260,18 @@ protected:
     fast_random r(8544290);
     vector<bench_worker *> ret;
     if (write_only) {
-      for (size_t i = 0; i < nthreads; i++)
+      auto& cfg = BenchmarkConfig::getInstance();
+      for (size_t i = 0; i < cfg.getNthreads(); i++)
         ret.push_back(
           new queue_worker(
             i, r.next(), db, open_tables,
             &barrier_a, &barrier_b, i, false));
     } else {
-      ALWAYS_ASSERT(nthreads >= 2);
-      if (verbose && (nthreads % 2))
+      auto& cfg = BenchmarkConfig::getInstance();
+      ALWAYS_ASSERT(cfg.getNthreads() >= 2);
+      if (cfg.getVerbose() && (cfg.getNthreads() % 2))
         cerr << "queue_bench_runner: odd number of workers given" << endl;
-      for (size_t i = 0; i < nthreads / 2; i++) {
+      for (size_t i = 0; i < cfg.getNthreads() / 2; i++) {
         ret.push_back(
           new queue_worker(
             i, r.next(), db, open_tables,
@@ -289,7 +292,7 @@ private:
 void
 queue_do_test(abstract_db *db, int argc, char **argv)
 {
-  nkeys = size_t(scale_factor * 1000.0);
+  nkeys = size_t(BenchmarkConfig::getInstance().getScaleFactor() * 1000.0);
   ALWAYS_ASSERT(nkeys > 0);
   queue_bench_runner r(db, true);
   r.run();

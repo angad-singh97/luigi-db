@@ -61,7 +61,7 @@ public:
   txn_result
   txn_bid()
   {
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       // pick user at random
       biduser_rec::key biduser_key(r.next() % nusers);
@@ -152,64 +152,64 @@ protected:
       {
         const size_t nbatches = nusers / batchsize;
         if (nbatches == 0) {
-          void *txn = db->new_txn(txn_flags, arena, txn_buf());
+          void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           for (size_t j = 0; j < nusers; j++) {
             const biduser_rec::key key(j);
             const biduser_rec::value value(0);
             string buf0;
             bidusertbl->insert(txn, Encode(key), Encode(buf0, value));
           }
-          if (verbose)
+          if (BenchmarkConfig::getInstance().getVerbose())
             cerr << "batch 1/1 done" << endl;
           ALWAYS_ASSERT(db->commit_txn(txn));
         } else {
           for (size_t i = 0; i < nbatches; i++) {
             size_t keyend = (i == nbatches - 1) ? nusers : (i + 1) * batchsize;
-            void *txn = db->new_txn(txn_flags, arena, txn_buf());
+            void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
             for (size_t j = i * batchsize; j < keyend; j++) {
               const biduser_rec::key key(j);
               const biduser_rec::value value(0);
               string buf0;
               bidusertbl->insert(txn, Encode(key), Encode(buf0, value));
             }
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "batch " << (i + 1) << "/" << nbatches << " done" << endl;
             ALWAYS_ASSERT(db->commit_txn(txn));
           }
         }
-        if (verbose)
+        if (BenchmarkConfig::getInstance().getVerbose())
           cerr << "[INFO] finished loading BIDUSER table" << endl;
       }
 
       {
         const size_t nbatches = nproducts / batchsize;
         if (nbatches == 0) {
-          void *txn = db->new_txn(txn_flags, arena, txn_buf());
+          void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           for (size_t j = 0; j < nproducts; j++) {
             const bidmax_rec::key key(j);
             const bidmax_rec::value value(0.0);
             string buf0;
             bidmaxtbl->insert(txn, Encode(key), Encode(buf0, value));
           }
-          if (verbose)
+          if (BenchmarkConfig::getInstance().getVerbose())
             cerr << "batch 1/1 done" << endl;
           ALWAYS_ASSERT(db->commit_txn(txn));
         } else {
           for (size_t i = 0; i < nbatches; i++) {
             size_t keyend = (i == nbatches - 1) ? nproducts : (i + 1) * batchsize;
-            void *txn = db->new_txn(txn_flags, arena, txn_buf());
+            void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
             for (size_t j = i * batchsize; j < keyend; j++) {
               const bidmax_rec::key key(j);
               const bidmax_rec::value value(0.0);
               string buf0;
               bidmaxtbl->insert(txn, Encode(key), Encode(buf0, value));
             }
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "batch " << (i + 1) << "/" << nbatches << " done" << endl;
             ALWAYS_ASSERT(db->commit_txn(txn));
           }
         }
-        if (verbose)
+        if (BenchmarkConfig::getInstance().getVerbose())
           cerr << "[INFO] finished loading BIDMAX table" << endl;
       }
 
@@ -245,7 +245,7 @@ protected:
   {
     fast_random r(36578943);
     vector<bench_worker *> ret;
-    for (size_t i = 0; i < nthreads; i++)
+    for (size_t i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
       ret.push_back(
         new bid_worker(
           i, r.next(), db, open_tables,
@@ -257,8 +257,9 @@ protected:
 void
 bid_do_test(abstract_db *db, int argc, char **argv)
 {
-  nusers = size_t(scale_factor * 1000.0);
-  nproducts = size_t(scale_factor * 1000.0);
+  auto& cfg = BenchmarkConfig::getInstance();
+  nusers = size_t(cfg.getScaleFactor() * 1000.0);
+  nproducts = size_t(cfg.getScaleFactor() * 1000.0);
   ALWAYS_ASSERT(nusers > 0);
   ALWAYS_ASSERT(nproducts > 0);
   bid_bench_runner r(db);

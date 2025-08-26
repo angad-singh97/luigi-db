@@ -181,13 +181,13 @@ int main() {
     
     printf("=== Mako Transaction Tests  ===\n");
     
-    config = new transport::Configuration(
+    auto config = new transport::Configuration(
         get_current_absolute_path() + "../src/mako/config/local-shards2-warehouses1.yml"
     );
+    BenchmarkConfig::getInstance().setConfig(config);
     
     run_tests(db);
     
-    delete config;
     delete db;
     
     printf("\n" GREEN "All tests completed successfully!" RESET "\n");

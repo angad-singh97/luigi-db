@@ -63,13 +63,14 @@ static atomic<int> set_server_transport(0);
 static inline ALWAYS_INLINE size_t 
 NumWarehouses()
 {
-  return (size_t) scale_factor;  // scale_factor == nthreads
+  return (size_t) BenchmarkConfig::getInstance().getScaleFactor();  // scale_factor == BenchmarkConfig::getInstance().getNthreads()
 }
 
 static inline ALWAYS_INLINE size_t 
 NumWarehousesTotal()
 {
-  return  nshards * ((size_t) scale_factor);  // scale_factor == nthreads
+  auto& cfg = BenchmarkConfig::getInstance();
+  return  cfg.getNshards() * ((size_t) cfg.getScaleFactor());  // scale_factor == BenchmarkConfig::getInstance().getNthreads()
 }
 
 static inline ALWAYS_INLINE size_t
@@ -80,7 +81,7 @@ ShardIndexFromGlobalWarehouse(int g_wid)
 
 static inline ALWAYS_INLINE size_t
 WarehouseLocal2Global(int l_wid) {
-  return shardIndex * NumWarehouses() + l_wid;
+  return BenchmarkConfig::getInstance().getShardIndex() * NumWarehouses() + l_wid;
 }
 
 static inline ALWAYS_INLINE size_t
@@ -109,7 +110,7 @@ WarehouseInShard(int g_w_id, int sIdx) {
 }
 // #endif
 
-// config constants
+// BenchmarkConfig::getInstance().getConfig() constants
 
 static constexpr inline ALWAYS_INLINE size_t
 NumItems()
@@ -202,7 +203,7 @@ private:
   T *l;
 };
 
-// configuration flags
+// BenchmarkConfig::getInstance().getConfig()uration flags
 static int g_disable_xpartition_txn = 0;
 static int g_disable_read_only_scans = 0;
 static int g_enable_partition_locks = 0;
@@ -221,7 +222,7 @@ static unsigned g_txn_workload_mix[] = { 45, 43, 4, 4, 4 }; // default TPC-C wor
 static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
 
-// configuration microbenchmark
+// BenchmarkConfig::getInstance().getConfig()uration microbenchmark
 static int nkeys = 100 * 10000 ; // 1 million, TODO: it's better for in proportion to scale_factor
 static const size_t g_micro_remote_item_pct = 5;
 static const size_t RMW_count = 4; // the updated keys in a RMW transaction
@@ -243,13 +244,14 @@ PartitionId(unsigned int wid)
 {
   INVARIANT(wid >= 1 && wid <= NumWarehouses());
   wid -= 1; // 0-idx
-  if (NumWarehouses() <= nthreads)
+  auto& cfg = BenchmarkConfig::getInstance();
+  if (NumWarehouses() <= cfg.getNthreads())
     // more workers than partitions, so its easy
     return wid;
-  const unsigned nwhse_per_partition = NumWarehouses() / nthreads;
+  const unsigned nwhse_per_partition = NumWarehouses() / cfg.getNthreads();
   const unsigned partid = wid / nwhse_per_partition;
-  if (partid >= nthreads)
-    return nthreads - 1;
+  if (partid >= cfg.getNthreads())
+    return cfg.getNthreads() - 1;
   return partid;
 }
 
@@ -405,9 +407,9 @@ protected: \
   PinToWarehouseId(unsigned int wid)
   {
     const unsigned int partid = PartitionId(wid);
-    ALWAYS_ERROR(partid < nthreads);
+    ALWAYS_ERROR(partid < BenchmarkConfig::getInstance().getNthreads());
     const unsigned int pinid  = partid;
-    if (verbose)
+    if (BenchmarkConfig::getInstance().getVerbose())
       cerr << "PinToWarehouseId(): coreid=" << coreid::core_id()
            << " pinned to whse=" << wid << " (partid=" << partid << ")"
            << endl;
@@ -718,7 +720,7 @@ public:
   static txn_result
   TxnNewOrder(bench_worker *w)
   {
-    // if (shardIndex == 1) { return txn_result(true, 0); }
+    // if (BenchmarkConfig::getInstance().getShardIndex() == 1) { return txn_result(true, 0); }
     ANON_REGION("TxnNewOrder:", &tpcc_txn_cg);
   #if defined(MEGA_BENCHMARK)
     return static_cast<tpcc_worker *>(w)->txn_new_order_mega();
@@ -734,7 +736,7 @@ public:
   static txn_result
   TxnDelivery(bench_worker *w)
   {
-    //if (shardIndex == 1) { return txn_result(true, 0); }
+    //if (BenchmarkConfig::getInstance().getShardIndex() == 1) { return txn_result(true, 0); }
     ANON_REGION("TxnDelivery:", &tpcc_txn_cg);
     return static_cast<tpcc_worker *>(w)->txn_delivery();
   }
@@ -747,7 +749,7 @@ public:
   static txn_result
   TxnPayment(bench_worker *w)
   {
-    //if (shardIndex == 1) { return txn_result(true, 0); }
+    //if (BenchmarkConfig::getInstance().getShardIndex() == 1) { return txn_result(true, 0); }
     ANON_REGION("TxnPayment:", &tpcc_txn_cg);
   #if defined(MEGA_BENCHMARK_MICRO)
     return static_cast<tpcc_worker *>(w)->txn_payment_micro_mega();
@@ -805,17 +807,17 @@ protected:
   virtual void
   on_run_setup() OVERRIDE
   {
-    if (!pin_cpus)
+    if (!BenchmarkConfig::getInstance().getPinCpus())
       return;
     const size_t a = worker_id % coreid::num_cpus_online();
-    const size_t b = a % nthreads;
+    const size_t b = a % BenchmarkConfig::getInstance().getNthreads();
     rcu::s_instance.pin_current_thread(b);
     rcu::s_instance.fault_region();
 
     //warmup connections on learner-0 (assume the leader-0 will be killed)
     //we don't do any warmup now
 #if defined(PAXOS_LIB_ENABLED)
-    if (clusterRole==mako::LOCALHOST_CENTER_INT){ // disable it if 10 shards
+    if (BenchmarkConfig::getInstance().getClusterRole()==mako::LOCALHOST_CENTER_INT){ // disable it if 10 shards
       // #if !defined(MEGA_BENCHMARK)
       // for (int i=0;i<=100;i++) {
       //    ///*printf("start - pid:%d-i:%d", TThread::getPartitionID(), i);
@@ -874,7 +876,7 @@ protected:
   void load_simple() {
     // load warehouses
     string obj_buf;
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     try {
       for (uint i = 1; i <= NumWarehouses(); i++) {
         const warehouse::key k(i);
@@ -887,7 +889,7 @@ protected:
       for (uint w_id = 1; w_id <= NumWarehouses(); w_id++)
         for (uint c_id = 1; c_id <= 10; c_id++) {
           arena.reset();
-          void *txn_1 = db->new_txn(txn_flags, arena, txn_buf());
+          void *txn_1 = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           const customer::key k(w_id, 1, c_id);
           customer::value v;
           v.c_payment_cnt = 10000 * 10000;
@@ -913,7 +915,7 @@ protected:
     const string i_name = "cccccccc";
     for (size_t batchid = 0; batchid < nbatches;) {
       scoped_str_arena s_arena(arena);
-      void * const txn = db->new_txn(txn_flags, arena, txn_buf());
+      void * const txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
       try {
         const size_t rend = (batchid + 1 == nbatches) ?
           keyend : keystart + ((batchid + 1) * batchsize);
@@ -946,7 +948,7 @@ protected:
     load_simple();
 #else
     string obj_buf;
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     uint64_t warehouse_total_sz = 0, n_warehouses = 0;
     try {
       vector<warehouse::value> warehouses;
@@ -980,7 +982,7 @@ protected:
       }
       ALWAYS_ERROR(db->commit_txn(txn));
       arena.reset();
-      txn = db->new_txn(txn_flags, arena, txn_buf());
+      txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
       for (uint i = 1; i <= NumWarehouses(); i++) {
         const warehouse::key k(i);
         string warehouse_v;
@@ -1001,7 +1003,7 @@ protected:
       // shouldn't abort on loading!
       ALWAYS_ERROR(false);
     }
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       cerr << "[INFO] finished loading warehouse" << endl;
       cerr << "[INFO]   * average warehouse record length: "
            << (double(warehouse_total_sz)/double(n_warehouses)) << " bytes" << endl;
@@ -1027,7 +1029,7 @@ protected:
   {
     string obj_buf;
     const ssize_t bsize = db->txn_max_batch_size();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     uint64_t total_sz = 0;
     try {
       for (uint i = 1; i <= NumItems(); i++) {
@@ -1056,7 +1058,7 @@ protected:
 
         if (bsize != -1 && !(i % bsize)) {
           ALWAYS_ERROR(db->commit_txn(txn));
-          txn = db->new_txn(txn_flags, arena, txn_buf());
+          txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           arena.reset();
         }
       }
@@ -1065,7 +1067,7 @@ protected:
       // shouldn't abort on loading!
       ALWAYS_ERROR(false);
     }
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       cerr << "[INFO] finished loading item" << endl;
       cerr << "[INFO]   * average item record length: "
            << (double(total_sz)/double(NumItems())) << " bytes" << endl;
@@ -1106,12 +1108,12 @@ protected:
         (db->txn_max_batch_size() == -1) ? NumItems() : db->txn_max_batch_size();
       const size_t nbatches = (batchsize > NumItems()) ? 1 : (NumItems() / batchsize);
 
-      if (pin_cpus)
+      if (BenchmarkConfig::getInstance().getPinCpus())
         PinToWarehouseId(w);
 
       for (uint b = 0; b < nbatches;) {
         scoped_str_arena s_arena(arena);
-        void * const txn = db->new_txn(txn_flags, arena, txn_buf());
+        void * const txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
         try {
           const size_t iend = std::min((b + 1) * batchsize + 1, NumItems());
           //Warning("insert stock: w:%d, range:(%d-%d)",w,(b * batchsize + 1),iend);
@@ -1157,19 +1159,19 @@ protected:
             b++;
           } else {
             db->abort_txn(txn);
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "[WARNING] stock loader loading abort" << endl;
           }
         } catch (abstract_db::abstract_abort_exception &ex) {
           db->abort_txn(txn);
           ALWAYS_ERROR(warehouse_id != -1);
-          if (verbose)
+          if (BenchmarkConfig::getInstance().getVerbose())
             cerr << "[WARNING] stock loader loading abort" << endl;
         }
       }
     }
 
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       if (warehouse_id == -1) {
         cerr << "[INFO] finished loading stock" << endl;
         cerr << "[INFO]   * average stock record length: "
@@ -1202,12 +1204,12 @@ protected:
     string obj_buf;
 
     const ssize_t bsize = db->txn_max_batch_size();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf());
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
     uint64_t district_total_sz = 0, n_districts = 0;
     try {
       uint cnt = 0;
       for (uint w = 1; w <= NumWarehouses(); w++) {
-        if (pin_cpus)
+        if (BenchmarkConfig::getInstance().getPinCpus())
           PinToWarehouseId(w);
         for (uint d = 1; d <= NumDistrictsPerWarehouse(); d++, cnt++) {
           const district::key k(w, d);
@@ -1231,7 +1233,7 @@ protected:
 
           if (bsize != -1 && !((cnt + 1) % bsize)) {
             ALWAYS_ERROR(db->commit_txn(txn));
-            txn = db->new_txn(txn_flags, arena, txn_buf());
+            txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
             arena.reset();
           }
         }
@@ -1241,7 +1243,7 @@ protected:
       // shouldn't abort on loading!
       ALWAYS_ERROR(false);
     }
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       cerr << "[INFO] finished loading district" << endl;
       cerr << "[INFO]   * average district record length: "
            << (double(district_total_sz)/double(n_districts)) << " bytes" << endl;
@@ -1287,12 +1289,12 @@ protected:
     uint64_t total_sz = 0;
 
     for (uint w = w_start; w <= w_end; w++) {
-      if (pin_cpus)
+      if (BenchmarkConfig::getInstance().getPinCpus())
         PinToWarehouseId(w);
       for (uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
         for (uint batch = 0; batch < nbatches;) {
           scoped_str_arena s_arena(arena);
-          void * const txn = db->new_txn(txn_flags, arena, txn_buf());
+          void * const txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           const size_t cstart = batch * batchsize;
           const size_t cend = std::min((batch + 1) * batchsize, NumCustomersPerDistrict());
           try {
@@ -1369,19 +1371,19 @@ protected:
               batch++;
             } else {
               db->abort_txn(txn);
-              if (verbose)
+              if (BenchmarkConfig::getInstance().getVerbose())
                 cerr << "[WARNING] customer loader loading abort" << endl;
             }
           } catch (abstract_db::abstract_abort_exception &ex) {
             db->abort_txn(txn);
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "[WARNING] customer loader loading abort" << endl;
           }
         }
       }
     }
 
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       if (warehouse_id == -1) {
         cerr << "[INFO] finished loading customer" << endl;
         cerr << "[INFO]   * average customer record length: "
@@ -1430,7 +1432,7 @@ protected:
       NumWarehouses() : static_cast<uint>(warehouse_id);
 
     for (uint w = w_start; w <= w_end; w++) {
-      if (pin_cpus)
+      if (BenchmarkConfig::getInstance().getPinCpus())
         PinToWarehouseId(w);
       for (uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
         set<uint> c_ids_s;
@@ -1444,7 +1446,7 @@ protected:
         }
         for (uint c = 1; c <= NumCustomersPerDistrict();) {
           scoped_str_arena s_arena(arena);
-          void * const txn = db->new_txn(txn_flags, arena, txn_buf());
+          void * const txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf());
           try {
             const oorder::key k_oo(w, d, c);
 
@@ -1510,20 +1512,20 @@ protected:
             } else {
               db->abort_txn(txn);
               ALWAYS_ERROR(warehouse_id != -1);
-              if (verbose)
+              if (BenchmarkConfig::getInstance().getVerbose())
                 cerr << "[WARNING] order loader loading abort" << endl;
             }
           } catch (abstract_db::abstract_abort_exception &ex) {
             db->abort_txn(txn);
             ALWAYS_ERROR(warehouse_id != -1);
-            if (verbose)
+            if (BenchmarkConfig::getInstance().getVerbose())
               cerr << "[WARNING] order loader loading abort" << endl;
           }
         }
       }
     }
 
-    if (verbose) {
+    if (BenchmarkConfig::getInstance().getVerbose()) {
       if (warehouse_id == -1) {
         cerr << "[INFO] finished loading order" << endl;
         cerr << "[INFO]   * average order_line record length: "
@@ -1552,7 +1554,7 @@ void tpcc_worker::scan_entire_warehouses(int w_id) {
     // char WE = static_cast<char>(255);
     // std::string endKey(1, WE);
     // arena.reset();
-    // void *txn_0 = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    // void *txn_0 = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     // generic_scan_callback<warehouse::key, warehouse::value> calloc_0;
     // tbl_warehouse(w_id)->scan(txn_0, startKey, &endKey, calloc_0);
     // ALWAYS_ERROR(db->commit_txn(txn_0));
@@ -1564,7 +1566,7 @@ void tpcc_worker::scan_entire_warehouses(int w_id) {
     char WE_1 = static_cast<char>(255);
     std::string endKey_1(1, WE_1);
     arena.reset();
-    void *txn_1 = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn_1 = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     generic_scan_callback<customer::key, customer::value> calloc_1;
     tbl_customer(w_id)->scan(txn_1, startKey_1, &endKey_1, calloc_1);
     int64_t a = calloc_1.print_customer_info();
@@ -1597,7 +1599,7 @@ tpcc_worker::txn_new_order_simple() {
   if (NumWarehousesTotal() > 1 && TThread::get_nshards()>1)
     do {
      remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-   // } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+   // } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
     } while (remote_warehouse_id == warehouse_id);
 
   std::vector<int> ids;
@@ -1609,7 +1611,7 @@ tpcc_worker::txn_new_order_simple() {
       bool is_remote=false;
       retry:
       arena.reset();
-      void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+      void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
       try {
         // Tranasction-1
         {
@@ -1629,7 +1631,7 @@ tpcc_worker::txn_new_order_simple() {
           v_oo_new.o_carrier_id = c_id;
           tbl_oorder(warehouse_id)->insert(txn, Encode(k_oo), Encode(str(), v_oo_new));
 
-          if (remote_warehouse_id > 0 && !WarehouseInShard(remote_warehouse_id, shardIndex) && (c_id == 4||c_id == 5)) {
+          if (remote_warehouse_id > 0 && !WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()) && (c_id == 4||c_id == 5)) {
             customer::key r_k_c(WarehouseGlobal2Local(remote_warehouse_id), 1, c_id);
             //Warning("[DEBUG]client tries to get, w_id:%d,d:%d,c_id:%d,oorder_id:%d,len of obj_v(garbage):%d",WarehouseGlobal2Local(remote_warehouse_id), 1, c_id,oorder_id,obj_v.size());
             ALWAYS_ERROR(dummy_tbl_customer(remote_warehouse_id)->get(txn, Encode(obj_key0, r_k_c), obj_v));
@@ -1665,7 +1667,7 @@ tpcc_worker::txn_new_order_simple() {
       {
         arena.reset();
         if (c_id%2==1) continue;
-        void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+        void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
         try {
           scoped_str_arena s_arena(arena);
           customer::key k_c(warehouse_id, 1, c_id);
@@ -1719,7 +1721,7 @@ tpcc_worker::txn_new_order_simple() {
   /*
   for (int i=0; i<ids.size(); i++) {
     arena.reset();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     const oorder::key k_oo(warehouse_id, 1, ids.at(i));
     bool tag = tbl_oorder(warehouse_id)->get(txn, EncodeK(obj_key0, k_oo), obj_v);
     std::vector<string> allVersion = MultiVersionValue::getAllVersion<oorder::value>(obj_v);
@@ -1755,7 +1757,7 @@ tpcc_worker::txn_new_order_simple() {
   // Insert 10 keys into oorder [0-9]
   for (int oorder_id=0; oorder_id<n; oorder_id++){
     arena.reset();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     {
       scoped_str_arena s_arena(arena);
       const oorder::key k_oo(warehouse_id, 1, oorder_id);
@@ -1774,7 +1776,7 @@ tpcc_worker::txn_new_order_simple() {
     if (oorder_id!=4&&oorder_id!=6&&oorder_id!=9) continue;
 
     arena.reset();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     const oorder::key k_oo(warehouse_id, 1, oorder_id);
     tbl_oorder(warehouse_id)->remove(txn, Encode(str(), k_oo));
     bool ret = db->commit_txn(txn);
@@ -1786,7 +1788,7 @@ tpcc_worker::txn_new_order_simple() {
   // Print all current values
   for (int oorder_id=0; oorder_id<n; oorder_id++){
     arena.reset();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     {
       const oorder::key k_oo(warehouse_id, 1, oorder_id);
       bool tag = tbl_oorder(warehouse_id)->get(txn, EncodeK(obj_key0, k_oo), obj_v);
@@ -1813,7 +1815,7 @@ tpcc_worker::txn_new_order_simple() {
   // scan the range: [3,7)
   {
     arena.reset();
-    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
     scoped_str_arena s_arena(arena);
     const oorder::key k_no_0(warehouse_id, 1, 3);
     const oorder::key k_no_1(warehouse_id, 1, 7);
@@ -1839,12 +1841,12 @@ tpcc_worker::txn_new_order_micro_drtm() {
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
 
   // TODO: the event driven might is the bottleneck for the microbenchmark (much high throughput)
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     //const string new_i_name = "aaaaaaaa";
@@ -1908,11 +1910,11 @@ tpcc_worker::txn_new_order_micro() {
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
 
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     const string new_i_name = "aaaaaaaa";
@@ -1957,11 +1959,11 @@ tpcc_worker::txn_new_order_micro_mega()
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
   
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     const string new_i_name = "aaaaaaaa";
@@ -2002,7 +2004,7 @@ tpcc_worker::txn_new_order_mega()
 {
   const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
 
-  // if (cluster.compare("learner")==0){
+  // if (BenchmarkConfig::getInstance().getCluster().compare("learner")==0){
   //  scan_entire_warehouses(warehouse_id);
   // }
   const uint districtID = RandomNumber(r, 1, 10);
@@ -2024,12 +2026,12 @@ tpcc_worker::txn_new_order_mega()
     } else {
       do {
        supplierWarehouseIDs[i] = RandomNumber(r, 1, NumWarehousesTotal());
-      } while (supplierWarehouseIDs[i] == WarehouseLocal2Global(warehouse_id) || ((!WarehouseInShard(supplierWarehouseIDs[i], shardIndex)) && reallyRemote >= 1));
-      if (!WarehouseInShard(supplierWarehouseIDs[i], shardIndex)) {
+      } while (supplierWarehouseIDs[i] == WarehouseLocal2Global(warehouse_id) || ((!WarehouseInShard(supplierWarehouseIDs[i], BenchmarkConfig::getInstance().getShardIndex())) && reallyRemote >= 1));
+      if (!WarehouseInShard(supplierWarehouseIDs[i], BenchmarkConfig::getInstance().getShardIndex())) {
         reallyRemote++;
       }
       allLocal = false;
-      if (!WarehouseInShard(supplierWarehouseIDs[i], shardIndex)) { isRemote = true; } 
+      if (!WarehouseInShard(supplierWarehouseIDs[i], BenchmarkConfig::getInstance().getShardIndex())) { isRemote = true; } 
     }
     orderQuantities[i] = RandomNumber(r, 1, 10);
   }
@@ -2057,7 +2059,7 @@ tpcc_worker::txn_new_order_mega()
   //   max_read_set_size : 15
   //   max_write_set_size : 15
   //   num_txn_contexts : 9
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_NEW_ORDER);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_TPCC_NEW_ORDER);
   scoped_str_arena s_arena(arena);
 
   scoped_multilock<spinlock> mlock;
@@ -2145,7 +2147,7 @@ tpcc_worker::txn_new_order_mega()
         checker::SanityCheckItem(&k_i, v_i);
     
         // local operations, for remote operations, we do it outside this for-loop
-        if (WarehouseInShard(ol_supply_w_id, shardIndex)){
+        if (WarehouseInShard(ol_supply_w_id, BenchmarkConfig::getInstance().getShardIndex())){
           const stock::key k_s(WarehouseGlobal2Local(ol_supply_w_id), ol_i_id);
           ALWAYS_ERROR(tbl_stock(WarehouseGlobal2Local(ol_supply_w_id))->get(txn, EncodeK(obj_key0, k_s), obj_v));
           if(TThread::transget_without_stable){TThread::transget_without_stable=false;}
@@ -2180,7 +2182,7 @@ tpcc_worker::txn_new_order_mega()
     
       // for remote operations, not using loop on batch-size
       // using batch operations: implement batch-operations
-      if (!WarehouseInShard(ol_supply_w_id, shardIndex)) {
+      if (!WarehouseInShard(ol_supply_w_id, BenchmarkConfig::getInstance().getShardIndex())) {
         const stock::key k_s(WarehouseGlobal2Local(ol_supply_w_id), base_ol_i_id);
         dummy_tbl_stock(ol_supply_w_id)->get(txn, EncodeK(obj_key0, k_s), obj_v);
         //std::cout<<"send base:"<<base_ol_i_id<<", tid:"<<TThread::getPartitionID()<<", v-len:"<<obj_v.length()<< std::endl;
@@ -2209,7 +2211,7 @@ tpcc_worker::txn_new_order_mega()
     } // END of loop items
 
     if (likely(db->commit_txn(txn))){
-      // if (control_mode==2 && counter_new_order_failed>0 && shardIndex>0){
+      // if (BenchmarkConfig::getInstance().getControlMode()==2 && counter_new_order_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
       //   Warning("counter_new_order_failed success:%d\n",counter_new_order_failed);
       // }
       return txn_result(true, ret * 10 + (isRemote?1:0));
@@ -2240,7 +2242,7 @@ tpcc_worker::txn_new_order()
 #else
   const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
 
-  // if (cluster.compare("learner")==0){
+  // if (BenchmarkConfig::getInstance().getCluster().compare("learner")==0){
   //  scan_entire_warehouses(warehouse_id);
   // }
   const uint districtID = RandomNumber(r, 1, 10);
@@ -2271,25 +2273,25 @@ tpcc_worker::txn_new_order()
       }
 
 #if defined(FAIL_NEW_VERSION)
-      if (control_mode==4){ // distributed transaction without failed shard
+      if (BenchmarkConfig::getInstance().getControlMode()==4){ // distributed transaction without failed shard
         if (ShardIndexFromGlobalWarehouse(supplierWarehouseIDs[i])==sync_util::sync_logger::failed_shard_index){
           counter_new_order_failed+=1;
           return txn_result(false, 0 + (isRemote?1:0));
         }
       }
 #else
-      if (control_mode==1){ // distributed transaction without failed shard
+      if (BenchmarkConfig::getInstance().getControlMode()==1){ // distributed transaction without failed shard
         if (ShardIndexFromGlobalWarehouse(supplierWarehouseIDs[i])==sync_util::sync_logger::failed_shard_index){
           counter_new_order_failed+=1;
           return txn_result(false, 0 + (isRemote?1:0));
         }
-      }else if (control_mode==3){ // local transactions
-        if (ShardIndexFromGlobalWarehouse(supplierWarehouseIDs[i])!=shardIndex){
+      }else if (BenchmarkConfig::getInstance().getControlMode()==3){ // local transactions
+        if (ShardIndexFromGlobalWarehouse(supplierWarehouseIDs[i])!=BenchmarkConfig::getInstance().getShardIndex()){
           return txn_result(false, 0 + (isRemote?1:0));
         }
       }
 #endif
-      if (!WarehouseInShard(supplierWarehouseIDs[i], shardIndex)) { 
+      if (!WarehouseInShard(supplierWarehouseIDs[i], BenchmarkConfig::getInstance().getShardIndex())) { 
         isRemote = true; 
         TThread::isRemoteShard = true;
       } 
@@ -2299,7 +2301,7 @@ tpcc_worker::txn_new_order()
   }
 
 #if defined(FAIL_NEW_VERSION)
-  if (control_mode==5 && counter_new_order_failed>0 && shardIndex>0){
+  if (BenchmarkConfig::getInstance().getControlMode()==5 && counter_new_order_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
     if (rand()%20==0){
       counter_new_order_failed-=1;
       supplierWarehouseIDs[0]=RandomNumber(r, 1, NumWarehouses()); // always assume the shard-0 failed
@@ -2307,7 +2309,7 @@ tpcc_worker::txn_new_order()
     }
   }
 #else
-  if (control_mode==2 && counter_new_order_failed>0 && shardIndex>0){
+  if (BenchmarkConfig::getInstance().getControlMode()==2 && counter_new_order_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
     if (rand()%20==0){
       counter_new_order_failed-=1;
       supplierWarehouseIDs[0]=RandomNumber(r, 1, NumWarehouses()); // always assume the shard-0 failed
@@ -2342,7 +2344,7 @@ tpcc_worker::txn_new_order()
   //   max_read_set_size : 15
   //   max_write_set_size : 15
   //   num_txn_contexts : 9
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_NEW_ORDER);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_TPCC_NEW_ORDER);
   scoped_str_arena s_arena(arena);
 
   scoped_multilock<spinlock> mlock;
@@ -2433,7 +2435,7 @@ tpcc_worker::txn_new_order()
       const item::value *v_i = Decode(obj_v, v_i_temp);
       checker::SanityCheckItem(&k_i, v_i);
       const stock::key k_s(WarehouseGlobal2Local(ol_supply_w_id), ol_i_id);
-      if (WarehouseInShard(ol_supply_w_id, shardIndex)) {
+      if (WarehouseInShard(ol_supply_w_id, BenchmarkConfig::getInstance().getShardIndex())) {
         ALWAYS_ERROR(tbl_stock(WarehouseGlobal2Local(ol_supply_w_id))->get(txn, EncodeK(obj_key0, k_s), obj_v));
         if(TThread::transget_without_stable){TThread::transget_without_stable=false;counter_new_order_failed+=1;}
         if(TThread::transget_without_throw){TThread::transget_without_throw=false;db->abort_txn_local(txn);return txn_result(false,isRemote?1:0);}
@@ -2454,7 +2456,7 @@ tpcc_worker::txn_new_order()
         v_s_new.s_quantity += -int32_t(ol_quantity) + 91;
       v_s_new.s_ytd += ol_quantity;
       v_s_new.s_remote_cnt += (ol_supply_w_id == WarehouseLocal2Global(warehouse_id)) ? 0 : 1;
-      if (WarehouseInShard(ol_supply_w_id, shardIndex)) {
+      if (WarehouseInShard(ol_supply_w_id, BenchmarkConfig::getInstance().getShardIndex())) {
         tbl_stock(WarehouseGlobal2Local(ol_supply_w_id))->put(txn, EncodeK(str(), k_s), Encode(str(), v_s_new));
       } else {
         dummy_tbl_stock(ol_supply_w_id)->put(txn, EncodeK(str(), k_s), Encode(str(), v_s_new));
@@ -2475,7 +2477,7 @@ tpcc_worker::txn_new_order()
     }
 
     if (likely(db->commit_txn(txn))){
-      // if (control_mode==2 && counter_new_order_failed>0 && shardIndex>0){
+      // if (BenchmarkConfig::getInstance().getControlMode()==2 && counter_new_order_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
       //   Warning("counter_new_order_failed success:%d\n",counter_new_order_failed);
       // }
       return txn_result(true, ret * 10 + (isRemote?1:0));
@@ -2546,7 +2548,7 @@ tpcc_worker::txn_delivery()
   //   max_read_set_size : 133
   //   max_write_set_size : 133
   //   num_txn_contexts : 4
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_DELIVERY);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_TPCC_DELIVERY);
   scoped_str_arena s_arena(arena);
   scoped_lock_guard<spinlock> slock(
       g_enable_partition_locks ? &LockForPartition(warehouse_id) : nullptr);
@@ -2665,11 +2667,11 @@ tpcc_worker::txn_payment_micro_drtm() {
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
 
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     //const string new_i_name = "aaaaaaaa";
@@ -2724,11 +2726,11 @@ tpcc_worker::txn_payment_micro_mega() {
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
 
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     const string new_i_name = "aaaaaaaa";
@@ -2773,11 +2775,11 @@ tpcc_worker::txn_payment_micro() {
         RandomNumber(r, 1, 100) <= g_micro_remote_item_pct) {
           do {
             remote_warehouse_id = RandomNumber(r, 1, NumWarehousesTotal());
-          } while (WarehouseInShard(remote_warehouse_id, shardIndex));
+          } while (WarehouseInShard(remote_warehouse_id, BenchmarkConfig::getInstance().getShardIndex()));
           isRemote = true;
         }
 
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_KV_RMW);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_KV_RMW);
   scoped_str_arena s_arena(arena);
   try {
     const string new_i_name = "aaaaaaaa";
@@ -2834,20 +2836,20 @@ if (TThread::get_is_micro()) {
   }
 
 #if defined(FAIL_NEW_VERSION)
-  if (control_mode==4) {
+  if (BenchmarkConfig::getInstance().getControlMode()==4) {
     if (ShardIndexFromGlobalWarehouse(customerWarehouseID)==sync_util::sync_logger::failed_shard_index){
       counter_payment_failed+=1;
       return txn_result(false, 0 + (isRemote?1:0));
     }
   }
 #else
-  if (control_mode==1){ // distributed transactions without failed shard
+  if (BenchmarkConfig::getInstance().getControlMode()==1){ // distributed transactions without failed shard
     if (ShardIndexFromGlobalWarehouse(customerWarehouseID)==sync_util::sync_logger::failed_shard_index){
       counter_payment_failed+=1;
       return txn_result(false, 0 + (isRemote?1:0));
     }
-  }else if (control_mode==3){ // local transactions
-    if (ShardIndexFromGlobalWarehouse(customerWarehouseID)!=shardIndex){
+  }else if (BenchmarkConfig::getInstance().getControlMode()==3){ // local transactions
+    if (ShardIndexFromGlobalWarehouse(customerWarehouseID)!=BenchmarkConfig::getInstance().getShardIndex()){
       return txn_result(false, 0 + (isRemote?1:0));
     }
   }
@@ -2862,7 +2864,7 @@ if (TThread::get_is_micro()) {
   }
 
 #if defined(FAIL_NEW_VERSION)
-  if (control_mode==5 && counter_payment_failed>0 && shardIndex>0){
+  if (BenchmarkConfig::getInstance().getControlMode()==5 && counter_payment_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
     if (rand()%20==0){
       counter_payment_failed-=1;
       customerWarehouseID=RandomNumber(r, 1, NumWarehouses());
@@ -2870,7 +2872,7 @@ if (TThread::get_is_micro()) {
     }
   }
 #else
-  if (control_mode==2 && counter_payment_failed>0 && shardIndex>0){
+  if (BenchmarkConfig::getInstance().getControlMode()==2 && counter_payment_failed>0 && BenchmarkConfig::getInstance().getShardIndex()>0){
     if (rand()%20==0){
       counter_payment_failed-=1;
       customerWarehouseID=RandomNumber(r, 1, NumWarehouses());
@@ -2878,7 +2880,7 @@ if (TThread::get_is_micro()) {
     }
   }
 #endif
-  if (!WarehouseInShard(customerWarehouseID, shardIndex)) { 
+  if (!WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) { 
     isRemote = true; 
     TThread::isRemoteShard = true;
   }
@@ -2893,7 +2895,7 @@ if (TThread::get_is_micro()) {
   //   max_read_set_size : 71
   //   max_write_set_size : 1
   //   num_txn_contexts : 5
-  void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_PAYMENT);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_TPCC_PAYMENT);
   scoped_str_arena s_arena(arena);
 
   scoped_multilock<spinlock> mlock;
@@ -2959,7 +2961,7 @@ if (TThread::get_is_micro()) {
       static_limit_callback<NMaxCustomerIdxScanElems> c(s_arena.get(), true); // probably a safe bet for now
       // this huge c_data might cause so many ISSUES - on real machines
       // NO need to worry about at this moment
-      if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+      if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
         tbl_customer_name_idx(WarehouseGlobal2Local(customerWarehouseID))->scan(txn, Encode(obj_key0, k_c_idx_0), &Encode(obj_key1, k_c_idx_1), c, s_arena.get());
         ALWAYS_ERROR(c.size() > 0);
         INVARIANT(c.size() < NMaxCustomerIdxScanElems); // we should detect this
@@ -2979,7 +2981,7 @@ if (TThread::get_is_micro()) {
       k_c.c_w_id = WarehouseGlobal2Local(customerWarehouseID);
       k_c.c_d_id = customerDistrictID;
       
-      if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+      if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
         ALWAYS_ERROR(tbl_customer(WarehouseGlobal2Local(customerWarehouseID))->get(txn, EncodeK(obj_key0, k_c), obj_v));
         if(TThread::transget_without_stable){TThread::transget_without_stable=false;counter_payment_failed+=1;}
         if(TThread::transget_without_throw){TThread::transget_without_throw=false;db->abort_txn_local(txn);return txn_result(false,isRemote?1:0);}
@@ -2995,7 +2997,7 @@ if (TThread::get_is_micro()) {
       k_c.c_d_id = customerDistrictID;
       k_c.c_id = customerID;
       
-      if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+      if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
         ALWAYS_ERROR(tbl_customer(WarehouseGlobal2Local(customerWarehouseID))->get(txn, EncodeK(obj_key0, k_c), obj_v));
         if(TThread::transget_without_stable){TThread::transget_without_stable=false;counter_payment_failed+=1;}
         if(TThread::transget_without_throw){TThread::transget_without_throw=false;db->abort_txn_local(txn);return txn_result(false,isRemote?1:0);}
@@ -3011,7 +3013,7 @@ if (TThread::get_is_micro()) {
     v_c_new.c_ytd_payment += paymentAmount;
     v_c_new.c_payment_cnt++;
 
-    if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+    if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
       tbl_customer(WarehouseGlobal2Local(customerWarehouseID))->put(txn, EncodeK(str(), k_c), Encode(str(), v_c_new));
     } else {
       dummy_tbl_customer(customerWarehouseID)->put(txn, EncodeK(str(), k_c), Encode(str(), v_c_new));
@@ -3034,7 +3036,7 @@ if (TThread::get_is_micro()) {
       k_c.c_d_id = k_c.c_d_id+100; // update key in the customer data
       customer_data::value v_c_data;
 
-      if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+      if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
         ALWAYS_ERROR(tbl_customer(WarehouseGlobal2Local(customerWarehouseID))->get(txn, EncodeK(obj_key0, k_c), obj_v));
         if(TThread::transget_without_stable){TThread::transget_without_stable=false;counter_payment_failed+=1;}
         if(TThread::transget_without_throw){TThread::transget_without_throw=false;db->abort_txn_local(txn);return txn_result(false,isRemote?1:0);}
@@ -3065,7 +3067,7 @@ if (TThread::get_is_micro()) {
           min(static_cast<size_t>(n), v_c_data_new.c_data.max_size()));
       NDB_MEMCPY((void *) v_c_data_new.c_data.data(), &buf[0], v_c_data_new.c_data.size());
 
-      if (WarehouseInShard(customerWarehouseID, shardIndex)) {
+      if (WarehouseInShard(customerWarehouseID, BenchmarkConfig::getInstance().getShardIndex())) {
         tbl_customer(WarehouseGlobal2Local(customerWarehouseID))->put(txn, EncodeK(str(), k_c), Encode(str(), v_c_data_new));
       } else {
         dummy_tbl_customer(customerWarehouseID)->put(txn, EncodeK(str(), k_c), Encode(str(), v_c_data_new));
@@ -3128,7 +3130,7 @@ tpcc_worker::txn_order_status()
     g_disable_read_only_scans ?
       abstract_db::HINT_TPCC_ORDER_STATUS :
       abstract_db::HINT_TPCC_ORDER_STATUS_READ_ONLY;
-  void *txn = db->new_txn(txn_flags | read_only_mask, arena, txn_buf(), hint);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags() | read_only_mask, arena, txn_buf(), hint);
   scoped_str_arena s_arena(arena);
   // NB: since txn_order_status() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
@@ -3280,10 +3282,10 @@ tpcc_worker::txn_stock_level()
 
   // verify the data
   //int cnt=0;
-  //if (cluster.compare("learner")==0){
+  //if (BenchmarkConfig::getInstance().getCluster().compare("learner")==0){
   //  Warning("verify warehouse-id: %d", warehouse_id);
   //  for (int i=1;i<=NumItems();i++){
-  //    void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_DEFAULT);
+  //    void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags(), arena, txn_buf(), abstract_db::HINT_DEFAULT);
   //    const stock::key k_s(warehouse_id, i);
   //    const size_t nbytesread = serializer<int16_t, true>::max_nbytes();
   //    auto ret=tbl_stock(warehouse_id)->get(txn, EncodeK(obj_key0, k_s), obj_v, nbytesread);
@@ -3312,7 +3314,7 @@ tpcc_worker::txn_stock_level()
     g_disable_read_only_scans ?
       abstract_db::HINT_TPCC_STOCK_LEVEL :
       abstract_db::HINT_TPCC_STOCK_LEVEL_READ_ONLY;
-  void *txn = db->new_txn(txn_flags | read_only_mask, arena, txn_buf(), hint);
+  void *txn = db->new_txn(BenchmarkConfig::getInstance().getTxnFlags() | read_only_mask, arena, txn_buf(), hint);
   scoped_str_arena s_arena(arena);
   // NB: since txn_stock_level() is a RO txn, we assume that
   // locking is un-necessary (since we can just read from some old snapshot)
@@ -3434,14 +3436,14 @@ private:
     const string s_name(name);
     vector<abstract_ordered_index *> ret(NumWarehouses());
     if (g_enable_separate_tree_per_partition && !is_read_only) {
-      if (NumWarehouses() <= nthreads) {
+      if (NumWarehouses() <= BenchmarkConfig::getInstance().getNthreads()) {
         for (size_t i = 0; i < NumWarehouses(); i++)
           ret[i] = db->open_index(s_name + "_" + to_string(i), expected_size, is_append_only, use_hashtable);
       } else {
-        const unsigned nwhse_per_partition = NumWarehouses() / nthreads;
-        for (size_t partid = 0; partid < nthreads; partid++) {
+        const unsigned nwhse_per_partition = NumWarehouses() / BenchmarkConfig::getInstance().getNthreads();
+        for (size_t partid = 0; partid < BenchmarkConfig::getInstance().getNthreads(); partid++) {
           const unsigned wstart = partid * nwhse_per_partition;
-          const unsigned wend   = (partid + 1 == nthreads) ?
+          const unsigned wend   = (partid + 1 == BenchmarkConfig::getInstance().getNthreads()) ?
             NumWarehouses() : (partid + 1) * nwhse_per_partition;
           abstract_ordered_index *idx =
             db->open_index(s_name + "_" + to_string(partid), expected_size, is_append_only, use_hashtable);
@@ -3485,16 +3487,16 @@ public:
         int table_id = 0;
         for (int i=0; i<12; i++) {
             if (nCount[i] != "item") {
-                vector<abstract_ordered_index *> ret(nthreads);
-                for (int j=0; j<nthreads; j++) {
+                vector<abstract_ordered_index *> ret(BenchmarkConfig::getInstance().getNthreads());
+                for (int j=0; j<BenchmarkConfig::getInstance().getNthreads(); j++) {
                     table_id += 1;
                     ret[j] = db->open_index(table_id) ;
                 }
                 partitions[nCount[i]] = ret;
             } else {
-                vector<abstract_ordered_index *> ret(nthreads);
+                vector<abstract_ordered_index *> ret(BenchmarkConfig::getInstance().getNthreads());
                 table_id += 1;
-                for (int j=0; j<nthreads; j++) {
+                for (int j=0; j<BenchmarkConfig::getInstance().getNthreads(); j++) {
                     ret[j] = db->open_index(table_id) ;
                 }
                 partitions[nCount[i]] = ret;
@@ -3527,11 +3529,12 @@ public:
 
     if (g_enable_partition_locks) {
       static_assert(sizeof(aligned_padded_elem<spinlock>) == CACHELINE_SIZE, "xx");
-      void * const px = memalign(CACHELINE_SIZE, sizeof(aligned_padded_elem<spinlock>) * nthreads);
+      auto& cfg = BenchmarkConfig::getInstance();
+      void * const px = memalign(CACHELINE_SIZE, sizeof(aligned_padded_elem<spinlock>) * cfg.getNthreads());
       ALWAYS_ERROR(px);
       ALWAYS_ERROR(reinterpret_cast<uintptr_t>(px) % CACHELINE_SIZE == 0);
       g_partition_locks = reinterpret_cast<aligned_padded_elem<spinlock> *>(px);
-      for (size_t i = 0; i < nthreads; i++) {
+      for (size_t i = 0; i < cfg.getNthreads(); i++) {
         new (&g_partition_locks[i]) aligned_padded_elem<spinlock>();
         ALWAYS_ERROR(!g_partition_locks[i].elem.is_locked());
       }
@@ -3548,7 +3551,7 @@ public:
         new (&g_district_ids[i]) atomic<uint64_t>(3001);
     }
     helper_threads.resize(NumWarehousesTotal());
-    server_transports.resize(num_erpc_server);
+    server_transports.resize(BenchmarkConfig::getInstance().getNumErpcServer());
   }
 
   void static helper_server(int g_wid, // server_id=g_wid-1;
@@ -3564,8 +3567,8 @@ public:
                           const map<string, vector<abstract_ordered_index *>> &dummy_partitions) {
     /**
      * weihshen:
-     *  relationship between g_wid and (shardIndex, par_id)
-     *    shardIndex * Numwarehouses() + par_id + 1 == g_wid
+     *  relationship between g_wid and (BenchmarkConfig::getInstance().getShardIndex(), par_id)
+     *    BenchmarkConfig::getInstance().getShardIndex() * Numwarehouses() + par_id + 1 == g_wid
      */
     scoped_db_thread_ctx ctx(db, true, 1);  // invoke thread_init
     TThread::set_mode(1);
@@ -3588,16 +3591,16 @@ public:
   // setup (n-1)*warehouses helper threads
   void setup_helper() {
     for (int i=0; i<NumWarehousesTotal(); i++) {
-      if (i / NumWarehouses() == shardIndex) continue;
+      if (i / NumWarehouses() == BenchmarkConfig::getInstance().getShardIndex()) continue;
 
       helper_threads[i] = std::thread(helper_server,
-                                      i+1, cluster, shardIndex, NumWarehouses(),
-                                      config, db, 
+                                      i+1, BenchmarkConfig::getInstance().getCluster(), BenchmarkConfig::getInstance().getShardIndex(), NumWarehouses(),
+                                      BenchmarkConfig::getInstance().getConfig(), db, 
                                       queue_holders[i],
                                       queue_holders_response[i],
                                       open_tables, partitions, dummy_partitions);
       pthread_setname_np(helper_threads[i].native_handle(), ("helper_"+std::to_string(i)).c_str());
-      // int core_id = shardIndex * 64 + config->warehouses+1;
+      // int core_id = BenchmarkConfig::getInstance().getShardIndex() * 64 + BenchmarkConfig::getInstance().getConfig()->warehouses+1;
       // cpu_set_t cpuset;
       // CPU_ZERO(&cpuset);
       // CPU_SET(core_id, &cpuset);
@@ -3623,7 +3626,7 @@ public:
                                   id);
     for (int i=0; i<NumWarehousesTotal(); i++) {
       if (i / NumWarehouses() == running_shardIndex) continue;
-      if (i%num_erpc_server==alpha){
+      if (i%BenchmarkConfig::getInstance().getNumErpcServer()==alpha){
         auto *it = new mako::HelperQueue(i,true);
         server_transports[alpha]->c->queue_holders[i] = it;
         auto *it_res = new mako::HelperQueue(i,false);
@@ -3639,18 +3642,18 @@ public:
   //  warehouses clients(id=0~warehouses-1)
   void setup_erpc_server()
   {
-    for (int i=0;i<num_erpc_server;++i){
-      auto t=std::thread(erpc_server, cluster, shardIndex, NumWarehouses(), config, i);
+    for (int i=0;i<BenchmarkConfig::getInstance().getNumErpcServer();++i){
+      auto t=std::thread(erpc_server, BenchmarkConfig::getInstance().getCluster(), BenchmarkConfig::getInstance().getShardIndex(), NumWarehouses(), BenchmarkConfig::getInstance().getConfig(), i);
       pthread_setname_np(t.native_handle(), "erpc_server");
       t.detach();
     }
-    while(set_server_transport<num_erpc_server) { sleep(0); }
+    while(set_server_transport<BenchmarkConfig::getInstance().getNumErpcServer()) { sleep(0); }
     for (int i=0; i<NumWarehousesTotal(); i++) {
-      if (i / NumWarehouses() == shardIndex) continue;
-      queue_holders[i] = server_transports[i%num_erpc_server]->c->queue_holders[i];
-      queue_holders_response[i] = server_transports[i%num_erpc_server]->c->queue_holders_response[i];
+      if (i / NumWarehouses() == BenchmarkConfig::getInstance().getShardIndex()) continue;
+      queue_holders[i] = server_transports[i%BenchmarkConfig::getInstance().getNumErpcServer()]->c->queue_holders[i];
+      queue_holders_response[i] = server_transports[i%BenchmarkConfig::getInstance().getNumErpcServer()]->c->queue_holders_response[i];
     } 
-    // int core_id = shardIndex * 64 + config->warehouses;
+    // int core_id = BenchmarkConfig::getInstance().getShardIndex() * 64 + BenchmarkConfig::getInstance().getConfig()->warehouses;
     // cpu_set_t cpuset;
     // CPU_ZERO(&cpuset);
     // CPU_SET(core_id, &cpuset);
@@ -3660,7 +3663,7 @@ public:
   void cleanup()
   {
     Warning("stop the server rpc");
-    for (int i=0; i<num_erpc_server; ++i)
+    for (int i=0; i<BenchmarkConfig::getInstance().getNumErpcServer(); ++i)
       server_transports[i]->Stop();
   }
 
@@ -3678,7 +3681,7 @@ protected:
 #else
     ret.push_back(new tpcc_warehouse_loader(9324, db, open_tables, partitions, dummy_partitions));
     ret.push_back(new tpcc_item_loader(235443, db, open_tables, partitions, dummy_partitions));
-    if (enable_parallel_loading) {
+    if (BenchmarkConfig::getInstance().getEnableParallelLoading()) {
       fast_random r(89785943);
       for (uint i = 1; i <= NumWarehouses(); i++)
         ret.push_back(new tpcc_stock_loader(r.next(), db, open_tables, partitions, dummy_partitions, i));
@@ -3686,14 +3689,14 @@ protected:
       ret.push_back(new tpcc_stock_loader(89785943, db, open_tables, partitions, dummy_partitions, -1));
     }
     ret.push_back(new tpcc_district_loader(129856349, db, open_tables, partitions, dummy_partitions));
-    if (enable_parallel_loading) {
+    if (BenchmarkConfig::getInstance().getEnableParallelLoading()) {
       fast_random r(923587856425);
       for (uint i = 1; i <= NumWarehouses(); i++)
         ret.push_back(new tpcc_customer_loader(r.next(), db, open_tables, partitions, dummy_partitions, i));
     } else {
       ret.push_back(new tpcc_customer_loader(923587856425, db, open_tables, partitions, dummy_partitions, -1));
     }
-    if (enable_parallel_loading) {
+    if (BenchmarkConfig::getInstance().getEnableParallelLoading()) {
       fast_random r(2343352);
       for (uint i = 1; i <= NumWarehouses(); i++)
         ret.push_back(new tpcc_order_loader(r.next(), db, open_tables, partitions, dummy_partitions, i));
@@ -3709,13 +3712,14 @@ protected:
   {
     const unsigned alignment = coreid::num_cpus_online();
     const int blockstart =
-      coreid::allocate_contiguous_aligned_block(nthreads, alignment);
+      coreid::allocate_contiguous_aligned_block(BenchmarkConfig::getInstance().getNthreads(), alignment);
     ALWAYS_ERROR(blockstart >= 0);
     ALWAYS_ERROR((blockstart % alignment) == 0);
     fast_random r(23984543);
     vector<bench_worker *> ret;
-    if (NumWarehouses() <= nthreads) {
-      for (size_t i = 0; i < nthreads; i++) {
+    auto& cfg = BenchmarkConfig::getInstance();
+    if (NumWarehouses() <= cfg.getNthreads()) {
+      for (size_t i = 0; i < cfg.getNthreads(); i++) {
         ret.push_back(
           new tpcc_worker(
             blockstart + i,
@@ -3724,10 +3728,10 @@ protected:
             (i % NumWarehouses()) + 1, (i % NumWarehouses()) + 2));
       }
     } else {
-      const unsigned nwhse_per_partition = NumWarehouses() / nthreads;
-      for (size_t i = 0; i < nthreads; i++) {
+      const unsigned nwhse_per_partition = NumWarehouses() / cfg.getNthreads();
+      for (size_t i = 0; i < cfg.getNthreads(); i++) {
         const unsigned wstart = i * nwhse_per_partition;
-        const unsigned wend   = (i + 1 == nthreads) ?
+        const unsigned wend   = (i + 1 == cfg.getNthreads()) ?
           NumWarehouses() : (i + 1) * nwhse_per_partition;
         ret.push_back(
           new tpcc_worker(
@@ -3758,11 +3762,11 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
 #if defined(PAXOS_LIB_ENABLED)
     Warning("######--------------###### send endLlogs #####---------------######");
     std::string endLogInd = "";
-    for (int i = 0; i < nthreads; i++)
+    for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
         add_log_to_nc((char *)endLogInd.c_str(), 0, i);
 
     // vector<std::thread> wait_threads;
-    // for (int i = 0; i < nthreads; i++)
+    // for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
     // {
     //     wait_threads.push_back(std::thread([i]() {
     //        std::cout << "starting wait for par_id: " << i << std::endl;
@@ -3853,7 +3857,7 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
     cerr << "  --new-order-remote-item-pct will have no effect" << endl;
   }
 
-  if (verbose) {
+  if (BenchmarkConfig::getInstance().getVerbose()) {
     cerr << "tpcc settings:" << endl;
     cerr << "  cross_partition_transactions : " << !g_disable_xpartition_txn << endl;
     cerr << "  read_only_snapshots          : " << !g_disable_read_only_scans << endl;

@@ -11,6 +11,7 @@
 #include <sys/sysinfo.h>
 
 #include "bench.h"
+#include "tpcc.h"
 
 #include "../counter.h"
 #include "../scopedperf.hh"
@@ -35,32 +36,6 @@ extern "C" int mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp
 
 using namespace std;
 using namespace util;
-
-size_t nthreads = 1;  // number of TPC-C worker threads per shard
-size_t num_erpc_server = 2; // number of eRPC servers
-double scale_factor = 1.0; // number of warehouses (same as nthreads) per shard
-size_t nshards = 1;
-size_t shardIndex = 0;
-string cluster = "localhost";
-int clusterRole = 0;
-size_t workload_type = 1; // 0. simpleShards (Debug), 1. tpcc/microbenchmark
-transport::Configuration *config=nullptr; // config file
-volatile bool running = true;
-volatile int control_mode = 0; // 0--> default, 1--> pausing db worker threads, 2 --> resume db worker threads
-int verbose = 1;
-uint64_t txn_flags = 1;
-uint64_t runtime = 30;
-volatile int runtime_plus = 0; // pre-undetermined running time
-uint64_t ops_per_worker = 0;
-int run_mode = RUNMODE_TIME;
-int enable_parallel_loading = false;
-int pin_cpus = 1;
-int slow_exit = 0;
-int retry_aborted_transaction = 1;
-int no_reset_counters = 0;
-int backoff_aborted_transaction = 0;
-int use_hashtable = 0;
-int is_micro = 0; // if run micro-based implementation
 
 // par_id ==> shardClient
 std::unordered_map<int, mako::ShardClient*> shardClientAll;
@@ -147,48 +122,49 @@ bench_worker::run()
 {
   // this is only reserved for leader cluster
   // on other alive leader servers
-  register_fasttransport_for_bench([&, control_mode](int control, int value) {
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  register_fasttransport_for_bench([&](int control, int value) {
     Warning("receive a control in register_fasttransport_for_bench: %d, EpochInms: %llu", control, getEpochInms());
     switch (control) {
 #if defined(FAIL_NEW_VERSION)
       case 0: {
-        control_mode = 4;
+        benchConfig.setControlMode(4);
         // If a transaction sent to a failed shard, we put it into the queue
         sync_util::sync_logger::failed_shard_index = value%10;
         sync_util::sync_logger::failed_shard_ts = value/10;
         sync_util::sync_logger::setShardWBlind(value/10, value%10);
 
         string log = "no-ops:" + to_string(get_epoch());
-        for(int i = 0; i < nthreads; i++){
+        for(int i = 0; i < benchConfig.getNthreads(); i++){
           add_log_to_nc(log.c_str(), log.size(), i);
         }
 
         set_epoch();
-        runtime_plus = runtime; // another runtime
+        benchConfig.setRuntimePlus(benchConfig.getRuntime()); // another runtime
 
         // Unpaused previous blocked threads if any
-        for (int par_id=0;par_id<nthreads;par_id++){
+        for (int par_id=0;par_id<benchConfig.getNthreads();par_id++){
            shardClientAll[par_id]->setBlocking(false);
         }
         break;
       }
       case 1: {
         // Update its local FVW
-        vector<uint32_t> fvw(nshards);
-        for (int i=0; i<nshards; i++) {
+        vector<uint32_t> fvw(benchConfig.getNshards());
+        for (int i=0; i<benchConfig.getNshards(); i++) {
           // it should get shard-0 from the learner
           int clusterRoleLocal = mako::LOCALHOST_CENTER_INT;
           if (i==0) 
             clusterRoleLocal = mako::LEARNER_CENTER_INT;
           std::string w_i = mako::NFSSync::get_key("fvw_"+std::to_string(i), 
-                                                      config->shard(0, clusterRoleLocal).host.c_str(), 
-                                                      config->mports[clusterRoleLocal]);
+                                                      benchConfig.getConfig()->shard(0, clusterRoleLocal).host.c_str(), 
+                                                      benchConfig.getConfig()->mports[clusterRoleLocal]);
           std::cout<<"get fvw, " << clusterRoleLocal << ", fvw_"+std::to_string(i)<<":"<<w_i<<std::endl;
           fvw[i] = std::stoi(w_i);
         }
 
         sync_util::sync_logger::update_stable_timestamp_vec(get_epoch()-1, fvw);
-        control_mode = 5; // We can move to the next epoch, and re-execute transactions in the queue
+        benchConfig.setControlMode(5); // We can move to the next epoch, and re-execute transactions in the queue
         break;
       }
 #else
@@ -206,7 +182,7 @@ bench_worker::run()
       case 1: { // receive a PREPARE
         // commit local transactions only during the PREPARE phase;
         // commit all buffers in the Paxos stream-0
-        control_mode = 3;
+        benchConfig.setControlMode(3);
       }
 #endif
       case 2: { // receive a COMMIT
@@ -217,18 +193,18 @@ bench_worker::run()
         // resume the database worker threads, update it after the new workers are created;
         // 4. issue no-ops within the old epoch
         string log = "no-ops:" + to_string(get_epoch());
-        for(int i = 0; i < nthreads; i++){
+        for(int i = 0; i < benchConfig.getNthreads(); i++){
           add_log_to_nc(log.c_str(), log.size(), i);
         }
         // 2. increase the epoch
         set_epoch();
-        control_mode = 2;
-        runtime_plus = runtime; // another runtime
+        benchConfig.setControlMode(2);
+        benchConfig.setRuntimePlus(benchConfig.getRuntime()); // another runtime
         break;
       }
       case 3: { // terminate
-        running=false;
-        runtime_plus=0;
+        benchConfig.setRunning(false);
+        benchConfig.setRuntimePlus(0);
         break;
       }
     }
@@ -264,12 +240,12 @@ bench_worker::run()
   txn_counts.resize(40);
   barrier_a->count_down();
   barrier_b->wait_for();
-  while (running && (run_mode != RUNMODE_OPS || ntxn_commits < ops_per_worker)) {
+  while (benchConfig.isRunning() && (benchConfig.getRunMode() != RUNMODE_OPS || ntxn_commits < benchConfig.getOpsPerWorker())) {
     double d = r.next_uniform();
     for (size_t i = 0; i < workload.size(); i++) {
       if ((i + 1) == workload.size() || d < workload[i].frequency) {
       retry:
-        timer t(true);  // nano counter
+        util::timer t(true);  // nano counter
         const unsigned long old_seed = r.get_seed();
         const auto ret = workload[i].fn(this);
         // if (control_mode==1){
@@ -285,8 +261,8 @@ bench_worker::run()
           backoff_shifts >>= 1;
         } else {
           ++ntxn_aborts;
-          if (false && retry_aborted_transaction && running) { // don't retry
-            if (backoff_aborted_transaction) {
+          if (false && benchConfig.getRetryAbortedTransaction() && benchConfig.isRunning()) { // don't retry
+            if (benchConfig.getBackoffAbortedTransaction()) {
               if (backoff_shifts < 63)
                 backoff_shifts++;
               uint64_t spins = 1UL << backoff_shifts;
@@ -348,7 +324,8 @@ bench_runner::get_open_tables() {
 void
 bench_runner::stop() { // invoke inside run function; stop all ShardClient instances
   Warning("stop all erpc clients. set stop=false");
-  for (int par_id=0;par_id<nthreads;par_id++){
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  for (int par_id=0;par_id<benchConfig.getNthreads();par_id++){
    shardClientAll[par_id]->stop();
   }
 }
@@ -364,19 +341,20 @@ bench_runner::run()
     // spin_barrier b(loaders.size());
     const pair<uint64_t, uint64_t> mem_info_before = get_system_memory_info();
     {
-      scoped_timer t("dataloading", verbose);
+      scoped_timer t("dataloading", BenchmarkConfig::getInstance().getVerbose());
       size_t N=loaders.size();
       Warning("# of loaders size:%d",N);
-      for (int batch=0;batch<(N/nthreads)+1;batch++){
-        for (int j=0;j<nthreads;j++){
-          int i=batch*nthreads+j;
+      auto& benchConfig = BenchmarkConfig::getInstance();
+      for (int batch=0;batch<(N/benchConfig.getNthreads())+1;batch++){
+        for (int j=0;j<benchConfig.getNthreads();j++){
+          int i=batch*benchConfig.getNthreads()+j;
           if (i<N){
             //Warning("start thread:%d",i);
             loaders.at(i)->start();
           } 
         }
-        for (int j=0;j<nthreads;j++){
-          int i=batch*nthreads+j;
+        for (int j=0;j<benchConfig.getNthreads();j++){
+          int i=batch*benchConfig.getNthreads()+j;
           if (i<N){
             loaders.at(i)->join();
             //Warning("start thread-(DONE):%d",i);
@@ -388,7 +366,7 @@ bench_runner::run()
     const pair<uint64_t, uint64_t> mem_info_after = get_system_memory_info();
     const int64_t delta = int64_t(mem_info_before.first) - int64_t(mem_info_after.first); // free mem
     const double delta_mb = double(delta)/1048576.0;
-    if (verbose)
+    if (BenchmarkConfig::getInstance().getVerbose())
       cerr << "DB size: " << delta_mb << " MB" << endl;
   }
 
@@ -398,12 +376,12 @@ bench_runner::run()
     if (get<0>(persisted_info) != get<1>(persisted_info))
       cerr << "ERROR: " << persisted_info << endl;
     //ALWAYS_ASSERT(get<0>(persisted_info) == get<1>(persisted_info));
-    if (verbose)
+    if (BenchmarkConfig::getInstance().getVerbose())
       cerr << persisted_info << " txns persisted in loading phase" << endl;
   }
   db->reset_ntxn_persisted();
 
-  if (!no_reset_counters) {
+  if (!BenchmarkConfig::getInstance().getNoResetCounters()) {
     event_counter::reset_all_counters(); // XXX: for now - we really should have a before/after loading
     PERF_EXPR(scopedperf::perfsum_base::resetall());
   }
@@ -418,9 +396,9 @@ bench_runner::run()
   }
   } // end of f_mode==0
 
-  Warning("# of nthreads:%d",nthreads);
+  Warning("# of nthreads:%d",BenchmarkConfig::getInstance().getNthreads());
   map<string, size_t> table_sizes_before;
-  if (verbose) {
+  if (BenchmarkConfig::getInstance().getVerbose()) {
     for (map<string, abstract_ordered_index *>::iterator it = open_tables.begin();
          it != open_tables.end(); ++it) {
       scoped_rcu_region guard;
@@ -435,18 +413,19 @@ bench_runner::run()
 
   if (f_mode == 0) {
     std::cout << "--------------Finish loading data and wait for others completing load phase ------------" << std::endl;
-    mako::NFSSync::set_key("load_phase_"+std::to_string(shardIndex), "DONE", config->shard(0, clusterRole).host.c_str(), config->mports[clusterRole]);
+    auto& cfg = BenchmarkConfig::getInstance();
+    mako::NFSSync::set_key("load_phase_"+std::to_string(cfg.getShardIndex()), "DONE", cfg.getConfig()->shard(0, cfg.getClusterRole()).host.c_str(), cfg.getConfig()->mports[cfg.getClusterRole()]);
 
     // wait for all other shards to complete
-    for (int i=0; i<config->nshards; i++) {
-      if (i!=shardIndex) {
-        mako::NFSSync::wait_for_key("load_phase_"+std::to_string(i), config->shard(0, clusterRole).host.c_str(), config->mports[clusterRole]);
+    for (int i=0; i<cfg.getConfig()->nshards; i++) {
+      if (i!=cfg.getShardIndex()) {
+        mako::NFSSync::wait_for_key("load_phase_"+std::to_string(i), cfg.getConfig()->shard(0, cfg.getClusterRole()).host.c_str(), cfg.getConfig()->mports[cfg.getClusterRole()]);
       }
     }
 
 #if defined(PAXOS_LIB_ENABLED)
     std::string log(mako::ADVANCER_MARKER_NUM, 'a');
-    for(int i=0;i<nthreads;i++)
+    for(int i=0;i<BenchmarkConfig::getInstance().getNthreads();i++)
       add_log_to_nc(log.c_str(), log.size(), i); // notify others start a advancer
 #endif
   }
@@ -456,25 +435,26 @@ bench_runner::run()
   int idx=0;
   for (vector<bench_worker *>::const_iterator it = workers.begin();
        it != workers.end(); ++it) {
-        int core_id = shardIndex * 64 + idx;
+        int core_id = BenchmarkConfig::getInstance().getShardIndex() * 64 + idx;
         idx++;
         (*it)->startBind(core_id);
   }
   //TThread::in_loading_phase = false;
 
   barrier_a.wait_for(); // wait for all threads to start up
-  timer t, t_nosync;  // timing starts
+  util::timer t, t_nosync;  // timing starts
   barrier_b.count_down(); // bombs away!
   std::vector<std::pair<uint64_t, uint32_t>> samplingTPUT;
-  if (run_mode == RUNMODE_TIME) {
-    Warning("start the running time, runTime:%d", runtime);
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  if (benchConfig.getRunMode() == RUNMODE_TIME) {
+    Warning("start the running time, runTime:%d", benchConfig.getRuntime());
     int interval = 10; // 10 ms
     int repeats = 1000/interval;
-    int runtime_loop = runtime * repeats;
+    int runtime_loop = benchConfig.getRuntime() * repeats;
     while (runtime_loop>0) {
-      if (shardIndex==0 &&
-            runtime * repeats - runtime_loop >= repeats * 5 &&
-            cluster.compare("localhost")==0) { // 5 seconds, kill it on leader{0}
+      if (benchConfig.getShardIndex()==0 &&
+            benchConfig.getRuntime() * repeats - runtime_loop >= repeats * 5 &&
+            benchConfig.getCluster().compare("localhost")==0) { // 5 seconds, kill it on leader{0}
         uint32_t aa = getEpochInms();
         //Panic("STOP current process! tt:%llu", aa);
       }
@@ -485,19 +465,19 @@ bench_runner::run()
       runtime_loop--;
       std::this_thread::sleep_for(std::chrono::milliseconds(interval));
       uint32_t n_commits = 0 ;
-      for (size_t j = 0; j < nthreads; j++) { n_commits += workers[j]->get_ntxn_commits(); }
+      for (size_t j = 0; j < BenchmarkConfig::getInstance().getNthreads(); j++) { n_commits += workers[j]->get_ntxn_commits(); }
       samplingTPUT.push_back({getEpochInms(), n_commits});
       //cerr << "Time: " << getEpochInms() << ", n_comits: " << n_commits << endl;
     }
-    Warning("runtime_plus:%d",runtime_plus);
-    runtime_loop = runtime_plus * repeats;
-    while (runtime_loop>0 && runtime_plus>0) { // runtime_plus can be used to terminate the process
+    Warning("runtime_plus:%d",benchConfig.getRuntimePlus());
+    runtime_loop = benchConfig.getRuntimePlus() * repeats;
+    while (runtime_loop>0 && benchConfig.getRuntimePlus()>0) { // runtime_plus can be used to terminate the process
       std::this_thread::sleep_for(std::chrono::milliseconds(interval));
       if (runtime_loop % repeats == 0) 
         Warning("runtime time left:%d ms, bool:%d",runtime_loop * interval, runtime_loop>0);
       runtime_loop--;
       uint32_t n_commits = 0 ;
-      for (size_t j = 0; j < nthreads; j++) { n_commits += workers[j]->get_ntxn_commits(); }
+      for (size_t j = 0; j < BenchmarkConfig::getInstance().getNthreads(); j++) { n_commits += workers[j]->get_ntxn_commits(); }
       samplingTPUT.push_back({getEpochInms(), n_commits});
       //cerr << "Time: " << getEpochInms() << ", n_comits: " << n_commits << endl;
     }
@@ -505,15 +485,15 @@ bench_runner::run()
   // notify other leaders to shutdown as well
   // if it is the learner ==> it's the new leader and so it should be terminated faster than others
   // the eRPC client has to be used in the same thread that created it, so we can't use client_control
-  if (cluster.compare("learner")==0) {
-   sync_util::sync_logger::client_control2(3, shardIndex);
+  if (benchConfig.getCluster().compare("learner")==0) {
+   sync_util::sync_logger::client_control2(3, benchConfig.getShardIndex());
   }
-  if (run_mode == RUNMODE_TIME) {
-    running = false;  // stop database worker threads
+  if (benchConfig.getRunMode() == RUNMODE_TIME) {
+    benchConfig.setRunning(false);  // stop database worker threads
   }
   stop(); // stop erpc clients
   __sync_synchronize();
-  for (size_t i = 0; i < nthreads; i++)
+  for (size_t i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
      workers[i]->join();
   const unsigned long elapsed_nosync = t_nosync.lap()-1e6; // take 1 second off due to sleep(1) within bench_worker::run()
   db->do_txn_finish(); // waits for all worker txns to persist
@@ -523,7 +503,7 @@ bench_runner::run()
   uint64_t latency_numer_us = 0;
   uint64_t latency_numer_us_remote = 0;
   cerr << "--- n_commits per partition ---" << endl;
-  for (size_t i = 0; i < nthreads; i++) {
+  for (size_t i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++) {
     n_commits += workers[i]->get_ntxn_commits();
     cerr << " par_id: " << i << ", n_commits: " << workers[i]->get_ntxn_commits() << endl;
     n_aborts += workers[i]->get_ntxn_aborts();
@@ -540,7 +520,7 @@ bench_runner::run()
     cerr << "--- failed shard: " << w << endl;
     // time in ms; <tput; good tput>; we do this analysis only up to the failure dection point
     unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> merged_rollback_tracker;
-    for (size_t i = 0; i < nthreads; i++) {
+    for (size_t i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++) {
       Transaction * txn = shardTxnAll[i];
       unordered_map<uint64_t, vector<uint64_t>> rt = txn->rollbacks_tracker;
 
@@ -614,7 +594,7 @@ bench_runner::run()
     //cerr << "[breakdown] TPUT worker-" << i << ": " << format_list(tmp.begin(), tmp.end()) << endl << endl;
   }
 
-  if (verbose) {
+  if (BenchmarkConfig::getInstance().getVerbose()) {
     const pair<uint64_t, uint64_t> mem_info_after = get_system_memory_info();
     const int64_t delta = int64_t(mem_info_before.first) - int64_t(mem_info_after.first); // free mem
     const double delta_mb = double(delta)/1048576.0;
@@ -722,7 +702,7 @@ bench_runner::run()
     //it->second->print_stats();
   }
 
-  if (!slow_exit)
+  if (!BenchmarkConfig::getInstance().getSlowExit())
     return;
 
   map<string, uint64_t> agg_stats;
@@ -731,7 +711,7 @@ bench_runner::run()
     map_agg(agg_stats, it->second->clear());
     delete it->second;
   }
-  if (verbose) {
+  if (BenchmarkConfig::getInstance().getVerbose()) {
     for (auto &p : agg_stats)
       cerr << p.first << " : " << p.second << endl;
 

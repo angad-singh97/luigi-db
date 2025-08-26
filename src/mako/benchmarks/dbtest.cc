@@ -39,31 +39,40 @@ static void parse_command_line_args(int argc, char **argv,
       abort();
       break;
 
-    case 't':
-      nthreads = strtoul(optarg, NULL, 10);
-      scale_factor = strtod(optarg, NULL);
-      ALWAYS_ASSERT(nthreads > 0);
+    case 't': {
+      auto& config = BenchmarkConfig::getInstance();
+      config.setNthreads(strtoul(optarg, NULL, 10));
+      config.setScaleFactor(strtod(optarg, NULL));
+      ALWAYS_ASSERT(config.getNthreads() > 0);
+      }
       break;
 
-    case 'g':
-      shardIndex = strtoul(optarg, NULL, 10);
-      ALWAYS_ASSERT(shardIndex >= 0);
+    case 'g': {
+      auto& config = BenchmarkConfig::getInstance();
+      config.setShardIndex(strtoul(optarg, NULL, 10));
+      ALWAYS_ASSERT(config.getShardIndex() >= 0);
+      }
       break;
 
     case 'N':
       site_name = string(optarg);
       break;
 
-    case 'P':
+    case 'P': {
+      auto& config = BenchmarkConfig::getInstance();
       paxos_proc_name = string(optarg);
-      cluster = paxos_proc_name;
-      clusterRole = mako::convertCluster(cluster);
-      if (cluster.compare(mako::LOCALHOST_CENTER) == 0) leader_config = 1;
+      config.setCluster(paxos_proc_name);
+      config.setClusterRole(mako::convertCluster(paxos_proc_name));
+      if (paxos_proc_name.compare(mako::LOCALHOST_CENTER) == 0) leader_config = 1;
+      }
       break;
     
-    case 'q':
-      config = new transport::Configuration(optarg);
-      nshards = config->nshards;
+    case 'q': {
+      auto& benchConfig = BenchmarkConfig::getInstance();
+      transport::Configuration* transportConfig = new transport::Configuration(optarg);
+      benchConfig.setConfig(transportConfig);
+      benchConfig.setNshards(transportConfig->nshards);
+      }
       break;
 
     case 'F':
@@ -83,7 +92,8 @@ static void handle_new_config_format(const string& site_name,
                                     int& leader_config,
                                     string& paxos_proc_name)
 {
-  auto site = config->GetSiteByName(site_name);
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  auto site = benchConfig.getConfig()->GetSiteByName(site_name);
   if (!site) {
     cerr << "[ERROR] Site " << site_name << " not found in configuration" << endl;
     exit(1);
@@ -93,29 +103,29 @@ static void handle_new_config_format(const string& site_name,
   leader_config = site->is_leader ? 1 : 0;
   
   // Set shard index from site
-  shardIndex = site->shard_id;
+  benchConfig.setShardIndex(site->shard_id);
   
   // Set cluster role for compatibility
   if (site->is_leader) {
-    cluster = mako::LOCALHOST_CENTER;
-    clusterRole = mako::LOCALHOST_CENTER_INT;
+    benchConfig.setCluster(mako::LOCALHOST_CENTER);
+    benchConfig.setClusterRole(mako::LOCALHOST_CENTER_INT);
     paxos_proc_name = mako::LOCALHOST_CENTER;
   } else if (site->replica_idx == 1) {
-    cluster = mako::P1_CENTER;
-    clusterRole = mako::P1_CENTER_INT;
+    benchConfig.setCluster(mako::P1_CENTER);
+    benchConfig.setClusterRole(mako::P1_CENTER_INT);
     paxos_proc_name = mako::P1_CENTER;
   } else if (site->replica_idx == 2) {
-    cluster = mako::P2_CENTER;
-    clusterRole = mako::P2_CENTER_INT;
+    benchConfig.setCluster(mako::P2_CENTER);
+    benchConfig.setClusterRole(mako::P2_CENTER_INT);
     paxos_proc_name = mako::P2_CENTER;
   } else {
-    cluster = mako::LEARNER_CENTER;
-    clusterRole = mako::LEARNER_CENTER_INT;
+    benchConfig.setCluster(mako::LEARNER_CENTER);
+    benchConfig.setClusterRole(mako::LEARNER_CENTER_INT);
     paxos_proc_name = mako::LEARNER_CENTER;
   }
   
   Notice("Site %s: shard=%d, replica_idx=%d, is_leader=%d, cluster=%s", 
-         site_name.c_str(), site->shard_id, site->replica_idx, site->is_leader, cluster.c_str());
+         site_name.c_str(), site->shard_id, site->replica_idx, site->is_leader, benchConfig.getCluster().c_str());
 }
 
 static void print_system_info(const string paxos_proc_name, size_t numa_memory)
@@ -125,10 +135,11 @@ static void print_system_info(const string paxos_proc_name, size_t numa_memory)
   cerr << "  pid: " << getpid()                           << endl;
   cerr << "settings:"                                     << endl;
   cerr << "  num-cpus    : " << ncpus                     << endl;
-  cerr << "  num-threads : " << nthreads                  << endl;
-  cerr << "  shardIndex  : " << shardIndex                << endl;
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  cerr << "  num-threads : " << benchConfig.getNthreads()  << endl;
+  cerr << "  shardIndex  : " << benchConfig.getShardIndex()<< endl;
   cerr << "  paxos_proc_name  : " << paxos_proc_name      << endl;
-  cerr << "  nshards     : " << nshards                   << endl;
+  cerr << "  nshards     : " << benchConfig.getNshards()   << endl;
 #ifdef USE_VARINT_ENCODING
   cerr << "  var-encode  : yes"                           << endl;
 #else
@@ -244,7 +255,8 @@ static void setup_transport_callbacks()
         upgrade_p1_to_leader();
 
         string log = "no-ops:" + to_string(get_epoch());
-        for(int i = 0; i < nthreads; i++){
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        for(int i = 0; i < benchConfig.getNthreads(); i++){
           add_log_to_nc(log.c_str(), log.size(), i);
         }
 
@@ -275,30 +287,32 @@ static void setup_leader_election_callback()
       case 0: {
         std::cout<<"Implement a new fail recovery!"<<std::endl;
         sync_util::sync_logger::exchange_running = false;
-        sync_util::sync_logger::failed_shard_index = shardIndex;
-        sync_util::sync_logger::client_control(0, shardIndex); // in bench.cc register_fasttransport_for_bench
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        sync_util::sync_logger::failed_shard_index = benchConfig.getShardIndex();
+        sync_util::sync_logger::client_control(0, benchConfig.getShardIndex()); // in bench.cc register_fasttransport_for_bench
         break;
       }
       case 2: {
         // Wait for FVW in the old epoch (w * 10 + epoch); this is very important in our new implementation
         // Single timestamp system: collect all shard watermarks and use maximum
         uint32_t max_watermark = 0;
-        for (int i=0; i<nshards; i++) {
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        for (int i=0; i<benchConfig.getNshards(); i++) {
           int clusterRoleLocal = mako::LOCALHOST_CENTER_INT;
           if (i==0) 
             clusterRoleLocal = mako::LEARNER_CENTER_INT;
           mako::NFSSync::wait_for_key("fvw_"+std::to_string(i), 
-                                          config->shard(0, clusterRoleLocal).host.c_str(), config->mports[clusterRole]);
+                                          benchConfig.getConfig()->shard(0, clusterRoleLocal).host.c_str(), benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
           std::string w_i = mako::NFSSync::get_key("fvw_"+std::to_string(i), 
-                                                      config->shard(0, clusterRoleLocal).host.c_str(), 
-                                                      config->mports[clusterRoleLocal]);
+                                                      benchConfig.getConfig()->shard(0, clusterRoleLocal).host.c_str(), 
+                                                      benchConfig.getConfig()->mports[clusterRoleLocal]);
           std::cout<<"get fvw, " << clusterRoleLocal << ", fvw_"+std::to_string(i)<<":"<<w_i<<std::endl;
           uint32_t watermark = std::stoi(w_i);
           max_watermark = std::max(max_watermark, watermark);
         }
 
         sync_util::sync_logger::update_stable_timestamp(get_epoch()-1, max_watermark);
-        sync_util::sync_logger::client_control(1, shardIndex);
+        sync_util::sync_logger::client_control(1, benchConfig.getShardIndex());
 
         // Start transactions in new epoch
         std::lock_guard<std::mutex> lk((sync_util::sync_logger::m));
@@ -319,17 +333,19 @@ static void setup_leader_election_callback()
         //    1.2 config update 
         //    1.3 issue no-ops within the old epoch
         //    1.4 start the controller
-        sync_util::sync_logger::failed_shard_index = shardIndex;
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        sync_util::sync_logger::failed_shard_index = benchConfig.getShardIndex();
 
         auto x0 = std::chrono::high_resolution_clock::now() ;
-        sync_util::sync_logger::client_control(0, shardIndex); // in bench.cc register_fasttransport_for_bench
+        sync_util::sync_logger::client_control(0, benchConfig.getShardIndex()); // in bench.cc register_fasttransport_for_bench
         auto x1 = std::chrono::high_resolution_clock::now() ;
         printf("first connection:%d\n",
             std::chrono::duration_cast<std::chrono::microseconds>(x1-x0).count());
         break;
       }
       case 2: {// notify that you're the new leader; PREPARE
-         sync_util::sync_logger::client_control(1, shardIndex);
+         auto& benchConfig = BenchmarkConfig::getInstance();
+        sync_util::sync_logger::client_control(1, benchConfig.getShardIndex());
          // wait for Paxos logs replicated
          auto x0 = std::chrono::high_resolution_clock::now() ;
          WAN_WAIT_TIME;
@@ -345,7 +361,8 @@ static void setup_leader_election_callback()
         //sync_util::sync_logger::worker_running = true;
         sync_util::sync_logger::cv.notify_one();
         auto x0 = std::chrono::high_resolution_clock::now() ;
-        sync_util::sync_logger::client_control(2, shardIndex);
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        sync_util::sync_logger::client_control(2, benchConfig.getShardIndex());
         auto x1 = std::chrono::high_resolution_clock::now() ;
         printf("second connection:%d\n",
             std::chrono::duration_cast<std::chrono::microseconds>(x1-x0).count());
@@ -354,7 +371,8 @@ static void setup_leader_election_callback()
       // for the datacenter failure, triggered on p1
       case 4: {
         // send a message to all p1 follower nodes within the same datacenter
-        sync_util::sync_logger::client_control(4, shardIndex);
+        auto& benchConfig = BenchmarkConfig::getInstance();
+        sync_util::sync_logger::client_control(4, benchConfig.getShardIndex());
         break;
       }
 #endif
@@ -364,15 +382,16 @@ static void setup_leader_election_callback()
 
 static void wait_for_termination()
 {
-  bool isLearner = cluster.compare(mako::LEARNER_CENTER)==0 ;
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  bool isLearner = benchConfig.getCluster().compare(mako::LEARNER_CENTER)==0 ;
   // in case, the Paxos streams on other side is terminated, 
   // not need for all no-ops for the final termination
   while (!(end_received.load() > 0 ||end_received_leader.load() > 0)) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
     if (isLearner)
-      Notice("learner is waiting for being ended: %d/%zu, noops_cnt:%d\n", end_received.load(), nthreads, sync_util::sync_logger::noops_cnt.load());
+      Notice("learner is waiting for being ended: %d/%zu, noops_cnt:%d\n", end_received.load(), benchConfig.getNthreads(), sync_util::sync_logger::noops_cnt.load());
     else
-      Notice("follower is waiting for being ended: %d/%zu, noops_cnt:%d\n", end_received.load(), nthreads, sync_util::sync_logger::noops_cnt.load());
+      Notice("follower is waiting for being ended: %d/%zu, noops_cnt:%d\n", end_received.load(), benchConfig.getNthreads(), sync_util::sync_logger::noops_cnt.load());
     //if (end_received.load() > 0) {std::quick_exit( EXIT_SUCCESS );}
   }
 }
@@ -382,6 +401,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
 #if defined(PAXOS_LIB_ENABLED)
   //transport::ShardAddress addr = config->shard(shardIndex, mako::LEARNER_CENTER);
   register_for_follower_par_id_return([&,thread_id](const char*& log, int len, int par_id, int slot_id, std::queue<std::tuple<int, int, int, int, const char *>> & un_replay_logs_) {
+    auto& benchConfig = BenchmarkConfig::getInstance();
     //Warning("receive a register_for_follower_par_id_return, par_id:%d, slot_id:%d,len:%d",par_id, slot_id,len);
     int status = mako::PaxosStatus::STATUS_INIT;
     uint32_t timestamp = 0;  // Track timestamp for return value encoding
@@ -419,7 +439,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
       if (noops) {
         sync_util::sync_logger::noops_cnt++;
         while (1) { // check if all threads receive noops
-          if (sync_util::sync_logger::noops_cnt.load(memory_order_acquire)==nthreads) {
+          if (sync_util::sync_logger::noops_cnt.load(memory_order_acquire)==benchConfig.getNthreads()) {
             break ;
           }
           sleep(0);
@@ -429,10 +449,10 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
         if (par_id==0) {
           uint32_t local_w = sync_util::sync_logger::computeLocal();
           //Warning("update %s in phase-1 on port:%d", ("noops_phase_"+std::to_string(shardIndex)).c_str(), config->mports[clusterRole]);
-          mako::NFSSync::set_key("noops_phase_"+std::to_string(shardIndex), 
+          mako::NFSSync::set_key("noops_phase_"+std::to_string(benchConfig.getShardIndex()), 
                                      std::to_string(local_w).c_str(),
-                                     config->shard(0, clusterRole).host.c_str(),
-                                     config->mports[clusterRole]);
+                                     benchConfig.getConfig()->shard(0, benchConfig.getClusterRole()).host.c_str(),
+                                     benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
 
 
           //Warning("We update local_watermark[%d]=%llu",shardIndex, local_w);
@@ -447,7 +467,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
         uint32_t w = sync_util::sync_logger::retrieveW();
         // Single timestamp safety check
         if (sync_util::sync_logger::safety_check(commit_info.timestamp, w)) { // pass safety check
-          treplay_in_same_thread_opt_mbta_v2(par_id, (char*)log, len, db, nshards);
+          treplay_in_same_thread_opt_mbta_v2(par_id, (char*)log, len, db, benchConfig.getNthreads());
           //Warning("replay[YES] par_id:%d,st:%u,slot_id:%d,un_replay_logs_:%d", par_id, commit_info.timestamp, slot_id,un_replay_logs_.size());
           status = mako::PaxosStatus::STATUS_REPLAY_DONE;
         } else {
@@ -459,13 +479,13 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
 
     // wait for vectorized watermark computed from other partition servers
     if (noops) {
-      for (int i=0; i<nshards; i++) {
-        if (i!=shardIndex && par_id==0) {
+      for (int i=0; i<benchConfig.getNthreads(); i++) {
+        if (i!=benchConfig.getShardIndex() && par_id==0) {
           mako::NFSSync::wait_for_key("noops_phase_"+std::to_string(i), 
-                                          config->shard(0, clusterRole).host.c_str(), config->mports[clusterRole]);
+                                          benchConfig.getConfig()->shard(0, benchConfig.getClusterRole()).host.c_str(), benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
           std::string local_w = mako::NFSSync::get_key("noops_phase_"+std::to_string(i), 
-                                                          config->shard(0, clusterRole).host.c_str(), 
-                                                          config->mports[clusterRole]);
+                                                          benchConfig.getConfig()->shard(0, benchConfig.getClusterRole()).host.c_str(), 
+                                                          benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
 
           //Warning("We update local_watermark[%d]=%s (others)",i, local_w.c_str());
           // In single timestamp system, use max value from all shards
@@ -483,7 +503,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
         auto it = un_replay_logs_.front() ;
         if (sync_util::sync_logger::safety_check(std::get<0>(it), w)) {
           //Warning("replay-2 par_id:%d, slot_id:%d,un_replay_logs_:%d", par_id, std::get<1>(it),un_replay_logs_.size());
-          auto nums = treplay_in_same_thread_opt_mbta_v2(par_id, (char *) std::get<4>(it), std::get<3>(it), db, nshards);
+          auto nums = treplay_in_same_thread_opt_mbta_v2(par_id, (char *) std::get<4>(it), std::get<3>(it), db, benchConfig.getNthreads());
           un_replay_logs_.pop() ;
           free((char*)std::get<4>(it));
         } else {
@@ -501,7 +521,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
     if (noops){
       sync_util::sync_logger::noops_cnt_hole++ ;
       while (1) {
-        if (sync_util::sync_logger::noops_cnt_hole.load(memory_order_acquire)==nthreads) {
+        if (sync_util::sync_logger::noops_cnt_hole.load(memory_order_acquire)==benchConfig.getNthreads()) {
           break ;
         } else {
           sleep(0);
@@ -557,8 +577,9 @@ static void register_paxos_leader_callback(vector<pair<uint32_t, uint32_t>>& adv
 
       if (noops) {
         sync_util::sync_logger::noops_cnt++;
+        auto& benchConfig = BenchmarkConfig::getInstance();
         while (1) { // check if all threads receive noops
-          if (sync_util::sync_logger::noops_cnt.load(memory_order_acquire)==nthreads) {
+          if (sync_util::sync_logger::noops_cnt.load(memory_order_acquire)==benchConfig.getNthreads()) {
             break ;
           }
           sleep(0);
@@ -567,17 +588,17 @@ static void register_paxos_leader_callback(vector<pair<uint32_t, uint32_t>>& adv
         Warning("phase-1,par_id:%d DONE",par_id);
         if (par_id==0) {
           uint32_t local_w = sync_util::sync_logger::computeLocal();
-          mako::NFSSync::set_key("noops_phase_"+std::to_string(shardIndex), 
+          mako::NFSSync::set_key("noops_phase_"+std::to_string(benchConfig.getShardIndex()), 
                                         std::to_string(local_w).c_str(),
-                                        config->shard(0, clusterRole).host.c_str(), 
-                                        config->mports[clusterRole]);
+                                        benchConfig.getConfig()->shard(0, benchConfig.getClusterRole()).host.c_str(), 
+                                        benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
           sync_util::sync_logger::update_stable_timestamp(get_epoch()-1, sync_util::sync_logger::retrieveShardW()/10);
 #if defined(FAIL_NEW_VERSION)
-          mako::NFSSync::set_key("fvw_"+std::to_string(shardIndex), 
+          mako::NFSSync::set_key("fvw_"+std::to_string(benchConfig.getShardIndex()), 
                                      std::to_string(local_w).c_str(),
-                                     config->shard(0, clusterRole).host.c_str(),
-                                     config->mports[clusterRole]);
-          std::cout<<"set fvw, " << clusterRole << ", fvw_"+std::to_string(shardIndex)<<":"<<local_w<<std::endl;
+                                     benchConfig.getConfig()->shard(0, benchConfig.getClusterRole()).host.c_str(),
+                                     benchConfig.getConfig()->mports[benchConfig.getClusterRole()]);
+          std::cout<<"set fvw, " << benchConfig.getClusterRole() << ", fvw_"+std::to_string(benchConfig.getShardIndex())<<":"<<local_w<<std::endl;
 #endif
           sync_util::sync_logger::reset(); 
         }
@@ -610,7 +631,8 @@ static void setup_paxos_callbacks(TSharedThreadPoolMbta& tpool_mbta,
                                   vector<pair<uint32_t, uint32_t>>& advanceWatermarkTracker)
 {
 #if defined(PAXOS_LIB_ENABLED)
-  for (int i = 0; i < nthreads; i++) {
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  for (int i = 0; i < benchConfig.getNthreads(); i++) {
     register_paxos_follower_callback(tpool_mbta, i);
     register_paxos_leader_callback(advanceWatermarkTracker, i);
   }
@@ -659,14 +681,15 @@ static void run_latency_tracking(int leader_config,
 
 static void run_workers(int leader_config, abstract_db* db, TSharedThreadPoolMbta& tpool_mbta)
 {
+  auto& benchConfig = BenchmarkConfig::getInstance();
   if (leader_config) { // leader cluster
-    bench_runner *r = start_workers_tpcc(leader_config, db, nthreads);
-    start_workers_tpcc(leader_config, db, nthreads, false, 1, r);
+    bench_runner *r = start_workers_tpcc(leader_config, db, benchConfig.getNthreads());
+    start_workers_tpcc(leader_config, db, benchConfig.getNthreads(), false, 1, r);
     delete db;
-  } else if (cluster.compare(mako::LEARNER_CENTER)==0) { // learner cluster
-    abstract_db * db = tpool_mbta.getDBWrapper(nthreads)->getDB () ;
-    bench_runner *r = start_workers_tpcc(1, db, nthreads, true);
-    modeMonitor(db, nthreads, r) ;
+  } else if (benchConfig.getCluster().compare(mako::LEARNER_CENTER)==0) { // learner cluster
+    abstract_db * db = tpool_mbta.getDBWrapper(benchConfig.getNthreads())->getDB () ;
+    bench_runner *r = start_workers_tpcc(1, db, benchConfig.getNthreads(), true);
+    modeMonitor(db, benchConfig.getNthreads(), r) ;
   }
 }
 
@@ -691,6 +714,7 @@ main(int argc, char **argv)
   string bench_opts = "--new-order-fast-id-gen";
 
   int leader_config = 0;
+  int is_micro = 0;  // Flag for micro benchmark mode
   int kPaxosBatchSize = 50000;
   vector<string> paxos_config_file{};
   string paxos_proc_name = mako::LOCALHOST_CENTER;
@@ -703,7 +727,9 @@ main(int argc, char **argv)
   parse_command_line_args(argc, argv, paxos_proc_name, is_micro, site_name, paxos_config_file, leader_config);
 
   // Handle new configuration format if site name is provided
-  if (!site_name.empty() && config != nullptr) {
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  benchConfig.setIsMicro(is_micro);
+  if (!site_name.empty() && benchConfig.getConfig() != nullptr) {
     handle_new_config_format(site_name, leader_config, paxos_proc_name);
   }
 
@@ -711,9 +737,9 @@ main(int argc, char **argv)
   // initialize the numa allocator
   if (numa_memory > 0) {
     const size_t maxpercpu = util::iceil(
-        numa_memory / nthreads, ::allocator::GetHugepageSize());
-    numa_memory = maxpercpu * nthreads;
-    ::allocator::Initialize(nthreads, maxpercpu);
+        numa_memory / benchConfig.getNthreads(), ::allocator::GetHugepageSize());
+    numa_memory = maxpercpu * benchConfig.getNthreads();
+    ::allocator::Initialize(benchConfig.getNthreads(), maxpercpu);
   }
 
   initialize_rust_wrapper();
@@ -722,10 +748,10 @@ main(int argc, char **argv)
   // Print system information
   print_system_info(paxos_proc_name, numa_memory);
 
-  sync_util::sync_logger::Init(shardIndex, nshards, nthreads, 
+  sync_util::sync_logger::Init(benchConfig.getShardIndex(), benchConfig.getNshards(), benchConfig.getNthreads(), 
                                leader_config==1, /* is leader */ 
-                               cluster,
-                               config);
+                               benchConfig.getCluster(),
+                               benchConfig.getConfig());
   
   // Prepare Paxos arguments
   if (paxos_config_file.size() < 2) {
@@ -734,11 +760,11 @@ main(int argc, char **argv)
   }
   char** argv_paxos = prepare_paxos_args(paxos_config_file, paxos_proc_name, kPaxosBatchSize);
   
-  TSharedThreadPoolMbta tpool_mbta (nthreads+1);
+  TSharedThreadPoolMbta tpool_mbta (benchConfig.getNthreads()+1);
   if (!leader_config) { // initialize tables on follower replicas
-    abstract_db * db = tpool_mbta.getDBWrapper(nthreads)->getDB () ;
+    abstract_db * db = tpool_mbta.getDBWrapper(benchConfig.getNthreads())->getDB () ;
     // pre-initialize all tables to avoid table creation data race
-    for (int i=0;i<((size_t)scale_factor)*11+1;i++) {
+    for (int i=0;i<((size_t)benchConfig.getScaleFactor())*11+1;i++) {
       db->open_index(i+1);
     }
   }
@@ -759,7 +785,7 @@ main(int argc, char **argv)
   // Setup Paxos callbacks - MUST be after setup() is called
   setup_paxos_callbacks(tpool_mbta, advanceWatermarkTracker);
 
-  int ret2 = setup2(0, shardIndex);
+  int ret2 = setup2(0, benchConfig.getShardIndex());
   sleep(3); // ensure that all get started
 #endif // END OF PAXOS_LIB_ENABLED
 

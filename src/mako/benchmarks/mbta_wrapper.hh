@@ -25,7 +25,7 @@
   uint32_t *shardtimestamp = GET_NODE_EXTRA_POINTER(val,len); \
   /* Update single max timestamp in readset */ \
   TThread::txn->maxTimestampReadSet = MAX(TThread::txn->maxTimestampReadSet, header->timestamp); \
-  if (control_mode==4) { \
+  if (BenchmarkConfig::getInstance().getControlMode()==4) { \
     if (*shardtimestamp % 10 < TThread::txn->current_term_ && sync_util::sync_logger::safety_check(header->timestamp)){ \
       TThread::transget_without_stable = true; \
       TThread::transget_without_throw = true; \
@@ -36,7 +36,7 @@
   mako::Node *header = GET_NODE_POINTER(val,len); \
   /* Update single max timestamp in readset */ \
   TThread::txn->maxTimestampReadSet = MAX(TThread::txn->maxTimestampReadSet, header->timestamp); \
-  if (control_mode==1){ \
+  if (BenchmarkConfig::getInstance().getControlMode()==1){ \
     if (TThread::txn->maxTimestampReadSet>sync_util::sync_logger::failed_shard_ts){ \
       TThread::transget_without_throw = true;\
     } \
@@ -975,22 +975,22 @@ public:
     static int partition_id = 0; // to distinguish different worker thread
     TThread::set_id(__sync_fetch_and_add(&tidcounter, 1));
     TThread::set_mode(0); // checking in-progress
-    TThread::set_num_eprc_server(num_erpc_server);
-    TThread::set_is_micro(is_micro);
+    TThread::set_num_eprc_server(BenchmarkConfig::getInstance().getNumErpcServer());
+    TThread::set_is_micro(BenchmarkConfig::getInstance().getIsMicro());
 #if defined(DISABLE_MULTI_VERSION)
     TThread::disable_multiversion();
 #else
     TThread::enable_multiverison();
 #endif
-    TThread::set_shard_index(shardIndex);
-    TThread::set_nshards(nshards);
-    TThread::set_warehouses(config->warehouses);
+    TThread::set_shard_index(BenchmarkConfig::getInstance().getShardIndex());
+    TThread::set_nshards(BenchmarkConfig::getInstance().getNshards());
+    TThread::set_warehouses(BenchmarkConfig::getInstance().getConfig()->warehouses);
     TThread::readset_shard_bits = 0;
     TThread::writeset_shard_bits = 0;
     TThread::transget_without_throw = false;
     TThread::transget_without_stable = false;
     TThread::the_debug_bit = 0;
-    if (cluster.compare("localhost")==0){
+    if (BenchmarkConfig::getInstance().getCluster().compare("localhost")==0){
       TThread::is_worker_leader = true;
     }
 
@@ -1003,15 +1003,15 @@ public:
       size_t old = __sync_fetch_and_add(&partition_id, 1);
       TThread::set_pid (old);
 
-      TThread::sclient = new mako::ShardClient(config->configFile,
-                                                 cluster,
-                                                 shardIndex,
+      TThread::sclient = new mako::ShardClient(BenchmarkConfig::getInstance().getConfig()->configFile,
+                                                 BenchmarkConfig::getInstance().getCluster(),
+                                                 BenchmarkConfig::getInstance().getShardIndex(),
                                                  old,
-                                                 workload_type); // only support tpcc for now
-      //Notice("ParID[worker-id] pid:%d,id:%d,config:%s,loader:%d, ismultiversion:%d,helper_thread?:%d",TThread::getPartitionID(),TThread::id(),config->configFile.c_str(),loader,TThread::is_multiversion(),source==1);
+                                                 BenchmarkConfig::getInstance().getWorkloadType()); // only support tpcc for now
+      //Notice("ParID[worker-id] pid:%d,id:%d,config:%s,loader:%d, ismultiversion:%d,helper_thread?:%d",TThread::getPartitionID(),TThread::id(),BenchmarkConfig::getInstance().getConfig()->configFile.c_str(),loader,TThread::is_multiversion(),source==1);
     } else {
-      TThread::set_pid(TThread::id()%config->warehouses);
-      //Notice("ParID[load-id] pid:%d,id:%d,config:%s,loader:%d, ismultiversion:%d,helper_thread?:%d",TThread::getPartitionID(),TThread::id(),config->configFile.c_str(),loader,TThread::is_multiversion(),source==1);
+      TThread::set_pid(TThread::id()%BenchmarkConfig::getInstance().getConfig()->warehouses);
+      //Notice("ParID[load-id] pid:%d,id:%d,config:%s,loader:%d, ismultiversion:%d,helper_thread?:%d",TThread::getPartitionID(),TThread::id(),BenchmarkConfig::getInstance().getConfig()->configFile.c_str(),loader,TThread::is_multiversion(),source==1);
     }
     
     if (TThread::id() == 0) {
