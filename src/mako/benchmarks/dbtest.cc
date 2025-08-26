@@ -118,7 +118,7 @@ static void handle_new_config_format(const string& site_name,
          site_name.c_str(), site->shard_id, site->replica_idx, site->is_leader, cluster.c_str());
 }
 
-static void print_system_info(const string& paxos_proc_name, size_t numa_memory)
+static void print_system_info(const string paxos_proc_name, size_t numa_memory)
 {
   const unsigned long ncpus = coreid::num_cpus_online();
   cerr << "Database Benchmark:"                           << endl;
@@ -197,18 +197,6 @@ static char** prepare_paxos_args(const vector<string>& paxos_config_file,
   return argv_paxos;
 }
 
-static RustWrapper* initialize_rust_wrapper()
-{
-  RustWrapper* g_rust_wrapper = new RustWrapper();
-  if (!g_rust_wrapper->init()) {
-      std::cerr << "Failed to initialize rust wrapper!" << std::endl;
-      delete g_rust_wrapper;
-      return nullptr;
-  }
-  std::cout << "Successfully initialized rust wrapper!" << std::endl;
-  return g_rust_wrapper;
-}
-
 static void setup_sync_util_callbacks()
 {
   // Invoke get_epoch function
@@ -222,8 +210,8 @@ static void setup_sync_util_callbacks()
 
   // rpc client
   register_sync_util_sc([&]() {
-#if defined(FAIL_NEW_VERSION)
-     return get_epoch();
+#if defined(FAIL_NEW_VERSION) && defined(PAXOS_LIB_ENABLED)
+    return get_epoch();
 #else
     return 0;
 #endif
@@ -231,13 +219,14 @@ static void setup_sync_util_callbacks()
 
   // rpc server
   register_sync_util_ss([&]() {
-#if defined(FAIL_NEW_VERSION)
-     return get_epoch();
+#if defined(FAIL_NEW_VERSION) && defined(PAXOS_LIB_ENABLED)
+  return get_epoch();
 #else
-    return 0;
+  return 0;
 #endif
   });
 }
+
 
 static void setup_transport_callbacks()
 {
@@ -727,6 +716,7 @@ main(int argc, char **argv)
     ::allocator::Initialize(nthreads, maxpercpu);
   }
 
+  initialize_rust_wrapper();
   db = new mbta_wrapper; // on the leader replica
 
   // Print system information
@@ -743,14 +733,7 @@ main(int argc, char **argv)
       return 1;
   }
   char** argv_paxos = prepare_paxos_args(paxos_config_file, paxos_proc_name, kPaxosBatchSize);
-
-  // Initialize Rust wrapper
-  RustWrapper* g_rust_wrapper = initialize_rust_wrapper();
-  if (!g_rust_wrapper) {
-      return 1;
-  }
-  g_rust_wrapper->start_polling();
-    
+  
   TSharedThreadPoolMbta tpool_mbta (nthreads+1);
   if (!leader_config) { // initialize tables on follower replicas
     abstract_db * db = tpool_mbta.getDBWrapper(nthreads)->getDB () ;

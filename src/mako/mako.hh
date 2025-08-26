@@ -1,3 +1,6 @@
+#ifndef _MAKO_COMMON_H_
+#define _MAKO_COMMON_H_
+
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -28,3 +31,21 @@
 #include "lib/common.h"
 #include "lib/server.h"
 #include "lib/rust_wrapper.h"
+
+
+// Initialize Rust wrapper: communicate with rust-based redis client
+// @safe
+static void initialize_rust_wrapper()
+{
+  RustWrapper* g_rust_wrapper = new RustWrapper();
+  if (!g_rust_wrapper->init()) {
+      std::cerr << "Failed to initialize rust wrapper!" << std::endl;
+      delete g_rust_wrapper;
+      std::quick_exit( EXIT_SUCCESS );
+  }
+  std::cout << "Successfully initialized rust wrapper!" << std::endl;
+  g_rust_wrapper->start_polling();
+}
+
+
+#endif

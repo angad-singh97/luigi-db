@@ -536,9 +536,6 @@ namespace mako
                             continuation,
                             error_continuation);
 
-        // TODO: find a way to get sending errors (the eRPC's enqueue_request
-        // function does not return errors)
-
         // We intialize epoch number once a remoteGET is called as we have it for every transaction.
 #if defined(FAIL_NEW_VERSION)
         current_term = sc_callback_();
