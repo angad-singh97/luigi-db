@@ -35,7 +35,7 @@ case "${1:-}" in
     simplePaxos)
         run_simple_paxos
         ;;
-    2shardNoReplication)
+    shardNoReplication)
         run_2shard_no_replication
         ;;
     all)

@@ -74,8 +74,8 @@ for i in 0 1; do
             # Remove % sign if present and convert to float
             abort_value=$(echo "$abort_ratio" | sed 's/%//')
             
-            # Check if value is less than 20
-            if (( $(echo "$abort_value < 20" | bc -l) )); then
+            # Check if value is less than 20 using awk (more portable than bc)
+            if awk "BEGIN {exit !($abort_value < 20)}"; then
                 echo "  ✓ NewOrder_remote_abort_ratio: $abort_ratio (< 20%)"
             else
                 echo "  ✗ NewOrder_remote_abort_ratio: $abort_ratio (>= 20%)"
