@@ -112,6 +112,16 @@ Marshal& operator << (Marshal& m, const TxReply& reply) {
   // m << reply.start_time_;
   m << reply.time_;
   m << reply.txn_type_;
+  
+  // Marshal view data if present
+  bool_t has_view_data = (reply.sp_view_data_ != nullptr) ? 1 : 0;
+  m << has_view_data;
+  if (has_view_data) {
+    MarshallDeputy view_md;
+    view_md.SetMarshallable(reply.sp_view_data_);
+    m << view_md;
+  }
+  
   return m;
 }
 
@@ -122,6 +132,18 @@ Marshal& operator >> (Marshal& m, TxReply& reply) {
   memset(&reply.start_time_, 0, sizeof(reply.start_time_));
   m >> reply.time_;
   m >> reply.txn_type_;
+  
+  // Unmarshal view data if present
+  bool_t has_view_data;
+  m >> has_view_data;
+  if (has_view_data) {
+    MarshallDeputy view_md;
+    m >> view_md;
+    reply.sp_view_data_ = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+  } else {
+    reply.sp_view_data_ = nullptr;
+  }
+  
   return m;
 }
 

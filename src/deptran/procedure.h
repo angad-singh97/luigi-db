@@ -13,6 +13,7 @@ namespace janus {
 
 class Coordinator;
 class Sharding;
+class ViewData;  // Forward declaration
 //class ChopStartResponse;
 
 class TxReply {
@@ -24,6 +25,8 @@ class TxReply {
   map<int32_t, Value> output_;
   int32_t txn_type_;
   txnid_t tx_id_;
+  // Optional view data for client view updates (e.g., when WRONG_LEADER error occurs)
+  std::shared_ptr<ViewData> sp_view_data_ = nullptr;
 };
 
 class TxWorkspace {
@@ -219,24 +222,34 @@ class VecRecData : public Marshallable {
 class ViewData : public Marshallable {
  public:
   View view_;
+  parid_t partition_id_ = 0; // partition id for which this view applies
   
   ViewData() : Marshallable(MarshallDeputy::CMD_VIEW_DATA) {}
   
   ViewData(const View& view) : Marshallable(MarshallDeputy::CMD_VIEW_DATA), view_(view) {}
   
+  ViewData(const View& view, parid_t pid) : Marshallable(MarshallDeputy::CMD_VIEW_DATA), view_(view), partition_id_(pid) {}
+  
+  // Get the embedded View
+  const View& GetView() const { return view_; }
+  View& GetView() { return view_; }
+  
   Marshal& ToMarshal(Marshal& m) const override {
     m << view_.n_;
     m << view_.view_id_;
+    m << view_.timestamp_;
     m << (int32_t)view_.leaders_.size();
     for (int leader : view_.leaders_) {
       m << leader;
     }
+    m << partition_id_;
     return m;
   }
   
   Marshal& FromMarshal(Marshal& m) override {
     m >> view_.n_;
     m >> view_.view_id_;
+    m >> view_.timestamp_;
     int32_t leader_count;
     m >> leader_count;
     view_.leaders_.clear();
@@ -246,7 +259,13 @@ class ViewData : public Marshallable {
       m >> leader;
       view_.leaders_.push_back(leader);
     }
+    m >> partition_id_;
     return m;
+  }
+  
+  std::string ToString() const {
+    return "ViewData{partition=" + std::to_string(partition_id_) + 
+           ", " + view_.ToString() + "}";
   }
 };
 

@@ -32,10 +32,11 @@ class RaftServiceImpl : public RaftService {
     *vote_granted = false;
   }
 
-  RpcHandler(AppendEntries, 11,
+  RpcHandler(AppendEntries, 12,
              const uint64_t&, slot,
              const ballot_t&, ballot,
              const uint64_t&, leaderCurrentTerm,
+             const siteid_t&, leaderSiteId,
              const uint64_t&, leaderPrevLogIndex,
              const uint64_t&, leaderPrevLogTerm,
              const uint64_t&, leaderCommitIndex,
@@ -49,10 +50,11 @@ class RaftServiceImpl : public RaftService {
     *followerLastLogIndex = 0;
   }
 
-  RpcHandler(EmptyAppendEntries, 9,
+  RpcHandler(EmptyAppendEntries, 10,
              const uint64_t&, slot,
              const ballot_t&, ballot,
              const uint64_t&, leaderCurrentTerm,
+             const siteid_t&, leaderSiteId,
              const uint64_t&, leaderPrevLogIndex,
              const uint64_t&, leaderPrevLogTerm,
              const uint64_t&, leaderCommitIndex,

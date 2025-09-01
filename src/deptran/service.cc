@@ -262,9 +262,10 @@ void ClassicServiceImpl::Commit(const rrr::i64& tid,
 																bool_t* slow,
                                 uint64_t* coro_id,
 																Profiling* profile,
+                                MarshallDeputy* view_data,
                                 rrr::DeferredReply* defer) {
   //std::lock_guard<std::mutex> guard(mtx_);
-  const auto& func = [tid, res, slow, coro_id, dep_id, profile, defer, this]() {
+  const auto& func = [tid, res, slow, coro_id, dep_id, profile, view_data, defer, this]() {
     auto sched = (SchedulerClassic*) dtxn_sched_;
     sched->OnCommit(tid, dep_id, SUCCESS);
     std::vector<double> result = rrr::CPUInfo::cpu_stat();
@@ -274,6 +275,15 @@ void ClassicServiceImpl::Commit(const rrr::i64& tid,
 		*slow = sched->slow_;
     *res = SUCCESS;
     *coro_id = Coroutine::CurrentCoroutine()->id;
+    
+    // Set view data from replication scheduler if available
+    if (sched->rep_sched_ != nullptr) {
+      view_data->SetMarshallable(std::make_shared<ViewData>(sched->rep_sched_->new_view_));
+    } else {
+      // If no replication scheduler, set an empty ViewData
+      view_data->SetMarshallable(std::make_shared<ViewData>());
+    }
+    
     defer->reply();
   };
 	//Log_info("CreateRunning2");
@@ -287,10 +297,11 @@ void ClassicServiceImpl::Abort(const rrr::i64& tid,
 															 bool_t* slow,
                                uint64_t* coro_id,
 															 Profiling* profile,
+                               MarshallDeputy* view_data,
                                rrr::DeferredReply* defer) {
   Log_debug("get abort_txn: tid: %ld", tid);
   //std::lock_guard<std::mutex> guard(mtx_);
-  const auto& func = [tid, res, slow, coro_id, dep_id, profile, defer, this]() {
+  const auto& func = [tid, res, slow, coro_id, dep_id, profile, view_data, defer, this]() {
     auto sched = (SchedulerClassic*) dtxn_sched_;
     sched->OnCommit(tid, dep_id, REJECT);
     std::vector<double> result = rrr::CPUInfo::cpu_stat();
@@ -299,6 +310,13 @@ void ClassicServiceImpl::Abort(const rrr::i64& tid,
 		*slow = sched->slow_;
     *res = SUCCESS;
     *coro_id = Coroutine::CurrentCoroutine()->id;
+    // Set view data from replication scheduler if available
+    if (sched->rep_sched_ != nullptr) {
+      view_data->SetMarshallable(std::make_shared<ViewData>(sched->rep_sched_->new_view_));
+    } else {
+      // If no replication scheduler, set an empty ViewData
+      view_data->SetMarshallable(std::make_shared<ViewData>());
+    }
     defer->reply();
   };
 	//Log_info("CreateRunning2");
@@ -688,10 +706,24 @@ void ClassicServiceImpl::JetpackPullCmd(const epoch_t& jepoch,
                                         MarshallDeputy* reply_new_view,
                                         MarshallDeputy* cmd, 
                                         rrr::DeferredReply* defer) {
+  
+  // Initialize the output MarshallDeputy with TpcEmptyCommand as placeholder
   cmd->SetMarshallable(std::make_shared<TpcCommitCommand>());
-  shared_ptr<Marshallable> sp_ret_cmd = dynamic_pointer_cast<Marshallable>(cmd->sp_data_);
-  dtxn_sched()->OnJetpackPullCmd(jepoch, oepoch, key, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_ret_cmd);
+  shared_ptr<TpcCommitCommand> sp_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd->sp_data_);
+  
+  // Call the scheduler method - reply_old_view and reply_new_view will be set inside
+  dtxn_sched()->OnJetpackPullCmd(jepoch, oepoch, key, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_cmd->cmd_);
+  
+  
+  // Update cmd MarshallDeputy based on what was returned
+  if (sp_cmd->cmd_) {
+  } else {
+    // No command found, use the TpcEmptyCommand
+    cmd->SetMarshallable(std::make_shared<TpcEmptyCommand>());
+  }
+  
   defer->reply();
+
 }
 
 void ClassicServiceImpl::JetpackRecordCmd(const epoch_t& jepoch,

@@ -74,6 +74,7 @@ namespace janus {
 #define ABSTAIN     (-10)
 #define RETRY       (-10)
 #define DELAYED     (1)
+#define WRONG_LEADER (-20)
 
 #define MODE_NONE   (0x00)
 #define MODE_2PL    (0x01)
@@ -165,5 +166,7 @@ namespace janus {
 // #endif
 
 #define RAFT_BATCH_OPTIMIZATION
+
+// #define JETPACK_RECOVERY_DEBUG
 
 } // namespace janus

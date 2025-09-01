@@ -266,6 +266,7 @@ class RaftServer : public TxLogServer {
   void OnAppendEntries(const slotid_t slot_id,
                        const ballot_t ballot,
                        const uint64_t leaderCurrentTerm,
+                       const siteid_t leaderSiteId,
                        const uint64_t leaderPrevLogIndex,
                        const uint64_t leaderPrevLogTerm,
                        const uint64_t leaderCommitIndex,

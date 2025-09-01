@@ -600,8 +600,24 @@ void ClientWorker::DispatchRequest(Coordinator* coo, bool void_request) {
 //                               this,
 //                               coo,
 //                               std::placeholders::_1);
-    req->callback_ = [coo, req] (TxReply&) {
+    req->callback_ = [coo, req, this] (TxReply& reply) {
 //      verify(coo->sp_ev_commit_->status_ != Event::WAIT);
+      
+      // Check if we received a WRONG_LEADER response
+      if (reply.res_ == WRONG_LEADER) {
+        Log_info("[CLIENT_VIEW] Received WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
+        
+        if (reply.sp_view_data_ != nullptr) {
+          // Extract view data and update our view
+          auto view_data = reply.sp_view_data_;
+          Log_info("[CLIENT_VIEW] Extracted view data from response: %s", 
+                   view_data->ToString().c_str());
+          this->UpdatePartitionView(view_data->partition_id_, view_data->view_);
+        } else {
+          Log_info("[CLIENT_VIEW] No view data in WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
+        }
+      }
+      
       coo->sp_ev_commit_->Set(1);
       auto& status = coo->sp_ev_done_->status_;
       verify(status == Event::WAIT || status == Event::INIT);
@@ -630,8 +646,24 @@ void ClientWorker::DispatchRequest(Coordinator* coo) {
 //                               this,
 //                               coo,
 //                               std::placeholders::_1);
-    req->callback_ = [coo, req] (TxReply&) {
+    req->callback_ = [coo, req, this] (TxReply& reply) {
 //      verify(coo->sp_ev_commit_->status_ != Event::WAIT);
+      
+      // Check if we received a WRONG_LEADER response
+      if (reply.res_ == WRONG_LEADER) {
+        Log_info("[CLIENT_VIEW] Received WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
+        
+        if (reply.sp_view_data_ != nullptr) {
+          // Extract view data and update our view
+          auto view_data = reply.sp_view_data_;
+          Log_info("[CLIENT_VIEW] Extracted view data from response: %s", 
+                   view_data->ToString().c_str());
+          this->UpdatePartitionView(view_data->partition_id_, view_data->view_);
+        } else {
+          Log_info("[CLIENT_VIEW] No view data in WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
+        }
+      }
+      
       coo->sp_ev_commit_->Set(1);
       auto& status = coo->sp_ev_done_->status_;
       verify(status == Event::WAIT || status == Event::INIT);
@@ -682,6 +714,12 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   num_try.store(0);
   commo_ = frame_->CreateCommo(poll_mgr_);
   commo_->loc_id_ = my_site_.locale_id;
+  
+  // Set up dynamic leader callback for the communicator
+  commo_->SetLeaderCallback([this](parid_t par_id) {
+    return this->GetLeaderForPartition(par_id);
+  });
+  
   forward_requests_to_leader_ =
       ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT) && site_info.locale_id != 0) ? true :
                                                                                false;
@@ -701,6 +739,56 @@ void ClientWorker::Pause(locid_t locid) {
 void ClientWorker::Resume(locid_t locid) {
   // TODO modify it locid and parid
   fail_ctrl_coo_->FailoverResumeSocketOut(0, locid);
+}
+
+void ClientWorker::UpdatePartitionView(parid_t partition_id, const View& view) {
+  std::lock_guard<std::mutex> lock(partition_views_mutex_);
+  
+  // Check if we have an existing view
+  auto it = partition_views_.find(partition_id);
+  if (it != partition_views_.end()) {
+    // Only update if the new view is newer
+    if (view.timestamp_ > it->second.timestamp_) {
+      Log_info("[CLIENT_VIEW] Updating view for partition %d: old=%s, new=%s", 
+               partition_id, it->second.ToString().c_str(), view.ToString().c_str());
+      partition_views_[partition_id] = view;
+    } else {
+      Log_info("[CLIENT_VIEW] Ignoring stale view update for partition %d: current=%s, received=%s", 
+               partition_id, it->second.ToString().c_str(), view.ToString().c_str());
+    }
+  } else {
+    // First view for this partition
+    partition_views_[partition_id] = view;
+    Log_info("[CLIENT_VIEW] Initial view for partition %d: %s", partition_id, view.ToString().c_str());
+  }
+}
+
+View ClientWorker::GetPartitionView(parid_t partition_id) {
+  std::lock_guard<std::mutex> lock(partition_views_mutex_);
+  
+  auto it = partition_views_.find(partition_id);
+  if (it != partition_views_.end()) {
+    return it->second;
+  }
+  
+  // Return empty view if not found - will use default static leader
+  return View();
+}
+
+locid_t ClientWorker::GetLeaderForPartition(parid_t partition_id) {
+  View view = GetPartitionView(partition_id);
+  
+  if (!view.IsEmpty()) {
+    int leader = view.GetLeader();
+    if (leader >= 0) {
+      return leader;
+    }
+  }
+  
+  // Fall back to static leader if no view or invalid leader
+  // This maintains backward compatibility with the static view approach
+  Log_info("[CLIENT_VIEW] No valid view for partition %d, using static leader 0", partition_id);
+  return 0;
 }
 
 } // namespace janus

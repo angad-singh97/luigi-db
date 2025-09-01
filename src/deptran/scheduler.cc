@@ -11,6 +11,7 @@
 #include "bench/tpcc/workload.h"
 #include "executor.h"
 #include "coordinator.h"
+#include "classic/coordinator.h"
 #include "../bench/rw/workload.h"
 
 #include <gperftools/profiler.h>
@@ -425,6 +426,9 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
   //   Log_info("Conflict!");
   if (rep_sched_->witness_.push_back(cmd) && !rep_sched_->ConflictWithOriginalUnexecutedLog(cmd)) {
 #else
+#ifdef JETPACK_RECOVERY_DEBUG
+  Log_info("[JETPACK-DEBUG] OnRuleSpeculativeExecute about to push_back loc_id %d ", loc_id_);
+#endif
   if (rep_sched_->witness_.push_back(cmd)) {
 #endif
     // SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
@@ -442,8 +446,10 @@ void TxLogServer::OnRuleSpeculativeExecute(const shared_ptr<Marshallable>& cmd,
 }
 
 void TxLogServer::OriginalPathUnexecutedCmdConflictPlaceHolder(const shared_ptr<Marshallable>& cmd) {
-  if (Config::GetConfig()->tx_proto_ == MODE_RULE && SimpleRWCommand::NeedRecordConflictInOriginalPath(cmd))
+  if (Config::GetConfig()->tx_proto_ == MODE_RULE && SimpleRWCommand::NeedRecordConflictInOriginalPath(cmd)) {
+    // Log_info("[JETPACK-Witness] loc_id %d about to push_back", loc_id_);
     rep_sched_->witness_.push_back(cmd);
+  }
 }
 
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
@@ -463,6 +469,7 @@ void RevoveryCandidates::push_back(uint64_t cmd_id, shared_ptr<Marshallable> cmd
   if (total_write_ == 0 && is_write) {
     verify(to_recover_id_ == (uint64_t)(-1));
     to_recover_id_ = cmd_id;
+    // Log_info("[JETPACK-Witness] Set to_recover_id_ = %lu (first write)", cmd_id);
   }
   total_write_ += is_write;
 #ifdef JETPACK_DEDUPLICATE_OPTIMIZATION
@@ -489,7 +496,7 @@ bool RevoveryCandidates::has_appeared(uint64_t cmd_id) {
   return appeared_[cmd_id];
 }
 
-size_t RevoveryCandidates::size() {
+size_t RevoveryCandidates::size() const {
   return candidates_.size();
 }
 
@@ -502,16 +509,26 @@ bool RevoveryCandidates::has_cmd_to_recover() const {
 }
 
 shared_ptr<Marshallable> RevoveryCandidates::cmd_to_recover() {
-  if (to_recover_id_ != (uint64_t)(-1))
-    return candidates_[to_recover_id_];
-  else
+  
+  if (to_recover_id_ != (uint64_t)(-1)) {
+    if (candidates_.find(to_recover_id_) != candidates_.end()) {
+      return candidates_[to_recover_id_];
+    } else {
+      return nullptr;
+    }
+  } else {
     return nullptr;
+  }
 }
 
 bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   SimpleRWCommand parsed_cmd = SimpleRWCommand(cmd);
   key_t key = parsed_cmd.key_;
   uint64_t cmd_id = SimpleRWCommand::CombineInt32(parsed_cmd.cmd_id_.first, parsed_cmd.cmd_id_.second);
+  
+#ifdef JETPACK_RECOVERY_DEBUG
+  Log_info("[JETPACK-DEBUG] Witness::push_back called for key=%d, cmd_id=%lu", key, cmd_id);
+#endif
 
 #ifdef READ_NOT_CONFLICT_OPTIMIZATION
   if (candidates_[key].total_write() == 0) {
@@ -520,7 +537,11 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
   if (candidates_[key].size() == 0) {
 #endif
     // not exist conflict
+    // Log_info("[JETPACK-Witness] candidates_[%d].push_back %lu", key, cmd_id);
     candidates_[key].push_back(cmd_id, cmd, parsed_cmd.IsWrite());
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-DEBUG] Added cmd to candidates[%d], no conflict", key);
+#endif
 #ifdef WITNESS_LOG_DEBUG
     witness_log_.push_back(WitnessLog(0, cmd, 1, witness_size_));
 #endif
@@ -528,7 +549,12 @@ bool Witness::push_back(const shared_ptr<Marshallable>& cmd) {
     return true;
   } else {
     // exist conflict, candidates_[key].size() >= 1
+    // Log_info("[JETPACK-Witness] candidates_[%d].push_back %lu", key, cmd_id);
     candidates_[key].push_back(cmd_id, cmd, parsed_cmd.IsWrite());
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-DEBUG] Added cmd to candidates[%d], WITH conflict (size now=%zu)", 
+             key, candidates_[key].size());
+#endif
 #ifdef WITNESS_LOG_DEBUG
     witness_log_.push_back(WitnessLog(0, cmd, 0, witness_size_));
 #endif
@@ -619,6 +645,10 @@ shared_ptr<VecRecData> Witness::id_set() {
     }
   }
   
+#ifdef JETPACK_RECOVERY_DEBUG
+  Log_info("[JETPACK-RECOVERY-Witness] id_set size %d", result->key_data_->size());
+#endif
+
   return result;
 }
 
@@ -687,12 +717,16 @@ void TxLogServer::JetpackRecovery() {
     Log_info("[JETPACK-RECOVERY] PullIdSet FAILED: got %d/%d responses", id_set_e->n_voted_yes_, id_set_e->n_total_);
     // Update local jepoch, oepoch from the responses
     if (id_set_e->max_jepoch_ > jepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, id_set_e->max_jepoch_);
+#endif
       jepoch_ = id_set_e->max_jepoch_;
       witness_.reset(); // Reset witness when jepoch increases
     }
     if (id_set_e->max_oepoch_ > oepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, id_set_e->max_oepoch_);
+#endif
       oepoch_ = id_set_e->max_oepoch_;
       // TODO: Update old_view_ and new_view_ from responses
     }
@@ -711,80 +745,126 @@ void TxLogServer::JetpackRecovery() {
   Log_info("[JETPACK-RECOVERY] Step 3: Processing %d keys for sid=%d", key_set->size(), sid);
   
   // Step 3: For every key in key_set, pull cmd and check if it achieves majority
+  size_t key_index = 0;
   for (auto k: *key_set) {
-    Log_info("[JETPACK-RECOVERY] PullCmd for key=%d", k);
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] PullCmd for key=%d (index %zu/%zu)", k, key_index++, key_set->size());
+#endif
+
     auto pulled_cmd_e = commo()->JetpackBroadcastPullCmd(partition_id_, site_id_, k, jepoch_, oepoch_);
+    
     pulled_cmd_e->Wait();
     
     if (!pulled_cmd_e->Yes()) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] PullCmd FAILED for key=%d: got %d/%d responses", 
                k, pulled_cmd_e->n_voted_yes_, pulled_cmd_e->n_total_);
+#endif
       // Update local epochs from failed PullCmd responses
       if (pulled_cmd_e->max_jepoch_ > jepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, pulled_cmd_e->max_jepoch_);
+#endif
         jepoch_ = pulled_cmd_e->max_jepoch_;
         witness_.reset();
       }
       if (pulled_cmd_e->max_oepoch_ > oepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, pulled_cmd_e->max_oepoch_);
+#endif
         oepoch_ = pulled_cmd_e->max_oepoch_;
         // TODO: Update views
       }
       continue;
     }
     
+#ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] PullCmd SUCCESS for key=%d: got %d/%d responses", 
              k, pulled_cmd_e->n_voted_yes_, pulled_cmd_e->n_total_);
+#endif
     
     // Check if cmd preaccept success in at least ⌈(f+2)/2⌉ replies
     shared_ptr<Marshallable> cmd = pulled_cmd_e->GetCmdToRecover();
     if (cmd) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Found command to recover for key=%d, broadcasting RecordCmd", k);
+#endif
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY-DEBUG] RecordCmd params: sid=%d, rid=%d, cmd->kind_=%d", 
+               sid, rid, cmd->kind_);
+#endif
+      
       // Broadcast RecordCmd and increase rid
       auto record_e = commo()->JetpackBroadcastRecordCmd(partition_id_, site_id_, jepoch_, oepoch_, sid, rid, cmd);
+      
+      if (!record_e) {
+        continue;
+      }
+      
       record_e->Wait();
+      
       if (record_e->Yes()) {
         rid++;
+#ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] RecordCmd SUCCESS: key=%d at rid=%d", k, rid-1);
+#endif
       } else {
+#ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] RecordCmd FAILED: key=%d, got %d/%d responses", 
                  k, record_e->n_voted_yes_, record_e->n_total_);
+#endif
+        // Continue anyway - don't block recovery
       }
     } else {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] No command to recover for key=%d", k);
+#endif
     }
   }
   
+#ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Recorded %d total commands for sid=%d", rid, sid);
+#endif
   
   // Step 3: Use Paxos-like procedure to make consensus on sid and set_size
   JetpackPrepare(sid, rid);
+  
 }
 
 void TxLogServer::JetpackPrepare(int default_sid, int default_set_size) {
   Log_info("[JETPACK-RECOVERY] Step 4: Starting Paxos Prepare phase for consensus");
+#ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Prepare: default_sid=%d, default_set_size=%d, ballot=%lld", 
            default_sid, default_set_size, witness_.max_seen_ballot_);
+#endif
   
   // Use Paxos-like procedure to make consensus on sid and set_size
+  
   auto e = commo()->JetpackBroadcastPrepare(partition_id_, site_id_, jepoch_, oepoch_, witness_.max_seen_ballot_);
+  
   e->Wait();
   
   if (!e->Yes()) {
     Log_info("[JETPACK-RECOVERY] Prepare FAILED: got %d/%d responses", e->n_voted_yes_, e->n_total_);
     // Update local epochs and ballots from failed responses
     if (e->max_jepoch_ > jepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, e->max_jepoch_);
+#endif
       jepoch_ = e->max_jepoch_;
       witness_.reset();
     }
     if (e->max_oepoch_ > oepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, e->max_oepoch_);
+#endif
       oepoch_ = e->max_oepoch_;
     }
     if (e->max_seen_ballot_ > witness_.max_seen_ballot_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating ballot from %lld to %lld", 
                witness_.max_seen_ballot_, e->max_seen_ballot_);
+#endif
       witness_.max_seen_ballot_ = e->max_seen_ballot_;
     }
     return;
@@ -800,9 +880,13 @@ void TxLogServer::JetpackPrepare(int default_sid, int default_set_size) {
     // Use the value from the highest accepted ballot
     propose_sid = e->GetSid();
     propose_set_size = e->GetSetSize();
+#ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Using previously accepted value: sid=%d, set_size=%d", propose_sid, propose_set_size);
+#endif
   } else {
+#ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] No previous value, proposing recovered values: sid=%d, set_size=%d", propose_sid, propose_set_size);
+#endif
   }
   
   JetpackAccept(propose_sid, propose_set_size);
@@ -813,8 +897,10 @@ void TxLogServer::JetpackAccept(int propose_sid, int propose_set_size) {
   
   // Update local max_seen_ballot before accept
   witness_.max_seen_ballot_++;
+#ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Accept: proposing sid=%d, set_size=%d, ballot=%lld", 
            propose_sid, propose_set_size, witness_.max_seen_ballot_);
+#endif
   
   auto e = commo()->JetpackBroadcastAccept(partition_id_, site_id_, jepoch_, oepoch_, 
                                           witness_.max_seen_ballot_, propose_sid, propose_set_size);
@@ -824,17 +910,23 @@ void TxLogServer::JetpackAccept(int propose_sid, int propose_set_size) {
     Log_info("[JETPACK-RECOVERY] Accept FAILED: got %d/%d responses", e->n_voted_yes_, e->n_total_);
     // Update local epochs and ballots from failed responses
     if (e->max_jepoch_ > jepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating jepoch from %d to %d", jepoch_, e->max_jepoch_);
+#endif
       jepoch_ = e->max_jepoch_;
       witness_.reset();
     }
     if (e->max_oepoch_ > oepoch_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating oepoch from %d to %d", oepoch_, e->max_oepoch_);
+#endif
       oepoch_ = e->max_oepoch_;
     }
     if (e->max_seen_ballot_ > witness_.max_seen_ballot_) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Updating ballot from %lld to %lld", 
                witness_.max_seen_ballot_, e->max_seen_ballot_);
+#endif
       witness_.max_seen_ballot_ = e->max_seen_ballot_;
     }
     return;
@@ -847,13 +939,17 @@ void TxLogServer::JetpackAccept(int propose_sid, int propose_set_size) {
 
 void TxLogServer::JetpackCommit(int commit_sid, int commit_set_size) {
   Log_info("[JETPACK-RECOVERY] Step 6: Broadcasting Commit for consensus decision");
+#ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Commit: sid=%d, set_size=%d", commit_sid, commit_set_size);
+#endif
   
   // Commit cannot fail - it's just notification after successful Accept
   auto e = commo()->JetpackBroadcastCommit(partition_id_, site_id_, jepoch_, oepoch_, commit_sid, commit_set_size);
   e->Wait(); // Wait for at least 1 response (quorum size can be 1)
   
+#ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Commit sent for sid=%d, set_size=%d, proceeding to resubmit", commit_sid, commit_set_size);
+#endif
   JetpackResubmit(commit_sid, commit_set_size);
 }
 
@@ -864,7 +960,9 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
   for (int rid = 0; rid < set_size; rid++) {
     auto cmd = rec_set_.get(sid, rid);
     if (!cmd) {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Missing command at sid=%d, rid=%d, pulling from replicas", sid, rid);
+#endif
       // Pull missing command from other replicas
       auto pull_e = commo()->JetpackBroadcastPullRecSetIns(partition_id_, site_id_, jepoch_, oepoch_, sid, rid);
       pull_e->Wait();
@@ -872,23 +970,40 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
         cmd = pull_e->GetRecoveredCmd();
         if (cmd) {
           rec_set_.insert(sid, rid, cmd);
+#ifdef JETPACK_RECOVERY_DEBUG
           Log_info("[JETPACK-RECOVERY] Successfully pulled missing command for sid=%d, rid=%d", sid, rid);
+#endif
         } else {
+#ifdef JETPACK_RECOVERY_DEBUG
           Log_info("[JETPACK-RECOVERY] PullRecSetIns returned no command for sid=%d, rid=%d", sid, rid);
+#endif
         }
       } else {
+#ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] PullRecSetIns FAILED for sid=%d, rid=%d: got %d/%d responses", 
                  sid, rid, pull_e->n_voted_yes_, pull_e->n_total_);
+#endif
       }
     }
     
-    // Resubmit command via original protocol (Raft Submit)
+    // Resubmit command via broadcast dispatch to find leader
     if (cmd) {
-      // TODO: Submit to Raft - this would be the integration point with original Raft protocol
-      Log_info("[JETPACK-RECOVERY] Resubmitting command for sid=%d, rid=%d via Raft", sid, rid);
-      // Example: raft_server->Submit(cmd);
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] Resubmitting command for sid=%d, rid=%d via broadcast dispatch", sid, rid);
+#endif
+      
+      // Use the new dispatch method that will find the leader
+      DispatchRecoveredCommand(cmd);
+      
+      // Note: We don't wait for completion here as recovered commands will be
+      // processed asynchronously through the dispatch pipeline
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] Command dispatched for sid=%d, rid=%d", sid, rid);
+#endif
     } else {
+#ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] No command found for sid=%d, rid=%d, skipping resubmit", sid, rid);
+#endif
     }
   }
   
@@ -901,12 +1016,98 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
   Log_info("[JETPACK-RECOVERY] FinishRecovery broadcast completed, fast path restored");
 }
 
+void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
+#ifdef JETPACK_RECOVERY_DEBUG
+  Log_info("[JETPACK-RECOVERY] Dispatching recovered command, kind=%d", cmd->kind_);
+#endif
+  
+  // Extract the inner command if this is a TpcCommitCommand
+  shared_ptr<Marshallable> inner_cmd = cmd;
+  if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+    auto tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+    if (tpc_cmd && tpc_cmd->cmd_) {
+      inner_cmd = tpc_cmd->cmd_;
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] Extracted inner command from TpcCommitCommand, inner kind=%d", inner_cmd->kind_);
+#endif
+    }
+  }
+  
+  // Check if the inner command is VecPieceData
+  if (inner_cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    auto vec_piece_data = dynamic_pointer_cast<VecPieceData>(inner_cmd);
+    if (vec_piece_data && vec_piece_data->sp_vec_piece_data_) {
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] Dispatching VecPieceData with %zu pieces", 
+               vec_piece_data->sp_vec_piece_data_->size());
+#endif
+      
+      // Create a temporary coordinator for dispatching
+      // Using a special coordinator ID for recovery operations
+      auto coo = std::make_unique<CoordinatorClassic>(999999, // special ID for recovery
+                                                       Config::GetConfig()->benchmark_, 
+                                                       nullptr, 
+                                                       0);
+      coo->loc_id_ = site_id_;
+      coo->par_id_ = partition_id_;
+      
+      // Set up callback to handle dispatch response
+      auto callback = [this](int res, TxnOutput& output) {
+#ifdef JETPACK_RECOVERY_DEBUG
+        Log_info("[JETPACK-RECOVERY] Dispatch callback received, res=%d", res);
+#endif
+      };
+      
+      // Use BroadcastDispatch to send to the leader
+      commo()->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback);
+      
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] Command dispatched through communicator to find leader");
+#endif
+    } else {
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-RECOVERY] WARNING: Inner command is not VecPieceData, cannot dispatch");
+#endif
+    }
+  } else {
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] WARNING: Command kind %d not supported for dispatch", inner_cmd->kind_);
+#endif
+  }
+}
+
 void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
                                          const MarshallDeputy& new_view, 
                                          const epoch_t& new_view_id) {
   rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
   rep_sched_->oepoch_ = new_view_id;
-  // TODO: Update old_view_ and new_view_ from MarshallDeputy
+  
+  // Extract ViewData from MarshallDeputy parameters
+  auto sp_old_view_data = dynamic_pointer_cast<ViewData>(old_view.sp_data_);
+  auto sp_new_view_data = dynamic_pointer_cast<ViewData>(new_view.sp_data_);
+  
+  // Update the views if extraction was successful
+  if (sp_old_view_data) {
+    rep_sched_->old_view_ = sp_old_view_data->GetView();
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] Updated old_view from MarshallDeputy");
+#endif
+  } else {
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] Warning: Could not extract old_view from MarshallDeputy");
+#endif
+  }
+  
+  if (sp_new_view_data) {
+    rep_sched_->new_view_ = sp_new_view_data->GetView();
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] Updated new_view from MarshallDeputy");
+#endif
+  } else {
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-RECOVERY] Warning: Could not extract new_view from MarshallDeputy");
+#endif
+  }
 }
 
 void TxLogServer::OnJetpackPullIdSet(const epoch_t& jepoch,
@@ -917,6 +1118,29 @@ void TxLogServer::OnJetpackPullIdSet(const epoch_t& jepoch,
                                      MarshallDeputy* reply_old_view,
                                      MarshallDeputy* reply_new_view,
                                      shared_ptr<VecRecData> id_set) {
+  
+  
+  // Debug print witness candidates
+#ifdef JETPACK_RECOVERY_DEBUG
+  if (rep_sched_) {
+
+    Log_info("[JETPACK-DEBUG] Witness candidates size: %zu", rep_sched_->witness_.candidates_.size());
+    
+    // Print all keys in witness candidates
+    std::stringstream witness_keys;
+    int count = 0;
+    for (const auto& kv : rep_sched_->witness_.candidates_) {
+      if (count++ < 20) {
+        witness_keys << kv.first << "(" << kv.second.size() << " cmds) ";
+      }
+    }
+    if (rep_sched_->witness_.candidates_.size() > 20) {
+      witness_keys << "... (and " << (rep_sched_->witness_.candidates_.size() - 20) << " more)";
+    }
+    Log_info("[JETPACK-DEBUG] Witness candidate keys: %s", witness_keys.str().c_str());
+
+  }
+#endif
   
   // Initialize MarshallDeputy objects with ViewData objects
   reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
@@ -930,6 +1154,7 @@ void TxLogServer::OnJetpackPullIdSet(const epoch_t& jepoch,
     // Copy data from witness id_set to the response parameter
     auto witness_id_set = rep_sched_->witness_.id_set();
     id_set->key_data_ = witness_id_set->key_data_;
+    
   } else {
     *ok = 0;
     *reply_jepoch = rep_sched_->jepoch_;
@@ -947,23 +1172,57 @@ void TxLogServer::OnJetpackPullCmd(const epoch_t& jepoch,
                                    epoch_t* reply_oepoch,
                                    MarshallDeputy* reply_old_view,
                                    MarshallDeputy* reply_new_view,
-                                   shared_ptr<Marshallable> cmd) {
+                                   shared_ptr<Marshallable>& cmd) {
+  
+  if (!rep_sched_) {
+    return;
+  }
+  
   // Initialize MarshallDeputy objects with ViewData objects
+  
+  if (!reply_old_view || !reply_new_view) {
+    return;
+  }
+  
   reply_old_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->old_view_));
   reply_new_view->SetMarshallable(std::make_shared<ViewData>(rep_sched_->new_view_));
+  
   
   if (jepoch >= rep_sched_->jepoch_ && oepoch >= rep_sched_->oepoch_) {
     rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
     *ok = 1;
     *reply_jepoch = rep_sched_->jepoch_;
     *reply_oepoch = rep_sched_->oepoch_;
+    
     // TODO: Set reply views and find cmd for key in witness
-    cmd = rep_sched_->witness_.cmd_to_recover(key);
+#ifdef JETPACK_RECOVERY_DEBUG
+    Log_info("[JETPACK-SCHED-DEBUG] About to call witness_.cmd_to_recover(key=%d)", key);
+#endif
+    
+    // Check if the key exists in candidates before calling cmd_to_recover
+    auto& candidates = rep_sched_->witness_.candidates_;
+    if (candidates.find(key) == candidates.end()) {
+      cmd = nullptr;
+    } else {
+#ifdef JETPACK_RECOVERY_DEBUG
+      Log_info("[JETPACK-SCHED-DEBUG] Key %d found in candidates, checking if has_cmd_to_recover", key);
+#endif
+      if (rep_sched_->witness_.has_cmd_to_recover(key)) {
+        cmd = rep_sched_->witness_.cmd_to_recover(key);
+#ifdef JETPACK_RECOVERY_DEBUG
+        Log_info("[JETPACK-SCHED-DEBUG] cmd_to_recover returned %s for key %d", 
+                 cmd ? "valid cmd" : "NULL", key);
+#endif
+      } else {
+        cmd = nullptr;
+      }
+    }
   } else {
     *ok = 0;
     *reply_jepoch = rep_sched_->jepoch_;
     *reply_oepoch = rep_sched_->oepoch_;
   }
+  
 }
 
 void TxLogServer::OnJetpackRecordCmd(const epoch_t& jepoch, 

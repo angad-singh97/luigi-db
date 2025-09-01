@@ -93,6 +93,7 @@ class ClassicServiceImpl : public ClassicService {
 							bool_t* slow,
               uint64_t* coro_id,
 	        		Profiling* profile,
+              MarshallDeputy* view_data,
               DeferredReply* defer) override;
 
   void Abort(const i64& tid,
@@ -101,6 +102,7 @@ class ClassicServiceImpl : public ClassicService {
 						 bool_t* slow,
              uint64_t* coro_id,
 	        	 Profiling* profile,
+             MarshallDeputy* view_data,
              DeferredReply* defer) override;
 
   void EarlyAbort(const i64& tid,

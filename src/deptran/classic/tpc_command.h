@@ -27,6 +27,9 @@ class TpcCommitCommand : public Marshallable {
   int ret_ = -1;
   shared_ptr<Marshallable> cmd_{nullptr};
   ballot_t term;
+  // Optional view data for WRONG_LEADER responses
+  std::shared_ptr<ViewData> sp_view_data_ = nullptr;
+  
   virtual Marshal& ToMarshal(Marshal&) const override;
   virtual Marshal& FromMarshal(Marshal&) override;
 };

@@ -73,6 +73,13 @@ Marshal& TpcCommitCommand::ToMarshal(Marshal& m) const {
   m << ret_;
   MarshallDeputy md(cmd_);
   m << md;
+  // Marshal view data if present
+  bool_t has_view_data = (sp_view_data_ != nullptr) ? 1 : 0;
+  m << has_view_data;
+  if (has_view_data) {
+    MarshallDeputy view_md(sp_view_data_);
+    m << view_md;
+  }
   return m;
 }
 
@@ -85,6 +92,14 @@ Marshal& TpcCommitCommand::FromMarshal(Marshal& m) {
     cmd_ = md.sp_data_;
   else
     verify(0);
+  // Unmarshal view data if present
+  bool_t has_view_data;
+  m >> has_view_data;
+  if (has_view_data) {
+    MarshallDeputy view_md;
+    m >> view_md;
+    sp_view_data_ = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+  }
   return m;
 }
 

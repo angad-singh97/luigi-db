@@ -142,7 +142,9 @@ class JetpackPullIdSetQuorumEvent: public QuorumEvent {
 class JetpackPullCmdQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
-  std::map<shared_ptr<Marshallable>, int> cmd_counts_;
+  std::map<uint64_t, int> cmd_counts_;
+  int maximum_count_ = -1;
+  shared_ptr<Marshallable> maximum_cmd_{nullptr};
   epoch_t max_jepoch_ = -1;
   epoch_t max_oepoch_ = -1;
   
@@ -150,9 +152,13 @@ class JetpackPullCmdQuorumEvent: public QuorumEvent {
     if (y) {
       VoteYes();
       // Count how many times each command appears
-      auto cmd_ptr = cmd.sp_data_;
-      if (cmd_ptr) {
-        cmd_counts_[cmd_ptr]++;
+      if (cmd.sp_data_) {
+        uint64_t cmd_id = SimpleRWCommand::GetCombinedCmdID(cmd.sp_data_);
+        cmd_counts_[cmd_id]++;
+        if (cmd_counts_[cmd_id] > maximum_count_) {
+          maximum_count_ = cmd_counts_[cmd_id];
+          maximum_cmd_ = cmd.sp_data_;
+        }
       }
     } else {
       VoteNo();
@@ -169,11 +175,8 @@ class JetpackPullCmdQuorumEvent: public QuorumEvent {
   shared_ptr<Marshallable> GetCmdToRecover() {
     int f = (n_total_ - 1) / 2;
     int majority_threshold = (f + 2) / 2 + ((f + 2) % 2); // ⌈(f+2)/2⌉
-    
-    for (const auto& pair : cmd_counts_) {
-      if (pair.second >= majority_threshold) {
-        return pair.first;
-      }
+    if (maximum_count_ >= majority_threshold && maximum_cmd_->kind_ != MarshallDeputy::Kind::CMD_TPC_EMPTY) {
+      return maximum_cmd_;
     }
     return nullptr;
   }
@@ -333,9 +336,17 @@ class Communicator {
 	std::mutex count_lock_;
 	std::condition_variable cv_;
 	bool waiting = false;
+  
+  // Callback function type for getting dynamic leader
+  using LeaderCallback = std::function<locid_t(parid_t)>;
+  LeaderCallback leader_callback_ = nullptr;
 
   Communicator(PollMgr* poll_mgr = nullptr);
   virtual ~Communicator();
+  
+  void SetLeaderCallback(LeaderCallback callback) {
+    leader_callback_ = callback;
+  }
 
   SiteProxyPair RandomProxyForPartition(parid_t partition_id) const;
   SiteProxyPair LeaderProxyForPartition(parid_t, int idx=-1) const;

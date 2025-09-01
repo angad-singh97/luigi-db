@@ -281,7 +281,7 @@ Config::Config(char           *ctrl_hostname,
   next_site_id_(0),
   proc_host_map_(map<string, string>()),
   sharding_(nullptr),
-  jetpack_fastpath_attempt_rate_(jetpack_fastpath_attempt_rate_)
+  jetpack_fastpath_attempt_rate_(jetpack_fastpath_attempt_rate)
 
 {
 }

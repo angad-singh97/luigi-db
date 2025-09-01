@@ -152,7 +152,7 @@ class RevoveryCandidates {
   void push_back(uint64_t cmd_id, shared_ptr<Marshallable> cmd, bool is_write);
   bool remove(uint64_t cmd_id);
   bool has_appeared(uint64_t cmd_id);
-  size_t size();
+  size_t size() const;
   int total_write();
   bool has_cmd_to_recover() const;
   shared_ptr<Marshallable> cmd_to_recover();
@@ -183,7 +183,6 @@ class Witness {
     }
   };
   bool belongs_to_leader_{false}; // i.e. This server can propose value // discard
-  unordered_map<key_t, RevoveryCandidates> candidates_;
   int witness_size_ = 0;
   Distribution witness_size_distribution_;
 
@@ -191,6 +190,7 @@ class Witness {
   vector<WitnessLog> witness_log_;
 #endif
  public:
+  unordered_map<key_t, RevoveryCandidates> candidates_;
   /* Recover related begin */
   ballot_t max_seen_ballot_ = -1, max_accepted_ballot_ = -1;
   int sid_ = -1, set_size_ = 0;
@@ -292,9 +292,15 @@ class RecoverySet {
   std::unordered_map<int, std::vector<shared_ptr<Marshallable>>> rec_set_;
  public:
   void insert(int sid, int rid, shared_ptr<Marshallable> cmd) {
+    if (rec_set_[sid].size() <= rid) {
+        rec_set_[sid].resize(rid + 1);
+    }
     rec_set_[sid][rid] = cmd;
   }
   shared_ptr<Marshallable> get(int sid, int rid) {
+    if (rec_set_[sid].size() <= rid) {
+        rec_set_[sid].resize(rid + 1);
+    }
     return rec_set_[sid][rid];
   }
 };
@@ -570,6 +576,7 @@ class TxLogServer {
   void JetpackCommit(int sid, int set_size);
 
   void JetpackResubmit(int sid, int set_size);
+  void DispatchRecoveredCommand(shared_ptr<Marshallable> cmd);
   
   void OnJetpackBeginRecovery(const MarshallDeputy& old_view,
                               const MarshallDeputy& new_view, 
@@ -592,7 +599,7 @@ class TxLogServer {
                         epoch_t* reply_oepoch,
                         MarshallDeputy* reply_old_view,
                         MarshallDeputy* reply_new_view,
-                        shared_ptr<Marshallable> cmd);
+                        shared_ptr<Marshallable>& cmd);
   
   void OnJetpackRecordCmd(const epoch_t& jepoch, 
                           const epoch_t& oepoch, 

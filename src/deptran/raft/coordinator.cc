@@ -3,6 +3,9 @@
 #include "../constants.h"
 #include "coordinator.h"
 #include "commo.h"
+#include "../classic/tpc_command.h"
+#include "../procedure.h"
+#include "../config.h"
 
 #include "server.h"
 
@@ -27,9 +30,44 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
   if (!IsLeader()) {
-    // verify(0);
-    Log_info("[XXXXX] Submit to loc_id %d, which is not leader", loc_id_);
-    return ;
+    Log_info("[WRONG_LEADER] Submit to server %d (loc_id %d), which is not leader", svr_->site_id_, loc_id_);
+    
+    // Handle WRONG_LEADER case
+    if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
+      auto tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+      if (tpc_cmd) {
+        // Set WRONG_LEADER error code
+        tpc_cmd->ret_ = WRONG_LEADER;
+        
+        // Get current view from TxLogServer (parent class)
+        // The new_view_ contains the most recent view information
+        View current_view = svr_->new_view_;
+        
+        Log_info("[WRONG_LEADER] Server %d retrieving view: %s", 
+                 svr_->site_id_, current_view.ToString().c_str());
+        
+        // If view is empty or stale, use current server state to construct view
+        if (current_view.IsEmpty()) {
+          // For Raft, we need to determine who the current leader is
+          // This might need to be tracked separately or obtained from Raft state
+          int n_replicas = Config::GetConfig()->GetPartitionSize(par_id_);
+          current_view = View(n_replicas, 
+                            -1,  // Unknown leader for now
+                            svr_->currentTerm);
+          Log_info("[WRONG_LEADER] View was empty, created new view with unknown leader: %s", 
+                   current_view.ToString().c_str());
+        }
+        
+        // Attach view data to the command for propagation back to client
+        tpc_cmd->sp_view_data_ = std::make_shared<ViewData>(current_view, par_id_);
+        Log_info("[WRONG_LEADER] Attached view data to response for partition %d: %s", 
+                 par_id_, tpc_cmd->sp_view_data_->ToString().c_str());
+      }
+    }
+    
+    // Still call the callback to signal completion, but with error status
+    func();
+    return;
   } else {
     Log_info("[YYYYY] Submit to loc_id %d, which is leader", loc_id_);
   }
@@ -61,7 +99,15 @@ void CoordinatorRaft::AppendEntries() {
 
     while (this->svr_->commitIndex < index) {
       Reactor::CreateSpEvent<TimeoutEvent>(1000)->Wait();
-      verify(this->svr_->currentTerm == term);
+      if (this->svr_->currentTerm != term) {
+        Log_info("Term changed during AppendEntries: expected %lu, got %lu. Leader changed.", 
+                 term, this->svr_->currentTerm);
+        // The command may or may not be committed by the new leader
+        // Mark as not committed and let higher layers retry
+        committed_ = false;
+        in_append_entries = false;
+        return;
+      }
     }
     
     

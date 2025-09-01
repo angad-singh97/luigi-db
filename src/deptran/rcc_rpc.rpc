@@ -115,6 +115,7 @@ abstract service Raft {
   defer AppendEntries(uint64_t slot,
                       ballot_t ballot,
                       uint64_t leaderCurrentTerm,
+                      siteid_t leaderSiteId,
                       uint64_t leaderPrevLogIndex,
                       uint64_t leaderPrevLogTerm,
                       uint64_t leaderCommitIndex,
@@ -127,6 +128,7 @@ abstract service Raft {
   defer EmptyAppendEntries(uint64_t slot,
                            ballot_t ballot,
                            uint64_t leaderCurrentTerm,
+                           siteid_t leaderSiteId,
                            uint64_t leaderPrevLogIndex,
                            uint64_t leaderPrevLogTerm,
                            uint64_t leaderCommitIndex |
@@ -195,9 +197,9 @@ abstract service Classic {
 								bool_t slow,
                 uint64_t coro_id);
 
-  defer Commit(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile);
+  defer Commit(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile, MarshallDeputy view_data);
 
-  defer Abort(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile);
+  defer Abort(i64 tid, DepId dep_id | i32 res, bool_t slow, uint64_t coro_id, Profiling profile, MarshallDeputy view_data);
 
   defer EarlyAbort(i64 tid | i32 res);
 

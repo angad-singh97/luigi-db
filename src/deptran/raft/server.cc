@@ -87,7 +87,30 @@ bool RaftServer::IsDisconnected() {
 
 void RaftServer::setIsLeader(bool isLeader) {
   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
-  is_leader_ = isLeader ;
+  
+  // Only update view when transitioning from non-leader to leader
+  if (isLeader && !is_leader_) {
+    // Only update view if we have enough information (not during initialization)
+    if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
+      // Move current new_view to old_view before updating
+      old_view_ = new_view_;
+      
+      // Update new_view with this server as the leader
+      int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
+      new_view_ = View(n_replicas, site_id_, currentTerm);
+      Log_info("[RAFT_VIEW] Server %d became leader for partition %d, term=%lu, old_view=%s, new_view=%s", 
+               site_id_, partition_id_, currentTerm, 
+               old_view_.ToString().c_str(), new_view_.ToString().c_str());
+    }
+  } else if (!isLeader && is_leader_) {
+    // When transitioning from leader to non-leader
+    Log_info("[RAFT_VIEW] Server %d stepping down as leader for partition %d", site_id_, partition_id_);
+    // View will be updated when we learn about the new leader
+  }
+  
+  // Update the leader state after view handling
+  is_leader_ = isLeader;
+  
   if (isLeader) {
     // JetpackRecovery();
     // if (heartbeat_) {
@@ -292,6 +315,7 @@ void RaftServer::HeartbeatLoop() {
                                             -1,
                                             -1,
                                             IsLeader(),
+                                            site_id_,  // leader's site_id
                                             term,
                                             prevLogIndex,
                                             prevLogTerm,
@@ -577,6 +601,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const ballot_t ballot,
                                  const uint64_t leaderCurrentTerm,
+                                 const siteid_t leaderSiteId,
                                  const uint64_t leaderPrevLogIndex,
                                  const uint64_t leaderPrevLogTerm,
                                  const uint64_t leaderCommitIndex,
@@ -600,6 +625,15 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
           currentTerm = leaderCurrentTerm;
           Log_debug("server %d, set to be follower", loc_id_ ) ;
           setIsLeader(false) ;
+      }
+      
+      // Update follower's view to track the current leader
+      if (!IsLeader() && leaderSiteId != INVALID_SITEID) {
+          old_view_ = new_view_;
+          int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
+          new_view_ = View(n_replicas, leaderSiteId, leaderCurrentTerm);
+          // Log_info("[FOLLOWER_VIEW] Server %d updated view to track leader %d, term=%lu, view=%s", 
+          //          site_id_, leaderSiteId, leaderCurrentTerm, new_view_.ToString().c_str());
       }
 
       if (cmd != nullptr) {

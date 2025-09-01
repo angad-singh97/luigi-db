@@ -154,6 +154,42 @@ Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
     verify(partition_proxies.size()>idx);
     return it->second.at(idx);
   }
+  
+  // Check if we have a dynamic leader callback
+  if (leader_callback_) {
+    locid_t dynamic_leader = leader_callback_(par_id);
+    Log_info("[DYNAMIC_LEADER] Callback returned leader=%d for partition %d", 
+             dynamic_leader, par_id);
+    
+    if (dynamic_leader >= 0) {
+      // Find the proxy for this leader
+      auto it = rpc_par_proxies_.find(par_id);
+      if (it != rpc_par_proxies_.end()) {
+        auto& partition_proxies = it->second;
+        auto config = Config::GetConfig();
+        auto proxy_it = std::find_if(
+            partition_proxies.begin(),
+            partition_proxies.end(),
+            [config, dynamic_leader](const std::pair<siteid_t, ClassicProxy*>& p) {
+              verify(p.second != nullptr);
+              auto& site = config->SiteById(p.first);
+              return site.locale_id == dynamic_leader;
+            });
+        if (proxy_it != partition_proxies.end()) {
+          // Update cache and return
+          const_cast<Communicator*>(this)->leader_cache_[par_id] = *proxy_it;
+          Log_info("[DYNAMIC_LEADER] Found proxy for dynamic leader %d (site_id=%d) for partition %d", 
+                   dynamic_leader, proxy_it->first, par_id);
+          return *proxy_it;
+        } else {
+          Log_info("[DYNAMIC_LEADER] Could not find proxy for dynamic leader %d in partition %d, falling back to static", 
+                   dynamic_leader, par_id);
+        }
+      }
+    } else {
+      Log_info("[DYNAMIC_LEADER] No dynamic leader known for partition %d, falling back to static", par_id);
+    }
+  }
 
   auto leader_cache =
       const_cast<map<parid_t, SiteProxyPair>&>(this->leader_cache_);
@@ -605,7 +641,7 @@ Communicator::SendPrepare(Coordinator* coo,
     qe->id_ = Communicator::global_id;
     qe->par_id_ = quorum_id++;
     FutureAttr fuattr;
-    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd](Future* fu) {
+    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](Future* fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -718,7 +754,7 @@ Communicator::SendCommit(Coordinator* coo,
     coo->n_finish_req_++;
     FutureAttr fuattr;
     auto phase = coo->phase_;
-    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd](Future* fu) {
+    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](Future* fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -727,12 +763,25 @@ Communicator::SendCommit(Coordinator* coo,
 			bool_t slow;
       uint64_t coro_id = 0;
 			Profiling profile;
-      fu->get_reply() >> res >> slow >> coro_id >> profile;
+      MarshallDeputy view_md;
+      fu->get_reply() >> res >> slow >> coro_id >> profile >> view_md;
 			this->slow = slow;
 			if(profile.cpu_util >= 0.0){
 				cpu = profile.cpu_util;
 				//Log_info("cpu: %f and network: %f and memory: %f", profile.cpu_util, profile.tx_util, profile.mem_util);
 			}
+      // Propagate the result status (including WRONG_LEADER) back to the coordinator
+      cmd->reply_.res_ = res;
+      
+      // Extract and attach view data if present
+      if (view_md.sp_data_ != nullptr) {
+        auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+        if (sp_view_data) {
+          cmd->reply_.sp_view_data_ = sp_view_data;
+          Log_info("[VIEW_PROPAGATE] Received view data in Commit response for tx_id=%lu: %s", 
+                   tid, sp_view_data->ToString().c_str());
+        }
+      }
 
       struct timespec end_;
 	  	clock_gettime(CLOCK_REALTIME,&end_);
@@ -833,7 +882,7 @@ Communicator::SendAbort(Coordinator* coo,
     coo->n_finish_req_++;
     FutureAttr fuattr;
     auto phase = coo->phase_;
-    fuattr.callback = [this, e, qe, coo, src_coroid, site_id, phase, cmd](Future* fu) {
+    fuattr.callback = [this, e, qe, coo, src_coroid, site_id, phase, cmd, tid](Future* fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -842,8 +891,22 @@ Communicator::SendAbort(Coordinator* coo,
 			bool_t slow;
       uint64_t coro_id = 0;
 			Profiling profile;
-      fu->get_reply() >> res >> slow >> coro_id >> profile;
+      MarshallDeputy view_md;
+      fu->get_reply() >> res >> slow >> coro_id >> profile >> view_md;
 			this->slow = slow;
+      
+      // Propagate the result status (including WRONG_LEADER) back to the coordinator
+      cmd->reply_.res_ = res;
+      
+      // Extract and attach view data if present
+      if (view_md.sp_data_ != nullptr) {
+        auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+        if (sp_view_data) {
+          cmd->reply_.sp_view_data_ = sp_view_data;
+          Log_info("[VIEW_PROPAGATE] Received view data in Abort response for tx_id=%lu: %s", 
+                   tid, sp_view_data->ToString().c_str());
+        }
+      }
 
 	  	if(profile.cpu_util != -1.0){
 				Log_info("cpu: %f and network: %f", profile.cpu_util, profile.tx_util);
@@ -1278,9 +1341,23 @@ shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(
 
 shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(parid_t par_id, locid_t loc_id, 
                                                                         key_t key, epoch_t jepoch, epoch_t oepoch) {
+  // Log_info("[JETPACK-DEBUG] JetpackBroadcastPullCmd called with par_id=%d, loc_id=%d, key=%d", par_id, loc_id, key);
+  
   int n = Config::GetConfig()->GetPartitionSize(par_id);
+  // Log_info("[JETPACK-DEBUG] Partition size n=%d", n);
+  
   auto e = Reactor::CreateSpEvent<JetpackPullCmdQuorumEvent>(n, n/2+1);
+  // if (!e) {
+  //   Log_info("[JETPACK-DEBUG] ERROR: Failed to create JetpackPullCmdQuorumEvent!");
+  // }
+  
+  // if (rpc_par_proxies_.find(par_id) == rpc_par_proxies_.end()) {
+  //   Log_info("[JETPACK-DEBUG] ERROR: No proxies found for partition %d!", par_id);
+  // }
+  
   auto proxies = rpc_par_proxies_[par_id];
+  // Log_info("[JETPACK-DEBUG] Found %zu proxies for partition %d", proxies.size(), par_id);
+  
   vector<Future*> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
@@ -1299,6 +1376,11 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
     //     continue;
     // }
     auto proxy = (ClassicProxy*) p.second;
+    // if (!proxy) {
+    //   Log_info("[JETPACK-DEBUG] ERROR: Proxy is NULL for site %d!", p.first);
+    // }
+    // Log_info("[JETPACK-DEBUG] Sending JetpackPullCmd to site %d", p.first);
+    
     FutureAttr fuattr;
     fuattr.callback = [e](Future* fu) {
       if (fu->get_error_code() != 0) {
@@ -1311,9 +1393,16 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
       fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view >> cmd;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd);
     };
+    
+    // Log_info("[JETPACK-DEBUG] About to call async_JetpackPullCmd");
     auto fu = proxy->async_JetpackPullCmd(jepoch, oepoch, key, fuattr);
+    // if (!fu) {
+    //   Log_info("[JETPACK-DEBUG] ERROR: async_JetpackPullCmd returned NULL Future!");
+    // }
+    // Log_info("[JETPACK-DEBUG] async_JetpackPullCmd returned Future, adding to list");
     fus.push_back(fu);
   }
+  // Log_info("[JETPACK-DEBUG] JetpackBroadcastPullCmd returning event with %zu futures", fus.size());
   return e;
 }
 
@@ -1321,6 +1410,9 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
                                                                epoch_t jepoch, epoch_t oepoch, 
                                                                int sid, int rid, 
                                                                shared_ptr<Marshallable> cmd) {
+  // Log_info("[JETPACK-DEBUG] JetpackBroadcastRecordCmd called: par_id=%d, loc_id=%d, sid=%d, rid=%d", 
+  //          par_id, loc_id, sid, rid);
+  
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
@@ -1329,6 +1421,8 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
   
   MarshallDeputy cmd_deputy;
   cmd_deputy.SetMarshallable(cmd);
+  
+  // Log_info("[JETPACK-DEBUG] Broadcasting RecordCmd to %zu sites, need %d votes", proxies.size(), n/2+1);
   
   for (auto& p : proxies) {
     // TODO: Local call optimization temporarily commented out
@@ -1340,13 +1434,17 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
     // }
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e, p](Future* fu) {
       if (fu->get_error_code() != 0) {
-        Log_info("Get a error message in reply");
+        // Log_info("[JETPACK-DEBUG] RecordCmd error from site %d: error_code=%d", 
+        //          p.first, fu->get_error_code());
+        e->VoteNo();  // Vote no on error to prevent hanging
         return;
       }
+      // Log_info("[JETPACK-DEBUG] RecordCmd success from site %d", p.first);
       e->VoteYes();
     };
+    // Log_info("[JETPACK-DEBUG] Sending RecordCmd to site %d", p.first);
     auto fu = proxy->async_JetpackRecordCmd(jepoch, oepoch, sid, rid, cmd_deputy, fuattr);
     fus.push_back(fu);
   }
