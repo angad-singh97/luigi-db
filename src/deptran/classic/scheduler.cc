@@ -255,6 +255,17 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
     cli2tx.append(start_ms - client_ms);
 
     coo->Submit(sp_m);
+    
+    // // Check if Submit failed due to WRONG_LEADER
+    // if (cmd->ret_ == WRONG_LEADER) {
+    //   Log_info("[WRONG_LEADER] OnCommit: Server is not leader for tx_id: %lu", tx_id);
+    //   // The command already has view data attached by CoordinatorRaft::Submit
+    //   // Set the result so it doesn't wait forever
+    //   sp_tx->commit_result->Set(1);
+    //   // Return WRONG_LEADER to propagate to client
+    //   return WRONG_LEADER;
+    // }
+    
     sp_tx->commit_result->Wait();
     gettimeofday(&tp, NULL);
     double finish_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
@@ -319,9 +330,11 @@ int SchedulerClassic::CommitReplicated(TpcCommitCommand& tpc_commit_cmd) {
     }
   }
   if (commit_or_abort == SUCCESS) {
+    // Log_info("[SUCCESS] Scheduler received SUCCESS for tx_id: %lu", tx_id);
     sp_tx->committed_ = true;
     DoCommit(*sp_tx);
   } else if (commit_or_abort == REJECT) {
+    Log_info("[REJECT] Scheduler received REJECT for tx_id: %lu", tx_id);
     sp_tx->aborted_ = true;
     DoAbort(*sp_tx);
   } else if (commit_or_abort == WRONG_LEADER) {
@@ -333,6 +346,7 @@ int SchedulerClassic::CommitReplicated(TpcCommitCommand& tpc_commit_cmd) {
     if (tpc_commit_cmd.sp_view_data_) {
       Log_info("[WRONG_LEADER] View data available in scheduler: %s", 
                tpc_commit_cmd.sp_view_data_->ToString().c_str());
+      sp_tx->sp_view_data_ = tpc_commit_cmd.sp_view_data_;
     } else {
       Log_info("[WRONG_LEADER] No view data available in scheduler for tx_id: %lu", tx_id);
     }

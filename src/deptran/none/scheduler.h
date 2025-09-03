@@ -27,9 +27,10 @@ class SchedulerNone: public SchedulerClassic {
     return false;
   }
 
-  virtual bool Dispatch(cmdid_t cmd_id,
+  virtual int32_t Dispatch(cmdid_t cmd_id,
                         shared_ptr<Marshallable> cmd,
-                        TxnOutput& ret_output) override;
+                        TxnOutput& ret_output,
+                        std::shared_ptr<ViewData>& view_data) override;
 
 };
 

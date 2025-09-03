@@ -60,6 +60,7 @@ class ClassicServiceImpl : public ClassicService {
                 int32_t* res,
                 TxnOutput* output,
                 uint64_t* coro_id,
+                MarshallDeputy* view_data,
                 DeferredReply* defer_reply) override;
 
   void FailoverPauseSocketOut(rrr::i32* res,

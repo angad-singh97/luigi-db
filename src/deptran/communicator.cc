@@ -14,6 +14,10 @@
 
 namespace janus {
 
+// Static member definitions
+std::map<parid_t, View> Communicator::partition_views_;
+std::mutex Communicator::partition_views_mutex_;
+
 /************************RULE begin*********************************/
 
 void RuleSpeculativeExecuteQuorumEvent::FeedResponse(bool y, value_t result, bool is_leader) {
@@ -61,7 +65,6 @@ Communicator::Communicator(PollMgr* poll_mgr) {
     rpc_poll_ = poll_mgr;
   auto config = Config::GetConfig();
   vector<parid_t> partitions = config->GetAllPartitionIds();
-	Log_info("size of partitions: %d", partitions.size());
   for (auto& par_id : partitions) {
     auto site_infos = config->SitesByPartitionId(par_id);
     vector<std::pair<siteid_t, ClassicProxy*>> proxies;
@@ -148,6 +151,7 @@ Communicator::RandomProxyForPartition(parid_t par_id) const {
 // @param idx: get the index of servers as the leader
 std::pair<siteid_t, ClassicProxy*>
 Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
+  
   if (idx > -1) { // Mencius
     auto it = rpc_par_proxies_.find(par_id);
     auto& partition_proxies = it->second;
@@ -158,8 +162,6 @@ Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
   // Check if we have a dynamic leader callback
   if (leader_callback_) {
     locid_t dynamic_leader = leader_callback_(par_id);
-    Log_info("[DYNAMIC_LEADER] Callback returned leader=%d for partition %d", 
-             dynamic_leader, par_id);
     
     if (dynamic_leader >= 0) {
       // Find the proxy for this leader
@@ -167,6 +169,8 @@ Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
       if (it != rpc_par_proxies_.end()) {
         auto& partition_proxies = it->second;
         auto config = Config::GetConfig();
+        
+        
         auto proxy_it = std::find_if(
             partition_proxies.begin(),
             partition_proxies.end(),
@@ -178,19 +182,43 @@ Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
         if (proxy_it != partition_proxies.end()) {
           // Update cache and return
           const_cast<Communicator*>(this)->leader_cache_[par_id] = *proxy_it;
-          Log_info("[DYNAMIC_LEADER] Found proxy for dynamic leader %d (site_id=%d) for partition %d", 
-                   dynamic_leader, proxy_it->first, par_id);
           return *proxy_it;
         } else {
-          Log_info("[DYNAMIC_LEADER] Could not find proxy for dynamic leader %d in partition %d, falling back to static", 
-                   dynamic_leader, par_id);
         }
       }
     } else {
-      Log_info("[DYNAMIC_LEADER] No dynamic leader known for partition %d, falling back to static", par_id);
     }
   }
 
+  // If no dynamic leader, first check partition views for updated leader info
+  locid_t view_leader = GetLeaderForPartition(par_id);
+  if (view_leader > 0) {
+    // We have a leader from the view, find the proxy for it
+    auto it = rpc_par_proxies_.find(par_id);
+    if (it != rpc_par_proxies_.end()) {
+      auto& partition_proxies = it->second;
+      auto config = Config::GetConfig();
+      
+      // Find the proxy for this leader locale_id
+      auto proxy_it = std::find_if(
+          partition_proxies.begin(),
+          partition_proxies.end(),
+          [config, view_leader](const std::pair<siteid_t, ClassicProxy*>& p) {
+            verify(p.second != nullptr);
+            auto& site = config->SiteById(p.first);
+            return site.locale_id == view_leader;
+          });
+      
+      if (proxy_it != partition_proxies.end()) {
+        // Update cache and return
+        const_cast<Communicator*>(this)->leader_cache_[par_id] = *proxy_it;
+        return *proxy_it;
+      } else {
+      }
+    }
+  }
+  
+  // Check the leader cache
   auto leader_cache =
       const_cast<map<parid_t, SiteProxyPair>&>(this->leader_cache_);
   auto leader_it = leader_cache.find(par_id);
@@ -213,7 +241,6 @@ Communicator::LeaderProxyForPartition(parid_t par_id, int idx) const {
       Log_fatal("could not find leader for partition %d", par_id);
     } else {
       leader_cache[par_id] = *proxy_it;
-      Log_debug("leader site for parition %d is %d", par_id, proxy_it->first);
     }
     verify(proxy_it->second != nullptr);
     return *proxy_it;
@@ -337,7 +364,6 @@ std::shared_ptr<QuorumEvent> Communicator::SendReelect(){
 					this->SetNewLeaderProxy(0, id);
 				}
 			};
-		for (int i = 0; i < 1000; i++) Log_info("sending reelect");
 		auto f = pair.second->async_ReElect(fuattr);
 		Future::safe_release(f);
 	}
@@ -354,17 +380,28 @@ void Communicator::BroadcastDispatch(
   cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
-
+  
   rrr::FutureAttr fuattr;
   fuattr.callback =
-      [coo, this, callback](Future* fu) {
+      [coo, this, callback, par_id](Future* fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
         }
         int32_t ret;
         TxnOutput outputs;
-        fu->get_reply() >> ret >> outputs;
+        uint64_t coro_id = 0;
+        MarshallDeputy view_md;
+        fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
+        
+        // Handle WRONG_LEADER response with view data
+        if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+          auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+          if (sp_view_data) {
+            UpdatePartitionView(par_id, sp_view_data);
+          }
+        }
+        
         callback(ret, outputs);
       };
   
@@ -384,8 +421,7 @@ void Communicator::BroadcastDispatch(
     pair_leader_proxy = LeaderProxyForPartition(par_id);
   }
   
-  SetLeaderCache(par_id, pair_leader_proxy) ;
-  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
+  SetLeaderCache(par_id, pair_leader_proxy);
   Log_debug("send dispatch to site %ld, par %d",
             pair_leader_proxy.first, par_id);
   auto proxy = pair_leader_proxy.second;
@@ -444,8 +480,7 @@ void Communicator::SyncBroadcastDispatch(
     pair_leader_proxy = LeaderProxyForPartition(par_id);
   }
   
-  SetLeaderCache(par_id, pair_leader_proxy) ;
-  // Log_info("Dispatch to %ld", pair_leader_proxy.first);
+  SetLeaderCache(par_id, pair_leader_proxy);
   Log_debug("send dispatch to site %ld, par %d",
             pair_leader_proxy.first, par_id);
   auto proxy = pair_leader_proxy.second;
@@ -474,8 +509,18 @@ void Communicator::SyncBroadcastDispatch(
   int32_t ret;
   TxnOutput outputs;
   uint64_t coro_id;
-  int32_t dispatch_error_code = proxy->Dispatch(cmd_id, di, md, &ret, &outputs, &coro_id);
+  MarshallDeputy view_md;
+  int32_t dispatch_error_code = proxy->Dispatch(cmd_id, di, md, &ret, &outputs, &coro_id, &view_md);
 	verify(dispatch_error_code == 0);
+  
+  // Handle WRONG_LEADER response with view data
+  if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+    auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+    if (sp_view_data) {
+      UpdatePartitionView(par_id, sp_view_data);
+    }
+  }
+  
   callback(ret, outputs);
 }
 
@@ -514,7 +559,7 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
     phase_t phase = coo->phase_;
     rrr::FutureAttr fuattr;
     fuattr.callback =
-        [e, coo, this, phase, txn, src_coroid, leader_id](Future* fu) {
+        [e, coo, this, phase, txn, src_coroid, leader_id, par_id](Future* fu) {
           if (fu->get_error_code() != 0) {
             Log_info("Get a error message in reply");
             return;
@@ -522,9 +567,10 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
           int32_t ret;
           TxnOutput outputs;
           uint64_t coro_id = 0;
+          MarshallDeputy view_md;
 	  			double cpu = 0.0;
 	  			double net = 0.0;
-          fu->get_reply() >> ret >> outputs >> coro_id;
+          fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
 
           e->value_++;
           if(phase != coo->phase_){
@@ -532,6 +578,19 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
 	    			e->Test();
 	  			}
           else{
+            // Handle WRONG_LEADER response with view data
+            if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+              auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+              if (sp_view_data) {
+                UpdatePartitionView(par_id, sp_view_data);
+              }
+              coo->aborted_ = true;
+              txn->commit_.store(false);
+              e->value_ = e->target_;
+              e->Test();
+              return;
+            }
+            
             if(ret == REJECT){
               coo->aborted_ = true;
               txn->commit_.store(false);
@@ -593,7 +652,8 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
                 int32_t ret;
                 TxnOutput outputs;
                 uint64_t coro_id = 0;
-                fu->get_reply() >> ret >> outputs >> coro_id;
+                MarshallDeputy view_md;
+                fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
                 //e->add_dep(coo->cli_id_, src_coroid, follower_id, coro_id);
                 //coo->ids_.push_back(follower_id);
                 // do nothing
@@ -1605,5 +1665,55 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastFinishRecovery(parid_t par
   return e;
 }
 
+void Communicator::UpdatePartitionView(parid_t partition_id, const std::shared_ptr<ViewData>& view_data) {
+  if (!view_data) {
+    Log_info("[COMMUNICATOR_VIEW] Received null view_data for partition %d", partition_id);
+    return;
+  }
+  
+  View view = view_data->view_;
+  
+  // Lock the mutex for thread-safe access
+  std::lock_guard<std::mutex> lock(partition_views_mutex_);
+  
+  // Check if we have an existing view
+  auto it = partition_views_.find(partition_id);
+  if (it != partition_views_.end()) {
+    // Only update if the new view is newer
+    if (view.timestamp_ > it->second.timestamp_) {
+      partition_views_[partition_id] = view;
+    }
+  } else {
+    // First view for this partition
+    partition_views_[partition_id] = view;
+  }
+  
+  // Note: We no longer update leader_cache_ here since each communicator instance
+  // should look up the leader from the global partition_views_ when needed
+}
+
+View Communicator::GetPartitionView(parid_t partition_id) {
+  std::lock_guard<std::mutex> lock(partition_views_mutex_);
+  auto it = partition_views_.find(partition_id);
+  if (it != partition_views_.end()) {
+    return it->second;
+  }
+  // Return empty view if not found
+  return View();
+}
+
+locid_t Communicator::GetLeaderForPartition(parid_t partition_id) {
+  View view = GetPartitionView(partition_id);
+  
+  if (!view.IsEmpty()) {
+    int leader = view.GetLeader();
+    if (leader >= 0) {
+      return leader;
+    }
+  }
+  
+  // Fall back to static leader if no view or invalid leader
+  return 0;
+}
 
 } // namespace janus

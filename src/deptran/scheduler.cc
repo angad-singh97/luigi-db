@@ -1017,6 +1017,16 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
 }
 
 void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
+  // Determine if this is tx_sched or rep_sched
+  const char* sched_type = "UNKNOWN";
+  if (rep_sched_ && this == rep_sched_) {
+    sched_type = "REP_SCHED";
+  } else if (!rep_sched_ || rep_sched_ != this) {
+    sched_type = "TX_SCHED";
+  }
+  
+  Log_info("[JETPACK-RECOVERY] DispatchRecoveredCommand called on %s TxLogServer %p (site_id=%d)", 
+           sched_type, this, site_id_);
 #ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Dispatching recovered command, kind=%d", cmd->kind_);
 #endif
@@ -1042,6 +1052,18 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
                vec_piece_data->sp_vec_piece_data_->size());
 #endif
       
+      // Get the partition ID from the pieces
+      auto par_id = vec_piece_data->sp_vec_piece_data_->at(0)->PartitionId();
+      
+      // The communicator's view should already be updated from OnJetpackBeginRecovery
+      // Double-check that we have the right view
+      auto comm = commo();
+      // Log_info("[JETPACK-RECOVERY] Using communicator %p (loc_id=%d) for recovery dispatch", 
+      //          comm, comm->loc_id_);
+      auto current_leader = comm->GetLeaderForPartition(par_id);
+      // Log_info("[JETPACK-RECOVERY] Dispatching to partition %d, current leader is %d", 
+      //          par_id, current_leader);
+      
       // Create a temporary coordinator for dispatching
       // Using a special coordinator ID for recovery operations
       auto coo = std::make_unique<CoordinatorClassic>(999999, // special ID for recovery
@@ -1052,17 +1074,29 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
       coo->par_id_ = partition_id_;
       
       // Set up callback to handle dispatch response
-      auto callback = [this](int res, TxnOutput& output) {
+      auto callback = [this, par_id](int res, TxnOutput& output) {
 #ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] Dispatch callback received, res=%d", res);
 #endif
+        if (res == WRONG_LEADER) {
+          // This shouldn't happen if we updated the view correctly during BeginRecovery
+          Log_error("[JETPACK-RECOVERY] Received WRONG_LEADER during recovery dispatch for partition %d. "
+                    "This indicates the view was not properly updated during BeginRecovery.", par_id);
+          // The BroadcastDispatch callback should have already updated the view
+        } else if (res == SUCCESS) {
+          Log_info("[JETPACK-RECOVERY] Command successfully dispatched during recovery");
+        } else if (res == REJECT) {
+          Log_info("[JETPACK-RECOVERY] Command rejected during recovery dispatch (expected if tx already processed)");
+        } else {
+          Log_warn("[JETPACK-RECOVERY] Dispatch failed with result: %d", res);
+        }
       };
       
       // Use BroadcastDispatch to send to the leader
-      commo()->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback);
+      comm->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback);
       
 #ifdef JETPACK_RECOVERY_DEBUG
-      Log_info("[JETPACK-RECOVERY] Command dispatched through communicator to find leader");
+      Log_info("[JETPACK-RECOVERY] Command dispatched through communicator to leader");
 #endif
     } else {
 #ifdef JETPACK_RECOVERY_DEBUG
@@ -1103,6 +1137,29 @@ void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Updated new_view from MarshallDeputy");
 #endif
+    
+    // Update the communicator's view immediately
+    if (commo_) {
+      auto my_comm = commo();
+      Log_info("[JETPACK-RECOVERY] This TxLogServer %p has communicator %p (loc_id=%d)", 
+               this, my_comm, my_comm ? my_comm->loc_id_ : -1);
+      if (my_comm) {
+        my_comm->UpdatePartitionView(partition_id_, sp_new_view_data);
+      }
+    }
+    
+    // // Also update rep_sched's communicator if different
+    // if (rep_sched_ && rep_sched_ != this && rep_sched_->commo_) {
+    //   auto rep_comm = rep_sched_->commo();
+    //   Log_info("[JETPACK-RECOVERY] Also updating rep_sched %p communicator %p (loc_id=%d)", 
+    //            rep_sched_, rep_comm, rep_comm ? rep_comm->loc_id_ : -1);
+    //   if (rep_comm) {
+    //     rep_comm->UpdatePartitionView(partition_id_, sp_new_view_data);
+    //   }
+    // }
+    
+    Log_info("[JETPACK-RECOVERY] Updated communicator view(s) for partition %d during BeginRecovery: %s", 
+             partition_id_, sp_new_view_data->GetView().ToString().c_str());
   } else {
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Warning: Could not extract new_view from MarshallDeputy");

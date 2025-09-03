@@ -14,6 +14,34 @@ CommunicatorRule::LeaderProxyForPartition(parid_t par_id, int idx) const {
     return ret;
   }
 
+  // First check if we have updated view information
+  locid_t view_leader = GetLeaderForPartition(par_id);
+  if (view_leader > 0) {
+    // We have a leader from the view, find the proxy for it
+    auto it = rpc_par_proxies_.find(par_id);
+    if (it != rpc_par_proxies_.end()) {
+      auto& partition_proxies = it->second;
+      auto config = Config::GetConfig();
+      
+      // Find the proxy for this leader locale_id
+      auto proxy_it = std::find_if(
+          partition_proxies.begin(),
+          partition_proxies.end(),
+          [config, view_leader](const std::pair<siteid_t, ClassicProxy*>& p) {
+            verify(p.second != nullptr);
+            auto& site = config->SiteById(p.first);
+            return site.locale_id == view_leader;
+          });
+      
+      if (proxy_it != partition_proxies.end()) {
+        vector<std::pair<siteid_t, ClassicProxy*>> ret;
+        ret.push_back(*proxy_it);
+        return ret;
+      }
+    }
+  }
+
+  // Fall back to static leader approach
   auto leader_cache =
       const_cast<map<parid_t, vector<SiteProxyPair>>&>(this->jetpack_leader_cache_);
 
@@ -166,14 +194,25 @@ void CommunicatorRule::BroadcastDispatch(
 
   rrr::FutureAttr fuattr;
   fuattr.callback =
-      [coo, this, callback](Future* fu) {
+      [coo, this, callback, par_id](Future* fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
         }
         int32_t ret;
         TxnOutput outputs;
-        fu->get_reply() >> ret >> outputs;
+        uint64_t coro_id = 0;
+        MarshallDeputy view_md;
+        fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
+        
+        // Handle WRONG_LEADER response with view data
+        if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+          auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+          if (sp_view_data) {
+            UpdatePartitionView(par_id, sp_view_data);
+          }
+        }
+        
         callback(ret, outputs);
       };
   

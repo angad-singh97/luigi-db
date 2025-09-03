@@ -55,6 +55,7 @@ class Tx: public enable_shared_from_this<Tx> {
   // TODO at most one active coroutine runnable for a tx at a time
 //  IntEvent running_{};
   shared_ptr<Marshallable> cmd_{};
+  shared_ptr<ViewData> sp_view_data_ = nullptr;
 
 
 #ifdef CHECK_ISO

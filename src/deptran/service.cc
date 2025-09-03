@@ -65,6 +65,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
                                   int32_t* res,
                                   TxnOutput* output,
                                   uint64_t* coro_id,
+                                  MarshallDeputy* view_data,
                                   rrr::DeferredReply* defer) {
   // usleep(20000);
 
@@ -103,10 +104,21 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 #endif
 	//Log_info("CreateRunning2");
   // Coroutine::CreateRun([cmd_id, sp, output, res, coro_id, this, defer]() {
-    *res = SUCCESS;
-    if (!dtxn_sched()->Dispatch(cmd_id, sp, *output)) {
-      *res = REJECT;
+    std::shared_ptr<ViewData> view;
+    *res = dtxn_sched()->Dispatch(cmd_id, sp, *output, view);
+    
+    // Set the view data in the output parameter
+    if (view) {
+      view_data->SetMarshallable(view);
+      // if (*res == WRONG_LEADER) {
+      //   Log_info("[DISPATCH_SERVICE] Attached view data for WRONG_LEADER: %s", view->ToString().c_str());
+      // }
+    } else {
+      // Initialize with empty view data if not set
+      view_data->SetMarshallable(std::make_shared<ViewData>());
     }
+    
+    // Log_info("[DISPATCH_SERVICE] Returning res=%d for cmd_id: 0x%lx", *res, cmd_id);
     *coro_id = Coroutine::CurrentCoroutine()->id;
     defer->reply();
   // }, __FILE__, cmd_id);
@@ -267,21 +279,37 @@ void ClassicServiceImpl::Commit(const rrr::i64& tid,
   //std::lock_guard<std::mutex> guard(mtx_);
   const auto& func = [tid, res, slow, coro_id, dep_id, profile, view_data, defer, this]() {
     auto sched = (SchedulerClassic*) dtxn_sched_;
-    sched->OnCommit(tid, dep_id, SUCCESS);
+    int ret = sched->OnCommit(tid, dep_id, SUCCESS);
+    
     std::vector<double> result = rrr::CPUInfo::cpu_stat();
     *profile = {result[0], result[1], result[2], result[3]};
 		//*profile = {0.0, 0.0, 0.0, 0.0};
 		//Log_info("slow2: %d", sched->slow_);
 		*slow = sched->slow_;
-    *res = SUCCESS;
     *coro_id = Coroutine::CurrentCoroutine()->id;
     
-    // Set view data from replication scheduler if available
-    if (sched->rep_sched_ != nullptr) {
-      view_data->SetMarshallable(std::make_shared<ViewData>(sched->rep_sched_->new_view_));
+    if (ret == WRONG_LEADER) {
+      *res = WRONG_LEADER;
+      Log_info("[WRONG_LEADER] ServiceImpl::Commit returning WRONG_LEADER for tx_id: %lu", tid);
+      // Get view data from the transaction or command
+      auto sp_tx = dynamic_pointer_cast<TxClassic>(sched->GetTx(tid));
+      if (sp_tx && sp_tx->cmd_) {
+        auto tx_data = dynamic_cast<TxData*>(sp_tx->cmd_.get());
+        if (tx_data && tx_data->reply_.sp_view_data_) {
+          view_data->SetMarshallable(tx_data->reply_.sp_view_data_);
+          Log_info("[WRONG_LEADER] ServiceImpl::Commit attached view data: %s", 
+                   tx_data->reply_.sp_view_data_->ToString().c_str());
+        }
+      }
     } else {
-      // If no replication scheduler, set an empty ViewData
-      view_data->SetMarshallable(std::make_shared<ViewData>());
+      *res = SUCCESS;
+      // Set view data from replication scheduler if available
+      if (sched->rep_sched_ != nullptr) {
+        view_data->SetMarshallable(std::make_shared<ViewData>(sched->rep_sched_->new_view_));
+      } else {
+        // If no replication scheduler, set an empty ViewData
+        view_data->SetMarshallable(std::make_shared<ViewData>());
+      }
     }
     
     defer->reply();
@@ -387,9 +415,7 @@ void ClassicServiceImpl::CarouselReadAndPrepare(const i64& cmd_id,
 	DepId di;
 	di.str = "dep";
 	di.id = 0;
-  if (!sched->Dispatch(cmd_id, di, sp, *output)) {
-    *res = REJECT;
-  }
+  *res = sched->Dispatch(cmd_id, di, sp, *output);
   if (*res == SUCCESS) {
     std::vector<i32> sids;
     if (leader) {

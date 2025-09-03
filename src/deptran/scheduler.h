@@ -472,11 +472,12 @@ class TxLogServer {
                  mdb::Table *tbl
   );
 
-  virtual bool Dispatch(cmdid_t cmd_id,
+  virtual int32_t Dispatch(cmdid_t cmd_id,
                         shared_ptr<Marshallable> cmd,
-                        TxnOutput& ret_output) {
+                        TxnOutput& ret_output,
+                        std::shared_ptr<ViewData>& view_data) {
     verify(0);
-    return false;
+    return REJECT;
   }
 
   void RegLearnerAction(function<void(Marshallable &)> learner_action) {

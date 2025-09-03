@@ -91,9 +91,6 @@ class ClientWorker {
 
   OneArmedBandit one_armed_bandit_; // For fast path attempt prediction
   
-  // Dynamic view tracking for each partition
-  std::map<parid_t, View> partition_views_;
-  std::mutex partition_views_mutex_;
 
  public:
   ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
@@ -113,11 +110,6 @@ class ClientWorker {
   void Resume(locid_t locid);
   Coordinator* CreateFailCtrlCoordinator();
   void AcceptForwardedRequest(TxRequest &request, TxReply* txn_reply, rrr::DeferredReply* defer);
-  
-  // View management methods
-  void UpdatePartitionView(parid_t partition_id, const View& view);
-  View GetPartitionView(parid_t partition_id);
-  locid_t GetLeaderForPartition(parid_t partition_id);
 
  protected:
   Coordinator* CreateCoordinator(uint16_t offset_id);

@@ -297,6 +297,7 @@ void CoordinatorClassic::DispatchAsync(bool last) {
   n_pd = 100;
   auto cmds_by_par = txn->GetReadyPiecesData(n_pd); // TODO setting n_pd larger than 1 will cause 2pl to wait forever
   Log_debug("Dispatch for tx_id: %" PRIx64, txn->root_id_);
+  
   for (auto& pair: cmds_by_par){
     auto& cmds = pair.second;
     n_dispatch_ += cmds.size();
@@ -351,6 +352,19 @@ void CoordinatorClassic::DispatchAck(phase_t phase,
     aborted_ = true;
     txn->commit_.store(false);
     // Log_info("DispatchAck Reject CoroutineID %d %d", Coroutine::CurrentCoroutine()->id, Coroutine::CurrentCoroutine()->global_id);
+    GotoNextPhase();
+    return;
+  } else if (res == WRONG_LEADER) {
+    Log_info("[WRONG_LEADER] DispatchAck received WRONG_LEADER for tx_id: %lu", txn->id_);
+    aborted_ = true;
+    txn->commit_.store(false);
+    txn->reply_.res_ = WRONG_LEADER;
+    // For None mode, we need to check if we can get view data from the transaction
+    // The view data should have been set by the scheduler
+    if (txn->reply_.sp_view_data_) {
+      Log_info("[WRONG_LEADER] DispatchAck has view data: %s", 
+               txn->reply_.sp_view_data_->ToString().c_str());
+    }
     GotoNextPhase();
     return;
   }
@@ -666,6 +680,7 @@ void CoordinatorClassic::End() {
   TxData* tx_data = (TxData*) cmd_;
   TxReply& tx_reply_buf = tx_data->get_reply();
   double last_latency = tx_data->last_attempt_latency();
+  
   if (committed_) {
     if (!commit_reported_) {
       tx_data->reply_.res_ = SUCCESS;

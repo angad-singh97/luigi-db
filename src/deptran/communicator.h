@@ -305,6 +305,10 @@ class Communicator {
   unordered_map<uint64_t, pair<rrr::i64, rrr::i64>> outbound_{};
 	map<uint64_t, double> lat_util_{};
   locid_t leader_ = 0;
+  
+  // Global view tracking for all partitions (shared across all communicators)
+  static std::map<parid_t, View> partition_views_;
+  static std::mutex partition_views_mutex_;
 	int outbound = 0;
 	int outbounds[100];
 	int ob_index = 0;
@@ -361,6 +365,11 @@ class Communicator {
   locid_t GenerateNewLeaderId(parid_t par_id) {
     return leader_cache_[par_id].first = leader_cache_[par_id].first + 1;
   };
+  
+  // View management methods (static for global access)
+  static void UpdatePartitionView(parid_t partition_id, const std::shared_ptr<ViewData>& view_data);
+  static View GetPartitionView(parid_t partition_id);
+  static locid_t GetLeaderForPartition(parid_t partition_id);
   std::pair<int, ClassicProxy*> ConnectToSite(Config::SiteInfo &site,
                                               std::chrono::milliseconds timeout_ms);
   ClientSiteProxyPair ConnectToClientSite(Config::SiteInfo &site,

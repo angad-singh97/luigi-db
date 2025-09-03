@@ -45,17 +45,28 @@ void CommunicatorNoneCopilot::BroadcastDispatch(shared_ptr<vector<shared_ptr<Sim
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
   rrr::FutureAttr fuattr;
-  fuattr.callback = [coo, this, callback](Future *fu) {
+  fuattr.callback = [coo, this, callback, par_id](Future *fu) {
     if (fu->get_error_code() != 0) {
       Log_info("Get a error message in reply");
       return;
     }
     int32_t ret;
     TxnOutput outputs;
-    fu->get_reply() >> ret >> outputs;
+    uint64_t coro_id = 0;
+    MarshallDeputy view_md;
+    fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
     n_pending_rpc_[0]--;
     verify(n_pending_rpc_[0] >= 0);
     dispatch_quota.Set(dispatch_quota.value_ + 1);
+    
+    // Handle WRONG_LEADER response with view data
+    if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+      auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+      if (sp_view_data) {
+        UpdatePartitionView(par_id, sp_view_data);
+      }
+    }
+    
     callback(ret, outputs);
   };
   // auto pair_leader_proxy = LeaderProxyForPartition(par_id);
@@ -89,17 +100,28 @@ void CommunicatorNoneCopilot::BroadcastDispatch(shared_ptr<vector<shared_ptr<Sim
   }
 
   rrr::FutureAttr fu2;
-  fu2.callback = [coo, this, callback](Future *fu) {
+  fu2.callback = [coo, this, callback, par_id](Future *fu) {
     if (fu->get_error_code() != 0) {
       Log_info("Get a error message in reply");
       return;
     }
     int32_t ret;
     TxnOutput outputs;
-    fu->get_reply() >> ret >> outputs;
+    uint64_t coro_id = 0;
+    MarshallDeputy view_md;
+    fu->get_reply() >> ret >> outputs >> coro_id >> view_md;
     n_pending_rpc_[1]--;
     verify(n_pending_rpc_[1] >= 0);
     dispatch_quota.Set(dispatch_quota.value_ + 1);
+    
+    // Handle WRONG_LEADER response with view data
+    if (ret == WRONG_LEADER && view_md.sp_data_ != nullptr) {
+      auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
+      if (sp_view_data) {
+        UpdatePartitionView(par_id, sp_view_data);
+      }
+    }
+    
     callback(ret, outputs);
   };
 

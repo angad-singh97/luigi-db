@@ -122,7 +122,6 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
 
 #endif
     client_threads_g.push_back(std::move(th_));
-    Log_info("!!!!!!! Before client_workers_g.push_back");
     client_workers_g.push_back(std::unique_ptr<ClientWorker>(worker));
   }
 
@@ -604,7 +603,6 @@ int main(int argc, char *argv[]) {
     Log_info("no servers on this process");
   }
 
-  Log_info("!!!!!!!!!! before if (!client_infos.empty()) %d", !client_infos.empty());
   if (!client_infos.empty()) {
     //client_setup_heartbeat(client_infos.size());
 #ifdef AWS
