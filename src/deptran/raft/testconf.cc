@@ -453,6 +453,8 @@ void RaftTestConfig::netctlLoop(void) {
     // change unreliable state every 0.1s
     usleep(100000);
     lk.unlock();
+    usleep(10000);
+
     // cv_m_ unlocked state 2 (unreliable_ == true && finished_ == false)
     lk.lock();
   }
