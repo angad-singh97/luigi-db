@@ -718,8 +718,8 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
   // Set up dynamic leader callback for the communicator
   commo_->SetLeaderCallback([this](parid_t par_id) {
     locid_t leader = commo_->GetLeaderForPartition(par_id);
-    Log_info("[CLIENT_CALLBACK] GetLeaderForPartition(%d) returned %d on communicator %p", 
-             par_id, leader, commo_);
+    // Log_info("[CLIENT_CALLBACK] GetLeaderForPartition(%d) returned %d on communicator %p", 
+    //          par_id, leader, commo_);
     return leader;
   });
   

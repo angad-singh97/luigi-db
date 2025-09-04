@@ -69,8 +69,8 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     func();
     return;
   } else {
-    Log_info("[YYYYY] Submit to loc_id %d, which is leader. Command kind=%d, is_recovery=%d", 
-             loc_id_, cmd ? cmd->kind_ : -1, SimpleRWCommand(cmd).IsRecoveryCommand());
+    // Log_info("[YYYYY] Submit to loc_id %d, which is leader. Command kind=%d, is_recovery=%d", 
+    //          loc_id_, cmd ? cmd->kind_ : -1, SimpleRWCommand(cmd).IsRecoveryCommand());
   }
 	std::lock_guard<std::recursive_mutex> lock(mtx_);
 
