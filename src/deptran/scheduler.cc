@@ -956,6 +956,14 @@ void TxLogServer::JetpackCommit(int commit_sid, int commit_set_size) {
 void TxLogServer::JetpackResubmit(int sid, int set_size) {
   Log_info("[JETPACK-RECOVERY] Step 7: Starting resubmit process for sid=%d with %d commands", sid, set_size);
   
+  // Create an event to track all recovery dispatches
+  shared_ptr<IntEvent> recovery_event = nullptr;
+  if (set_size > 0) {
+    recovery_event = Reactor::CreateSpEvent<IntEvent>(set_size);
+    // Log_info("[JETPACK-RECOVERY-EVENT] Created recovery event: target=%d, initial value=%d, event_ptr=%p", 
+    //          recovery_event->target_, recovery_event->value_, recovery_event.get());
+  }
+  
   // For committed (sid, set_size) pair, ensure all positions exist locally
   for (int rid = 0; rid < set_size; rid++) {
     auto cmd = rec_set_.get(sid, rid);
@@ -987,24 +995,31 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
     }
     
     // Resubmit command via broadcast dispatch to find leader
-    if (cmd) {
+    verify(cmd != nullptr); // Command must exist after pull attempt
+    
 #ifdef JETPACK_RECOVERY_DEBUG
-      Log_info("[JETPACK-RECOVERY] Resubmitting command for sid=%d, rid=%d via broadcast dispatch", sid, rid);
+    Log_info("[JETPACK-RECOVERY] Resubmitting command for sid=%d, rid=%d via broadcast dispatch", sid, rid);
 #endif
-      
-      // Use the new dispatch method that will find the leader
-      DispatchRecoveredCommand(cmd);
-      
-      // Note: We don't wait for completion here as recovered commands will be
-      // processed asynchronously through the dispatch pipeline
+    
+    // Use the new dispatch method that will find the leader
+    DispatchRecoveredCommand(cmd, recovery_event);
+    
 #ifdef JETPACK_RECOVERY_DEBUG
-      Log_info("[JETPACK-RECOVERY] Command dispatched for sid=%d, rid=%d", sid, rid);
+    Log_info("[JETPACK-RECOVERY] Command dispatched for sid=%d, rid=%d", sid, rid);
 #endif
-    } else {
-#ifdef JETPACK_RECOVERY_DEBUG
-      Log_info("[JETPACK-RECOVERY] No command found for sid=%d, rid=%d, skipping resubmit", sid, rid);
-#endif
-    }
+  }
+  
+  // Wait for all recovery dispatches to complete
+  if (recovery_event && recovery_event->target_ > 0) {
+    // Log_info("[JETPACK-RECOVERY-EVENT] Starting Wait(): current value=%d, target=%d", 
+    //          recovery_event->value_, recovery_event->target_);
+    auto start_time = std::chrono::steady_clock::now();
+    recovery_event->Wait();
+    auto end_time = std::chrono::steady_clock::now();
+    auto wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    Log_info("[JETPACK-RECOVERY-EVENT] Wait() completed after %ldms. Final value=%d, target=%d", 
+             wait_duration, recovery_event->value_, recovery_event->target_);
+    Log_info("[JETPACK-RECOVERY] All recovery completed");
   }
   
   Log_info("[JETPACK-RECOVERY] Step 8: Broadcasting FinishRecovery to complete recovery");
@@ -1016,7 +1031,7 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
   Log_info("[JETPACK-RECOVERY] FinishRecovery broadcast completed, fast path restored");
 }
 
-void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
+void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_ptr<IntEvent> recovery_event) {
   // Determine if this is tx_sched or rep_sched
   const char* sched_type = "UNKNOWN";
   if (rep_sched_ && this == rep_sched_) {
@@ -1047,13 +1062,18 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
   if (inner_cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
     auto vec_piece_data = dynamic_pointer_cast<VecPieceData>(inner_cmd);
     if (vec_piece_data && vec_piece_data->sp_vec_piece_data_) {
+      // Mark this as a recovery command
+      vec_piece_data->is_recovery_command_ = true;
+      Log_info("[JETPACK-RECOVERY] Marked VecPieceData as recovery command");
+      
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Dispatching VecPieceData with %zu pieces", 
                vec_piece_data->sp_vec_piece_data_->size());
 #endif
       
-      // Get the partition ID from the pieces
+      // Get the partition ID and command ID from the pieces
       auto par_id = vec_piece_data->sp_vec_piece_data_->at(0)->PartitionId();
+      auto cmd_id = vec_piece_data->sp_vec_piece_data_->at(0)->root_id_;
       
       // The communicator's view should already be updated from OnJetpackBeginRecovery
       // Double-check that we have the right view
@@ -1074,7 +1094,7 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
       coo->par_id_ = partition_id_;
       
       // Set up callback to handle dispatch response
-      auto callback = [this, par_id](int res, TxnOutput& output) {
+      auto callback = [this, par_id, recovery_event, cmd_id](int res, TxnOutput& output) {
 #ifdef JETPACK_RECOVERY_DEBUG
         Log_info("[JETPACK-RECOVERY] Dispatch callback received, res=%d", res);
 #endif
@@ -1084,11 +1104,23 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd) {
                     "This indicates the view was not properly updated during BeginRecovery.", par_id);
           // The BroadcastDispatch callback should have already updated the view
         } else if (res == SUCCESS) {
-          Log_info("[JETPACK-RECOVERY] Command successfully dispatched during recovery");
+          // Log_info("[JETPACK-RECOVERY] Command successfully dispatched during recovery");
         } else if (res == REJECT) {
           Log_info("[JETPACK-RECOVERY] Command rejected during recovery dispatch (expected if tx already processed)");
         } else {
           Log_warn("[JETPACK-RECOVERY] Dispatch failed with result: %d", res);
+        }
+        
+        // Signal that this recovery dispatch is complete
+        if (recovery_event) {
+          int old_value = recovery_event->value_;
+          // Log_info("[JETPACK-RECOVERY-EVENT] About to increment recovery_event: current value=%d, target=%d, partition=%d, res=%d", 
+          //          old_value, recovery_event->target_, par_id, res);
+          // Log_info("[JETPACK-RECOVERY-EVENT] This increment is happening in BroadcastDispatch callback (dispatch ACK received)");
+          recovery_event->Set(old_value + 1);
+          Log_info("[JETPACK-RECOVERY-EVENT] After increment: new value=%d, target=%d. Event ready=%s", 
+                   recovery_event->value_, recovery_event->target_, 
+                   recovery_event->IsReady() ? "YES" : "NO");
         }
       };
       

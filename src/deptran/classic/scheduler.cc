@@ -307,6 +307,7 @@ void SchedulerClassic::DoAbort(Tx& tx_box) {
 int SchedulerClassic::CommitReplicated(TpcCommitCommand& tpc_commit_cmd) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto tx_id = tpc_commit_cmd.tx_id_;
+  // Log_info("[EXECUTION] CommitReplicated called for tx_id: %lu (This is actual execution)", tx_id);
   auto sp_tx = dynamic_pointer_cast<TxClassic>(GetOrCreateTx(tx_id));
   /**
    * In Copilot, the same cmd commits twice, one in pilot log, another

@@ -155,6 +155,7 @@ class VecPieceData : public Marshallable {
   // TODO move shared_ptr into the vector.
   shared_ptr<vector<shared_ptr<SimpleCommand>>> sp_vec_piece_data_{};
   double time_sent_from_client_ = -1e9; // <0 means null, unit is ms
+  bool_t is_recovery_command_ = false; // Flag to indicate this is a recovery command
   VecPieceData() : Marshallable(MarshallDeputy::CMD_VEC_PIECE) {
 
   }
@@ -166,6 +167,7 @@ class VecPieceData : public Marshallable {
       m << *sp;
     }
     m << time_sent_from_client_;
+    m << is_recovery_command_;
 //    m << *sp_vec_piece_data_;
     return m;
   }
@@ -181,6 +183,7 @@ class VecPieceData : public Marshallable {
       sp_vec_piece_data_->push_back(x);
     }
     m >> time_sent_from_client_;
+    m >> is_recovery_command_;
 //    m >> *sp_vec_piece_data_;
     return m;
   }

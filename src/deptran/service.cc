@@ -102,25 +102,37 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
 #ifndef ZERO_OVERHEAD
   dtxn_sched()->OriginalPathUnexecutedCmdConflictPlaceHolder(sp);
 #endif
-	//Log_info("CreateRunning2");
-  // Coroutine::CreateRun([cmd_id, sp, output, res, coro_id, this, defer]() {
-    std::shared_ptr<ViewData> view;
-    *res = dtxn_sched()->Dispatch(cmd_id, sp, *output, view);
-    
-    // Set the view data in the output parameter
-    if (view) {
-      view_data->SetMarshallable(view);
-      // if (*res == WRONG_LEADER) {
-      //   Log_info("[DISPATCH_SERVICE] Attached view data for WRONG_LEADER: %s", view->ToString().c_str());
-      // }
-    } else {
-      // Initialize with empty view data if not set
-      view_data->SetMarshallable(std::make_shared<ViewData>());
+  
+  // Check if this is a recovery command
+  bool is_recovery = false;
+  if (sp && sp->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
+    auto vec_piece_data = dynamic_pointer_cast<VecPieceData>(sp);
+    if (vec_piece_data && vec_piece_data->is_recovery_command_) {
+      is_recovery = true;
+      Log_info("[DISPATCH_SERVICE] Received recovery command for cmd_id: 0x%lx", cmd_id);
     }
-    
-    // Log_info("[DISPATCH_SERVICE] Returning res=%d for cmd_id: 0x%lx", *res, cmd_id);
-    *coro_id = Coroutine::CurrentCoroutine()->id;
-    defer->reply();
+  }
+  
+  // For recovery commands, we need to wait for execution completion
+  if (is_recovery) {
+    // TODO: Implement synchronous execution wait for recovery commands
+    // For now, log a warning that this is not yet implemented
+    Log_warn("[DISPATCH_SERVICE] Recovery command synchronous execution not yet implemented, using async");
+  }
+  
+  std::shared_ptr<ViewData> view;
+  *res = dtxn_sched()->Dispatch(cmd_id, sp, *output, view);
+  
+  // Set the view data in the output parameter
+  if (view) {
+    view_data->SetMarshallable(view);
+  } else {
+    // Initialize with empty view data if not set
+    view_data->SetMarshallable(std::make_shared<ViewData>());
+  }
+  
+  *coro_id = Coroutine::CurrentCoroutine()->id;
+  defer->reply();
   // }, __FILE__, cmd_id);
   // auto func = [cmd_id, sp, output, dep_id, res, coro_id, this, defer]() {
   //   *res = SUCCESS;

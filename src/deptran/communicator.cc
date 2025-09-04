@@ -401,7 +401,6 @@ void Communicator::BroadcastDispatch(
             UpdatePartitionView(par_id, sp_view_data);
           }
         }
-        
         callback(ret, outputs);
       };
   

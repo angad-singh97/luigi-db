@@ -577,7 +577,7 @@ class TxLogServer {
   void JetpackCommit(int sid, int set_size);
 
   void JetpackResubmit(int sid, int set_size);
-  void DispatchRecoveredCommand(shared_ptr<Marshallable> cmd);
+  void DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_ptr<IntEvent> recovery_event = nullptr);
   
   void OnJetpackBeginRecovery(const MarshallDeputy& old_view,
                               const MarshallDeputy& new_view, 

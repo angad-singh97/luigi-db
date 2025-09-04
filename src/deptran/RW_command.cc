@@ -30,15 +30,18 @@ SimpleRWCommand::SimpleRWCommand(shared_ptr<Marshallable> cmd): Marshallable(Mar
     verify(batch_cmd->Size() == 1);
     shared_ptr<TpcCommitCommand> tpc_cmd = batch_cmd->cmds_[0];
     VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    is_recovery_command_ = cmd_cast->is_recovery_command_;
     sp_vec_piece = cmd_cast->sp_vec_piece_data_;
     vector0 = *(sp_vec_piece->begin());
   } else if (likely(cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT)) {
     shared_ptr<TpcCommitCommand> tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
     VecPieceData *cmd_cast = (VecPieceData*)(tpc_cmd->cmd_.get());
+    is_recovery_command_ = cmd_cast->is_recovery_command_;
     sp_vec_piece = cmd_cast->sp_vec_piece_data_;
     vector0 = *(sp_vec_piece->begin());
   } else if (cmd->kind_ == MarshallDeputy::CMD_VEC_PIECE) {
     shared_ptr<VecPieceData> cmd_cast = dynamic_pointer_cast<VecPieceData>(cmd);
+    is_recovery_command_ = cmd_cast->is_recovery_command_;
     sp_vec_piece = cmd_cast->sp_vec_piece_data_;
     vector0 = *(sp_vec_piece->begin());
   } else if (cmd->kind_ == MarshallDeputy::CONTAINER_CMD) {
@@ -133,6 +136,10 @@ bool SimpleRWCommand::IsRead() {
 
 bool SimpleRWCommand::IsWrite() {
   return type_ == RW_BENCHMARK_W_TXN || type_ == RW_BENCHMARK_W_TXN_0;
+}
+
+bool SimpleRWCommand::IsRecoveryCommand() {
+  return is_recovery_command_;
 }
 
 pair<int32_t, int32_t> SimpleRWCommand::GetCmdID(shared_ptr<Marshallable> cmd) {
