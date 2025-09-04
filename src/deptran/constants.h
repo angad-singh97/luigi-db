@@ -165,7 +165,7 @@ namespace janus {
 // #define RAFT_BATCH_OPTIMIZATION
 // #endif
 
-#define RAFT_BATCH_OPTIMIZATION
+// #define RAFT_BATCH_OPTIMIZATION
 
 // #define JETPACK_RECOVERY_DEBUG
 
