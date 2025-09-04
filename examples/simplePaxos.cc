@@ -5,6 +5,7 @@
 #include <thread>
 #include <unordered_map>
 #include <mutex>
+#include <atomic>
 #include <mako.hh>
 #include <examples/common.h>
 
@@ -95,7 +96,7 @@ int main(int argc, char **argv) {
         std::cout << "notify a new leader is elected! I'm " << paxos_proc_name << ", control: " << control << "\n";
     });
 
-    int lCnt = 0, fCnt = 0;
+    std::atomic<int> lCnt(0), fCnt(0);
     for (size_t i = 0; i < num_workers; i++) {
         counters[i] = 0;
 
