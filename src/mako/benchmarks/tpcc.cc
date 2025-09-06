@@ -3757,26 +3757,6 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
   if (run==1){
     ((tpcc_bench_runner*)rc)->run();
     ((tpcc_bench_runner*)rc)->cleanup();
-    
-    if (BenchmarkConfig::getInstance().getIsReplicated()) {
-      Warning("######--------------###### send endLlogs #####---------------######");
-      std::string endLogInd = "";
-      for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
-          add_log_to_nc((char *)endLogInd.c_str(), 0, i);
-
-      // vector<std::thread> wait_threads;
-      // for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
-      // {
-      //     wait_threads.push_back(std::thread([i]() {
-      //        std::cout << "starting wait for par_id: " << i << std::endl;
-      //        wait_for_submit(i); 
-      //     }));
-      // }
-      // for (auto &th : wait_threads)
-      // {
-      //     th.join();
-      // }
-    }
     return rc; // rc is same object as r below
   }
   if (TThread::get_is_micro()) {

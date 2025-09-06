@@ -139,45 +139,9 @@ main(int argc, char **argv)
   benchConfig.setIsReplicated(is_replicated);
   benchConfig.setPaxosConfigFile(paxos_config_file);
   
-  // Setup callbacks
-  setup_sync_util_callbacks();
-
-  if (benchConfig.getIsReplicated())  { // failures handling callbacks
-    setup_transport_callbacks();
-    setup_leader_election_callbacks();
-  }
-
-  // tpool_mbta is db-instance wrapper if replicated is enabled && on followers/learners
-  TSharedThreadPoolMbta tpool_mbta (benchConfig.getNthreads()+1);
-  if (!benchConfig.getLeaderConfig()) {
-    abstract_db * db = tpool_mbta.getDBWrapper(benchConfig.getNthreads())->getDB () ;
-    // pre-initialize all tables to avoid table creation data race
-    for (int i=0;i<((size_t)benchConfig.getScaleFactor())*11+1;i++) {
-      db->open_index(i+1);
-    }
-  }
-
-  if (BenchmarkConfig::getInstance().getIsReplicated()) {
-    char** argv_paxos = prepare_paxos_args(benchConfig.getPaxosConfigFile(), benchConfig.getPaxosProcName());
-    std::vector<std::string> ret = setup(18, argv_paxos);
-    if (ret.empty()) {
-      return -1;
-    }
-
-    // Setup Paxos callbacks have to be after setup() is called
-    setup_paxos_leader_callbacks(benchConfig.getAdvanceWatermarkTracker());
-    setup_paxos_follower_callbacks(tpool_mbta);
-
-    int ret2 = setup2(0, benchConfig.getShardIndex());
-    sleep(3); // ensure that all get started
-
-    // start a monitor on learner
-    if (benchConfig.getCluster().compare(mako::LEARNER_CENTER)==0) { // learner cluster
-      abstract_db * db = tpool_mbta.getDBWrapper(benchConfig.getNthreads())->getDB () ;
-      bench_runner *r = start_workers_tpcc(1, db, benchConfig.getNthreads(), true);
-      modeMonitor(db, benchConfig.getNthreads(), r) ;
-    }
-  }
+  // This variable is accessible until program ends as follower replays uses it
+  TSharedThreadPoolMbta replicated_db (benchConfig.getNthreads()+1);
+  init_env(replicated_db) ;
 
   abstract_db * db = initWithDB();
   // Run worker threads on the leader
@@ -185,13 +149,6 @@ main(int argc, char **argv)
     run_workers(db);
   }
 
-  // Wait for termination if not a leader
-  if (!benchConfig.getLeaderConfig()) {
-    wait_for_termination();
-  }
-
-  // Cleanup and shutdown
-  cleanup_and_shutdown();
-
+  db_close() ;
   return 0;
 }

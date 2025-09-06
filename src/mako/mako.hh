@@ -121,7 +121,7 @@ static abstract_db* initWithDB() {
 }
 
 
-static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, int thread_id)
+static void register_paxos_follower_callback(TSharedThreadPoolMbta& replicated_db, int thread_id)
 {
   if (!BenchmarkConfig::getInstance().getIsReplicated()) { return ; }
   //transport::ShardAddress addr = config->shard(shardIndex, mako::LEARNER_CENTER);
@@ -130,7 +130,7 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& tpool_mbta, 
     //Warning("receive a register_for_follower_par_id_return, par_id:%d, slot_id:%d,len:%d",par_id, slot_id,len);
     int status = mako::PaxosStatus::STATUS_INIT;
     uint32_t timestamp = 0;  // Track timestamp for return value encoding
-    abstract_db * db = tpool_mbta.getDBWrapper(par_id)->getDB () ;
+    abstract_db * db = replicated_db.getDBWrapper(par_id)->getDB () ;
     bool noops = false;
 
     if (len==mako::ADVANCER_MARKER_NUM) { // start a advancer
@@ -363,11 +363,11 @@ static void setup_paxos_leader_callbacks(vector<pair<uint32_t, uint32_t>>& advan
   }
 }
 
-static void setup_paxos_follower_callbacks(TSharedThreadPoolMbta& tpool_mbta)
+static void setup_paxos_follower_callbacks(TSharedThreadPoolMbta& replicated_db)
 {
   if (!BenchmarkConfig::getInstance().getIsReplicated()) { return ; }
     for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++) {
-      register_paxos_follower_callback(tpool_mbta, i);
+      register_paxos_follower_callback(replicated_db, i);
     }
 }
 
@@ -636,6 +636,85 @@ static char** prepare_paxos_args(const vector<string>& paxos_config_file,
   return argv_paxos;
 }
 
+static void init_env(TSharedThreadPoolMbta& replicated_db) {
+  auto& benchConfig = BenchmarkConfig::getInstance();
 
+  // Setup callbacks
+  setup_sync_util_callbacks();
+
+  if (BenchmarkConfig::getInstance().getIsReplicated()) {
+    // failures handling callbacks
+    setup_transport_callbacks();
+    setup_leader_election_callbacks();
+
+    // replicated_db is db-instance wrapper if replicated is enabled && on followers/learners
+    if (!benchConfig.getLeaderConfig()) {
+      abstract_db * db = replicated_db.getDBWrapper(benchConfig.getNthreads())->getDB () ;
+      // pre-initialize all tables to avoid table creation data race
+      // tpcc: benchCOnfig.getScaleFactor()*11+1
+      int max_preallocate_opened = ((size_t)benchConfig.getScaleFactor())*11+1;
+      for (int i=0;i<max_preallocate_opened;i++) {
+        db->open_index(i+1);
+      }
+    }
+
+    char** argv_paxos = prepare_paxos_args(benchConfig.getPaxosConfigFile(), benchConfig.getPaxosProcName());
+    std::vector<std::string> ret = setup(18, argv_paxos);
+    if (ret.empty()) {
+      Warning("paxos args errors");
+      return ;
+    }
+
+    // Setup Paxos callbacks have to be after setup() is called
+    setup_paxos_leader_callbacks(benchConfig.getAdvanceWatermarkTracker());
+    setup_paxos_follower_callbacks(replicated_db);
+
+    int ret2 = setup2(0, benchConfig.getShardIndex());
+    sleep(3); // ensure that all get started
+
+    // start a failure monitor on learners
+    if (benchConfig.getCluster().compare(mako::LEARNER_CENTER)==0) { // learner cluster
+      abstract_db * db = replicated_db.getDBWrapper(benchConfig.getNthreads())->getDB () ;
+      bench_runner *r = start_workers_tpcc(1, db, benchConfig.getNthreads(), true);
+      modeMonitor(db, benchConfig.getNthreads(), r) ;
+    }
+  }
+}
+
+static void send_end_signal() {
+  if (BenchmarkConfig::getInstance().getIsReplicated()) {
+    Warning("######--------------###### send endLlogs #####---------------######");
+    std::string endLogInd = "";
+    for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
+        add_log_to_nc((char *)endLogInd.c_str(), 0, i);
+
+    // vector<std::thread> wait_threads;
+    // for (int i = 0; i < BenchmarkConfig::getInstance().getNthreads(); i++)
+    // {
+    //     wait_threads.push_back(std::thread([i]() {
+    //        std::cout << "starting wait for par_id: " << i << std::endl;
+    //        wait_for_submit(i); 
+    //     }));
+    // }
+    // for (auto &th : wait_threads)
+    // {
+    //     th.join();
+    // }
+  }
+}
+
+static void db_close() {
+  auto& benchConfig = BenchmarkConfig::getInstance();
+  if (benchConfig.getLeaderConfig())
+    send_end_signal();
+
+  // Wait for termination if not a leader
+  if (!benchConfig.getLeaderConfig()) {
+    wait_for_termination();
+  }
+
+  // Cleanup and shutdown
+  cleanup_and_shutdown();
+}
 
 #endif

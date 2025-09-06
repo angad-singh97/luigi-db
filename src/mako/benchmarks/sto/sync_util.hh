@@ -60,6 +60,9 @@ namespace sync_util {
             exchange_running = true;
             // 2. for the exchange_thread, we attach it to remoteValidate on the leader replica
             if (!is_leader) { // on the follower replica, we start a client and server with busy_loop
+                if (nshards <= 1) 
+                    return ;
+
                 //start_advancer();
                 Warning("the watermark is exchanging within the cluster: %s",cluster.c_str());
                 // erpc server - busy loop

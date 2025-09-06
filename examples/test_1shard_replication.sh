@@ -4,6 +4,7 @@
 # Each shard should:
 # 1. Show "agg_persist_throughput" keyword
 # 2. Have NewOrder_remote_abort_ratio < 20%
+# 3. Followers replay at least 1000 batches
 
 echo "========================================="
 echo "Testing 1-shard setup with replication"

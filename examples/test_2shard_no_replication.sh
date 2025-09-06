@@ -25,7 +25,7 @@ SHARD1_PID=$!
 
 # Wait for experiments to run
 echo "Running experiments for 30 seconds..."
-sleep 40
+sleep 50
 
 # Kill the processes
 echo "Stopping shards..."
@@ -100,5 +100,7 @@ else
     echo ""
     echo "Debug information:"
     echo "Check shard0.log and shard1.log for details"
+    tail -10 shard0.log 
+    tail -10 shard1.log
     exit 1
 fi
