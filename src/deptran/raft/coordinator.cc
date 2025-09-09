@@ -30,6 +30,7 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
   if (!IsLeader()) {
+    verify(0);
     Log_info("[WRONG_LEADER] Submit to server %d (loc_id %d), which is not leader", svr_->site_id_, loc_id_);
     
     // Handle WRONG_LEADER case
