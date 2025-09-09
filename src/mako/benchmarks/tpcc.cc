@@ -35,6 +35,7 @@
 #include "atomic"
 #include <chrono>
 #include "benchmarks/benchmark_config.h"
+#include "benchmarks/tpcc_setup.h"
 
 using namespace std;
 using namespace util;
@@ -58,8 +59,6 @@ using namespace mako;
 static bool is_sampling_remote_calls = false;
 static int sampling_number = 100;
 static int f_mode = 0;
-static std::vector<FastTransport *> server_transports;
-static atomic<int> set_server_transport(0);
 
 static inline ALWAYS_INLINE size_t 
 NumWarehouses()
@@ -131,7 +130,7 @@ NumCustomersPerDistrict()
   return 3000;
 }
 
-// T must implement lock()/unlock(). Both must *not* throw exceptions
+// T must implement lock()/unlock(). Both must not throw exceptions
 template <typename T>
 class scoped_multilock {
 public:
@@ -3549,120 +3548,17 @@ public:
         new (&g_district_ids[i]) atomic<uint64_t>(3001);
     }
     helper_threads.resize(NumWarehousesTotal());
-    server_transports.resize(BenchmarkConfig::getInstance().getNumErpcServer());
+    // ensure helper threads capacity; server transports handled in setup_erpc_server()
   }
 
-  void static helper_server(int g_wid, // server_id=g_wid-1;
-                          std::string cluster,
-                          int running_shardIndex, // running shardIndex
-                          int num_warehouses,
-                          transport::Configuration *config,
-                          abstract_db *db,
-                          mako::HelperQueue *queue,
-                          mako::HelperQueue *queue_response,
-                          const map<string, abstract_ordered_index *> &open_tables,
-                          const map<string, vector<abstract_ordered_index *>> &partitions,
-                          const map<string, vector<abstract_ordered_index *>> &dummy_partitions) {
-    /**
-     * weihshen:
-     *  relationship between g_wid and (BenchmarkConfig::getInstance().getShardIndex(), par_id)
-     *    BenchmarkConfig::getInstance().getShardIndex() * Numwarehouses() + par_id + 1 == g_wid
-     */
-    scoped_db_thread_ctx ctx(db, true, 1);  // invoke thread_init
-    TThread::set_mode(1);
-#if defined(DISABLE_MULTI_VERSION)
-    TThread::disable_multiversion();
-#else
-    TThread::enable_multiverison();
-#endif
-    int shardIdx = (g_wid - 1)/num_warehouses;
-    int par_id = (g_wid - 1)%num_warehouses;
-    TThread::set_shard_index(running_shardIndex);  // the running shardIndex
-    TThread::set_pid(par_id);
-    TThread::set_nshards(config->nshards);
-    mako::ShardServer *ss=new mako::ShardServer(config->configFile,
-                                                    running_shardIndex, shardIdx, par_id);
-    ss->Register(db, queue, queue_response, open_tables, partitions, dummy_partitions);
-    ss->Run();  // it is event driven!
-  }
-
-  // setup (n-1)*warehouses helper threads
+  // setup helper threads and erpc-server using decoupled helpers
   void setup_helper() {
-    for (int i=0; i<NumWarehousesTotal(); i++) {
-      if (i / NumWarehouses() == BenchmarkConfig::getInstance().getShardIndex()) continue;
-
-      helper_threads[i] = std::thread(helper_server,
-                                      i+1, BenchmarkConfig::getInstance().getCluster(), BenchmarkConfig::getInstance().getShardIndex(), NumWarehouses(),
-                                      BenchmarkConfig::getInstance().getConfig(), db, 
-                                      queue_holders[i],
-                                      queue_holders_response[i],
-                                      open_tables, partitions, dummy_partitions);
-      pthread_setname_np(helper_threads[i].native_handle(), ("helper_"+std::to_string(i)).c_str());
-      // int core_id = BenchmarkConfig::getInstance().getShardIndex() * 64 + BenchmarkConfig::getInstance().getConfig()->warehouses+1;
-      // cpu_set_t cpuset;
-      // CPU_ZERO(&cpuset);
-      // CPU_SET(core_id, &cpuset);
-      // pthread_setaffinity_np(helper_threads[i].native_handle(),sizeof(cpu_set_t), &cpuset);
-    }
-  }
-
-  void static erpc_server(std::string cluster,
-                          int running_shardIndex, // running shardIndex
-                          int num_warehouses,
-                          transport::Configuration *config,
-                          int alpha=0) {
-    std::string local_uri = config->shard(running_shardIndex, mako::convertCluster(cluster)).host;
-    int base=5;
-    int id = num_warehouses+base+alpha;
-    server_transports[alpha] = new FastTransport(config->configFile,
-                                  local_uri,  // local_uri
-                                  cluster,
-                                  1, 12,
-                                  0,          // physPort
-                                  0,          // numa node
-                                  running_shardIndex, // used to get basic port
-                                  id);
-    for (int i=0; i<NumWarehousesTotal(); i++) {
-      if (i / NumWarehouses() == running_shardIndex) continue;
-      if (i%BenchmarkConfig::getInstance().getNumErpcServer()==alpha){
-        auto *it = new mako::HelperQueue(i,true);
-        server_transports[alpha]->c->queue_holders[i] = it;
-        auto *it_res = new mako::HelperQueue(i,false);
-        server_transports[alpha]->c->queue_holders_response[i] = it_res;
-      }
-    }
-    set_server_transport.fetch_add(1);
-    server_transports[alpha]->Run();
-    Notice("the erpc_server is terminated on shardIdx:%d, alpha:%d!", running_shardIndex, alpha);
-  }
-
-  // setup erpc server: at this moment, we only have one erpc server (id=warehouses)
-  //  warehouses clients(id=0~warehouses-1)
-  void setup_erpc_server()
-  {
-    for (int i=0;i<BenchmarkConfig::getInstance().getNumErpcServer();++i){
-      auto t=std::thread(erpc_server, BenchmarkConfig::getInstance().getCluster(), BenchmarkConfig::getInstance().getShardIndex(), NumWarehouses(), BenchmarkConfig::getInstance().getConfig(), i);
-      pthread_setname_np(t.native_handle(), "erpc_server");
-      t.detach();
-    }
-    while(set_server_transport<BenchmarkConfig::getInstance().getNumErpcServer()) { sleep(0); }
-    for (int i=0; i<NumWarehousesTotal(); i++) {
-      if (i / NumWarehouses() == BenchmarkConfig::getInstance().getShardIndex()) continue;
-      queue_holders[i] = server_transports[i%BenchmarkConfig::getInstance().getNumErpcServer()]->c->queue_holders[i];
-      queue_holders_response[i] = server_transports[i%BenchmarkConfig::getInstance().getNumErpcServer()]->c->queue_holders_response[i];
-    } 
-    // int core_id = BenchmarkConfig::getInstance().getShardIndex() * 64 + BenchmarkConfig::getInstance().getConfig()->warehouses;
-    // cpu_set_t cpuset;
-    // CPU_ZERO(&cpuset);
-    // CPU_SET(core_id, &cpuset);
-    // pthread_setaffinity_np(t.native_handle(),sizeof(cpu_set_t), &cpuset);
-  }
-
-  void cleanup()
-  {
-    Warning("stop the server rpc");
-    for (int i=0; i<BenchmarkConfig::getInstance().getNumErpcServer(); ++i)
-      server_transports[i]->Stop();
+    mako_tpcc_setup::setup_helper(
+      helper_threads,
+      db,
+      open_tables,
+      partitions,
+      dummy_partitions);
   }
 
 protected:
@@ -3746,9 +3642,7 @@ private:
   // dummy_partitions has exact same key and number of items as partitions, but doesn't store any data
   map<string, vector<abstract_ordered_index *>> dummy_partitions;
   std::vector<std::thread> helper_threads;
-  // hold pointer: identical to those c in several erpc_servers (we only have one erpc_server now)
-  std::unordered_map<uint16_t, mako::HelperQueue*> queue_holders;
-  std::unordered_map<uint16_t, mako::HelperQueue*> queue_holders_response;
+  // queue holders moved into BenchmarkConfig
 };
 
 bench_runner*
@@ -3756,7 +3650,7 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
 {
   if (run==1){
     ((tpcc_bench_runner*)rc)->run();
-    ((tpcc_bench_runner*)rc)->cleanup();
+    mako_tpcc_setup::stop_erpc_server();
     return rc; // rc is same object as r below
   }
   if (TThread::get_is_micro()) {
@@ -3854,8 +3748,8 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
   tpcc_bench_runner *r = NULL;
   r = new tpcc_bench_runner(db, f_mode==1);
   // the erpc server and redirect requests to helper threads on the server side
-  r->setup_erpc_server();
-  r->setup_helper(); // the helper threads on the server side
+  mako_tpcc_setup::setup_erpc_server();
+  r->setup_helper();
   r->f_mode=f_mode;
   auto x1 = std::chrono::high_resolution_clock::now() ;
   printf("start worker:%d\n",

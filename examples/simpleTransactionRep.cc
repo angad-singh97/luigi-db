@@ -20,9 +20,6 @@ static atomic<int> set_server_transport(0);
 // distributed-key
 
 // dummy for distributed transactions
-void static setup_erpc_server() {
-
-}
 // ----------------------------- tpcc ENDs -------------------------------
 
 
@@ -121,9 +118,6 @@ void run_tests(abstract_db *db) {
     // tpcc.cc general logics
     // initialize: 1. thread init; 2. erpc threads; 3. helper threads
     
-    // Setup eRPC server if using multiple shards
-    setup_erpc_server();
-
     // start different db worker threads - enforced
     size_t nshards = BenchmarkConfig::getInstance().getNshards();
     std::vector<std::thread> worker_threads;

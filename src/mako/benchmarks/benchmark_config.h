@@ -6,8 +6,11 @@
 #include <vector>
 #include <atomic>
 #include <utility>
+#include <unordered_map>
 #include "lib/configuration.h"
 #include "lib/common.h"
+#include "lib/helper_queue.h"
+#include "lib/fasttransport.h"
 
 enum {
   RUNMODE_TIME = 0,
@@ -47,7 +50,7 @@ class BenchmarkConfig {
           end_received_leader_(0),
           replay_batch_(0) {}
       
-      // Member variables
+      // Member variables from dbtest.cc
       size_t nthreads_;
       size_t nshards_;
       size_t num_erpc_server_;
@@ -84,6 +87,13 @@ class BenchmarkConfig {
       
       // Watermark tracking for latency measurements
       std::vector<std::pair<uint32_t, uint32_t>> advanceWatermarkTracker_;
+
+      // Runtime TPCC wiring state (moved from tpcc.cc)
+      std::vector<FastTransport*> server_transports_;
+      std::unordered_map<uint16_t, mako::HelperQueue*> queue_holders_;
+      std::unordered_map<uint16_t, mako::HelperQueue*> queue_holders_response_;
+      std::atomic<int> set_server_transport_{0};
+
 
   public:
       // Delete copy/move constructors
@@ -126,6 +136,16 @@ class BenchmarkConfig {
       std::string getPaxosProcName() const { return paxos_proc_name_; }
       int getLeaderConfig() const { return paxos_proc_name_==mako::LOCALHOST_CENTER; }
       const std::vector<std::string>& getPaxosConfigFile() const { return paxos_config_file_; }
+      
+      // Runtime TPCC wiring getters
+      std::vector<FastTransport*>& getServerTransports() { return server_transports_; }
+      const std::vector<FastTransport*>& getServerTransports() const { return server_transports_; }
+      std::unordered_map<uint16_t, mako::HelperQueue*>& getQueueHolders() { return queue_holders_; }
+      const std::unordered_map<uint16_t, mako::HelperQueue*>& getQueueHolders() const { return queue_holders_; }
+      std::unordered_map<uint16_t, mako::HelperQueue*>& getQueueHoldersResponse() { return queue_holders_response_; }
+      const std::unordered_map<uint16_t, mako::HelperQueue*>& getQueueHoldersResponse() const { return queue_holders_response_; }
+      std::atomic<int>& getServerTransportReadyCounter() { return set_server_transport_; }
+      const std::atomic<int>& getServerTransportReadyCounter() const { return set_server_transport_; }
 
       // Setters
       void setNthreads(size_t n) { nthreads_ = n; setScaleFactor(n); }
@@ -174,5 +194,7 @@ class BenchmarkConfig {
       std::vector<std::pair<uint32_t, uint32_t>>& getAdvanceWatermarkTracker() { return advanceWatermarkTracker_; }
       const std::vector<std::pair<uint32_t, uint32_t>>& getAdvanceWatermarkTracker() const { return advanceWatermarkTracker_; }
 };
+
+// (no global runtime accessors)
 
 #endif /* _NDB_BENCHMARK_CONFIG_H_ */
