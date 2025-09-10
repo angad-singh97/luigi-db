@@ -85,32 +85,87 @@ bool RaftServer::IsDisconnected() {
   return disconnected_;
 }
 
+// void RaftServer::setIsLeader(bool isLeader) {
+//   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
+  
+//   // Log leader initialization when becoming a leader
+//   if (isLeader) {
+    
+//     // CRITICAL FIX: Ensure lastLogIndex matches the highest index in raft_logs_
+//     if (!raft_logs_.empty()) {
+//       auto max_index = std::max_element(raft_logs_.begin(), raft_logs_.end(),
+//                                        [](const auto& a, const auto& b) {
+//                                          return a.first < b.first;
+//                                        })->first;
+//       if (max_index > lastLogIndex) {
+//         lastLogIndex = max_index;
+//       }
+//     }
+//   }
+  
+//   // Only update view when transitioning from non-leader to leader
+//   if (isLeader && !is_leader_) {
+//     // Only update view if we have enough information (not during initialization)
+//     if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
+//       // Move current new_view to old_view before updating
+//       old_view_ = new_view_;
+      
+//       // Update new_view with this server as the leader
+//       int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
+//       new_view_ = View(n_replicas, site_id_, currentTerm);
+//     }
+//   } else if (!isLeader && is_leader_) {
+//     // When transitioning from leader to non-leader
+//     // View will be updated when we learn about the new leader
+//   }
+  
+//   // Update the leader state after view handling
+//   is_leader_ = isLeader;
+  
+//   if (isLeader) {
+//     // JetpackRecovery();
+//     // if (heartbeat_) {
+//     //   Log_debug("starting heartbeat loop at site %d", site_id_);
+//     //   Coroutine::CreateRun([this](){
+//     //     this->HeartbeatLoop(); 
+//     //   });
+//     //   // Start election timeout loop
+//     //   if (failover_) {
+//     //     Coroutine::CreateRun([this](){
+//     //       StartElectionTimer(); 
+//     //     });
+//     //   }
+//     // }
+//     // Log_info("!!!!!!! if (!failover_)");
+//     // if (!failover_) {
+//       // verify(frame_->site_info_->id == 0);
+//       return;
+//     // }
+//     // Reset leader volatile state
+//     RaftCommo *c = (RaftCommo*) commo();
+//     auto proxies = c->rpc_par_proxies_[partition_id_];
+    
+//     // Clear existing indices first
+//     match_index_.clear();
+//     next_index_.clear();
+    
+//     for (auto& p : proxies) {
+//       if (p.first != site_id_) {
+//         // set matchIndex = 0
+//         match_index_[p.first] = 0;
+//         // set nextIndex = lastLogIndex + 1
+//         next_index_[p.first] = lastLogIndex + 1;
+//       }
+//     }
+//     // matchedIndex and nextIndex should have indices for all servers except self
+//     verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+//     verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+//   }
+// }
+
 void RaftServer::setIsLeader(bool isLeader) {
   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
-  
-  // Only update view when transitioning from non-leader to leader
-  if (isLeader && !is_leader_) {
-    // Only update view if we have enough information (not during initialization)
-    if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
-      // Move current new_view to old_view before updating
-      old_view_ = new_view_;
-      
-      // Update new_view with this server as the leader
-      int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
-      new_view_ = View(n_replicas, site_id_, currentTerm);
-      Log_info("[RAFT_VIEW] Server %d became leader for partition %d, term=%lu, old_view=%s, new_view=%s", 
-               site_id_, partition_id_, currentTerm, 
-               old_view_.ToString().c_str(), new_view_.ToString().c_str());
-    }
-  } else if (!isLeader && is_leader_) {
-    // When transitioning from leader to non-leader
-    Log_info("[RAFT_VIEW] Server %d stepping down as leader for partition %d", site_id_, partition_id_);
-    // View will be updated when we learn about the new leader
-  }
-  
-  // Update the leader state after view handling
-  is_leader_ = isLeader;
-  
+  is_leader_ = isLeader ;
   if (isLeader) {
     // JetpackRecovery();
     // if (heartbeat_) {
@@ -126,13 +181,15 @@ void RaftServer::setIsLeader(bool isLeader) {
     //   }
     // }
     // Log_info("!!!!!!! if (!failover_)");
-    // if (!failover_) {
-      // verify(frame_->site_info_->id == 0);
+    if (!failover_) {
+      verify(frame_->site_info_->id == 0);
       return;
+    }
     // }
     // Reset leader volatile state
     RaftCommo *c = (RaftCommo*) commo();
     auto proxies = c->rpc_par_proxies_[partition_id_];
+    if(failover_) {
     for (auto& p : proxies) {
       if (p.first != site_id_) {
         // set matchIndex = 0
@@ -144,6 +201,7 @@ void RaftServer::setIsLeader(bool isLeader) {
     // matchedIndex and nextIndex should have indices for all servers except self
     verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
     verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+    }
   }
 }
 
@@ -250,7 +308,24 @@ void RaftServer::HeartbeatLoop() {
         // new commitIndex is the (N/2 + 1)th largest index
         // only update commitIndex if the entry at new index was replicated in the current term
         uint64_t newCommitIndex = matchedIndices[(nservers - 1) / 2];
-        verify(newCommitIndex <= lastLogIndex);
+        
+        // Debug logging for commitIndex calculation
+        if (newCommitIndex > lastLogIndex) {
+          Log_info("[COMMIT_INDEX_DEBUG] Leader %d: newCommitIndex=%ld > lastLogIndex=%ld", 
+                   site_id_, newCommitIndex, lastLogIndex);
+          Log_info("[COMMIT_INDEX_DEBUG] match_index_ values:");
+          for (auto it = match_index_.begin(); it != match_index_.end(); it++) {
+            Log_info("[COMMIT_INDEX_DEBUG]   server %d: match_index=%ld", it->first, it->second);
+          }
+          Log_info("[COMMIT_INDEX_DEBUG] matchedIndices sorted: ");
+          for (size_t i = 0; i < matchedIndices.size(); i++) {
+            Log_info("[COMMIT_INDEX_DEBUG]   [%zu]=%ld", i, matchedIndices[i]);
+          }
+          // Fix: cap newCommitIndex to lastLogIndex
+          newCommitIndex = lastLogIndex;
+          Log_info("[COMMIT_INDEX_DEBUG] Fixed newCommitIndex to %ld", newCommitIndex);
+        }
+        
         if (newCommitIndex > commitIndex && (GetRaftInstance(newCommitIndex)->term == currentTerm)) {
           Log_debug("newCommitIndex %d", newCommitIndex);
           commitIndex = newCommitIndex;
@@ -269,6 +344,22 @@ void RaftServer::HeartbeatLoop() {
         // }
         mtx_.lock();
         uint64_t prevLogIndex = it->second - 1;
+        if (prevLogIndex > lastLogIndex) {
+          Log_info("[APPEND_ENTRIES] ERROR: prevLogIndex (%ld) > lastLogIndex (%ld), fixing next_index", prevLogIndex, lastLogIndex);
+          // Fix the next_index to be valid
+          it->second = lastLogIndex + 1;
+          prevLogIndex = it->second - 1;
+        }
+        
+        // Additional safety check: if prevLogIndex is still invalid, skip this follower
+        if (prevLogIndex > lastLogIndex) {
+          Log_info("[APPEND_ENTRIES] WARNING: Cannot send AppendEntries to follower %d: prevLogIndex (%ld) > lastLogIndex (%ld), skipping", 
+                   site_id, prevLogIndex, lastLogIndex);
+          // Reset the next_index to start from the beginning to allow the follower to catch up
+          it->second = 1;
+          continue;
+        }
+        
         verify(prevLogIndex <= lastLogIndex);
         // if (prevLogIndex == lastLogIndex && !doHeartbeat) {
         //   continue;
@@ -277,6 +368,10 @@ void RaftServer::HeartbeatLoop() {
         uint64_t prevLogTerm = instance->term;
         shared_ptr<Marshallable> cmd = nullptr;
         uint64_t cmdLogTerm = 0;
+        if (cmd != nullptr) {
+          Log_info("[APPEND_ENTRIES] Leader %d: sending NEW log entry to follower %d, prevLogIndex=%ld, prevLogTerm=%ld, lastLogIndex=%ld", 
+                   site_id_, site_id, prevLogIndex, prevLogTerm, lastLogIndex);
+        }
 
 #ifndef RAFT_BATCH_OPTIMIZATION
         if (it->second <= lastLogIndex) {
@@ -384,6 +479,12 @@ void RaftServer::HeartbeatLoop() {
             match_index = ret_last_log_index;
             next_index = ret_last_log_index + 1;
 #endif
+            // Safety check: ensure match_index doesn't exceed leader's lastLogIndex
+            if (match_index > lastLogIndex) {
+              Log_info("[MATCH_INDEX_DEBUG] Leader %d: capping match_index from %ld to %ld for follower %d", 
+                       site_id_, match_index, lastLogIndex, site_id);
+              match_index = lastLogIndex;
+            }
             Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id_, site_id, ret_last_log_index, next_index, match_index);
           }
@@ -393,6 +494,7 @@ void RaftServer::HeartbeatLoop() {
     }
 	}
 }
+
 
 RaftServer::~RaftServer() {
   if (heartbeat_ && looping_) {
@@ -449,11 +551,8 @@ bool RaftServer::RequestVote() {
     if(IsLeader()) {
 	  	//for(int i = 0; i < 100; i++) Log_info("wait wait wait");
       Log_debug("vote accepted %d curterm %d", loc_id, currentTerm);
-      Log_info("[JETPACK-RECOVERY] ===== LEADER ELECTION COMPLETED =====");
-      Log_info("[JETPACK-RECOVERY] New leader elected: site_id=%d, term=%d", loc_id, currentTerm);
 #ifdef RAFT_TEST_CORO
       // Skip JetpackRecovery in test environment to avoid RPC handler issues
-      Log_info("[JETPACK-RECOVERY] Skipping JetpackRecovery in test environment");
 #else
       JetpackRecoveryEntry(); // Trigger Jetpack recovery on new leader election
 #endif
@@ -617,9 +716,10 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  uint64_t *followerLastLogIndex,
                                  const function<void()> &cb) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-  Log_debug("on append entries for "
-          "slot_id: %llx, site_id: %d, PrevLogIndex: %d lastLogIndex: %ld commitIndex: %ld",
-          slot_id, (int)this->site_id_, leaderPrevLogIndex, lastLogIndex, commitIndex);
+  // if (cmd != nullptr) {
+  //   Log_debug("[APPEND_ENTRIES_RECEIVED] Follower %d: received NEW log entry from leader %d, leaderTerm=%ld, prevLogIndex=%ld, prevLogTerm=%ld, leaderCommit=%ld, currentTerm=%ld, lastLogIndex=%ld", 
+  //            this->loc_id_, leaderSiteId, leaderCurrentTerm, leaderPrevLogIndex, leaderPrevLogTerm, leaderCommitIndex, currentTerm, lastLogIndex);
+  // }
   if ((leaderCurrentTerm >= this->currentTerm) &&
         (leaderPrevLogIndex <= this->lastLogIndex) &&
         ((leaderPrevLogIndex == 0 ||
@@ -647,6 +747,12 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
         auto instance = GetRaftInstance(lastLogIndex);
         instance->log_ = cmd;
         instance->term = leaderNextLogTerm;
+        // Log_debug("[APPEND_ENTRIES_ACCEPTED] Follower %d: accepted log entry at index %ld, term=%ld, lastLogIndex now=%ld", 
+        //          this->loc_id_, lastLogIndex, leaderNextLogTerm, lastLogIndex);
+        // // Log the command that was accepted
+        // auto cmd_accepted = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+        // Log_debug("[APPEND_ENTRIES_ACCEPTED] Follower %d: accepted command %d at index %ld", 
+        //          this->loc_id_, cmd_accepted ? cmd_accepted->tx_id_ : -1, lastLogIndex);
 #endif
 #ifdef RAFT_BATCH_OPTIMIZATION
         auto cmds = dynamic_pointer_cast<TpcBatchCommand>(cmd);
