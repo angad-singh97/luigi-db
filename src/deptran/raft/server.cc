@@ -12,16 +12,19 @@ RaftServer::RaftServer(Frame * frame) {
   frame_ = frame ;
 #ifdef RAFT_TEST_CORO
   setIsLeader(false);
-#else
-  Log_info("id %d loc_id %d name %s proc_name %s host %s", frame_->site_info_->id, frame_->site_info_->locale_id, frame_->site_info_->name.c_str(), frame_->site_info_->proc_name.c_str(), frame_->site_info_->host.c_str());
-  setIsLeader(frame_->site_info_->locale_id == 0) ;
 #endif
   stop_ = false ;
   timer_ = new Timer() ;
 }
 
 void RaftServer::Setup() {
-  #ifdef RAFT_TEST_CORO
+
+#ifndef RAFT_TEST_CORO
+  Log_info("id %d loc_id %d name %s proc_name %s host %s", frame_->site_info_->id, frame_->site_info_->locale_id, frame_->site_info_->name.c_str(), frame_->site_info_->proc_name.c_str(), frame_->site_info_->host.c_str());
+  setIsLeader(frame_->site_info_->locale_id == 0) ;
+#endif
+
+#ifdef RAFT_TEST_CORO
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
     Coroutine::CreateRun([this](){
@@ -34,8 +37,9 @@ void RaftServer::Setup() {
       });
     }
 	}
-  #endif
-  #ifndef RAFT_TEST_CORO
+#endif
+
+#ifndef RAFT_TEST_CORO
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
     Coroutine::CreateRun([this](){
@@ -48,7 +52,7 @@ void RaftServer::Setup() {
       });
     }
 	}
-  #endif
+#endif
   // Election timer will be started in Start() method when first command is submitted
 }
 
