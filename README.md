@@ -6,12 +6,24 @@
 
 build rpc
 ```
-bin/rpcgen --python --cpp src/deptran/rcc_rpc.rpc && python3 add_virtual.py
+bin/rpcgen --python --cpp src/deptran/rcc_rpc.rpc
 ```
 
 build src code
 ```
 python3 waf configure build -J
+```
+
+### run raft
+
+```
+build/deptran_server -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml —d 30 -m 100 —P localhost
+```
+
+### run raft + jetpack failure recovery
+
+```
+build/deptran_server -f config/rule_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -f config/failover.yml —d 30 -m 100 —P localhost
 ```
 
 ### build for raft testing
@@ -24,12 +36,6 @@ python3 waf configure build -J --enable-raft-test
 
 ```
 build/deptran_server -f config/raft_lab_test.yml
-```
-
-### simple test
-
-```
-build/deptran_server -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml —d 30 -m 100 —P localhost
 ```
 
 ### results process
