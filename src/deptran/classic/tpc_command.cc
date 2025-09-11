@@ -71,6 +71,7 @@ Marshal& TpcPrepareCommand::FromMarshal(Marshal& m) {
 Marshal& TpcCommitCommand::ToMarshal(Marshal& m) const {
   m << tx_id_;
   m << ret_;
+  m << term;  // Marshal the term field
   MarshallDeputy md(cmd_);
   m << md;
   // Marshal view data if present
@@ -86,6 +87,7 @@ Marshal& TpcCommitCommand::ToMarshal(Marshal& m) const {
 Marshal& TpcCommitCommand::FromMarshal(Marshal& m) {
   m >> tx_id_;
   m >> ret_;
+  m >> term;  // Unmarshal the term field
   MarshallDeputy md;
   m >> md;
   if (!cmd_)
