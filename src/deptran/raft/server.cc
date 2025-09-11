@@ -167,6 +167,12 @@ void RaftServer::setIsLeader(bool isLeader) {
   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
   is_leader_ = isLeader ;
   if (isLeader) {
+    // Add null check for communicator
+    if (commo_ == nullptr) {
+      Log_info("commo_ is null, skipping leader initialization");
+      return;
+    }
+    
     // JetpackRecovery();
     // if (heartbeat_) {
     //   Log_debug("starting heartbeat loop at site %d", site_id_);
@@ -181,10 +187,10 @@ void RaftServer::setIsLeader(bool isLeader) {
     //   }
     // }
     // Log_info("!!!!!!! if (!failover_)");
-    if (!failover_) {
-      verify(frame_->site_info_->id == 0);
-      return;
-    }
+    // if (!failover_) {
+    //   verify(frame_->site_info_->id == 0);
+    //   return;
+    // }
     // }
     // Reset leader volatile state
     RaftCommo *c = (RaftCommo*) commo();
