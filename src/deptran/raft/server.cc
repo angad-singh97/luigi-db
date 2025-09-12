@@ -165,7 +165,30 @@ bool RaftServer::IsDisconnected() {
 
 void RaftServer::setIsLeader(bool isLeader) {
   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
-  is_leader_ = isLeader ;
+  
+  // Only update view when transitioning from non-leader to leader
+  if (isLeader && !is_leader_) {
+    // Only update view if we have enough information (not during initialization)
+    if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
+      // Move current new_view to old_view before updating
+      old_view_ = new_view_;
+      
+      // Update new_view with this server as the leader
+      int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
+      new_view_ = View(n_replicas, site_id_, currentTerm);
+      Log_info("[RAFT_VIEW] Server %d became leader for partition %d, term=%lu, old_view=%s, new_view=%s", 
+               site_id_, partition_id_, currentTerm, 
+               old_view_.ToString().c_str(), new_view_.ToString().c_str());
+    }
+  } else if (!isLeader && is_leader_) {
+    // When transitioning from leader to non-leader
+    Log_info("[RAFT_VIEW] Server %d stepping down as leader for partition %d", site_id_, partition_id_);
+    // View will be updated when we learn about the new leader
+  }
+  
+  // Update the leader state after view handling
+  is_leader_ = isLeader;
+  
   if (isLeader) {
     // Add null check for communicator
     if (commo_ == nullptr) {
