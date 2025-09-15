@@ -14,16 +14,22 @@ build src code
 python3 waf configure build -J
 ```
 
-### run raft
+### run raft with local 3 machines close loop 1 * 1 clinents
 
 ```
-build/deptran_server -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml —d 30 -m 100 —P localhost
+build/deptran_server -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -d 30 -m 100 -P localhost
+```
+
+### run raft with local 3 machines close loop 12 * 12 clinents
+
+```
+build/deptran_server -f config/none_raft.yml -f config/12c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_12.yml -d 30 -m 100 -P localhost
 ```
 
 ### run raft + jetpack failure recovery
 
 ```
-build/deptran_server -f config/rule_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -f config/failover.yml —d 30 -m 100 —P localhost
+build/deptran_server -f config/rule_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -f config/failover.yml -d 30 -m 100 -P localhost
 ```
 
 ### build for raft testing
