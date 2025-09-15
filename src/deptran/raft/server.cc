@@ -19,11 +19,6 @@ RaftServer::RaftServer(Frame * frame) {
 
 void RaftServer::Setup() {
 
-#ifndef RAFT_TEST_CORO
-  Log_info("id %d loc_id %d name %s proc_name %s host %s", frame_->site_info_->id, frame_->site_info_->locale_id, frame_->site_info_->name.c_str(), frame_->site_info_->proc_name.c_str(), frame_->site_info_->host.c_str());
-  setIsLeader(frame_->site_info_->locale_id == 0) ;
-#endif
-
 #ifdef RAFT_TEST_CORO
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
@@ -168,8 +163,12 @@ bool RaftServer::IsDisconnected() {
 // }
 
 void RaftServer::setIsLeader(bool isLeader) {
-  Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
-  
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+  bool prev_is_leader = is_leader_;
+  Log_info("[RAFT_STATE] setIsLeader invoked site %d (loc %d) term %lu: prev_is_leader=%d new_is_leader=%d",
+           site_id_, frame_->site_info_->locale_id, currentTerm, prev_is_leader, isLeader);
+#endif
+
   // Only update view when transitioning from non-leader to leader
   if (isLeader && !is_leader_) {
     // Only update view if we have enough information (not during initialization)
@@ -183,6 +182,9 @@ void RaftServer::setIsLeader(bool isLeader) {
       Log_info("[RAFT_VIEW] Server %d became leader for partition %d, term=%lu, old_view=%s, new_view=%s", 
                site_id_, partition_id_, currentTerm, 
                old_view_.ToString().c_str(), new_view_.ToString().c_str());
+#ifndef RAFT_TEST_CORO
+      JetpackRecoveryEntry();
+#endif
     }
   } else if (!isLeader && is_leader_) {
     // When transitioning from leader to non-leader
@@ -548,30 +550,54 @@ bool RaftServer::RequestVote() {
   uint32_t lstoff = 0  ;
   slotid_t lst_idx = 0 ;
   ballot_t lst_term = 0 ;
+  ballot_t prev_term = 0;
+  siteid_t prev_vote_for = INVALID_SITEID;
 
   {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
+    prev_term = currentTerm;
+    prev_vote_for = vote_for_;
     currentTerm++ ;
     lstoff = lastLogIndex - snapidx_ ;
-    auto log = GetRaftInstance(lstoff) ; // causes min_active_slot_ verification error (server.h:247)
-    lst_idx = lstoff + snapidx_ ;
-    lst_term = log->term ;
+    if (lstoff == 0) {
+      lst_idx = snapidx_;
+      lst_term = snapterm_;
+    } else {
+      auto log = GetRaftInstance(lstoff) ; // causes min_active_slot_ verification error (server.h:247)
+      lst_idx = lstoff + snapidx_ ;
+      lst_term = log->term ;
+    }
   }
   
   auto term = currentTerm;
-  Log_debug("raft server %d starting election for term %d, lastlogindex %d, lastlogterm %d", site_id_, term, lst_idx, lst_term);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+  Log_info("[RAFT_ELECTION] server %d (loc %d) starting election term %lu->%lu lastLogIdx=%lu lastLogTerm=%lu prev_vote_for=%d",
+           site_id_, loc_id, prev_term, term, lst_idx, lst_term, prev_vote_for);
+#endif
   auto sp_quorum = ((RaftCommo *)(this->commo_))->BroadcastVote(par_id,lst_idx,lst_term,loc_id, term );
   sp_quorum->Wait(1000000);
   std::lock_guard<std::recursive_mutex> lock1(mtx_);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+  Log_info("[RAFT_ELECTION] server %d term %lu vote outcome yes=%d no=%d highest_term_seen=%ld timeout=%d",
+           site_id_, term, sp_quorum->n_voted_yes_, sp_quorum->n_voted_no_, sp_quorum->Term(), sp_quorum->timeouted_);
+#endif
   if (sp_quorum->Yes()) {
     verify(currentTerm >= term);
     if (term != currentTerm) {
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+      Log_info("[RAFT_ELECTION] server %d abandoning leadership claim because local term advanced to %lu", site_id_, currentTerm);
+#endif
       return false;
     }
     // become a leader
     setIsLeader(true) ;
     verify(currentTerm == term);
     Log_debug("site %d became leader for term %d", site_id_, term);
+
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("[RAFT_ELECTION] server %d won election term %lu (votes yes=%d no=%d)",
+             site_id_, term, sp_quorum->n_voted_yes_, sp_quorum->n_voted_no_);
+#endif
 
     this->rep_frame_ = this->frame_ ;
 
@@ -600,6 +626,10 @@ bool RaftServer::RequestVote() {
     // become a follower
     Log_debug("site %d requestvote rejected", site_id_);
     setIsLeader(false) ;
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("[RAFT_ELECTION] server %d lost election term %lu (yes=%d no=%d) highest_term=%ld",
+             site_id_, term, sp_quorum->n_voted_yes_, sp_quorum->n_voted_no_, sp_quorum->Term());
+#endif
     //reset cur term if new term is higher
     ballot_t new_term = sp_quorum->Term() ;
     currentTerm = new_term > currentTerm? new_term : currentTerm ;
@@ -607,6 +637,10 @@ bool RaftServer::RequestVote() {
 		return false;
   } else {
     Log_debug("vote timeout %d", loc_id);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    Log_info("[RAFT_ELECTION] server %d election timed out term %lu (yes=%d no=%d)",
+             site_id_, term, sp_quorum->n_voted_yes_, sp_quorum->n_voted_no_);
+#endif
   	req_voting_ = false ;
 		return false;
   }
@@ -682,7 +716,10 @@ void RaftServer::StartElectionTimer() {
           site_id_, time_elapsed, vote_for_);
         // ask to vote
         req_voting_ = true ;
-        Log_info("!!!!!!!!!!!!!!!! Before %d RequestVote() ;", loc_id_);
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+        Log_info("[RAFT_TIMER] server %d triggering RequestVote() time_elapsed=%ld last_hb=%ld current_term=%lu vote_for=%d",
+                 site_id_, time_elapsed, last_heartbeat_time_, currentTerm, vote_for_);
+#endif
         RequestVote() ;
         while(req_voting_) {
           Coroutine::Sleep(wait_int_);
@@ -753,10 +790,15 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
   //   Log_debug("[APPEND_ENTRIES_RECEIVED] Follower %d: received NEW log entry from leader %d, leaderTerm=%ld, prevLogIndex=%ld, prevLogTerm=%ld, leaderCommit=%ld, currentTerm=%ld, lastLogIndex=%ld", 
   //            this->loc_id_, leaderSiteId, leaderCurrentTerm, leaderPrevLogIndex, leaderPrevLogTerm, leaderCommitIndex, currentTerm, lastLogIndex);
   // }
-  if ((leaderCurrentTerm >= this->currentTerm) &&
-        (leaderPrevLogIndex <= this->lastLogIndex) &&
-        ((leaderPrevLogIndex == 0 ||
-          GetRaftInstance(leaderPrevLogIndex)->term == leaderPrevLogTerm))) {
+  bool term_ok = (leaderCurrentTerm >= this->currentTerm);
+  bool index_ok = (leaderPrevLogIndex <= this->lastLogIndex);
+  uint64_t local_prev_term = 0;
+  if (leaderPrevLogIndex > 0 && leaderPrevLogIndex <= this->lastLogIndex) {
+      local_prev_term = GetRaftInstance(leaderPrevLogIndex)->term;
+  }
+  bool prev_term_ok = (leaderPrevLogIndex == 0 || local_prev_term == leaderPrevLogTerm);
+
+  if (term_ok && index_ok && prev_term_ok) {
       Log_debug("refresh timer on appendentry");
       resetTimer() ;
       if (leaderCurrentTerm > this->currentTerm) {
@@ -765,14 +807,15 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
           setIsLeader(false) ;
       }
       
-      // Update follower's view to track the current leader
-      if (!IsLeader() && leaderSiteId != INVALID_SITEID) {
-          old_view_ = new_view_;
-          int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
-          new_view_ = View(n_replicas, leaderSiteId, leaderCurrentTerm);
-          // Log_info("[FOLLOWER_VIEW] Server %d updated view to track leader %d, term=%lu, view=%s", 
-          //          site_id_, leaderSiteId, leaderCurrentTerm, new_view_.ToString().c_str());
-      }
+      // // Update follower's view to track the current leader
+      // if (!IsLeader() && leaderSiteId != INVALID_SITEID) {
+      //     int prev_leader = new_view_.GetLeader();
+      //     old_view_ = new_view_;
+      //     int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
+      //     new_view_ = View(n_replicas, leaderSiteId, leaderCurrentTerm);
+      //     Log_info("[RAFT_VIEW_FOLLOWER] Server %d observed leader change %d->%d term=%lu prev_term=%lu",
+      //              site_id_, prev_leader, leaderSiteId, leaderCurrentTerm, currentTerm);
+      // }
 
       if (cmd != nullptr) {
 #ifndef RAFT_BATCH_OPTIMIZATION
@@ -841,8 +884,11 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 #endif
     }
     else {
-        Log_debug("reject append loc: %d, leader term %d last idx %d, last idx-term %d, server term: %d last idx: %d, last leader-idx-term %d",
-            this->loc_id_, leaderCurrentTerm, leaderPrevLogIndex, leaderPrevLogTerm, currentTerm, lastLogIndex, GetRaftInstance(leaderPrevLogIndex)->term);        
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+        Log_info("[RAFT_APPEND_REJECT] follower=%d leader=%d leaderTerm=%lu localTerm=%lu prevIdx=%lu localLastIdx=%lu term_ok=%d index_ok=%d prev_term_ok=%d local_prev_term=%lu",
+                 this->site_id_, leaderSiteId, leaderCurrentTerm, currentTerm, leaderPrevLogIndex, lastLogIndex,
+                 term_ok, index_ok, prev_term_ok, local_prev_term);
+#endif
         *followerAppendOK = 0;
         *followerCurrentTerm = this->currentTerm;
         *followerLastLogIndex = this->lastLogIndex;

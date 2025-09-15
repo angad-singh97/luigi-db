@@ -90,8 +90,11 @@ class RaftServer : public TxLogServer {
               const function<void()> &cb) {
       *vote_granted = vote ;
       *reply_term = currentTerm ;
-      Log_debug("loc %d vote decision %d, for can_id %d canterm %d curterm %d isleader %d lst_log_idx %d lst_log_term %d", 
-            loc_id_, vote, can_id, can_term, currentTerm, is_leader_, lst_log_idx, lst_log_term );
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+      siteid_t prev_vote_for = vote_for_;
+      Log_info("[RAFT_VOTE] server %d (loc %d) vote=%d candidate=%d can_term=%lu cur_term=%lu prev_vote_for=%d is_leader=%d lst_idx=%lu lst_term=%lu",
+               site_id_, loc_id_, vote, can_id, can_term, currentTerm, prev_vote_for, is_leader_, lst_log_idx, lst_log_term);
+#endif
                     
       if( can_term > currentTerm)
       {
@@ -103,6 +106,9 @@ class RaftServer : public TxLogServer {
       {
           setIsLeader(false) ;
           vote_for_ = can_id ;
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+          Log_info("[RAFT_VOTE] server %d recorded vote_for=%d at term=%lu", site_id_, vote_for_, currentTerm);
+#endif
           //reset timeout
           resetTimer() ;
       }
