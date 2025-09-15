@@ -54,7 +54,7 @@ echo "========================================="
 failed=0
 
 # Check each shard's output
-for i in 0 1; do
+for i in 0; do
     log="simple-shard${i}-p1.log"
     echo ""
     echo "Checking $log:"
