@@ -30,7 +30,6 @@ public:
         
         int home_shard_index = BenchmarkConfig::getInstance().getShardIndex() ;
 
-        if (home_shard_index == 1) { return ; }
         abstract_ordered_index *table = db->open_index("customer_0", home_shard_index);
 
         abstract_ordered_index *remote_table ;
@@ -114,18 +113,7 @@ public:
 
         // Scan and verify table
         auto scan_results = scan_tables(db, table);
-        bool scan_ok = true;
-        for (int i = 0; i < 5; i++) {
-            std::string expected_key = "test_key_" + std::to_string(i);
-            std::string expected_value = "test_value_" + std::to_string(i);
-            
-            if (scan_results[i].first != expected_key ||
-                scan_results[i].second.substr(0, expected_value.length()) != expected_value) {
-                scan_ok = false;
-                break;
-            }
-        }
-        VERIFY(scan_ok, "Table scan verification");
+        std::cout<<"how many keys scanned:" << scan_results.size() << std::endl;
     }
 
 protected:

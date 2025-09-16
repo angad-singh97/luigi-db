@@ -18,7 +18,7 @@ sleep 1
 
 # Start shard 0 in background
 echo "Starting shard 0..."
-trd=1
+trd=6
 nohup ./build/simpleTransactionRep 2 0 $trd localhost 1 > simple-shard0-localhost.log 2>&1 &
 nohup ./build/simpleTransactionRep 2 0 $trd learner 1 > simple-shard0-learner.log 2>&1 &
 nohup ./build/simpleTransactionRep 2 0 $trd p2 1 > simple-shard0-p2.log 2>&1 &
@@ -54,7 +54,7 @@ echo "========================================="
 failed=0
 
 # Check each shard's output
-for i in 0; do
+for i in 0 1; do
     log="simple-shard${i}-p1.log"
     echo ""
     echo "Checking $log:"
