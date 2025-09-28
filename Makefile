@@ -11,7 +11,8 @@ configure:
 	cmake -S . -B $(BUILD_DIR) 
 
 build: configure
-	cmake --build $(BUILD_DIR) --parallel  
+	@echo "Building with $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) parallel jobs..."
+	cmake --build $(BUILD_DIR) --parallel $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4)  
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -46,6 +47,7 @@ run: build
 	./$(BUILD_DIR)/simpleTransction
 	./$(BUILD_DIR)/simpleTransctionRep
 	./$(BUILD_DIR)/simplePaxos
+
 
 
 

@@ -704,7 +704,7 @@ function(add_apps exec_name exec_path)
   )
   
   # Add dependencies
-  add_dependencies(${exec_name} mako erpc rust_lib txlog)
+  add_dependencies(${exec_name} mako erpc rust_lib txlog build_rusty_cpp_checker)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
@@ -787,3 +787,4 @@ if(NOT TARGET memdb)
     target_compile_options(memdb PUBLIC ${BENCH_CXXFLAGS})
     target_link_libraries(memdb rrr pthread)
 endif()
+

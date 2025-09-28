@@ -15,12 +15,14 @@ Install all dependencies
 
 ```
 bash apt_packages.sh
+source install_rustc.sh
 ```
 
 Configure and compile
 
 ```bash
-make 
+# if you run on your PC, you can use fewer CPU cores (e.g., j4)
+make -j32
 ```
 You should now see libmako.a and a few examples in the build folder, and run all examples via `./ci/ci.sh all`
 
