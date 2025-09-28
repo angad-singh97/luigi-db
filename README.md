@@ -3,7 +3,7 @@
 
 ## Quickstart 
 
-This is tested on Debian 12 and Ubuntu 22.04+.
+This is tested on Debian 12 and Ubuntu 22.04.
 
 Recursive clone everything 
 

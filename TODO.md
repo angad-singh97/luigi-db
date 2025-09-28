@@ -2,7 +2,6 @@
 
 1. simple shard test cases with contention
 
-2. retry multiple times on replay
 
 3. disk watermark control
 

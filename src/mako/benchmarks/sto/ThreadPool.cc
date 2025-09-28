@@ -94,18 +94,17 @@ size_t getFileContentNew_OneLogOptimized_mbta_v2(char *buffer, /* K-V pairs */
                 void *txn = db->new_txn(0, arena, buf, abstract_db::HINT_DEFAULT);
                 abstract_ordered_index *table_index = db->get_index_by_table_id(*table_id) ;
                 table_index->put_mbta(txn, obj_k, cmpFunc2_v2, obj_v);
-                auto ret = db->commit_txn_no_paxos(txn);
-                if (try_cnt > 1) {
+                auto ret = db->commit_txn_no_paxos(txn);// we should have ret>0, then retry
+                if (try_cnt > 1 && try_cnt % 20 == 0) {
                     std::cout << "succeed at retry#:" << try_cnt << std::endl;
                 }
                 break ;
             } catch (...) {   // if abort happens, replay it until it succeeds
-                std::cout << "exception, retry#:" << try_cnt << std::endl;
+                // std::cout << "exception, retry#:" << try_cnt << std::endl;
                 try_cnt += 1 ;
             }
         }
-        // if (*table_id>=25&&*table_id<=27)
-            put_ops ++;
+        put_ops ++;
     }
 
     return put_ops;
