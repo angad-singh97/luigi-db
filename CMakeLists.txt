@@ -4,6 +4,9 @@ set(CMAKE_C_COMPILER "gcc" CACHE STRING "C compiler")
 set(CMAKE_CXX_COMPILER "g++" CACHE STRING "C++ compiler")
 project(mako)
 
+# Prefer shared libraries when available
+set(BUILD_SHARED_LIBS ON)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,7 +37,10 @@ pkg_check_modules(DPDK REQUIRED libdpdk)
 # Find Python for txlog library
 find_package(Python3 COMPONENTS Development REQUIRED)
 
-# Find Boost libraries for txlog library
+# Find Boost libraries for txlog library (prefer shared libs)
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_STATIC_RUNTIME OFF)
+set(Boost_USE_MULTITHREADED ON)
 find_package(Boost REQUIRED COMPONENTS system filesystem thread coroutine context)
 
 # Define paths
@@ -178,6 +184,7 @@ set(ERPC_LDFLAGS_ETH
 option(DEBUG "Enable debug mode" OFF)
 option(CHECK_INVARIANTS "Enable invariant checking" OFF)
 option(COCO "Enable COCO" OFF)
+option(RAFT_TEST "Enable Raft lab testing coroutine" OFF)
 set(USE_MALLOC_MODE 1 CACHE STRING "Malloc mode: 0=libc, 1=jemalloc, 2=tcmalloc, 3=flow")
 set(MODE "perf" CACHE STRING "Build mode: perf, backoff, factor-gc, factor-gc-nowriteinplace, factor-fake-compression, sandbox")
 option(STO_RMW "Enable STO read-modify-write" OFF)
@@ -267,8 +274,14 @@ set(CXXFLAGS
   -I${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4
   -Isrc
   -I${HOME}
-  -DCONFIG_H=\"${CONFIG_H}\" 
+  -DCONFIG_H=\"${CONFIG_H}\"
 )
+
+# Add RAFT_TEST_CORO flag if enabled
+if(RAFT_TEST)
+  message(STATUS "Raft lab testing coroutine enabled")
+  list(APPEND CXXFLAGS -DRAFT_TEST_CORO)
+endif()
 
 if(env STREQUAL "ib")
   list(APPEND CXXFLAGS ${ERPC_CFLAGS_IB})
@@ -576,6 +589,8 @@ file(GLOB_RECURSE DEPTRAN_SRC
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/s_main.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/paxos_main_helper.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
+# Exclude MongoDB backend (requires mongocxx library)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
 
 # Build libtxlog as a shared library
 add_library(txlog SHARED
@@ -584,6 +599,8 @@ add_library(txlog SHARED
     ${RRR_SRC}
     ${MEMDB_SRC}
 )
+
+set_target_properties(txlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Add dependency to ensure rcc_rpc.h is generated before txlog is built
 add_dependencies(txlog rcc_rpc_gen)
@@ -602,7 +619,7 @@ target_include_directories(txlog PRIVATE
 target_compile_options(txlog PRIVATE ${BENCH_CXXFLAGS})
 target_compile_definitions(txlog PRIVATE CONFIG_H=\"${CONFIG_H}\")
 
-target_link_libraries(txlog
+target_link_libraries(txlog PUBLIC
     yaml-cpp
     Boost::system
     Boost::filesystem
@@ -729,21 +746,21 @@ add_apps(basic src/mako/benchmarks/ut/basic.cc)
 add_apps(erpc_client src/mako/benchmarks/ut/erpc_client.cc)
 add_apps(erpc_server src/mako/benchmarks/ut/erpc_server.cc)
 
-# RPC benchmark binary
-add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)
-target_include_directories(rpcbench PRIVATE
-    src
-    src/rrr
-    test
-)
-target_compile_options(rpcbench PRIVATE ${BENCH_CXXFLAGS})
-target_link_libraries(rpcbench
-    rrr
-    memdb
-    pthread
-    ${BENCH_LDFLAGS}
-    ${LIBEVENT_LDFLAGS}
-)
+# RPC benchmark binary (disabled during merge - needs API updates)
+# add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)
+# target_include_directories(rpcbench PRIVATE
+#     src
+#     src/rrr
+#     test
+# )
+# target_compile_options(rpcbench PRIVATE ${BENCH_CXXFLAGS})
+# target_link_libraries(rpcbench
+#     rrr
+#     memdb
+#     pthread
+#     ${BENCH_LDFLAGS}
+#     ${LIBEVENT_LDFLAGS}
+# )
 
 # Build the necessary RRR and memdb libraries for rpcbench
 file(GLOB RRR_BENCH_SRC

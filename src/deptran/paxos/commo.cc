@@ -12,6 +12,35 @@ namespace janus {
 MultiPaxosCommo::MultiPaxosCommo(PollMgr* poll) : Communicator(poll) {
 }
 
+shared_ptr<PaxosPrepareQuorumEvent>
+MultiPaxosCommo::SendForward(parid_t par_id,
+                             uint64_t follower_id,
+                             uint64_t dep_id,
+                             shared_ptr<Marshallable> cmd){
+  auto e = Reactor::CreateSpEvent<PaxosPrepareQuorumEvent>(1, 1);
+  auto src_coroid = e->GetCoroId();
+  auto leader_id = LeaderProxyForPartition(par_id).first;
+  auto leader_proxy = (MultiPaxosProxy*) LeaderProxyForPartition(par_id).second;
+
+  FutureAttr fuattr;
+  fuattr.callback = [e, leader_id, src_coroid, follower_id](Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
+    uint64_t coro_id = 0;
+    fu->get_reply() >> coro_id;
+    e->FeedResponse(1);
+    Log_info("adding dependency");
+    // e->add_dep(follower_id, src_coroid, leader_id, coro_id);
+  };
+
+  MarshallDeputy md(cmd);
+  Future::safe_release(leader_proxy->async_Forward(md, dep_id));
+
+  return e;
+}
+
 void MultiPaxosCommo::BroadcastPrepare(parid_t par_id,
                                        slotid_t slot_id,
                                        ballot_t ballot,
@@ -117,6 +146,7 @@ void MultiPaxosCommo::ForwardToLearner(parid_t par_id,
                                        const std::function<void(uint64_t, ballot_t)>& cb) {
   int n = Config::GetConfig()->GetPartitionSize(par_id)-1;
   auto proxies = rpc_par_proxies_[par_id];
+  auto leader_id = LeaderProxyForPartition(par_id).first; // might need to be changed to coordinator's id
   vector<Future*> fus;
   int cur_batch_idx = current_proxy_batch_idx;
   current_proxy_batch_idx=(current_proxy_batch_idx+1)%proxy_batch_size;
@@ -266,6 +296,10 @@ MultiPaxosCommo::BroadcastHeartBeat(parid_t par_id,
     auto p = proxies.at(cur_batch_idx*(Config::GetConfig()->GetPartitionSize(par_id)) + i);
     if (Config::GetConfig()->SiteById(p.first).role==2) continue; 
     auto proxy = (MultiPaxosProxy*) p.second;
+    auto follower_id = p.first;
+
+    // e->add_dep(leader_id, src_coroid, follower_id, -1);
+
     FutureAttr fuattr;
     fuattr.callback = [e, cb] (Future* fu) {
       if (fu->get_error_code()!=0) {
@@ -297,6 +331,7 @@ MultiPaxosCommo::BroadcastSyncLog(parid_t par_id,
   int k = (n%2 == 0) ? n/2 : (n/2 + 1);
   auto e = Reactor::CreateSpEvent<PaxosAcceptQuorumEvent>(n, k);
   auto proxies = rpc_par_proxies_[par_id];
+  auto leader_id = LeaderProxyForPartition(par_id).first;
   vector<Future*> fus;
   int cur_batch_idx = current_proxy_batch_idx;
   current_proxy_batch_idx=(current_proxy_batch_idx+1)%proxy_batch_size;
@@ -336,6 +371,7 @@ MultiPaxosCommo::BroadcastSyncNoOps(parid_t par_id,
   // not old leader, not new leader(old learner)
   auto e = Reactor::CreateSpEvent<PaxosAcceptQuorumEvent>(n-1, n-1);
   auto proxies = rpc_par_proxies_[par_id];
+  auto leader_id = LeaderProxyForPartition(par_id).first;
   vector<Future*> fus;
   int cur_batch_idx = current_proxy_batch_idx;
   current_proxy_batch_idx=(current_proxy_batch_idx+1)%proxy_batch_size;

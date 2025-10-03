@@ -36,11 +36,16 @@ void TapirCommo::BroadcastFastAccept(parid_t par_id,
                                      cmdid_t cmd_id,
                                      vector<SimpleCommand>& cmds,
                                      const function<void(int32_t)>& cb) {
+  WAN_WAIT;
   auto proxies = rpc_par_proxies_[par_id];
   for (auto &p : proxies) {
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
     fuattr.callback = [cb] (Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       fu->get_reply() >> res;
       cb(res);
@@ -66,6 +71,7 @@ void TapirCommo::BroadcastAccept(parid_t par_id,
                                  ballot_t ballot,
                                  int decision,
                                  const function<void(Future*)>& callback) {
+  WAN_WAIT;
   auto proxies = rpc_par_proxies_[par_id];
   for (auto &p: proxies) {
     auto proxy = (ClassicProxy*) p.second;

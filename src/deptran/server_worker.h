@@ -3,6 +3,7 @@
 #include "__dep__.h"
 #include "marshal-value.h"
 #include "rcc/graph.h"
+#include "rcc/tx.h"
 #include "rcc/graph_marshaler.h"
 #include "command.h"
 #include "procedure.h"
@@ -44,6 +45,7 @@ class ServerWorker {
 
   bool launched_{false};
 
+  int DbChecksum();
   void SetupHeartbeat();
   void PopTable();
   void SetupBase();
@@ -51,6 +53,8 @@ class ServerWorker {
   void SetupCommo();
   void RegisterWorkload();
   void ShutDown();
+  void Pause();
+  void Resume();
 
   static const uint32_t CtrlPortDelta = 10000;
   void WaitForShutdown();

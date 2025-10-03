@@ -5,6 +5,7 @@
 #include <queue>
 #include <tuple>
 #include <map>
+#include <cstdint>
 
 std::vector<std::string> setup(int argc, char* argv[]);  // return proc_name on the same machine, s101, s102
 int setup2(int action = 0, int shardIndex = -1);

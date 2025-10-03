@@ -3,6 +3,8 @@
 #include "../__dep__.h"
 #include "../constants.h"
 #include "../communicator.h"
+#include <chrono>
+#include <ctime>
 
 namespace janus {
 
@@ -94,6 +96,12 @@ class MultiPaxosCommo : public Communicator {
     BroadcastPrepare2(parid_t par_id,
                       const shared_ptr<Marshallable> cmd,
                       const std::function<void(MarshallDeputy, ballot_t, int)>& cb);
+
+  shared_ptr<PaxosPrepareQuorumEvent>
+  SendForward(parid_t par_id,
+              uint64_t follower_id,
+              uint64_t dep_id,
+              shared_ptr<Marshallable> cmd);
 };
 
 } // namespace janus

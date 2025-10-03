@@ -16,6 +16,10 @@ void RccCommo::SendDispatch(vector<SimpleCommand> &cmd,
   auto par_id = cmd[0].partition_id_;
   std::function<void(Future*)> cb =
       [callback, tid, par_id](Future* fu) {
+        if (fu->get_error_code() != 0) {
+          Log_info("Get a error message in reply");
+          return;
+        }
         int res;
         TxnOutput output;
         MarshallDeputy md;
@@ -24,7 +28,7 @@ void RccCommo::SendDispatch(vector<SimpleCommand> &cmd,
           RccGraph rgraph;
           auto v = rgraph.CreateV(tid);
           RccTx& info = *v;
-          info.partition_.insert(par_id);
+//          info.partition_.insert(par_id);
           verify(rgraph.vertex_index().size() > 0);
           callback(res, output, rgraph);
         } else if (md.kind_ == MarshallDeputy::RCC_GRAPH) {
@@ -55,6 +59,10 @@ void RccCommo::SendFinish(parid_t pid,
                           const function<void(TxnOutput& output)> &callback) {
   FutureAttr fuattr;
   function<void(Future*)> cb = [callback] (Future* fu) {
+    if (fu->get_error_code() != 0) {
+      Log_info("Get a error message in reply");
+      return;
+    }
     map<innid_t, map<int32_t, Value>> outputs;
     fu->get_reply() >> outputs;
     callback(outputs);
@@ -65,20 +73,45 @@ void RccCommo::SendFinish(parid_t pid,
   Future::safe_release(proxy->async_RccFinish(tid, md, fuattr));
 }
 
+
+shared_ptr<map<txid_t, parent_set_t>>
+RccCommo::Inquire(parid_t pid, txnid_t tid, rank_t rank) {
+  auto ret = std::make_shared<map<txid_t, parent_set_t>>();
+  auto ev = Reactor::CreateSpEvent<IntEvent>();
+  FutureAttr fuattr;
+  function<void(Future*)> cb = [ret, &ev] (Future* fu) {
+//    MarshallDeputy md;
+    fu->get_reply() >> *ret;
+    ev->Set(1);
+  };
+  fuattr.callback = cb;
+  auto proxy = (ClassicProxy*)NearestProxyForPartition(pid).second;
+  Future::safe_release(proxy->async_RccInquire(tid, rank, fuattr));
+//  ev->Wait(60*1000*1000);
+//  verify(ev->status_ != Event::TIMEOUT);
+  ev->Wait();
+  return ret;
+}
+
 void RccCommo::SendInquire(parid_t pid,
                            epoch_t epoch,
                            txnid_t tid,
                            const function<void(RccGraph& graph)>& callback) {
-  FutureAttr fuattr;
-  function<void(Future*)> cb = [callback] (Future* fu) {
-    MarshallDeputy md;
-    fu->get_reply() >> md;
-    RccGraph& graph = dynamic_cast<RccGraph&>(*md.sp_data_);
-    callback(graph);
-  };
-  fuattr.callback = cb;
-  auto proxy = (ClassicProxy*)NearestProxyForPartition(pid).second;
-  Future::safe_release(proxy->async_RccInquire(epoch, tid, fuattr));
+  // verify(0);
+//  FutureAttr fuattr;
+//  function<void(Future*)> cb = [callback] (Future* fu) {
+    // if (fu->get_error_code() != 0) {
+    //       Log_info("Get a error message in reply");
+    //       return;
+    //     }
+//    MarshallDeputy md;
+//    fu->get_reply() >> md;
+//    RccGraph& graph = dynamic_cast<RccGraph&>(*md.sp_data_);
+//    callback(graph);
+//  };
+//  fuattr.callback = cb;
+//  auto proxy = (ClassicProxy*)NearestProxyForPartition(pid).second;
+//  Future::safe_release(proxy->async_RccInquire(tid, fuattr));
 }
 
 void RccCommo::BroadcastCommit(parid_t par_id,
@@ -87,14 +120,18 @@ void RccCommo::BroadcastCommit(parid_t par_id,
                                bool need_validation,
                                shared_ptr<RccGraph> graph,
                                const function<void(int32_t, TxnOutput&)>& callback) {
+  verify(0);
   bool skip_graph = IsGraphOrphan(*graph, cmd_id);
-
   verify(rpc_par_proxies_.find(par_id) != rpc_par_proxies_.end());
   for (auto& p : rpc_par_proxies_[par_id]) {
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [callback](Future* fu) {
+                        if (fu->get_error_code() != 0) {
+                          Log_info("Get a error message in reply");
+                          return;
+                        }
                         int32_t res;
                         TxnOutput output;
                         fu->get_reply() >> res >> output;
@@ -117,6 +154,20 @@ bool RccCommo::IsGraphOrphan(RccGraph& graph, txnid_t cmd_id) {
     return true;
   } else {
     return false;
+  }
+}
+
+void RccCommo::BroadcastValidation(txid_t id, set<parid_t> pars, int result) {
+  for (auto partition_id : pars) {
+    for (auto& pair : rpc_par_proxies_[partition_id]) {
+      auto proxy = pair.second;
+      FutureAttr fuattr;
+      fuattr.callback = [] (Future* fu) {
+      };
+      int rank = RANK_D;
+      verify(0);
+      Future::safe_release(proxy->async_RccNotifyGlobalValidation(id, rank, result, fuattr));
+    }
   }
 }
 

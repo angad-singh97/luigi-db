@@ -9,7 +9,7 @@
 *.sublime*
 *.swp
 .obj/*
-/log
+*/log
 */deptran/rcc_service.py
 */deptran/rcc_rpc.h
 */deptran/rcc_rpc.py
@@ -19,7 +19,6 @@ rpc_test/bin
 conf
 tmp_conf*.xml
 benchmark*.log
-log*
 .idea
 *.o
 *.orig
@@ -44,7 +43,7 @@ GPATH
 /_3rdParty
 /.clang-format
 *.so
-.vscode/
+/.vscode
 src/mako/masstree/*
 cpu*
 profile-results/
@@ -52,3 +51,14 @@ paxos*.yml
 experiment_*.sh
 nfs_sync_*
 out-perf.masstree/*
+*.json
+/tmp
+/log
+/archive
+/results
+*.log
+*.csv
+prof
+*.pdf
+.vscode/settings.json
+/src/deptran/lab_solution_raft

@@ -14,12 +14,15 @@ void CommoFebruus::BroadcastPreAccept(QuorumEvent& e,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [&e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       uint64_t timestamp;
       fu->get_reply() >> res >> timestamp;
-      e.n_voted_yes_++;
       e.vec_timestamp_.push_back(timestamp);
-      e.Test();
+      e.VoteYes();
     };
     verify(tx_id > 0);
     Future::safe_release(proxy->async_PreAcceptFebruus(tx_id, fuattr));
@@ -38,11 +41,14 @@ void CommoFebruus::BroadcastAccept(QuorumEvent& e,
     verify(proxy != nullptr);
     FutureAttr fuattr;
     fuattr.callback = [&e](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        Log_info("Get a error message in reply");
+        return;
+      }
       int32_t res;
       uint64_t timestamp;
       fu->get_reply() >> res;
-      e.n_voted_yes_++;
-      e.Test();
+      e.VoteYes();
     };
     verify(tx_id > 0);
     auto f = proxy->async_AcceptFebruus(tx_id, ballot, timestamp, fuattr);

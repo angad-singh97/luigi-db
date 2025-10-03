@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Mako
 ![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)
 
@@ -258,3 +259,46 @@ make helloworld
 - **scoped_str_arena**: RAII wrapper for arena management
 
 -->
+
+---
+
+## Raft and Jetpack Support
+
+This merged codebase includes both **Mako (Paxos)** and **Jetpack (Raft)** functionality.
+
+### Running Raft Tests
+
+The unified build system supports Raft tests using the `dbtest` executable:
+
+```bash
+# Build (RPC generation is automatic via CMake)
+make -j32 dbtest
+
+# Run Raft tests
+./build/dbtest -f config/raft_lab_test.yml
+```
+
+### Running Raft with Different Configurations
+
+**Run Raft with local 3 machines, close loop 1×1 clients:**
+```bash
+./build/dbtest -f config/none_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -d 30 -m 100 -P localhost
+```
+
+**Run Raft with local 3 machines, close loop 12×12 clients:**
+```bash
+./build/dbtest -f config/none_raft.yml -f config/12c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_12.yml -d 30 -m 100 -P localhost
+```
+
+**Run Raft + Jetpack failure recovery:**
+```bash
+./build/dbtest -f config/rule_raft.yml -f config/1c1s3r1p.yml -f config/rw.yml -f config/client_closed.yml -f config/concurrent_1.yml -f config/failover.yml -d 30 -m 100 -P localhost
+```
+
+### Results Processing
+
+```bash
+python3 results_processor.py <Experiment time (directory name under results folder)>
+# Example:
+python3 results_processor.py 2023-10-10-03:38:03
+```
