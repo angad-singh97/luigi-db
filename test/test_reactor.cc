@@ -1,0 +1,418 @@
+#include <gtest/gtest.h>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "reactor/reactor.h"
+#include "reactor/event.h"
+#include "reactor/coroutine.h"
+#include "reactor/epoll_wrapper.h"
+
+using namespace rrr;
+using namespace std::chrono;
+
+// Concrete implementation of Pollable for testing
+class TestPollable : public Pollable {
+private:
+    int fd_;
+    int mode_;
+    std::function<void()> read_handler_;
+    std::function<void()> write_handler_;
+    std::function<void()> error_handler_;
+
+protected:
+    ~TestPollable() override = default;
+
+public:
+    explicit TestPollable(int fd, int mode = READ) 
+        : fd_(fd), mode_(mode) {}
+
+    int fd() override {
+        return fd_;
+    }
+
+    int poll_mode() override {
+        return mode_;
+    }
+
+    void set_mode(int mode) {
+        mode_ = mode;
+    }
+
+    void handle_read() override {
+        if (read_handler_) {
+            read_handler_();
+        }
+    }
+
+    void handle_write() override {
+        if (write_handler_) {
+            write_handler_();
+        }
+    }
+
+    void handle_error() override {
+        if (error_handler_) {
+            error_handler_();
+        }
+    }
+
+    void set_read_handler(std::function<void()> handler) {
+        read_handler_ = handler;
+    }
+
+    void set_write_handler(std::function<void()> handler) {
+        write_handler_ = handler;
+    }
+
+    void set_error_handler(std::function<void()> handler) {
+        error_handler_ = handler;
+    }
+};
+
+class ReactorTest : public ::testing::Test {
+protected:
+    PollMgr* poll_mgr;
+    
+    void SetUp() override {
+        poll_mgr = new PollMgr(1);  // Create with 1 thread
+    }
+    
+    void TearDown() override {
+        poll_mgr->release();  // Use release() instead of delete for RefCounted
+    }
+    
+    std::pair<int, int> create_socket_pair() {
+        int sv[2];
+        EXPECT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
+        
+        fcntl(sv[0], F_SETFL, O_NONBLOCK);
+        fcntl(sv[1], F_SETFL, O_NONBLOCK);
+        
+        return {sv[0], sv[1]};
+    }
+};
+
+TEST_F(ReactorTest, BasicPollMgrCreation) {
+    EXPECT_NE(poll_mgr, nullptr);
+    // PollMgr doesn't have pollset_id() method
+    EXPECT_EQ(poll_mgr->n_threads_, 1);
+}
+
+TEST_F(ReactorTest, AddRemoveFd) {
+    auto [fd1, fd2] = create_socket_pair();
+    
+    TestPollable* p = new TestPollable(fd1);
+    
+    poll_mgr->add(p);
+    
+    poll_mgr->remove(p);
+    
+    p->release();  // Use release() for RefCounted
+    close(fd1);
+    close(fd2);
+}
+
+TEST_F(ReactorTest, PollReadEvent) {
+    auto [fd1, fd2] = create_socket_pair();
+    
+    std::atomic<bool> read_triggered{false};
+    
+    TestPollable* p = new TestPollable(fd1, Pollable::READ);
+    p->set_read_handler([&read_triggered, fd1]() {
+        read_triggered = true;
+        // Read data to clear the event
+        char buf[256];
+        read(fd1, buf, sizeof(buf));
+    });
+    
+    poll_mgr->add(p);
+    
+    // Write data to trigger read event
+    const char* test_data = "test";
+    write(fd2, test_data, strlen(test_data));
+    
+    // Give poll thread time to process
+    std::this_thread::sleep_for(milliseconds(100));
+    
+    EXPECT_TRUE(read_triggered);
+    
+    poll_mgr->remove(p);
+    p->release();
+    close(fd1);
+    close(fd2);
+}
+
+TEST_F(ReactorTest, PollWriteEvent) {
+    auto [fd1, fd2] = create_socket_pair();
+    
+    std::atomic<bool> write_triggered{false};
+    
+    TestPollable* p = new TestPollable(fd1, Pollable::WRITE);
+    p->set_write_handler([&write_triggered]() {
+        write_triggered = true;
+    });
+    
+    poll_mgr->add(p);
+    
+    // Socket should be immediately writable
+    std::this_thread::sleep_for(milliseconds(100));
+    
+    EXPECT_TRUE(write_triggered);
+    
+    poll_mgr->remove(p);
+    p->release();
+    close(fd1);
+    close(fd2);
+}
+
+TEST_F(ReactorTest, MultipleEvents) {
+    auto [fd1, fd2] = create_socket_pair();
+    auto [fd3, fd4] = create_socket_pair();
+    
+    std::atomic<int> events_triggered{0};
+    
+    TestPollable* p1 = new TestPollable(fd1, Pollable::READ);
+    p1->set_read_handler([&events_triggered, fd1]() {
+        events_triggered++;
+        char buf[256];
+        read(fd1, buf, sizeof(buf));
+    });
+    
+    TestPollable* p2 = new TestPollable(fd3, Pollable::READ);
+    p2->set_read_handler([&events_triggered, fd3]() {
+        events_triggered++;
+        char buf[256];
+        read(fd3, buf, sizeof(buf));
+    });
+    
+    poll_mgr->add(p1);
+    poll_mgr->add(p2);
+    
+    // Trigger both events
+    write(fd2, "test1", 5);
+    write(fd4, "test2", 5);
+    
+    std::this_thread::sleep_for(milliseconds(200));
+    
+    EXPECT_EQ(events_triggered, 2);
+    
+    poll_mgr->remove(p1);
+    poll_mgr->remove(p2);
+    p1->release();
+    p2->release();
+    
+    close(fd1);
+    close(fd2);
+    close(fd3);
+    close(fd4);
+}
+
+TEST_F(ReactorTest, UpdateMode) {
+    auto [fd1, fd2] = create_socket_pair();
+    
+    std::atomic<bool> read_triggered{false};
+    std::atomic<bool> write_triggered{false};
+    
+    TestPollable* p = new TestPollable(fd1, Pollable::READ);
+    p->set_read_handler([&read_triggered, fd1]() {
+        read_triggered = true;
+        char buf[256];
+        read(fd1, buf, sizeof(buf));
+    });
+    p->set_write_handler([&write_triggered]() {
+        write_triggered = true;
+    });
+    
+    poll_mgr->add(p);
+    
+    // Initially only READ mode
+    write(fd2, "test", 4);
+    std::this_thread::sleep_for(milliseconds(100));
+    EXPECT_TRUE(read_triggered);
+    EXPECT_FALSE(write_triggered);
+    
+    // Change to WRITE mode
+    p->set_mode(Pollable::WRITE);
+    poll_mgr->update_mode(p, Pollable::WRITE);
+    
+    std::this_thread::sleep_for(milliseconds(100));
+    EXPECT_TRUE(write_triggered);
+    
+    poll_mgr->remove(p);
+    p->release();
+    close(fd1);
+    close(fd2);
+}
+
+TEST_F(ReactorTest, ErrorHandling) {
+    auto [fd1, fd2] = create_socket_pair();
+    
+    std::atomic<bool> error_triggered{false};
+    
+    TestPollable* p = new TestPollable(fd1, Pollable::READ);
+    p->set_error_handler([&error_triggered]() {
+        error_triggered = true;
+    });
+    
+    poll_mgr->add(p);
+    
+    // Close the other end to trigger error/hangup
+    close(fd2);
+    
+    std::this_thread::sleep_for(milliseconds(200));
+    
+    // Error handling depends on epoll/kqueue behavior
+    // This test may not reliably trigger error on all systems
+    
+    poll_mgr->remove(p);
+    p->release();
+    close(fd1);
+}
+
+// Reactor-specific tests
+TEST_F(ReactorTest, ReactorCreation) {
+    auto reactor = Reactor::GetReactor();
+    EXPECT_NE(reactor, nullptr);
+}
+
+TEST_F(ReactorTest, EventCreation) {
+    auto reactor = Reactor::GetReactor();
+    
+    // Use IntEvent which has the Set method
+    auto& event = Reactor::CreateEvent<IntEvent>();
+    EXPECT_FALSE(event.IsReady());
+    
+    // Trigger the event
+    event.Set(1);
+    EXPECT_TRUE(event.IsReady());
+    EXPECT_EQ(event.value_, 1);
+}
+
+TEST_F(ReactorTest, CoroutineBasic) {
+    auto reactor = Reactor::GetReactor();
+    
+    std::atomic<int> value{0};
+    
+    reactor->CreateRunCoroutine([&value]() {
+        value = 1;
+    });
+    
+    // CreateRunCoroutine already runs the event loop internally
+    // No need for a separate thread
+    
+    EXPECT_EQ(value, 1);
+}
+
+TEST_F(ReactorTest, CoroutineWithYield) {
+    auto reactor = Reactor::GetReactor();
+    
+    std::atomic<int> value{0};
+    
+    auto sp_coro = reactor->CreateRunCoroutine([&value]() {
+        value = 1;
+        Coroutine::CurrentCoroutine()->Yield();
+        value = 2;
+    });
+    
+    // After initial run, the coroutine yields at value=1
+    EXPECT_EQ(value, 1);
+    EXPECT_FALSE(sp_coro->Finished());
+    
+    // Manually continue the coroutine
+    reactor->ContinueCoro(sp_coro);
+    
+    // After continuation, value should be 2
+    EXPECT_EQ(value, 2);
+    EXPECT_TRUE(sp_coro->Finished());
+}
+
+TEST_F(ReactorTest, MultipleCoroutines) {
+    auto reactor = Reactor::GetReactor();
+    
+    std::atomic<int> counter{0};
+    
+    for (int i = 0; i < 5; i++) {
+        reactor->CreateRunCoroutine([&counter]() {
+            counter++;
+        });
+    }
+    
+    // All coroutines should have been executed
+    EXPECT_EQ(counter, 5);
+}
+
+TEST_F(ReactorTest, QuorumEvent) {
+    auto reactor = Reactor::GetReactor();
+    
+    // QuorumEvent needs total count and quorum
+    auto sp_event = Reactor::CreateSpEvent<janus::QuorumEvent>(3, 2);  // 3 total, need 2 votes
+    
+    EXPECT_FALSE(sp_event->IsReady());
+    
+    // Vote once
+    sp_event->n_voted_yes_ = 1;
+    EXPECT_FALSE(sp_event->IsReady());
+    
+    // Vote again - should trigger
+    sp_event->n_voted_yes_ = 2;
+    EXPECT_TRUE(sp_event->IsReady());
+    EXPECT_TRUE(sp_event->Yes());
+    EXPECT_EQ(sp_event->n_voted_yes_, 2);
+}
+
+TEST_F(ReactorTest, StressTest) {
+    const int num_fds = 10;
+    const int events_per_fd = 10;
+    std::vector<std::pair<int, int>> socket_pairs;
+    std::vector<TestPollable*> pollables;
+    std::atomic<int> total_events{0};
+    
+    // Create multiple socket pairs
+    for (int i = 0; i < num_fds; i++) {
+        socket_pairs.push_back(create_socket_pair());
+        auto [fd1, fd2] = socket_pairs.back();
+        
+        TestPollable* p = new TestPollable(fd1, Pollable::READ);
+        p->set_read_handler([&total_events, fd1]() {
+            total_events++;
+            char buf[256];
+            read(fd1, buf, sizeof(buf));
+        });
+        
+        poll_mgr->add(p);
+        pollables.push_back(p);
+    }
+    
+    // Send multiple events
+    for (int i = 0; i < events_per_fd; i++) {
+        for (auto& [fd1, fd2] : socket_pairs) {
+            write(fd2, "x", 1);
+        }
+        std::this_thread::sleep_for(milliseconds(10));
+    }
+    
+    // Wait for processing
+    std::this_thread::sleep_for(milliseconds(500));
+    
+    EXPECT_EQ(total_events, num_fds * events_per_fd);
+    
+    // Cleanup
+    for (auto p : pollables) {
+        poll_mgr->remove(p);
+        p->release();
+    }
+    
+    for (auto& [fd1, fd2] : socket_pairs) {
+        close(fd1);
+        close(fd2);
+    }
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
