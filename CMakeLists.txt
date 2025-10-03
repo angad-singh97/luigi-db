@@ -277,6 +277,10 @@ set(CXXFLAGS
   -DCONFIG_H=\"${CONFIG_H}\"
 )
 
+# Enable coroutine reuse (required for Raft stability)
+list(APPEND CXXFLAGS -DREUSE_CORO)
+message(STATUS "Reuse coroutine enabled")
+
 # Add RAFT_TEST_CORO flag if enabled
 if(RAFT_TEST)
   message(STATUS "Raft lab testing coroutine enabled")
@@ -697,6 +701,8 @@ function(add_apps exec_name exec_path)
       ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/src
       ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/third_party/asio/include
       ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   
@@ -725,6 +731,7 @@ function(add_apps exec_name exec_path)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
+add_apps(deptran_server src/deptran/s_main.cc)
 add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(simplePaxos examples/simplePaxos.cc)
