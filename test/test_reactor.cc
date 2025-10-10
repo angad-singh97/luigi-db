@@ -401,6 +401,72 @@ TEST_F(ReactorTest, StressTest) {
     }
 }
 
+// Test for Issue #1: Destructor cleanup order problem
+// This test DEMONSTRATES THE BUG by showing that epoll Remove() is NOT called
+// when PollThread is destroyed with pollables still registered.
+//
+// BUG (before fix): When PollThread destructor runs, it:
+// 1. Joins the thread (stops poll_loop)
+// 2. Calls remove() for each pollable
+// 3. remove() adds fds to pending_remove_ queue
+// 4. BUT poll_loop has stopped, so pending_remove_ is NEVER processed!
+// 5. Result: epoll_.Remove() is never called for these fds
+//
+// FIX: Move the remove() calls to BEFORE joining the thread, so poll_loop
+// can process pending_remove_ before exiting.
+//
+// This test uses instrumentation (static remove_count_) to verify the fix works.
+TEST_F(ReactorTest, DestructorCleanupWithoutExplicitRemove) {
+    const int NUM_POLLABLES = 5;
+    std::vector<std::pair<int, int>> socket_pairs;
+
+    // Create socket pairs
+    for (int i = 0; i < NUM_POLLABLES; i++) {
+        socket_pairs.push_back(create_socket_pair());
+    }
+
+    // Reset the static remove counter
+    Epoll::remove_count_ = 0;
+
+    {
+        PollThread* test_poll = new PollThread(1);
+
+        // Add pollables WITHOUT explicit remove
+        for (auto& [fd1, fd2] : socket_pairs) {
+            auto p = std::make_shared<TestPollable>(fd1, Pollable::READ);
+            test_poll->add(p);
+        }
+
+        // Verify no removes happened yet
+        EXPECT_EQ(Epoll::remove_count_.load(), 0);
+
+        // Destroy PollThread WITHOUT calling remove() on pollables
+        // With the FIX, the destructor will:
+        // 1. Set stop_flag_ = true
+        // 2. Call remove() for each pollable (adds to pending_remove_)
+        // 3. Join the thread (thread processes pending_remove_ before exiting)
+        // 4. epoll_.Remove() gets called for each pollable!
+        delete test_poll;
+    }
+
+    // Now check the static remove counter
+    int final_remove_count = Epoll::remove_count_.load();
+
+    std::cout << "Remove count after destruction: " << final_remove_count << std::endl;
+    std::cout << "Expected (correct behavior): " << NUM_POLLABLES << std::endl;
+
+    // THIS TEST SHOULD FAIL with the bug, PASS with the fix!
+    // After the fix, the destructor properly calls epoll_.Remove()
+    // for each pollable, so the count will be NUM_POLLABLES.
+    EXPECT_EQ(final_remove_count, NUM_POLLABLES);
+
+    // Clean up socket pairs
+    for (auto& [fd1, fd2] : socket_pairs) {
+        close(fd1);
+        close(fd2);
+    }
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
