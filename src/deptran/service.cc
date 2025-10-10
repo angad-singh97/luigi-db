@@ -17,7 +17,7 @@
 namespace janus {
 
 ClassicServiceImpl::ClassicServiceImpl(TxLogServer* sched,
-                                       rrr::PollThread* poll_mgr,
+                                       rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                        ServerControlServiceImpl* scsi) : scsi_(
     scsi), dtxn_sched_(sched) {
 
@@ -31,7 +31,7 @@ ClassicServiceImpl::ClassicServiceImpl(TxLogServer* sched,
     verify(0); // TODO disable logging for now.
     auto path = Config::GetConfig()->log_path();
 //    recorder_ = new Recorder(path);
-//    poll_mgr->add(recorder_);
+//    poll_thread_worker->add(recorder_);
   }
 
   this->RegisterStats();

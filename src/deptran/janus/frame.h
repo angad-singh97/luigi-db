@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "../frame.h"
 
@@ -17,7 +18,7 @@ class JanusFrame : public Frame {
   TxLogServer *CreateScheduler() override;
   vector<rrr::Service *> CreateRpcServices(uint32_t site_id,
                                            TxLogServer *dtxn_sched,
-                                           rrr::PollThread *poll_mgr,
+                                           rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                            ServerControlServiceImpl *scsi)
   override;
   mdb::Row *CreateRow(const mdb::Schema *schema,
@@ -26,7 +27,7 @@ class JanusFrame : public Frame {
   shared_ptr<Tx> CreateTx(epoch_t epoch, txnid_t tid,
                           bool ro, TxLogServer *mgr) override;
 
-  Communicator *CreateCommo(std::shared_ptr<PollThread> poll = nullptr) override;
+  Communicator *CreateCommo(rusty::Arc<PollThreadWorker> poll = rusty::Arc<PollThreadWorker>()) override;
 };
 
 } // namespace janus

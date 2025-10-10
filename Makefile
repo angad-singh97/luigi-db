@@ -3,7 +3,7 @@
 # Variables
 BUILD_DIR = build
 
-.PHONY: all configure build clean rebuild run
+.PHONY: all configure build clean rebuild run test test-verbose test-parallel
 
 all: build
 
@@ -47,6 +47,21 @@ run: build
 	./$(BUILD_DIR)/simpleTransction
 	./$(BUILD_DIR)/simpleTransctionRep
 	./$(BUILD_DIR)/simplePaxos
+
+# Run tests using ctest
+test: build
+	@echo "Running tests..."
+	@cd $(BUILD_DIR) && ctest --output-on-failure
+
+# Run tests with verbose output
+test-verbose: build
+	@echo "Running tests with verbose output..."
+	@cd $(BUILD_DIR) && ctest --verbose --output-on-failure
+
+# Run tests in parallel
+test-parallel: build
+	@echo "Running tests in parallel..."
+	@cd $(BUILD_DIR) && ctest -j$(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) --output-on-failure
 
 
 

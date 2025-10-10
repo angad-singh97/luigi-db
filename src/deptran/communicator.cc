@@ -10,13 +10,13 @@
 
 namespace janus {
 
-Communicator::Communicator(std::shared_ptr<PollThread> poll_mgr) {
+Communicator::Communicator(rusty::Arc<PollThreadWorker> poll_thread_worker) {
   Log_info("setup paxos communicator");
   vector<string> addrs;
-  if (poll_mgr == nullptr)
-    rpc_poll_ = std::make_shared<PollThread>(1);
+  if (!poll_thread_worker)
+    rpc_poll_ = PollThreadWorker::create();
   else
-    rpc_poll_ = poll_mgr;
+    rpc_poll_ = poll_thread_worker;
   auto config = Config::GetConfig();
   // create more client per server
   int proxy_batch_size = 1 ;
@@ -83,6 +83,11 @@ Communicator::~Communicator() {
     // shared_ptr handles cleanup automatically
   }
   rpc_clients_.clear();
+
+  // Shutdown PollThreadWorker if we own it
+  if (rpc_poll_) {
+    rpc_poll_->shutdown();
+  }
 }
 
 std::pair<siteid_t, ClassicProxy*>
@@ -133,7 +138,7 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_.get());
+  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
   double elapsed;
   int attempt = 0;
   do {
@@ -162,7 +167,7 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_.get());
+  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
   double elapsed;
   int attempt = 0;
   do {

@@ -16,6 +16,11 @@ ClientWorker::~ClientWorker() {
     delete c;
   }
 //  dispatch_pool_->release();
+
+  // Shutdown PollThreadWorker if we own it
+  if (poll_thread_worker_) {
+    poll_thread_worker_->shutdown();
+  }
 }
 
 void ClientWorker::ForwardRequestDone(Coordinator* coo,
@@ -159,7 +164,7 @@ void ClientWorker::Work() {
         this->DispatchRequest(coo);
       }
     });
-    poll_mgr_->add(dynamic_pointer_cast<Job>(sp_job));
+    poll_thread_worker_->add(dynamic_pointer_cast<Job>(sp_job));
   } else {
     Log_info("open loop clients.");
     const std::chrono::nanoseconds wait_time
@@ -177,7 +182,7 @@ void ClientWorker::Work() {
             this->DispatchRequest(coo);
           });
           shared_ptr<Job> sp_job(p_job);
-          poll_mgr_->add(sp_job);
+          poll_thread_worker_->add(sp_job);
           txn_count++;
           elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>
               (std::chrono::steady_clock::now() - start);
@@ -268,7 +273,7 @@ ClientWorker::ClientWorker(
     Config::SiteInfo& site_info,
     Config* config,
     ClientControlServiceImpl* ccsi,
-    std::shared_ptr<PollThread> poll_mgr) :
+    rusty::Arc<PollThreadWorker> poll_thread_worker) :
     id(id),
     my_site_(site_info),
     config_(config),
@@ -278,14 +283,14 @@ ClientWorker::ClientWorker(
     duration(config->get_duration()),
     ccsi(ccsi),
     n_concurrent_(config->get_concurrent_txn()) {
-  poll_mgr_ = poll_mgr == nullptr ? std::make_shared<PollThread>(1) : poll_mgr;
+  poll_thread_worker_ = !poll_thread_worker ? PollThreadWorker::create() : poll_thread_worker;
   frame_ = Frame::GetFrame(config->tx_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
   config->get_all_site_addr(servers_);
   num_txn.store(0);
   success.store(0);
   num_try.store(0);
-  commo_ = frame_->CreateCommo(poll_mgr_);
+  commo_ = frame_->CreateCommo(poll_thread_worker_);
   commo_->loc_id_ = my_site_.locale_id;
   forward_requests_to_leader_ =
       (config->replica_proto_ == MODE_MULTI_PAXOS && site_info.locale_id != 0) ? true

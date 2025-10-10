@@ -6,6 +6,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <rusty/arc.hpp>
+#include <rusty/mutex.hpp>
 #include "reactor/reactor.h"
 #include "reactor/event.h"
 #include "reactor/coroutine.h"
@@ -73,14 +75,17 @@ public:
 
 class ReactorTest : public ::testing::Test {
 protected:
-    PollThread* poll_mgr;
-    
+    rusty::Arc<PollThreadWorker> poll_thread_worker_;
+
     void SetUp() override {
-        poll_mgr = new PollThread(1);  // Create with 1 thread
+        poll_thread_worker_ = PollThreadWorker::create();
     }
-    
+
     void TearDown() override {
-        delete poll_mgr;
+        // Shutdown PollThreadWorker with proper locking
+        {
+            poll_thread_worker_->shutdown();
+        }
     }
     
     std::pair<int, int> create_socket_pair() {
@@ -94,9 +99,9 @@ protected:
     }
 };
 
-TEST_F(ReactorTest, BasicPollThreadCreation) {
-    EXPECT_NE(poll_mgr, nullptr);
-    // PollThread now always uses a single thread (n_threads_ member removed)
+TEST_F(ReactorTest, BasicPollThreadWorkerCreation) {
+    EXPECT_TRUE(poll_thread_worker_);
+    // PollThreadWorker now always uses a single thread (n_threads_ member removed)
 }
 
 TEST_F(ReactorTest, AddRemoveFd) {
@@ -104,9 +109,13 @@ TEST_F(ReactorTest, AddRemoveFd) {
 
     auto p = std::make_shared<TestPollable>(fd1);
 
-    poll_mgr->add(p);
+    {
+        poll_thread_worker_->add(p);
+    }
 
-    poll_mgr->remove(*p);
+    {
+        poll_thread_worker_->remove(*p);
+    }
 
     close(fd1);
     close(fd2);
@@ -125,7 +134,9 @@ TEST_F(ReactorTest, PollReadEvent) {
         read(fd1, buf, sizeof(buf));
     });
 
-    poll_mgr->add(p);
+    {
+        poll_thread_worker_->add(p);
+    }
 
     // Write data to trigger read event
     const char* test_data = "test";
@@ -136,7 +147,9 @@ TEST_F(ReactorTest, PollReadEvent) {
 
     EXPECT_TRUE(read_triggered);
 
-    poll_mgr->remove(*p);
+    {
+        poll_thread_worker_->remove(*p);
+    }
     close(fd1);
     close(fd2);
 }
@@ -151,14 +164,18 @@ TEST_F(ReactorTest, PollWriteEvent) {
         write_triggered = true;
     });
 
-    poll_mgr->add(p);
+    {
+        poll_thread_worker_->add(p);
+    }
 
     // Socket should be immediately writable
     std::this_thread::sleep_for(milliseconds(100));
 
     EXPECT_TRUE(write_triggered);
 
-    poll_mgr->remove(*p);
+    {
+        poll_thread_worker_->remove(*p);
+    }
     close(fd1);
     close(fd2);
 }
@@ -183,8 +200,10 @@ TEST_F(ReactorTest, MultipleEvents) {
         read(fd3, buf, sizeof(buf));
     });
 
-    poll_mgr->add(p1);
-    poll_mgr->add(p2);
+    {
+        poll_thread_worker_->add(p1);
+        poll_thread_worker_->add(p2);
+    }
 
     // Trigger both events
     write(fd2, "test1", 5);
@@ -194,8 +213,10 @@ TEST_F(ReactorTest, MultipleEvents) {
 
     EXPECT_EQ(events_triggered, 2);
 
-    poll_mgr->remove(*p1);
-    poll_mgr->remove(*p2);
+    {
+        poll_thread_worker_->remove(*p1);
+        poll_thread_worker_->remove(*p2);
+    }
 
     close(fd1);
     close(fd2);
@@ -219,7 +240,9 @@ TEST_F(ReactorTest, UpdateMode) {
         write_triggered = true;
     });
 
-    poll_mgr->add(p);
+    {
+        poll_thread_worker_->add(p);
+    }
 
     // Initially only READ mode
     write(fd2, "test", 4);
@@ -229,12 +252,16 @@ TEST_F(ReactorTest, UpdateMode) {
 
     // Change to WRITE mode
     p->set_mode(Pollable::WRITE);
-    poll_mgr->update_mode(*p, Pollable::WRITE);
+    {
+        poll_thread_worker_->update_mode(*p, Pollable::WRITE);
+    }
 
     std::this_thread::sleep_for(milliseconds(100));
     EXPECT_TRUE(write_triggered);
 
-    poll_mgr->remove(*p);
+    {
+        poll_thread_worker_->remove(*p);
+    }
     close(fd1);
     close(fd2);
 }
@@ -249,7 +276,9 @@ TEST_F(ReactorTest, ErrorHandling) {
         error_triggered = true;
     });
 
-    poll_mgr->add(p);
+    {
+        poll_thread_worker_->add(p);
+    }
 
     // Close the other end to trigger error/hangup
     close(fd2);
@@ -259,7 +288,9 @@ TEST_F(ReactorTest, ErrorHandling) {
     // Error handling depends on epoll/kqueue behavior
     // This test may not reliably trigger error on all systems
 
-    poll_mgr->remove(*p);
+    {
+        poll_thread_worker_->remove(*p);
+    }
     close(fd1);
 }
 
@@ -373,7 +404,9 @@ TEST_F(ReactorTest, StressTest) {
             read(fd1, buf, sizeof(buf));
         });
 
-        poll_mgr->add(p);
+        {
+            poll_thread_worker_->add(p);
+        }
         pollables.push_back(p);
     }
 
@@ -391,8 +424,10 @@ TEST_F(ReactorTest, StressTest) {
     EXPECT_EQ(total_events, num_fds * events_per_fd);
 
     // Cleanup
-    for (auto p : pollables) {
-        poll_mgr->remove(*p);
+    {
+        for (auto p : pollables) {
+            poll_thread_worker_->remove(*p);
+        }
     }
 
     for (auto& [fd1, fd2] : socket_pairs) {
@@ -403,9 +438,9 @@ TEST_F(ReactorTest, StressTest) {
 
 // Test for Issue #1: Destructor cleanup order problem
 // This test DEMONSTRATES THE BUG by showing that epoll Remove() is NOT called
-// when PollThread is destroyed with pollables still registered.
+// when PollThreadWorker is destroyed with pollables still registered.
 //
-// BUG (before fix): When PollThread destructor runs, it:
+// BUG (before fix): When PollThreadWorker destructor runs, it:
 // 1. Joins the thread (stops poll_loop)
 // 2. Calls remove() for each pollable
 // 3. remove() adds fds to pending_remove_ queue
@@ -429,24 +464,26 @@ TEST_F(ReactorTest, DestructorCleanupWithoutExplicitRemove) {
     Epoll::remove_count_ = 0;
 
     {
-        PollThread* test_poll = new PollThread(1);
+        auto test_poll_worker = PollThreadWorker::create();
 
         // Add pollables WITHOUT explicit remove
         for (auto& [fd1, fd2] : socket_pairs) {
             auto p = std::make_shared<TestPollable>(fd1, Pollable::READ);
-            test_poll->add(p);
+            test_poll_worker->add(p);
         }
 
         // Verify no removes happened yet
         EXPECT_EQ(Epoll::remove_count_.load(), 0);
 
-        // Destroy PollThread WITHOUT calling remove() on pollables
+        // Destroy PollThreadWorker WITHOUT calling remove() on pollables
         // With the FIX, the destructor will:
         // 1. Set stop_flag_ = true
         // 2. Call remove() for each pollable (adds to pending_remove_)
         // 3. Join the thread (thread processes pending_remove_ before exiting)
         // 4. epoll_.Remove() gets called for each pollable!
-        delete test_poll;
+        // Shutdown (const method, no lock needed)
+        test_poll_worker->shutdown();
+
     }
 
     // Now check the static remove counter

@@ -8,6 +8,9 @@
 #include <signal.h>
 
 #include "rrr.hpp"
+#include <rusty/arc.hpp>
+#include <rusty/mutex.hpp>
+#include "reactor/reactor.h"
 
 #include "benchmark_service.h"
 
@@ -26,7 +29,7 @@ int worker_threads = 16;
 int rpc_bench_vector_size = 0;
 
 static string request_str;
-PollThread* poll;
+rusty::Arc<PollThreadWorker> poll_thread_worker_;
 ThreadPool* thrpool;
 
 Counter req_counter;
@@ -69,7 +72,7 @@ static void* stat_proc(void*) {
 }
 
 static void* client_proc(void*) {
-    Client* cl = new Client(poll);
+    Client* cl = new Client(poll_thread_worker_);
     verify(cl->connect(svr_addr) == 0);
     FutureAttr fu_attr;
     i32 rpc_id;
@@ -190,11 +193,14 @@ int main(int argc, char **argv) {
     Log_info("vector size:             %d", rpc_bench_vector_size);
 
     request_str = string(byte_size, 'x');
-    poll = new PollThread(epoll_instances);
+
+    // Create PollThreadWorker Arc<Mutex<>>
+    poll_thread_worker_ = PollThreadWorker::create();
+
     thrpool = new ThreadPool(worker_threads);
     if (is_server) {
         BenchmarkService svc;
-        Server svr(poll, thrpool);
+        Server svr(poll_thread_worker_, thrpool);  // Server takes Arc<Mutex<>>
         svr.reg(&svc);
         verify(svr.start(svr_addr) == 0);
 
@@ -230,7 +236,10 @@ int main(int argc, char **argv) {
         delete[] client_th;
     }
 
-    delete poll;
+    // Shutdown PollThreadWorker with proper locking
+    {
+        poll_thread_worker_->shutdown();
+    }
     thrpool->release();
     return 0;
 }

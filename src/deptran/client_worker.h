@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "__dep__.h"
 #include "config.h"
@@ -17,7 +18,7 @@ class TxReply;
 
 class ClientWorker {
  public:
-  std::shared_ptr<PollThread> poll_mgr_;
+  rusty::Arc<PollThreadWorker> poll_thread_worker_;
   Frame* frame_{nullptr};
   Communicator* commo_{nullptr};
   cliid_t cli_id_;
@@ -51,7 +52,7 @@ class ClientWorker {
                Config::SiteInfo &site_info,
                Config *config,
                ClientControlServiceImpl *ccsi,
-               std::shared_ptr<PollThread> mgr);
+               rusty::Arc<PollThreadWorker> poll_thread_worker);
   ClientWorker() = delete;
   ~ClientWorker();
   // This is called from a different thread.

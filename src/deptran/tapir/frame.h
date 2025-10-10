@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "../__dep__.h"
 #include "../frame.h"
@@ -19,7 +20,7 @@ class FrameTapir : public Frame {
   TxLogServer *CreateScheduler() override;
   mdb::Row *CreateRow(const mdb::Schema *schema,
                       vector<Value> &row_data) override;
-  Communicator *CreateCommo(std::shared_ptr<PollThread> pollmgr = nullptr) override;
+  Communicator *CreateCommo(rusty::Arc<PollThreadWorker> poll_thread_worker = rusty::Arc<PollThreadWorker>()) override;
 
   shared_ptr<Tx> CreateTx(epoch_t epoch, txnid_t tid,
                           bool ro, TxLogServer *mgr) override;

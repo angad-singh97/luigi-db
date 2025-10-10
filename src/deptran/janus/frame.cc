@@ -44,9 +44,9 @@ TxLogServer *JanusFrame::CreateScheduler() {
 vector<rrr::Service *>
 JanusFrame::CreateRpcServices(uint32_t site_id,
                               TxLogServer *sched,
-                              rrr::PollThread *poll_mgr,
+                              rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                               ServerControlServiceImpl *scsi) {
-  return Frame::CreateRpcServices(site_id, sched, poll_mgr, scsi);
+  return Frame::CreateRpcServices(site_id, sched, poll_thread_worker, scsi);
 }
 
 mdb::Row *JanusFrame::CreateRow(const mdb::Schema *schema,
@@ -64,7 +64,7 @@ shared_ptr<Tx> JanusFrame::CreateTx(epoch_t epoch, txnid_t tid,
   return sp_tx;
 }
 
-Communicator *JanusFrame::CreateCommo(std::shared_ptr<PollThread> poll) {
+Communicator *JanusFrame::CreateCommo(rusty::Arc<PollThreadWorker> poll) {
   return new JanusCommo(poll);
 }
 

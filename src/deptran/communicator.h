@@ -8,6 +8,7 @@
 #include "deptran/rcc/dep_graph.h"
 #include "rcc_rpc.h"
 #include <ctime>
+#include <rusty/arc.hpp>
 
 namespace janus {
 
@@ -92,7 +93,7 @@ class Communicator {
  public:
   const int CONNECT_TIMEOUT_MS = 120*1000;
   const int CONNECT_SLEEP_MS = 1000;
-  std::shared_ptr<rrr::PollThread> rpc_poll_;
+  rusty::Arc<rrr::PollThreadWorker> rpc_poll_;
   locid_t loc_id_ = -1;
   map<siteid_t, std::shared_ptr<rrr::Client>> rpc_clients_{};
   map<siteid_t, ClassicProxy *> rpc_proxies_{};
@@ -102,7 +103,7 @@ class Communicator {
   std::atomic_bool client_leaders_connected_;
   std::vector<std::thread> threads;
 
-  Communicator(std::shared_ptr<PollThread> poll_mgr = nullptr);
+  Communicator(rusty::Arc<PollThreadWorker> poll_mgr = rusty::Arc<PollThreadWorker>());
   virtual ~Communicator();
 
   SiteProxyPair RandomProxyForPartition(parid_t partition_id) const;

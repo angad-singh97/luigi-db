@@ -4,6 +4,9 @@
 #include <chrono>
 #include <vector>
 #include <future>
+#include <rusty/arc.hpp>
+#include <rusty/mutex.hpp>
+#include "reactor/reactor.h"
 #include "rpc/client.hpp"
 #include "rpc/server.hpp"
 #include "misc/marshal.hpp"
@@ -93,22 +96,26 @@ private:
 
 class FutureTest : public ::testing::Test {
 protected:
-    PollThread* poll_mgr;
+    rusty::Arc<PollThreadWorker> poll_thread_worker_;
     Server* server;
     TestFutureService* service;
     std::shared_ptr<Client> client;
     static constexpr int test_port = 8849;  // Different port from RPC test
 
     void SetUp() override {
-        poll_mgr = new PollThread;
-        server = new Server(poll_mgr);
+        // Create PollThreadWorker Arc<Mutex<>>
+        poll_thread_worker_ = PollThreadWorker::create();
+
+        // Server now takes Arc<Mutex<>>
+        server = new Server(poll_thread_worker_);
         service = new TestFutureService();
 
         server->reg(service);
 
         ASSERT_EQ(server->start(("0.0.0.0:" + std::to_string(test_port)).c_str()), 0);
 
-        client = std::make_shared<Client>(poll_mgr);
+        // Client takes Arc<Mutex<>>
+        client = std::make_shared<Client>(poll_thread_worker_);
         ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(test_port)).c_str()), 0);
 
         std::this_thread::sleep_for(milliseconds(50));
@@ -120,9 +127,10 @@ protected:
         delete service;
         delete server;  // Server destructor waits for connections to close
 
-        // shared_ptr handles cleanup automatically
-
-        delete poll_mgr;
+        // Shutdown PollThreadWorker with proper locking
+        {
+            poll_thread_worker_->shutdown();
+        }
     }
 };
 

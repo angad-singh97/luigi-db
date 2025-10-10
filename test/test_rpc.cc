@@ -3,6 +3,9 @@
 #include <chrono>
 #include <thread>
 #include <unistd.h>
+#include <rusty/arc.hpp>
+#include <rusty/mutex.hpp>
+#include "reactor/reactor.h"
 #include "rpc/client.hpp"
 #include "rpc/server.hpp"
 #include "misc/marshal.hpp"
@@ -60,22 +63,26 @@ public:
 
 class RPCTest : public ::testing::Test {
 protected:
-    PollThread* poll_mgr;
+    rusty::Arc<PollThreadWorker> poll_thread_worker_;  // Shared Arc<PollThreadWorker>
     Server* server;
     TestService* service;
     std::shared_ptr<Client> client;
     static constexpr int test_port = 8848;
 
     void SetUp() override {
-        poll_mgr = new PollThread;
-        server = new Server(poll_mgr);
+        // Create PollThreadWorker Arc
+        poll_thread_worker_ = PollThreadWorker::create();
+
+        // Server now takes Arc<PollThreadWorker>
+        server = new Server(poll_thread_worker_);
         service = new TestService();
 
         server->reg(service);
 
         ASSERT_EQ(server->start(("0.0.0.0:" + std::to_string(test_port)).c_str()), 0);
 
-        client = std::make_shared<Client>(poll_mgr);
+        // Client takes Arc<Mutex<>>
+        client = std::make_shared<Client>(poll_thread_worker_);
         ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(test_port)).c_str()), 0);
 
         std::this_thread::sleep_for(milliseconds(100));
@@ -87,9 +94,8 @@ protected:
         delete service;
         delete server;  // Server destructor waits for connections to close
 
-        // shared_ptr handles cleanup automatically
-
-        delete poll_mgr;
+        // Shutdown PollThreadWorker (const method, no lock needed)
+        poll_thread_worker_->shutdown();
     }
 };
 
@@ -285,7 +291,8 @@ TEST_F(RPCTest, ConnectionResilience) {
 
     std::this_thread::sleep_for(milliseconds(100));
 
-    client = std::make_shared<Client>(poll_mgr);
+    // Create new client with Arc<Mutex<>>
+    client = std::make_shared<Client>(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(test_port)).c_str()), 0);
 
     std::this_thread::sleep_for(milliseconds(100));
@@ -375,19 +382,21 @@ TEST_F(RPCTest, FastClientSlowServer) {
 
 class ConnectionErrorTest : public ::testing::Test {
 protected:
-    PollThread* poll_mgr;
-    
+    rusty::Arc<PollThreadWorker> poll_thread_worker_;  // Shared Arc<PollThreadWorker>
+
     void SetUp() override {
-        poll_mgr = new PollThread;
+        poll_thread_worker_ = PollThreadWorker::create();
     }
-    
+
     void TearDown() override {
-        delete poll_mgr;
+        // Shutdown PollThreadWorker (const method, no lock needed)
+        poll_thread_worker_->shutdown();
     }
 };
 
 TEST_F(ConnectionErrorTest, ConnectToNonExistentServer) {
-    auto client = std::make_shared<Client>(poll_mgr);
+    std::shared_ptr<Client> client;
+    client = std::make_shared<Client>(poll_thread_worker_);
 
     int result = client->connect("127.0.0.1:9999");
 
@@ -398,7 +407,8 @@ TEST_F(ConnectionErrorTest, ConnectToNonExistentServer) {
 }
 
 TEST_F(ConnectionErrorTest, InvalidAddress) {
-    auto client = std::make_shared<Client>(poll_mgr);
+    std::shared_ptr<Client> client;
+    client = std::make_shared<Client>(poll_thread_worker_);
 
     int result = client->connect("invalid_address:1234");
 
@@ -409,7 +419,8 @@ TEST_F(ConnectionErrorTest, InvalidAddress) {
 }
 
 TEST_F(ConnectionErrorTest, InvalidPort) {
-    auto client = std::make_shared<Client>(poll_mgr);
+    std::shared_ptr<Client> client;
+    client = std::make_shared<Client>(poll_thread_worker_);
 
     int result = client->connect("127.0.0.1:99999");
 
@@ -417,6 +428,103 @@ TEST_F(ConnectionErrorTest, InvalidPort) {
 
     client->close();
     // shared_ptr handles cleanup automatically
+}
+
+// Stress test for PollThreadWorker thread safety
+// Tests that 100 threads can safely share a single PollThreadWorker
+// Each thread creates its own client, connects, and makes RPC calls
+TEST_F(RPCTest, MultiThreadedStressTest) {
+    const int num_threads = 100;
+    const int requests_per_thread = 10;
+    std::vector<rusty::thread::JoinHandle<std::pair<int, int>>> handles;
+
+    // Clone the Arc for each thread to test Arc's thread-safety
+    for (int thread_id = 0; thread_id < num_threads; thread_id++) {
+        // Clone Arc for this thread
+        auto worker_clone = poll_thread_worker_.clone();
+
+        // Spawn thread with explicit parameter passing (enforces Send trait)
+        auto handle = rusty::thread::spawn(
+            [](rusty::Arc<PollThreadWorker> worker,
+               int tid,
+               int requests) -> std::pair<int, int> {
+                int thread_successes = 0;
+                int thread_failures = 0;
+
+                // Each thread creates its own client using the shared PollThreadWorker
+                auto thread_client = std::make_shared<Client>(worker);
+
+                // Connect to server
+                int conn_result = thread_client->connect("127.0.0.1:8848");
+                if (conn_result != 0) {
+                    thread_failures++;
+                    return {thread_successes, thread_failures};
+                }
+
+                // Small delay to ensure connection is established
+                std::this_thread::sleep_for(milliseconds(10));
+
+                // Make multiple RPC calls
+                for (int i = 0; i < requests; i++) {
+                    std::string input = "Thread_" + std::to_string(tid) +
+                                      "_Request_" + std::to_string(i);
+
+                    Future* fu = thread_client->begin_request(
+                        benchmark::BenchmarkService::FAST_NOP);
+
+                    if (!fu) {
+                        thread_failures++;
+                        continue;
+                    }
+
+                    *thread_client << input;
+                    thread_client->end_request();
+
+                    fu->wait();
+
+                    if (fu->get_error_code() == 0) {
+                        thread_successes++;
+                    } else {
+                        thread_failures++;
+                    }
+
+                    fu->release();
+                }
+
+                // Close connection
+                thread_client->close();
+
+                return {thread_successes, thread_failures};
+            },
+            worker_clone,
+            thread_id,
+            requests_per_thread
+        );
+
+        handles.push_back(std::move(handle));
+    }
+
+    // Join all threads and collect results
+    int total_successes = 0;
+    int total_failures = 0;
+    for (auto& handle : handles) {
+        auto [successes, failures] = handle.join();
+        total_successes += successes;
+        total_failures += failures;
+    }
+
+    // Verify results
+    int expected_total = num_threads * requests_per_thread;
+    EXPECT_EQ(total_successes, expected_total)
+        << "Expected " << expected_total << " successful requests, got "
+        << total_successes;
+    EXPECT_EQ(total_failures, 0)
+        << "Expected 0 failures, got " << total_failures;
+
+    // The service call_count should match (though it may be slightly off due to timing)
+    // We check it's at least close to expected
+    EXPECT_GE(service->call_count.load(), expected_total * 0.95)
+        << "Service call count too low: " << service->call_count.load();
 }
 
 int main(int argc, char** argv) {

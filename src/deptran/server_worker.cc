@@ -14,11 +14,11 @@ void ServerWorker::SetupHeartbeat() {
   auto timeout = Config::GetConfig()->get_ctrl_timeout();
   scsi_ = new ServerControlServiceImpl(timeout);
   int n_io_threads = 1;
-//  svr_hb_poll_mgr_g = new rrr::PollThread(n_io_threads);
-  svr_hb_poll_mgr_g = svr_poll_mgr_;
+//  svr_hb_poll_thread_worker_g = new rrr::PollThreadWorker(n_io_threads);
+  svr_hb_poll_thread_worker_g = svr_poll_thread_worker_;
 //  hb_thread_pool_g = new rrr::ThreadPool(1);
   hb_thread_pool_g = svr_thread_pool_;
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g.get(), hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g, hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = this->site_info_->port + ServerWorker::CtrlPortDelta;
@@ -126,9 +126,8 @@ void ServerWorker::SetupService() {
   // set running mode and initialize transaction manager.
   std::string bind_addr = site_info_->GetBindAddress();
 
-  // init rrr::PollThread 1 threads
-  int n_io_threads = 1;
-  svr_poll_mgr_ = std::make_shared<rrr::PollThread>(n_io_threads);
+  // init rrr::PollThreadWorker
+  svr_poll_thread_worker_ = PollThreadWorker::create();
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
   // init service implementation
@@ -136,27 +135,27 @@ void ServerWorker::SetupService() {
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
-                                             svr_poll_mgr_.get(),
+                                             svr_poll_thread_worker_,
                                              scsi_);
   }
 
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_mgr_.get(),
+                                            svr_poll_thread_worker_,
                                             scsi_);
 
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
 
 //  auto& alarm = TimeoutALock::get_alarm_s();
-//  ServerWorker::svr_poll_mgr_->add(&alarm);
+//  ServerWorker::svr_poll_thread_worker_->add(&alarm);
 
   uint32_t num_threads = 1;
 //  thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_mgr_.get(), svr_thread_pool_);
+  rpc_server_ = new rrr::Server(svr_poll_thread_worker_, svr_thread_pool_);
 
   // reg services
   for (auto service : services_) {
@@ -182,7 +181,7 @@ void ServerWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    // svr_hb_poll_mgr_g automatically released by shared_ptr
+    // svr_hb_poll_thread_worker_g automatically released by shared_ptr
     if (hb_thread_pool_g != svr_thread_pool_)
       hb_thread_pool_g->release();
 
@@ -212,16 +211,16 @@ void ServerWorker::WaitForShutdown() {
 }
 
 void ServerWorker::SetupCommo() {
-  verify(svr_poll_mgr_ != nullptr);
+  verify(svr_poll_thread_worker_);
   if (tx_frame_) {
-    tx_commo_ = tx_frame_->CreateCommo(svr_poll_mgr_);
+    tx_commo_ = tx_frame_->CreateCommo(svr_poll_thread_worker_);
     if (tx_commo_) {
       tx_commo_->loc_id_ = site_info_->locale_id;
     }
     tx_sched_->commo_ = tx_commo_;
   }
   if (rep_frame_) {
-    rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
+    rep_commo_ = rep_frame_->CreateCommo(svr_poll_thread_worker_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
     }
@@ -237,6 +236,18 @@ void ServerWorker::ShutDown() {
     delete service;
   }
 //  thread_pool_g->release();
-  // svr_poll_mgr_ automatically released by shared_ptr
+  // svr_poll_thread_worker_ automatically released by shared_ptr
 }
+
+ServerWorker::~ServerWorker() {
+  // Shutdown PollThreadWorkers if we own them
+  if (svr_poll_thread_worker_) {
+    svr_poll_thread_worker_->shutdown();
+  }
+  if (svr_hb_poll_thread_worker_g) {
+    svr_hb_poll_thread_worker_g->shutdown();
+  }
+}
+
 } // namespace janus
+

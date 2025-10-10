@@ -393,7 +393,7 @@ void submit(const char* log, int len, uint32_t par_id) {
         auto sp_job = std::make_shared<OneTimeJob>([&worker,log_str,len,par_id] () {
             worker->Submit(log_str.data(),len, par_id);
         });
-        worker->GetPollThread()->add(sp_job);
+        worker->GetPollThreadWorker()->add(sp_job);
         submit_tot++;
     }
 }
@@ -510,7 +510,7 @@ void send_no_ops_to_all_workers(int epoch){
       ess->stuff_after_election_cond_.bcast();
     }
   });
-  pxs_workers_g.back()->GetPollThread()->add(sp_job);
+  pxs_workers_g.back()->GetPollThreadWorker()->add(sp_job);
   es->stuff_after_election_mutex_.lock();
   es->stuff_after_election_cond_.wait(es->stuff_after_election_mutex_);
   es->stuff_after_election_mutex_.unlock();
@@ -532,7 +532,7 @@ void send_sync_logs(int epoch){
     ess->stuff_after_election_cond_.bcast();
   }
  });
- pxs_workers_g.back()->GetPollThread()->add(sp_job);
+ pxs_workers_g.back()->GetPollThreadWorker()->add(sp_job);
  es->stuff_after_election_mutex_.lock();
  es->stuff_after_election_cond_.wait(es->stuff_after_election_mutex_);
  es->stuff_after_election_mutex_.unlock();
@@ -645,7 +645,7 @@ void send_bulk_prep(int send_epoch){
       }
       ess->election_cond.bcast();
   });
-  pxs_workers_g.back()->GetPollThread()->add(sp_job);
+  pxs_workers_g.back()->GetPollThreadWorker()->add(sp_job);
 }
 
 // marker:ansh
@@ -719,15 +719,15 @@ void* heartbeatMonitor(void* arg){
           ess->state_unlock();
         }
     });
-    pxs_workers_g.back()->GetPollThread()->add(sp_job);
+    pxs_workers_g.back()->GetPollThreadWorker()->add(sp_job);
   }
    pthread_exit(nullptr);
    return nullptr;
 }
 
 void* heartbeatBackground(void* arg) {
-  rrr::PollThread *pm = new rrr::PollThread(1);
-  auto rpc_cli = std::make_shared<rrr::Client>(pm);
+  auto poll_arc = PollThreadWorker::create();
+  auto rpc_cli = std::make_shared<rrr::Client>(poll_arc);
   auto site_leader = Config::GetConfig()->LeaderSiteByPartitionId(0);
   // get the leader's host + port
   auto port = site_leader.port + PaxosWorker::CtrlPortDelta;
@@ -751,8 +751,8 @@ void* heartbeatBackground(void* arg) {
 
 // between distant datacenters
 void* heartbeatBackground2(void* arg) {
-  rrr::PollThread *pm = new rrr::PollThread(1);
-  auto rpc_cli = std::make_shared<rrr::Client>(pm);
+  auto poll_arc = PollThreadWorker::create();
+  auto rpc_cli = std::make_shared<rrr::Client>(poll_arc);
   auto site_leader = Config::GetConfig()->LeaderSiteByPartitionId(0); // tie to the partition0
   // get the leader's host + port
   auto port = site_leader.port + PaxosWorker::CtrlPortDelta;
@@ -1084,9 +1084,9 @@ nc_pclock(char *msg, clockid_t cid)
 
 void *nc_start_server(void *input) {
     NetworkClientServiceImpl *impl = new NetworkClientServiceImpl();
-    rrr::PollThread *pm = new rrr::PollThread();
+    auto poll_arc = PollThreadWorker::create();
     base::ThreadPool *tp = new base::ThreadPool();  // never use it
-    rrr::Server *server = new rrr::Server(pm, tp);
+    rrr::Server *server = new rrr::Server(poll_arc, tp);
 
     server->reg(impl);
     server->start((std::string(((struct args*)input)->server_ip)+std::string(":")+std::to_string(((struct args*)input)->port)).c_str()  );

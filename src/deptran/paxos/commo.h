@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "../__dep__.h"
 #include "../constants.h"
@@ -23,7 +24,7 @@ class TxData;
 class MultiPaxosCommo : public Communicator {
  public:
   MultiPaxosCommo() = delete;
-  MultiPaxosCommo(std::shared_ptr<PollThread>);
+  MultiPaxosCommo(rusty::Arc<PollThreadWorker>);
 
   int proxy_batch_size = 1 ;
   int current_proxy_batch_idx = 0;
