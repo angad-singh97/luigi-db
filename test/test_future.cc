@@ -122,7 +122,7 @@ protected:
 
         // shared_ptr handles cleanup automatically
 
-        poll_mgr->release();
+        delete poll_mgr;
     }
 };
 

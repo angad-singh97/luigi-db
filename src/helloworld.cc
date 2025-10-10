@@ -93,11 +93,6 @@ void *nc_start_server2(void *input) {
     rrr::PollThread *pm = new rrr::PollThread(); // starting a coroutine
     base::ThreadPool *tp = new base::ThreadPool();  // never use it
     rrr::Server *server = new rrr::Server(pm, tp);
-    
-    // We should count the child threads into consideration
-    bool track_cputime=true;
-    pthread_t *ps;
-    if (track_cputime) ps = pm->GetPthreads(0);
 
     server->reg(impl);
     server->start((std::string(((struct args*)input)->server_ip)+std::string(":")+std::to_string(((struct args*)input)->port)).c_str()  );

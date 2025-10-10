@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
         delete[] client_th;
     }
 
-    poll->release();
+    delete poll;
     thrpool->release();
     return 0;
 }

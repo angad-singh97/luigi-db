@@ -28,7 +28,7 @@ class FrameRococo : public Frame {
   shared_ptr<Tx> CreateTx(epoch_t epoch, txnid_t tid,
                           bool ro, TxLogServer *mgr) override;
 
-  Communicator *CreateCommo(PollThread *poll = nullptr) override;
+  Communicator *CreateCommo(std::shared_ptr<PollThread> poll = nullptr) override;
 
 };
 } // namespace janus

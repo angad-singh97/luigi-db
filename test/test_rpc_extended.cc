@@ -89,7 +89,7 @@ protected:
     void TearDown() override {
         if (service) delete service;
         if (server) delete server;
-        if (poll_mgr) poll_mgr->release();
+        if (poll_mgr) delete poll_mgr;
     }
 };
 

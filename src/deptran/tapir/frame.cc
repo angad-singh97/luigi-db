@@ -27,7 +27,7 @@ Coordinator *FrameTapir::CreateCoordinator(cooid_t coo_id,
   return coord;
 }
 
-Communicator *FrameTapir::CreateCommo(PollThread *pollmgr) {
+Communicator *FrameTapir::CreateCommo(std::shared_ptr<PollThread> pollmgr) {
   // Default: return null;
   commo_ = new TapirCommo(pollmgr);
   return commo_;

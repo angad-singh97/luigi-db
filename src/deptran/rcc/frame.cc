@@ -66,7 +66,7 @@ shared_ptr<Tx> FrameRococo::CreateTx(epoch_t epoch, txnid_t tid,
   return sp_tx;
 }
 
-Communicator *FrameRococo::CreateCommo(PollThread *poll) {
+Communicator *FrameRococo::CreateCommo(std::shared_ptr<PollThread> poll) {
   return new RccCommo(poll);
 }
 

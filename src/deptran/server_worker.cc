@@ -18,7 +18,7 @@ void ServerWorker::SetupHeartbeat() {
   svr_hb_poll_mgr_g = svr_poll_mgr_;
 //  hb_thread_pool_g = new rrr::ThreadPool(1);
   hb_thread_pool_g = svr_thread_pool_;
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g.get(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = this->site_info_->port + ServerWorker::CtrlPortDelta;
@@ -128,7 +128,7 @@ void ServerWorker::SetupService() {
 
   // init rrr::PollThread 1 threads
   int n_io_threads = 1;
-  svr_poll_mgr_ = new rrr::PollThread(n_io_threads);
+  svr_poll_mgr_ = std::make_shared<rrr::PollThread>(n_io_threads);
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
   // init service implementation
@@ -136,14 +136,14 @@ void ServerWorker::SetupService() {
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
-                                             svr_poll_mgr_,
+                                             svr_poll_mgr_.get(),
                                              scsi_);
   }
 
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_mgr_,
+                                            svr_poll_mgr_.get(),
                                             scsi_);
 
     services_.insert(services_.end(), s2.begin(), s2.end());
@@ -156,7 +156,7 @@ void ServerWorker::SetupService() {
 //  thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_mgr_, svr_thread_pool_);
+  rpc_server_ = new rrr::Server(svr_poll_mgr_.get(), svr_thread_pool_);
 
   // reg services
   for (auto service : services_) {
@@ -182,8 +182,7 @@ void ServerWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    if (svr_hb_poll_mgr_g != svr_poll_mgr_)
-      svr_hb_poll_mgr_g->release();
+    // svr_hb_poll_mgr_g automatically released by shared_ptr
     if (hb_thread_pool_g != svr_thread_pool_)
       hb_thread_pool_g->release();
 
@@ -238,6 +237,6 @@ void ServerWorker::ShutDown() {
     delete service;
   }
 //  thread_pool_g->release();
-  svr_poll_mgr_->release();
+  // svr_poll_mgr_ automatically released by shared_ptr
 }
 } // namespace janus

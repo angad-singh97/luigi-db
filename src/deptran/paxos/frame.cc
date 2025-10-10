@@ -68,7 +68,7 @@ TxLogServer *MultiPaxosFrame::CreateScheduler() {
   return sch;
 }
 
-Communicator *MultiPaxosFrame::CreateCommo(PollThread *poll) {
+Communicator *MultiPaxosFrame::CreateCommo(std::shared_ptr<PollThread> poll) {
   // We only have 1 instance of MultiPaxosFrame object that is returned from
   // GetFrame method. MultiPaxosCommo currently seems ok to share among the
   // clients of this method.

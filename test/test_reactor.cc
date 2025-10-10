@@ -80,7 +80,7 @@ protected:
     }
     
     void TearDown() override {
-        poll_mgr->release();  // Use release() instead of delete for RefCounted
+        delete poll_mgr;
     }
     
     std::pair<int, int> create_socket_pair() {

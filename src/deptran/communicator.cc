@@ -10,11 +10,11 @@
 
 namespace janus {
 
-Communicator::Communicator(PollThread* poll_mgr) {
+Communicator::Communicator(std::shared_ptr<PollThread> poll_mgr) {
   Log_info("setup paxos communicator");
   vector<string> addrs;
   if (poll_mgr == nullptr)
-    rpc_poll_ = new PollThread(1);
+    rpc_poll_ = std::make_shared<PollThread>(1);
   else
     rpc_poll_ = poll_mgr;
   auto config = Config::GetConfig();
@@ -133,7 +133,7 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_.get());
   double elapsed;
   int attempt = 0;
   do {
@@ -162,7 +162,7 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_.get());
   double elapsed;
   int attempt = 0;
   do {

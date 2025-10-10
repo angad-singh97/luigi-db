@@ -605,7 +605,7 @@ public:
   std::atomic<int> n_submit{0};
   std::atomic<int> n_tot{0};
   SubmitPool* submit_pool = nullptr;
-  rrr::PollThread* svr_poll_mgr_ = nullptr;
+  std::shared_ptr<rrr::PollThread> svr_poll_mgr_;
   vector<rrr::Service*> services_ = {};
   rrr::Server* rpc_server_ = nullptr;
   base::ThreadPool* thread_pool_g = nullptr;
@@ -618,9 +618,9 @@ public:
   int is_leader;
   int bulk_writer = 0;
   int bulk_reader = 0;
-  
 
-  rrr::PollThread* svr_hb_poll_mgr_g = nullptr;
+
+  std::shared_ptr<rrr::PollThread> svr_hb_poll_mgr_g;
   ServerControlServiceImpl* scsi_ = nullptr;
   rrr::Server* hb_rpc_server_ = nullptr;
   base::ThreadPool* hb_thread_pool_g = nullptr;
@@ -680,7 +680,7 @@ public:
   void register_apply_callback_par_id(std::function<void(const char*&, int, int)>);
   void register_apply_callback_par_id_return(std::function<int(const char*&, int, int, int, std::queue<std::tuple<int, int, int, int, const char *>> &)>);
   rrr::PollThread * GetPollThread(){
-      return svr_poll_mgr_;
+      return svr_poll_mgr_.get();
   }
 };
 

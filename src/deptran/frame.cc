@@ -291,7 +291,7 @@ TxData* Frame::CreateTxnCommand(TxRequest& req, shared_ptr<TxnRegistry> reg) {
 //  return CreateTxnCommand(req, reg);
 //}
 
-Communicator* Frame::CreateCommo(PollThread* pollmgr) {
+Communicator* Frame::CreateCommo(std::shared_ptr<PollThread> pollmgr) {
   commo_ = new Communicator(pollmgr);
   return commo_;
 }

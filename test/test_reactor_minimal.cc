@@ -24,7 +24,7 @@ int main() {
     }
     
     // Clean up
-    poll_mgr->release();
+    delete poll_mgr;
     
     return 0;
 }

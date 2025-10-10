@@ -23,7 +23,7 @@ class TxData;
 class MultiPaxosCommo : public Communicator {
  public:
   MultiPaxosCommo() = delete;
-  MultiPaxosCommo(PollThread*);
+  MultiPaxosCommo(std::shared_ptr<PollThread>);
 
   int proxy_batch_size = 1 ;
   int current_proxy_batch_idx = 0;

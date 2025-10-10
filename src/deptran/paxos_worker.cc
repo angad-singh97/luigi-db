@@ -184,11 +184,11 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
 void PaxosWorker::SetupService() {
   std::string bind_addr = site_info_->GetBindAddress();
   int n_io_threads = 1 ;
-  svr_poll_mgr_ = new rrr::PollThread(n_io_threads);
+  svr_poll_mgr_ = std::make_shared<rrr::PollThread>(n_io_threads);
   if (rep_frame_ != nullptr) {
     services_ = rep_frame_->CreateRpcServices(site_info_->id,
                                               rep_sched_,
-                                              svr_poll_mgr_,
+                                              svr_poll_mgr_.get(),
                                               scsi_);
     Log_info("[service]loc_id: %d, name: %s, proc: %s, id: %d", 
       site_info_->locale_id, site_info_->name.c_str(), site_info_->proc_name.c_str(), site_info_->id);
@@ -197,7 +197,7 @@ void PaxosWorker::SetupService() {
   thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_mgr_, thread_pool_g);
+  rpc_server_ = new rrr::Server(svr_poll_mgr_.get(), thread_pool_g);
 
   // reg services
   for (auto service : services_) {
@@ -235,9 +235,9 @@ void PaxosWorker::SetupHeartbeat() {
   auto timeout = Config::GetConfig()->get_ctrl_timeout();
   scsi_ = new ServerControlServiceImpl(timeout);
   int n_io_threads = 1;
-  svr_hb_poll_mgr_g = new rrr::PollThread(n_io_threads);
+  svr_hb_poll_mgr_g = std::make_shared<rrr::PollThread>(n_io_threads);
   hb_thread_pool_g = new rrr::ThreadPool(1);
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g.get(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = site_info_->port + CtrlPortDelta;
@@ -262,7 +262,7 @@ void PaxosWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    svr_hb_poll_mgr_g->release();
+    // svr_hb_poll_mgr_g automatically released by shared_ptr
     hb_thread_pool_g->release();
 
     for (auto service : services_) {

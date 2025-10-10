@@ -64,7 +64,7 @@ shared_ptr<Tx> JanusFrame::CreateTx(epoch_t epoch, txnid_t tid,
   return sp_tx;
 }
 
-Communicator *JanusFrame::CreateCommo(PollThread *poll) {
+Communicator *JanusFrame::CreateCommo(std::shared_ptr<PollThread> poll) {
   return new JanusCommo(poll);
 }
 
