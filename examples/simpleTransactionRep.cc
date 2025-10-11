@@ -518,7 +518,13 @@ int main(int argc, char **argv) {
         run_tests(db);
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(5)); 
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    // Cleanup: stop helper and eRPC server threads before closing DB
+    if (benchConfig.getLeaderConfig()) {
+        mako::stop_helper();
+        mako::stop_erpc_server();
+    }
 
     db_close() ;
 
