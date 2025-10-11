@@ -162,19 +162,14 @@ uint64_t RocksDBPersistence::getNextSequenceNumber(uint32_t partition_id) {
     return it->second.fetch_add(1);  // Fetch current value and then increment
 }
 
-// Legacy interface for backward compatibility - defaults to ordered callbacks
+// Simplified persistAsync - always uses ordered callbacks
 std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size,
                                                    uint32_t shard_id, uint32_t partition_id,
                                                    std::function<void(bool)> callback) {
-    return persistAsync(data, size, shard_id, partition_id, callback, true);  // Default to ordered
-}
+    // Serialize all persistAsync calls with a mutex
+    // This is fast since heavy work is done in background threads
+    std::lock_guard<std::mutex> persist_lock(persist_mutex_);
 
-// New interface with ordering control
-std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size,
-                                                   uint32_t shard_id, 
-                                                   uint32_t partition_id,
-                                                   std::function<void(bool)> callback,
-                                                   bool require_ordering) {
     if (!initialized_) {
         // Not initialized - this is normal for followers/learners
         // Return success without doing anything
@@ -185,6 +180,19 @@ std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size
             callback(true);
         }
         return future;
+    }
+
+    // Validate partition_id early
+    if (partition_id >= num_partitions_) {
+        fprintf(stderr, "Invalid partition_id %u (max %zu), rejecting request\n",
+                partition_id, num_partitions_ - 1);
+        std::promise<bool> error_promise;
+        auto error_future = error_promise.get_future();
+        error_promise.set_value(false);
+        if (callback) {
+            callback(false);
+        }
+        return error_future;
     }
 
     // Check queue size to prevent unbounded growth
@@ -205,61 +213,37 @@ std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size
 
     uint32_t epoch = current_epoch_.load();
     if (epoch == 0) {
-        // If epoch is 0, try to get it from the system, but only in production
-        // In tests, we'll use a default value set during initialization
         epoch = 1;
         current_epoch_.store(epoch);
     }
 
+    // Get sequence number - now guaranteed to be sequential because of persist_mutex
     uint64_t seq_num = getNextSequenceNumber(partition_id);
     req->key = generateKey(shard_id, partition_id, epoch, seq_num);
-    // For large logs, avoid copying if possible
-    req->value.reserve(size);  // Pre-allocate to avoid reallocation
+    req->value.reserve(size);
     req->value.assign(data, size);
     req->partition_id = partition_id;
     req->sequence_number = seq_num;
-    req->require_ordering = require_ordering;
-    req->size = size;  // Store size for debugging
+    req->require_ordering = true;  // Always ordered now
+    req->size = size;
 
-    // If ordering is required, store callback in partition state
-    if (require_ordering && callback) {
+    // Register callback in partition state (always ordered)
+    if (callback) {
         std::lock_guard<std::mutex> state_lock(partition_states_mutex_);
         auto& state = partition_states_[partition_id];
-        bool newly_created = false;
         if (!state) {
             state = std::make_unique<PartitionState>();
-            newly_created = true;
-        }
-
-        std::lock_guard<std::mutex> lock(state->state_mutex);
-
-        // Initialize next_expected_seq to the MINIMUM sequence we've seen
-        // This handles concurrent threads getting sequences out of order
-        if (newly_created || seq_num < state->next_expected_seq.load()) {
+            // Initialize next_expected_seq to first sequence
             state->next_expected_seq.store(seq_num);
         }
 
+        std::lock_guard<std::mutex> lock(state->state_mutex);
         state->pending_callbacks[seq_num] = callback;
         state->highest_queued_seq = std::max(state->highest_queued_seq.load(), seq_num);
         req->callback = nullptr;  // Will be called from processOrderedCallbacks
-    } else {
-        req->callback = callback;
     }
 
     auto future = req->promise.get_future();
-
-    // Validate partition_id
-    if (partition_id >= num_partitions_) {
-        fprintf(stderr, "Invalid partition_id %u (max %zu), rejecting request\n",
-                partition_id, num_partitions_ - 1);
-        std::promise<bool> error_promise;
-        auto error_future = error_promise.get_future();
-        error_promise.set_value(false);
-        if (callback) {
-            callback(false);
-        }
-        return error_future;
-    }
 
     // Push to partition-specific queue
     auto& pq = partition_queues_[partition_id];

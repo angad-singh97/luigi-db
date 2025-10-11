@@ -58,15 +58,11 @@ public:
     bool initialize(const std::string& db_path, size_t num_partitions, size_t num_threads = 8);
     void shutdown();
 
+    // Persist data asynchronously with ordered callback execution
+    // Callbacks are guaranteed to execute in sequence number order per partition
     std::future<bool> persistAsync(const char* data, size_t size,
                                    uint32_t shard_id, uint32_t partition_id,
                                    std::function<void(bool)> callback = nullptr);
-
-    // New interface with ordering control
-    std::future<bool> persistAsync(const char* data, size_t size,
-                                   uint32_t shard_id, uint32_t partition_id,
-                                   std::function<void(bool)> callback,
-                                   bool require_ordering);
 
     std::string generateKey(uint32_t shard_id, uint32_t partition_id,
                            uint32_t epoch, uint64_t seq_num);
@@ -116,6 +112,9 @@ private:
 
     std::unordered_map<uint32_t, std::unique_ptr<PartitionState>> partition_states_;
     std::mutex partition_states_mutex_;
+
+    // Mutex to serialize persistAsync calls - ensures ordered callback registration
+    std::mutex persist_mutex_;
 
     bool initialized_{false};
 };

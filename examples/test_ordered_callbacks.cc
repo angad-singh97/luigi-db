@@ -105,9 +105,7 @@ void test_ordered_callbacks() {
                     std::cout << "Callback at position " << callback_pos
                               << " (idx=" << idx << ") executed in correct order" << std::endl;
                 }
-            },
-            true  // require_ordering = true
-        );
+            });  // Ordering is always enabled now
 
         futures.push_back(std::move(future));
 
@@ -176,9 +174,7 @@ void test_unordered_callbacks() {
                         std::cout << "Unordered callback executed (total: " << count << ")" << std::endl;
                     }
                 }
-            },
-            false  // require_ordering = false
-        );
+            });  // Ordering is always enabled now (was false before)
 
         futures.push_back(std::move(future));
     }
@@ -223,9 +219,7 @@ void test_multiple_partitions() {
                             std::cerr << "ERROR: Partition " << p << " callback order violation!" << std::endl;
                         }
                     }
-                },
-                true  // require_ordering = true
-            );
+                });  // Ordering is always enabled now
 
             futures.push_back(std::move(future));
         }

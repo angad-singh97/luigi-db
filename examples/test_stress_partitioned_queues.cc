@@ -176,9 +176,7 @@ bool test_complex_stress() {
                         } else {
                             partition_stats[partition_id].failures.fetch_add(1);
                         }
-                    },
-                    true  // require_ordering = true
-                );
+                    });  // Ordering is always enabled now
 
                 // Random sleep after each write (0-5ms)
                 int sleep_ms = thread_sleep_dist(thread_gen);
