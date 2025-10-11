@@ -107,13 +107,16 @@ static void fasttransport_request(erpc::ReqHandle *req_handle, void *_context)
         auto *req = reinterpret_cast<mako::control_request_t*>(reqBuf);
         auto *resp = reinterpret_cast<mako::get_int_response_t *>(respBuf);
         Warning("# received a controlReqType, control: %d, shardIndex: %lld, targert_server_id: %llu", req->control, req->value, req->targert_server_id);
-        
+
         bool is_datacenter_failure = req->targert_server_id == 10000;
         // callback in the dbtest.cc
-        if (is_datacenter_failure)
-            dbtest_callback_(req->control, req->value);
-        else
-            bench_callback_(req->control, req->value); // register_fasttransport_for_bench in bench.cc
+        if (is_datacenter_failure) {
+            if (dbtest_callback_)
+                dbtest_callback_(req->control, req->value);
+        } else {
+            if (bench_callback_)
+                bench_callback_(req->control, req->value); // register_fasttransport_for_bench in bench.cc
+        }
         resp->result = 0;
         resp->req_nr = req->req_nr;
         resp->status = mako::ErrorCode::SUCCESS;
