@@ -9,7 +9,7 @@
 
 namespace janus {
 
-MultiPaxosCommo::MultiPaxosCommo(PollMgr* poll) : Communicator(poll) {
+MultiPaxosCommo::MultiPaxosCommo(rusty::Arc<PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
 }
 
 shared_ptr<PaxosPrepareQuorumEvent>
@@ -476,13 +476,14 @@ MultiPaxosCommo::BroadcastBulkAccept(parid_t par_id,
 
 // Distant data center
 shared_ptr<PaxosAcceptQuorumEvent>
-MultiPaxosCommo::BroadcastBulkDecide(parid_t par_id, 
+MultiPaxosCommo::BroadcastBulkDecide(parid_t par_id,
                                      shared_ptr<Marshallable> cmd,
                                      const function<void(ballot_t, int)>& cb){
+  Log_info("BroadcastBulkDecide called for partition %d", (int)par_id);
   auto proxies = rpc_par_proxies_[par_id];
   int n = Config::GetConfig()->GetPartitionSize(par_id)-1;
   int k = (n%2 == 0) ? n/2 : (n/2 + 1);
-  auto e = Reactor::CreateSpEvent<PaxosAcceptQuorumEvent>(n, k); //marker:debug 
+  auto e = Reactor::CreateSpEvent<PaxosAcceptQuorumEvent>(n, k); //marker:debug
   vector<Future*> fus;
   int cur_batch_idx = current_proxy_batch_idx;
   current_proxy_batch_idx=(current_proxy_batch_idx+1)%proxy_batch_size;
@@ -490,15 +491,17 @@ MultiPaxosCommo::BroadcastBulkDecide(parid_t par_id,
     auto p = proxies.at(cur_batch_idx*(Config::GetConfig()->GetPartitionSize(par_id)) + i);
     if (Config::GetConfig()->SiteById(p.first).role==2) continue;
     auto proxy = (MultiPaxosProxy*) p.second;
+    Log_info("Sending BulkDecide RPC to site %d", (int)p.first);
     FutureAttr fuattr;
     fuattr.callback = [e, cb] (Future* fu) {
       if (fu->get_error_code()!=0) {
-        Log_info("received an error message");
+        Log_info("received an error message from BulkDecide RPC");
         return;
       }
       i32 valid;
       i32 ballot;
       fu->get_reply() >> ballot >> valid;
+      Log_info("Received BulkDecide response: ballot=%d, valid=%d", (int)ballot, (int)valid);
       cb(ballot, valid);
       e->FeedResponse(valid);
     };
@@ -506,6 +509,7 @@ MultiPaxosCommo::BroadcastBulkDecide(parid_t par_id,
     auto f = proxy->async_BulkDecide(md, fuattr);
     Future::safe_release(f);
   }
+  Log_info("BroadcastBulkDecide sent to all replicas");
   return e;
 }
 

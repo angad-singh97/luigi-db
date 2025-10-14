@@ -14,7 +14,7 @@
 
 namespace janus {
 
-// Static member definitions
+// Jetpack feature: Global partition view tracking
 std::map<parid_t, View> Communicator::partition_views_;
 std::mutex Communicator::partition_views_mutex_;
 
@@ -57,13 +57,14 @@ value_t RuleSpeculativeExecuteQuorumEvent::GetResult() {
 
 uint64_t Communicator::global_id = 0;
 
-Communicator::Communicator(PollMgr* poll_mgr) {
+// Merged: Use mako-dev's PollThreadWorker
+Communicator::Communicator(rusty::Arc<PollThreadWorker> poll_thread_worker) {
   Log_info("setup paxos communicator");
   vector<string> addrs;
-  if (poll_mgr == nullptr)
-    rpc_poll_ = new PollMgr(1);
+  if (!poll_thread_worker)
+    rpc_poll_ = PollThreadWorker::create();
   else
-    rpc_poll_ = poll_mgr;
+    rpc_poll_ = poll_thread_worker;
   auto config = Config::GetConfig();
   // create more client per server
   int proxy_batch_size = 1 ;
@@ -136,10 +137,16 @@ void Communicator::ResetProfiles(){
 Communicator::~Communicator() {
   verify(rpc_clients_.size() > 0);
   for (auto& pair : rpc_clients_) {
-    auto rpc_cli = pair.second;
-    rpc_cli->close_and_release();
+    auto& rpc_cli = pair.second;
+    rpc_cli->close();
+    // shared_ptr handles cleanup automatically
   }
   rpc_clients_.clear();
+
+  // Shutdown PollThreadWorker if we own it
+  if (rpc_poll_) {
+    rpc_poll_->shutdown();
+  }
 }
 
 std::pair<siteid_t, ClassicProxy*>
@@ -280,7 +287,8 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
         .count();
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to client %s", addr);
-  rpc_cli->close_and_release();
+  rpc_cli->close();
+  // shared_ptr handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 
@@ -317,7 +325,8 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
         .count();
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to %s", addr.c_str());
-  rpc_cli->close_and_release();
+  rpc_cli->close();
+  // shared_ptr handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 

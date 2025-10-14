@@ -106,7 +106,7 @@ small_vector<T, N, A>::small_vector(const small_vector<T, NN, AA>& x)
 template <typename T, unsigned N, typename A>
 inline small_vector<T, N, A>::~small_vector() {
     for (T* it = r_.first_; it != r_.last_; ++it)
-        r_.destroy(it);
+        std::allocator_traits<A>::destroy(r_, it);
     if (r_.first_ != reinterpret_cast<T*>(r_.lv_))
         r_.deallocate(r_.first_, r_.capacity_ - r_.first_);
 }
@@ -143,8 +143,8 @@ void small_vector<T, N, A>::grow(size_type n) {
         newcap *= 2;
     T* m = r_.allocate(newcap);
     for (T* it = r_.first_, *mit = m; it != r_.last_; ++it, ++mit) {
-        r_.construct(mit, std::move(*it));
-        r_.destroy(it);
+        std::allocator_traits<A>::construct(r_, mit, std::move(*it));
+        std::allocator_traits<A>::destroy(r_, it);
     }
     if (r_.first_ != reinterpret_cast<T*>(r_.lv_))
         r_.deallocate(r_.first_, capacity());
@@ -247,7 +247,7 @@ template <typename T, unsigned N, typename A>
 inline void small_vector<T, N, A>::push_back(const T& x) {
     if (r_.last_ == r_.capacity_)
         grow();
-    r_.construct(r_.last_, x);
+    std::allocator_traits<A>::construct(r_, r_.last_, x);
     ++r_.last_;
 }
 
@@ -255,7 +255,7 @@ template <typename T, unsigned N, typename A>
 inline void small_vector<T, N, A>::push_back(T&& x) {
     if (r_.last_ == r_.capacity_)
         grow();
-    r_.construct(r_.last_, std::move(x));
+    std::allocator_traits<A>::construct(r_, r_.last_, std::move(x));
     ++r_.last_;
 }
 
@@ -263,7 +263,7 @@ template <typename T, unsigned N, typename A> template <typename... Args>
 inline void small_vector<T, N, A>::emplace_back(Args&&... args) {
     if (r_.last_ == r_.capacity_)
         grow();
-    r_.construct(r_.last_, std::forward<Args>(args)...);
+    std::allocator_traits<A>::construct(r_, r_.last_, std::forward<Args>(args)...);
     ++r_.last_;
 }
 
@@ -271,13 +271,13 @@ template <typename T, unsigned N, typename A>
 inline void small_vector<T, N, A>::pop_back() {
     assert(r_.first_ != r_.last_);
     --r_.last_;
-    r_.destroy(r_.last_);
+    std::allocator_traits<A>::destroy(r_, r_.last_);
 }
 
 template <typename T, unsigned N, typename A>
 inline void small_vector<T, N, A>::clear() {
     for (auto it = r_.first_; it != r_.last_; ++it)
-        r_.destroy(it);
+        std::allocator_traits<A>::destroy(r_, it);
     r_.last_ = r_.first_;
 }
 
@@ -289,9 +289,9 @@ inline void small_vector<T, N, A>::resize(size_type n, value_type v) {
     auto xt = r_.last_;
     r_.last_ = it;
     for (; it < xt; ++it)
-        r_.destroy(it);
+        std::allocator_traits<A>::destroy(r_, it);
     for (; xt < it; ++xt)
-        r_.construct(xt, v);
+        std::allocator_traits<A>::construct(r_, xt, v);
 }
 
 template <typename T, unsigned N, typename A>
@@ -302,7 +302,7 @@ small_vector<T, N, A>::operator=(const small_vector<T, N, A>& x) {
         if (capacity() < x.capacity())
             grow(x.capacity());
         for (auto xit = x.r_.first_; xit != x.r_.last_; ++xit, ++r_.last_)
-            r_.construct(r_.last_, *xit);
+            std::allocator_traits<A>::construct(r_, r_.last_, *xit);
     }
     return *this;
 }
@@ -315,7 +315,7 @@ small_vector<T, N, A>::operator=(const small_vector<T, NN, AA>& x) {
     if (capacity() < x.capacity())
         grow(x.capacity());
     for (auto xit = x.r_.first_; xit != x.r_.last_; ++xit, ++r_.last_)
-        r_.construct(r_.last_, *xit);
+        std::allocator_traits<A>::construct(r_, r_.last_, *xit);
     return *this;
 }
 
@@ -332,7 +332,7 @@ T* small_vector<T, N, A>::erase(iterator first, iterator last) {
             *it = std::move(*last);
         r_.last_ = it;
         for (; it != xend; ++it)
-            r_.destroy(it);
+            std::allocator_traits<A>::destroy(r_, it);
     }
     return first;
 }

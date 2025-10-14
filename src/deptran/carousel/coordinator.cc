@@ -19,7 +19,7 @@ CoordinatorCarousel::CoordinatorCarousel(uint32_t coo_id,
 
 CarouselCommo *CoordinatorCarousel::commo() {
   if (commo_ == nullptr) {
-    commo_ = new CarouselCommo();
+    commo_ = new CarouselCommo(rusty::Arc<rrr::PollThreadWorker>());
     commo_->loc_id_ = loc_id_;
     ((CarouselCommo*)commo_)->using_basic_ = using_basic_;
     verify(loc_id_ < 100);

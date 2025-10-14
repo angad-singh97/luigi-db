@@ -183,21 +183,20 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
 
 void PaxosWorker::SetupService() {
   std::string bind_addr = site_info_->GetBindAddress();
-  int n_io_threads = 1 ;
-  svr_poll_mgr_ = new rrr::PollMgr(n_io_threads);
+  svr_poll_thread_worker_ = PollThreadWorker::create();
   if (rep_frame_ != nullptr) {
     services_ = rep_frame_->CreateRpcServices(site_info_->id,
                                               rep_sched_,
-                                              svr_poll_mgr_,
+                                              svr_poll_thread_worker_,
                                               scsi_);
-    Log_info("[service]loc_id: %d, name: %s, proc: %s, id: %d", 
+    Log_info("[service]loc_id: %d, name: %s, proc: %s, id: %d",
       site_info_->locale_id, site_info_->name.c_str(), site_info_->proc_name.c_str(), site_info_->id);
   }
   uint32_t num_threads = 1;
   thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_mgr_, thread_pool_g);
+  rpc_server_ = new rrr::Server(svr_poll_thread_worker_, thread_pool_g);
 
   // reg services
   for (auto service : services_) {
@@ -220,7 +219,7 @@ void PaxosWorker::SetupService() {
 
 void PaxosWorker::SetupCommo() {
   if (rep_frame_) {
-    rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
+    rep_commo_ = rep_frame_->CreateCommo(svr_poll_thread_worker_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
     }
@@ -234,10 +233,9 @@ void PaxosWorker::SetupHeartbeat() {
   if (!hb) return;
   auto timeout = Config::GetConfig()->get_ctrl_timeout();
   scsi_ = new ServerControlServiceImpl(timeout);
-  int n_io_threads = 1;
-  svr_hb_poll_mgr_g = new rrr::PollMgr(n_io_threads);
+  svr_hb_poll_thread_worker_g = PollThreadWorker::create();
   hb_thread_pool_g = new rrr::ThreadPool(1);
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g, hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = site_info_->port + CtrlPortDelta;
@@ -262,7 +260,7 @@ void PaxosWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    svr_hb_poll_mgr_g->release();
+    // svr_hb_poll_thread_worker_g automatically released by shared_ptr
     hb_thread_pool_g->release();
 
     for (auto service : services_) {
@@ -521,7 +519,7 @@ void* PaxosWorker::StartReadAccept(void* arg){
     auto sp_job = std::make_shared<OneTimeJob>([&pw, sub]() {
       pw->BulkSubmit(sub);
     });
-    pw->GetPollMgr()->add(sp_job);
+    pw->GetPollThreadWorker()->add(sp_job);
     sent += cnt;
     if(sent % 2 == 0)Log_info("Total submits %d", sent);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -538,7 +536,7 @@ void PaxosWorker::AddAcceptNc(shared_ptr<Coordinator> coord) {
 }
 
 void PaxosWorker::submitJob(std::shared_ptr<Job> sp_job){
-	GetPollMgr()->add(sp_job);
+	GetPollThreadWorker()->add(sp_job);
 }
 
 void* PaxosWorker::StartReadAcceptNc(void* arg){
@@ -643,6 +641,14 @@ PaxosWorker::~PaxosWorker() {
   Log_info("Ending worker with n_tot %d and n_current %d", (int)n_tot, (int)n_current);
   stop_flag = true;
   stop_replay_flag = true;
+
+  // Shutdown PollThreadWorkers if we own them
+  if (svr_poll_thread_worker_) {
+    svr_poll_thread_worker_->shutdown();
+  }
+  if (svr_hb_poll_thread_worker_g) {
+    svr_hb_poll_thread_worker_g->shutdown();
+  }
 }
 
 void PaxosWorker::Submit(const char* log_entry, int length, uint32_t par_id) { // this is the starting point on the client side

@@ -19,7 +19,7 @@ class RuleFrame : public Frame {
 //   TxLogServer *CreateScheduler() override;
 //   vector<rrr::Service *> CreateRpcServices(uint32_t site_id,
 //                                            TxLogServer *dtxn_sched,
-//                                            rrr::PollMgr *poll_mgr,
+//                                            rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
 //                                            ServerControlServiceImpl *scsi) override;
 //   mdb::Row *CreateRow(const mdb::Schema *schema,
 //                       vector<Value> &row_data) override;
@@ -27,7 +27,7 @@ class RuleFrame : public Frame {
 //   shared_ptr<Tx> CreateTx(epoch_t epoch, txnid_t tid,
 //                           bool ro, TxLogServer *mgr) override;
 
-//   Communicator *CreateCommo(PollMgr *poll = nullptr) override;
+//   Communicator *CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker = rusty::Arc<rrr::PollThreadWorker>()) override;
 };
 
 } // namespace janus

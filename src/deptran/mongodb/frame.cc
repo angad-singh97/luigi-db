@@ -38,9 +38,9 @@ TxLogServer *MongodbFrame::CreateScheduler() {
   return sch;
 }
 
-Communicator *MongodbFrame::CreateCommo(PollMgr *poll) {
+Communicator *MongodbFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
   if (commo_ == nullptr) {
-    commo_ = new MongodbCommo(poll);
+    commo_ = new MongodbCommo(poll_thread_worker);
   }
   return commo_;
 }
@@ -48,7 +48,7 @@ Communicator *MongodbFrame::CreateCommo(PollMgr *poll) {
 vector<rrr::Service *>
 MongodbFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
-                                   rrr::PollMgr *poll_mgr,
+                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();

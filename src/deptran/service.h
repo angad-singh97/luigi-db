@@ -12,8 +12,6 @@ class TxLogServer;
 class SimpleCommand;
 class Communicator;
 class SchedulerClassic;
-//class rrr::PollMgr ;
-
 class ClassicServiceImpl : public ClassicService {
 
  public:
@@ -31,7 +29,7 @@ class ClassicServiceImpl : public ClassicService {
   Communicator* comm_{nullptr};
 
   TxLogServer* dtxn_sched_;
-  rrr::PollMgr* poll_mgr_;
+  rusty::Arc<rrr::PollThreadWorker> poll_thread_worker_;
   std::atomic<int32_t> clt_cnt_{0};
 
   ~ClassicServiceImpl() {
@@ -174,7 +172,7 @@ class ClassicServiceImpl : public ClassicService {
   ClassicServiceImpl() = delete;
 
   ClassicServiceImpl(TxLogServer* sched,
-                     rrr::PollMgr* poll_mgr,
+                     rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                      ServerControlServiceImpl* scsi = NULL);
 
   void RccDispatch(const vector<SimpleCommand>& cmd,

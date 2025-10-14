@@ -62,3 +62,5 @@ prof
 *.pdf
 .vscode/settings.json
 /src/deptran/lab_solution_raft
+.cache/*
+cmake-build/*

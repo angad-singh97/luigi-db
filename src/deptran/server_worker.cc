@@ -17,11 +17,11 @@ void ServerWorker::SetupHeartbeat() {
   auto timeout = Config::GetConfig()->get_ctrl_timeout();
   scsi_ = new ServerControlServiceImpl(timeout);
   int n_io_threads = 1;
-//  svr_hb_poll_mgr_g = new rrr::PollMgr(n_io_threads);
-  svr_hb_poll_mgr_g = svr_poll_mgr_;
+//  svr_hb_poll_thread_worker_g = new rrr::PollThreadWorker(n_io_threads);
+  svr_hb_poll_thread_worker_g = svr_poll_thread_worker_;
 //  hb_thread_pool_g = new rrr::ThreadPool(1);
   hb_thread_pool_g = svr_thread_pool_;
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_mgr_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g, hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = this->site_info_->port + ServerWorker::CtrlPortDelta;
@@ -170,10 +170,8 @@ void ServerWorker::SetupService() {
   // set running mode and initialize transaction manager.
   std::string bind_addr = site_info_->GetBindAddress();
 
-  // init rrr::PollMgr 1 threads
-  int n_io_threads = 1;
-  svr_poll_mgr_ = new rrr::PollMgr(n_io_threads, config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT);  // Fpga Raft needs a disk thread
-  Reactor::GetReactor()->server_id_ = site_info_->id;
+  // init rrr::PollThreadWorker
+  svr_poll_thread_worker_ = PollThreadWorker::create();
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
   // init service implementation
@@ -182,7 +180,7 @@ void ServerWorker::SetupService() {
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_mgr_,
+                                            svr_poll_thread_worker_,
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
@@ -190,27 +188,27 @@ void ServerWorker::SetupService() {
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
-                                             svr_poll_mgr_,
+                                             svr_poll_thread_worker_,
                                              scsi_);
   }
 
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_mgr_,
+                                            svr_poll_thread_worker_,
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
 #endif
 
 //  auto& alarm = TimeoutALock::get_alarm_s();
-//  ServerWorker::svr_poll_mgr_->add(&alarm);
+//  ServerWorker::svr_poll_thread_worker_->add(&alarm);
 
   uint32_t num_threads = 1;
 //  thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_mgr_, svr_thread_pool_);
+  rpc_server_ = new rrr::Server(svr_poll_thread_worker_, svr_thread_pool_);
 
   // reg services
   for (auto service : services_) {
@@ -236,8 +234,7 @@ void ServerWorker::WaitForShutdown() {
     scsi_->wait_for_shutdown();
     delete hb_rpc_server_;
     delete scsi_;
-    if (svr_hb_poll_mgr_g != svr_poll_mgr_)
-      svr_hb_poll_mgr_g->release();
+    // svr_hb_poll_thread_worker_g automatically released by shared_ptr
     if (hb_thread_pool_g != svr_thread_pool_)
       hb_thread_pool_g->release();
 
@@ -258,17 +255,16 @@ void ServerWorker::WaitForShutdown() {
 }
 
 void ServerWorker::SetupCommo() {
-  verify(svr_poll_mgr_ != nullptr);
+  verify(svr_poll_thread_worker_);
   if (tx_frame_) {
-    tx_commo_ = tx_frame_->CreateCommo(svr_poll_mgr_);
+    tx_commo_ = tx_frame_->CreateCommo(svr_poll_thread_worker_);
     if (tx_commo_) {
       tx_commo_->loc_id_ = site_info_->locale_id;
     }
     tx_sched_->commo_ = tx_commo_;
   }
   if (rep_frame_) {
-    // Log_info("CreateCommo!!!!!!!!!!!!!"); // [Ze] I don't know why but removing this will cause "verify(commo_ != nullptr); error" in mencius/frame.cc when running rule_mencius open loop experiment
-    rep_commo_ = rep_frame_->CreateCommo(svr_poll_mgr_);
+    rep_commo_ = rep_frame_->CreateCommo(svr_poll_thread_worker_);
     if (rep_commo_) {
       rep_commo_->loc_id_ = site_info_->locale_id;
     }
@@ -288,7 +284,7 @@ void ServerWorker::SetupCommo() {
     }
   );
   auto sp_job = std::dynamic_pointer_cast<Job>(sp_j);
-  svr_poll_mgr_->add(sp_j);
+  svr_poll_thread_worker_->add(sp_j);
 
 #ifdef RAFT_TEST_CORO
 // dead loop this thread for coroutine scheduling 
@@ -302,26 +298,30 @@ void ServerWorker::SetupCommo() {
 void ServerWorker::Pause() {
   Log_info("!!!!!!!! ServerWorker::Pause()");
   rep_sched_->Pause();
-  svr_poll_mgr_->pause();
+  // pause() not implemented in PollThreadWorker;
 }
 
 void ServerWorker::Resume() {
-  svr_poll_mgr_->resume();
+  // resume() not implemented in PollThreadWorker;
   rep_sched_->Resume();
 }
 
 void ServerWorker::ShutDown() {
   Log_debug("deleting services, num: %d", services_.size());
-  // delete rpc_server_;
-//   for (auto service : services_) {
-//     delete service;
-//   }
-//   delete rep_frame_;
-// //  thread_pool_g->release();
-//   svr_poll_mgr_->release();
-  Log_info("Deleting......");
+
+  // Merged: mako-dev's cleanup + Jetpack's rep_sched_ deletion
+  delete rpc_server_;
+  for (auto service : services_) {
+    delete service;
+  }
+
+  // Modern C++ - smart pointer auto-cleanup
+  // svr_poll_thread_worker_ automatically released by shared_ptr
+
+  // Jetpack: Clean up replication scheduler (raw pointer needs manual deletion)
+  Log_info("Deleting replication scheduler...");
   if (rep_sched_) delete rep_sched_;
-  Log_info("Deleted one.");
+  Log_info("ServerWorker shutdown complete.");
 }
 
 int ServerWorker::DbChecksum() {
@@ -331,4 +331,16 @@ int ServerWorker::DbChecksum() {
            (int)this->site_info_->partition_id_, (int) cs);
   return cs;
 }
+
+ServerWorker::~ServerWorker() {
+  // Shutdown PollThreadWorkers if we own them
+  if (svr_poll_thread_worker_) {
+    svr_poll_thread_worker_->shutdown();
+  }
+  if (svr_hb_poll_thread_worker_g) {
+    svr_hb_poll_thread_worker_g->shutdown();
+  }
+}
+
 } // namespace janus
+

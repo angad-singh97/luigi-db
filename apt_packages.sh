@@ -9,6 +9,8 @@ sudo apt-get --assume-yes install libboost-all-dev
 sudo apt-get --assume-yes install libyaml-cpp-dev libyaml-cpp0.3-dev
 sudo apt-get --assume-yes install -y libjemalloc-dev
 sudo apt-get --assume-yes install libgoogle-perftools-dev
+sudo apt-get --assume-yes install googletest
+sudo apt-get install libgtest-dev libgmock-dev -y
 sudo apt-get --assume-yes install -y libaio-dev # remove?
 sudo apt-get --assume-yes install build-essential libssl-dev libffi-dev python3-dev
 sudo apt-get --assume-yes install silversearcher-ag

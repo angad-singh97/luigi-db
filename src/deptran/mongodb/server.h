@@ -34,7 +34,7 @@ class MongodbServer : public TxLogServer {
 #ifdef MONGODB_DEBUG
         Log_info("%.2f After RuleWitnessGC <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
-        svr->app_next_(*cmd);
+        svr->app_next_(0, cmd); // MongoDB doesn't use slot IDs, pass 0
 #ifdef MONGODB_DEBUG
         Log_info("%.2f After app_next_ <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
@@ -93,7 +93,7 @@ class MongodbServer : public TxLogServer {
 #ifdef MONGODB_DEBUG
     Log_info("%.2f After RuleWitnessGC <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif
-    app_next_(*cmd);
+    app_next_(0, cmd); // MongoDB doesn't use slot IDs, pass 0
 #ifdef MONGODB_DEBUG
     Log_info("%.2f After app_next_ <%d, %d>", SimpleRWCommand::GetMsTimeElaps(), SimpleRWCommand::GetCmdID(cmd).first, SimpleRWCommand::GetCmdID(cmd).second);
 #endif

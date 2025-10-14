@@ -8,7 +8,7 @@
 BUILD_DIR = build
 CMAKE_OPTIONS ?= -DPAXOS_LIB_ENABLED=1
 
-.PHONY: all configure build clean rebuild run raft-test help
+.PHONY: all configure build clean rebuild run raft-test help test test-verbose test-parallel
 
 all: build
 
@@ -16,7 +16,8 @@ configure:
 	cmake -S . -B $(BUILD_DIR) $(CMAKE_OPTIONS)
 
 build: configure
-	cmake --build $(BUILD_DIR) --parallel
+	@echo "Building with $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) parallel jobs..."
+	cmake --build $(BUILD_DIR) --parallel $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4)
 
 # Build with Raft testing coroutines enabled
 raft-test: CMAKE_OPTIONS += -DRAFT_TEST=ON
@@ -53,6 +54,21 @@ run: build
 	./$(BUILD_DIR)/simpleTransctionRep
 	./$(BUILD_DIR)/simplePaxos
 
+# Run tests using ctest
+test: build
+	@echo "Running tests..."
+	@cd $(BUILD_DIR) && ctest --output-on-failure
+
+# Run tests with verbose output
+test-verbose: build
+	@echo "Running tests with verbose output..."
+	@cd $(BUILD_DIR) && ctest --verbose --output-on-failure
+
+# Run tests in parallel
+test-parallel: build
+	@echo "Running tests in parallel..."
+	@cd $(BUILD_DIR) && ctest -j$(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) --output-on-failure
+
 help:
 	@echo "Unified Build System - Mako Paxos + Jetpack Raft"
 	@echo ""
@@ -61,6 +77,9 @@ help:
 	@echo "  make raft-test    - Build with Raft testing coroutines"
 	@echo "  make clean        - Clean all build artifacts"
 	@echo "  make rebuild      - Clean and rebuild"
+	@echo "  make test         - Run ctest test suite"
+	@echo "  make test-verbose - Run tests with verbose output"
+	@echo "  make test-parallel- Run tests in parallel"
 	@echo ""
 	@echo "Testing:"
 	@echo "  ./ci/ci.sh simplePaxos                           - Test Paxos"

@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 #include "__dep__.h"
 #include "constants.h"
 #include "txn_reg.h"
@@ -55,7 +56,7 @@ class Frame {
 
   virtual Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sch);
   virtual TxLogServer *CreateScheduler();
-  virtual Communicator *CreateCommo(PollMgr *pollmgr);
+  virtual Communicator *CreateCommo(rusty::Arc<PollThreadWorker> poll_thread_worker = rusty::Arc<PollThreadWorker>());
   // for only dtxn
   Sharding *CreateSharding();
   Sharding *CreateSharding(Sharding *sd);
@@ -72,7 +73,7 @@ class Frame {
   Workload *CreateTxGenerator();
   virtual vector<rrr::Service *> CreateRpcServices(uint32_t site_id,
                                                    TxLogServer *dtxn_sched,
-                                                   rrr::PollMgr *poll_mgr,
+                                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                                    ServerControlServiceImpl *scsi);
 };
 

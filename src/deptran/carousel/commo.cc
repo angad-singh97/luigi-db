@@ -9,8 +9,8 @@
 
 namespace janus {
 
-CarouselCommo::CarouselCommo(PollMgr* poll_mgr):
-  Communicator(poll_mgr),
+CarouselCommo::CarouselCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker):
+  Communicator(poll_thread_worker),
   using_basic_(Config::GetConfig()->carousel_basic_mode()) {}
 
 void CarouselCommo::BroadcastReadAndPrepare(

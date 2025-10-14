@@ -10,7 +10,7 @@
 
 namespace janus {
 
-RaftCommo::RaftCommo(PollMgr* poll) : Communicator(poll) {
+RaftCommo::RaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
 //  verify(poll != nullptr);
 }
 

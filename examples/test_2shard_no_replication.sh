@@ -10,19 +10,22 @@ echo "Testing 2-shard setup without replication"
 echo "========================================="
 
 # Clean up old log files
-rm -f shard0*.log shard1*.log nfs_sync_*
+rm -f nfs_sync_*
+
+trd=${1:-6}
+script_name="$(basename "$0")"
 
 ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
 # Start shard 0 in background
 echo "Starting shard 0..."
-nohup bash bash/shard.sh 2 0 6 localhost > shard0.log 2>&1 &
+nohup bash bash/shard.sh 2 0 $trd localhost > ${script_name}_shard0-$trd.log 2>&1 &
 SHARD0_PID=$!
 sleep 2
 
 # Start shard 1 in background
 echo "Starting shard 1..."
-nohup bash bash/shard.sh 2 1 6 localhost > shard1.log 2>&1 &
+nohup bash bash/shard.sh 2 1 $trd localhost > ${script_name}_shard1-$trd.log 2>&1 &
 SHARD1_PID=$!
 
 # Wait for experiments to run
@@ -43,7 +46,7 @@ failed=0
 
 # Check each shard's output
 for i in 0 1; do
-    log="shard${i}.log"
+    log="${script_name}_shard${i}-$trd.log"
     echo ""
     echo "Checking $log:"
     echo "-----------------"
@@ -101,8 +104,7 @@ else
     echo "========================================="
     echo ""
     echo "Debug information:"
-    echo "Check shard0.log and shard1.log for details"
-    tail -10 shard0.log 
-    tail -10 shard1.log
+    echo "Check ${script_name}_shard*-$trd for details"
+    tail -10 ${script_name}_shard0-$trd.log ${script_name}_shard1-$trd.log
     exit 1
 fi

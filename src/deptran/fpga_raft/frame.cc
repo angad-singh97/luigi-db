@@ -86,12 +86,12 @@ TxLogServer *FpgaRaftFrame::CreateScheduler() {
   return sch_ ;
 }
 
-Communicator *FpgaRaftFrame::CreateCommo(PollMgr *poll) {
+Communicator *FpgaRaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
   // We only have 1 instance of FpgaRaftFrame object that is returned from
   // GetFrame method. FpgaRaftCommo currently seems ok to share among the
   // clients of this method.
   if (commo_ == nullptr) {
-    commo_ = new FpgaRaftCommo(poll);
+    commo_ = new FpgaRaftCommo(poll_thread_worker);
   }
   return commo_;
 }
@@ -99,7 +99,7 @@ Communicator *FpgaRaftFrame::CreateCommo(PollMgr *poll) {
 vector<rrr::Service *>
 FpgaRaftFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
-                                   rrr::PollMgr *poll_mgr,
+                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();

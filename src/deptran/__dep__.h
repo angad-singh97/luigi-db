@@ -89,7 +89,7 @@ using rrr::AvgStat;
 using rrr::ALock;
 using rrr::TimeoutALock;
 using rrr::ScopedLock;
-using rrr::PollMgr;
+using rrr::PollThreadWorker;
 using rrr::Marshal;
 using rrr::Marshallable;
 using rrr::MarshallDeputy;

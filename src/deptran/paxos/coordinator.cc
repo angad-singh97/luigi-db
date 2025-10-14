@@ -385,7 +385,9 @@ void BulkCoordinatorMultiPaxos::Accept() {
 }
 
 void BulkCoordinatorMultiPaxos::Commit() {
+    Log_info("BulkCoordinatorMultiPaxos::Commit() called, in_submission_=%d", (int)in_submission_);
     if(!in_submission_){
+      Log_info("BulkCoordinatorMultiPaxos::Commit() returning early because in_submission_=false");
       return;
     }
     in_commit = true;
@@ -399,6 +401,7 @@ void BulkCoordinatorMultiPaxos::Commit() {
     auto commit_cmd_marshallable = dynamic_pointer_cast<Marshallable>(commit_cmd);
 
     auto ess_cc = es_cc;
+    Log_info("About to call BroadcastBulkDecide from Commit()");
     auto sp_quorum = commo()->BroadcastBulkDecide(par_id_, commit_cmd_marshallable, [this, ess_cc](ballot_t ballot, int valid){
       if(!this->in_commit){
         return;
@@ -408,6 +411,7 @@ void BulkCoordinatorMultiPaxos::Commit() {
         this->in_submission_ = false;
       }
     });
+    Log_info("Called BroadcastBulkDecide from Commit()");
     // it's not necessary to wait for a majority of commits
   //   sp_quorum->Wait();
   //   if (sp_quorum->Yes()) {
@@ -421,6 +425,7 @@ void BulkCoordinatorMultiPaxos::Commit() {
     in_commit = false;
     //verify(phase_ == Phase::COMMIT);
     commit_callback_();
+    Log_info("BulkCoordinatorMultiPaxos::Commit() finished");
     //GotoNextPhase();
 }
 

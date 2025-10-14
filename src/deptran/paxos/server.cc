@@ -99,6 +99,7 @@ void PaxosServer::OnCommit(const slotid_t slot_id,
       break;
     }
   }
+  in_applying_logs_ = false;
   FreeSlots();
 }
 // marker:ansh change the args to accomodate objects

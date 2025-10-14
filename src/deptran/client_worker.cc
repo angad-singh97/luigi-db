@@ -17,6 +17,11 @@ ClientWorker::~ClientWorker() {
     delete c;
   }
 //  dispatch_pool_->release();
+
+  // Shutdown PollThreadWorker if we own it
+  if (poll_thread_worker_) {
+    poll_thread_worker_->shutdown();
+  }
 }
 
 void ClientWorker::retrive_statistic() {
@@ -241,7 +246,7 @@ void ClientWorker::Work() {
       }
     });
     shared_ptr<Job> sp_job(p_job);
-    poll_mgr_->add(sp_job);
+    poll_thread_worker_->add(sp_job);
   }
   for (uint32_t n_tx = 0; n_tx < n_concurrent_; n_tx++) {
     auto sp_job = std::make_shared<OneTimeJob>([this, n_tx] () {
@@ -349,9 +354,9 @@ void ClientWorker::Work() {
       } // end while
       n_ceased_client_.Set(n_ceased_client_.value_+1);
     });
-    poll_mgr_->add(dynamic_pointer_cast<Job>(sp_job));
+    poll_thread_worker_->add(dynamic_pointer_cast<Job>(sp_job));
   } // end for loop n_concurrent
-  poll_mgr_->add(dynamic_pointer_cast<Job>(std::make_shared<OneTimeJob>([this](){
+  poll_thread_worker_->add(dynamic_pointer_cast<Job>(std::make_shared<OneTimeJob>([this](){
     Log_info("wait for all virtual clients to stop issuing new requests.");
     n_ceased_client_.WaitUntilGreaterOrEqualThan(n_concurrent_,
                                                  (duration+500)*1000000);
@@ -402,98 +407,6 @@ void ClientWorker::Work() {
   delete timer_;
   return;
 }
-
-/*
-void ClientWorker::Work() {
-  Log_debug("%s: %d", __FUNCTION__, this->cli_id_);
-  txn_reg_ = std::make_shared<TxnRegistry>();
-  verify(config_ != nullptr);
-  Workload* workload = Workload::CreateWorkload(config_);
-  workload->txn_reg_ = txn_reg_;
-  workload->RegisterPrecedures();
-
-  commo_->WaitConnectClientLeaders();
-  if (ccsi) {
-    ccsi->wait_for_start(id);
-  }
-  Log_debug("after wait for start");
-
-  timer_ = new Timer();
-  timer_->start();
-
-  if (config_->client_type_ == Config::Closed) {
-    Log_info("closed loop clients.");
-    verify(n_concurrent_ > 0);
-    int n = n_concurrent_;
-    auto sp_job = std::make_shared<OneTimeJob>([this] () {
-      for (uint32_t n_tx = 0; n_tx < n_concurrent_; n_tx++) {
-        auto coo = CreateCoordinator(n_tx);
-        Log_debug("create coordinator %d", coo->coo_id_);
-        this->DispatchRequest(coo);
-      }
-    });
-    poll_mgr_->add(dynamic_pointer_cast<Job>(sp_job));
-  } else {
-    Log_info("open loop clients.");
-    const std::chrono::nanoseconds wait_time
-        ((int) (pow(10, 9) * 1.0 / (double) config_->client_rate_));
-    double tps = 0;
-    long txn_count = 0;
-    auto start = std::chrono::steady_clock::now();
-    std::chrono::nanoseconds elapsed;
-
-    while (timer_->elapsed() < duration) {
-      while (tps < config_->client_rate_ && timer_->elapsed() < duration) {
-        auto coo = FindOrCreateCoordinator();
-        if (coo != nullptr) {
-          auto p_job = (Job*)new OneTimeJob([this, coo] () {
-            this->DispatchRequest(coo);
-          });
-          shared_ptr<Job> sp_job(p_job);
-          poll_mgr_->add(sp_job);
-          txn_count++;
-          elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>
-              (std::chrono::steady_clock::now() - start);
-          tps = (double) txn_count / elapsed.count() * pow(10, 9);
-        }
-      }
-      auto next_time = std::chrono::steady_clock::now() + wait_time;
-      std::this_thread::sleep_until(next_time);
-      elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>
-          (std::chrono::steady_clock::now() - start);
-      tps = (double) txn_count / elapsed.count() * pow(10, 9);
-    }
-    Log_debug("exit client dispatch loop...");
-  }
-
-//  finish_mutex.lock();
-  while (n_concurrent_ > 0) {
-    Log_debug("wait for finish... %d", n_concurrent_);
-    sleep(1);
-//    finish_cond.wait(finish_mutex);
-  }
-//  finish_mutex.unlock();
-
-  if (failover_server_quit_ && !*failover_server_quit_)
-  {
-      *failover_server_quit_ = true ;
-  }
-
-  Log_info("Finish:\nTotal: %u, Commit: %u, Attempts: %u, Running for %u\n",
-           num_txn.load(),
-           success.load(),
-           num_try.load(),
-           Config::GetConfig()->get_duration());
-  fflush(stderr);
-  fflush(stdout);
-  if (ccsi) {
-    Log_info("%s: wait_for_shutdown at client %d", __FUNCTION__, cli_id_);
-    ccsi->wait_for_shutdown();
-  }
-  delete timer_;
-  return;
-}
-*/
 
 void ClientWorker::AcceptForwardedRequest(TxRequest& request,
                                           TxReply* txn_reply,
@@ -630,52 +543,6 @@ void ClientWorker::DispatchRequest(Coordinator* coo, bool void_request) {
 //  dispatch_pool_->run_async(task); // this causes bug
 }
 
-/*
-void ClientWorker::DispatchRequest(Coordinator* coo) {
-  FailoverPreprocess(coo);
-  const char* f = __FUNCTION__;
-  std::function<void()> task = [=]() {
-    Log_debug("%s: %d", f, cli_id_);
-    // TODO don't use pointer here.
-    TxRequest *req = new TxRequest;
-    {
-      std::lock_guard<std::mutex> lock(this->request_gen_mutex);
-      tx_generator_->GetTxRequest(req, coo->coo_id_);
-    }
-//     req.callback_ = std::bind(&ClientWorker::RequestDone,
-//                               this,
-//                               coo,
-//                               std::placeholders::_1);
-    req->callback_ = [coo, req, this] (TxReply& reply) {
-//      verify(coo->sp_ev_commit_->status_ != Event::WAIT);
-      
-      // Check if we received a WRONG_LEADER response
-      if (reply.res_ == WRONG_LEADER) {
-        Log_info("[CLIENT_VIEW] Received WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
-        
-        if (reply.sp_view_data_ != nullptr) {
-          // Extract view data and update our view
-          auto view_data = reply.sp_view_data_;
-          Log_info("[CLIENT_VIEW] Extracted view data from response: %s", 
-                   view_data->ToString().c_str());
-          commo_->UpdatePartitionView(view_data->partition_id_, view_data);
-        } else {
-          Log_info("[CLIENT_VIEW] No view data in WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
-        }
-      }
-      
-      coo->sp_ev_commit_->Set(1);
-      auto& status = coo->sp_ev_done_->status_;
-      verify(status == Event::WAIT || status == Event::INIT);
-      coo->sp_ev_done_->Set(1);
-      delete req;
-    };
-		coo->concurrent = n_concurrent_;
-    coo->DoTxAsync(*req);
-  };
-  task();
-//  dispatch_pool_->run_async(task); // this causes bug
-}*/
 
 void ClientWorker::SearchLeader(Coordinator* coo) {
   // TODO multiple par_id yidawu
@@ -686,11 +553,18 @@ void ClientWorker::SearchLeader(Coordinator* coo) {
       *failover_server_idx_);
 }
 
-ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
-    ClientControlServiceImpl* ccsi, PollMgr* poll_mgr, bool* volatile failover_trigger,
-    volatile bool* failover_server_quit, volatile locid_t* failover_server_idx, 
-    volatile double* total_throughput)
-  : id(id),
+// Merged: Jetpack failover params + mako-dev PollThreadWorker
+ClientWorker::ClientWorker(
+    uint32_t id,
+    Config::SiteInfo& site_info,
+    Config* config,
+    ClientControlServiceImpl* ccsi,
+    rusty::Arc<PollThreadWorker> poll_thread_worker,
+    bool* volatile failover_trigger,
+    volatile bool* failover_server_quit,
+    volatile locid_t* failover_server_idx,
+    volatile double* total_throughput) :
+    id(id),
     my_site_(site_info),
     config_(config),
     cli_id_(site_info.id),
@@ -702,17 +576,20 @@ ClientWorker::ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* con
     failover_trigger_(failover_trigger),
     failover_server_quit_(failover_server_quit),
     failover_server_idx_(failover_server_idx),
-    total_throughput_(total_throughput)
-    {
-  Log_info("[Jetpack] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d", id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(), site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
-  poll_mgr_ = poll_mgr == nullptr ? new PollMgr(1) : poll_mgr;
+    total_throughput_(total_throughput) {
+  Log_info("[Jetpack] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d",
+           id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(),
+           site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
+  // Use mako-dev's PollThreadWorker (memory-safe modernization)
+  poll_thread_worker_ = !poll_thread_worker ? PollThreadWorker::create() : poll_thread_worker;
+  // Keep Jetpack's 2-param GetFrame (needs replica_proto_ for Raft)
   frame_ = Frame::GetFrame(config->tx_proto_, config->replica_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
   config->get_all_site_addr(servers_);
   num_txn.store(0);
   success.store(0);
   num_try.store(0);
-  commo_ = frame_->CreateCommo(poll_mgr_);
+  commo_ = frame_->CreateCommo(poll_thread_worker_);
   commo_->loc_id_ = my_site_.locale_id;
   
   // Set up dynamic leader callback for the communicator

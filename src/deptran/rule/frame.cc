@@ -43,9 +43,9 @@ Coordinator *RuleFrame::CreateCoordinator(cooid_t coo_id,
 // vector<rrr::Service *>
 // JanusFrame::CreateRpcServices(uint32_t site_id,
 //                               TxLogServer *sched,
-//                               rrr::PollMgr *poll_mgr,
+//                               rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
 //                               ServerControlServiceImpl *scsi) {
-//   return Frame::CreateRpcServices(site_id, sched, poll_mgr, scsi);
+//   return Frame::CreateRpcServices(site_id, sched, poll_thread_worker, scsi);
 // }
 
 

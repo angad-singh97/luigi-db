@@ -9,6 +9,7 @@
 #include "rcc_rpc.h"
 #include <ctime>
 #include <unordered_map>
+#include <rusty/arc.hpp>
 
 namespace janus {
 
@@ -335,10 +336,11 @@ class Communicator {
   static uint64_t global_id;
   const int CONNECT_TIMEOUT_MS = 120*1000;
   const int CONNECT_SLEEP_MS = 1000;
-  rrr::PollMgr *rpc_poll_ = nullptr;
-  TxLogServer *rep_sched_ = nullptr;
+  // Merged: Use mako-dev's PollThreadWorker (Jetpack's rep_sched_ not used by Raft)
+  rusty::Arc<rrr::PollThreadWorker> rpc_poll_;
+  TxLogServer *rep_sched_ = nullptr;  // Jetpack protocols (Copilot) need direct scheduler access
   locid_t loc_id_ = -1;
-  map<siteid_t, shared_ptr<rrr::Client>> rpc_clients_{};
+  map<siteid_t, std::shared_ptr<rrr::Client>> rpc_clients_{};
   map<siteid_t, ClassicProxy *> rpc_proxies_{};
   map<parid_t, vector<SiteProxyPair>> rpc_par_proxies_{};
   map<parid_t, SiteProxyPair> leader_cache_ = {};
@@ -385,7 +387,7 @@ class Communicator {
   using LeaderCallback = std::function<locid_t(parid_t)>;
   LeaderCallback leader_callback_ = nullptr;
 
-  Communicator(PollMgr* poll_mgr = nullptr);
+  Communicator(rusty::Arc<PollThreadWorker> poll_thread_worker = rusty::Arc<PollThreadWorker>());
   virtual ~Communicator();
   
   void SetLeaderCallback(LeaderCallback callback) {

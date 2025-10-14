@@ -46,7 +46,7 @@ class MenciusCommo : public Communicator {
   void *svr_workers_g{nullptr};
   
   MenciusCommo() = delete;
-  MenciusCommo(PollMgr*);
+  MenciusCommo(rusty::Arc<rrr::PollThreadWorker>);
 
   shared_ptr<MenciusPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,

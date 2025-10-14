@@ -13,8 +13,8 @@ public:
 
     map<parid_t, vector<SiteProxyPair>> jetpack_leader_cache_ = {};
 
-    CommunicatorRule(PollMgr* poll_mgr = nullptr)
-     :Communicator(poll_mgr) {
+    CommunicatorRule(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker = rusty::Arc<rrr::PollThreadWorker>())
+     :Communicator(poll_thread_worker) {
         dispatch_quota.value_ = 3 * max_pending_rpc_;
     }
 

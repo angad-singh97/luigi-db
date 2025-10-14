@@ -2,7 +2,7 @@
 
 namespace janus {
 
-MongodbCommo::MongodbCommo(PollMgr* poll) : Communicator(poll) {
+MongodbCommo::MongodbCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
 //  verify(poll != nullptr);
 }
 

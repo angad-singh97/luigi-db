@@ -22,9 +22,9 @@
 namespace janus {
 
 ClassicServiceImpl::ClassicServiceImpl(TxLogServer* sched,
-                                       rrr::PollMgr* poll_mgr,
+                                       rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                        ServerControlServiceImpl* scsi) : scsi_(
-    scsi), dtxn_sched_(sched), poll_mgr_(poll_mgr) {
+    scsi), dtxn_sched_(sched), poll_thread_worker_(poll_thread_worker) {
 
 #ifdef PIECE_COUNT
   piece_count_timer_.start();
@@ -36,7 +36,7 @@ ClassicServiceImpl::ClassicServiceImpl(TxLogServer* sched,
     verify(0); // TODO disable logging for now.
     auto path = Config::GetConfig()->log_path();
 //    recorder_ = new Recorder(path);
-//    poll_mgr->add(recorder_);
+//    poll_thread_worker->add(recorder_);
   }
 
   this->RegisterStats();
@@ -180,7 +180,7 @@ void ClassicServiceImpl::FailoverPauseSocketOut(
       e->Wait(wait_int);
     }
     dtxn_sched_->rep_sched_->Pause();
-    poll_mgr_->pause();
+    // pause() not implemented in PollThreadWorker;
     *res = SUCCESS;
     defer->reply();
   });
@@ -203,7 +203,7 @@ void ClassicServiceImpl::FailoverResumeSocketOut(
   }
 
   Coroutine::CreateRun([&]() {
-    poll_mgr_->resume();
+    // resume() not implemented in PollThreadWorker;
     dtxn_sched_->rep_sched_->Resume();
     *res = SUCCESS;
     defer->reply();

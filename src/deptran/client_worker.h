@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "__dep__.h"
 #include "config.h"
@@ -18,7 +19,7 @@ class TxReply;
 
 class ClientWorker {
  public:
-  PollMgr* poll_mgr_{nullptr};
+  rusty::Arc<PollThreadWorker> poll_thread_worker_;
   Frame* frame_{nullptr};
   Communicator* commo_{nullptr};
   cliid_t cli_id_;
@@ -93,10 +94,17 @@ class ClientWorker {
   
 
  public:
-  ClientWorker(uint32_t id, Config::SiteInfo& site_info, Config* config,
-      ClientControlServiceImpl* ccsi, PollMgr* mgr, bool* volatile failover,
-      volatile bool* failover_server_quit, volatile locid_t* failover_server_idxm,
-      volatile double* total_throughput);
+  // Merged constructor: Jetpack failover params + mako-dev PollThreadWorker
+  // Reasoning: Raft needs failover for fault tolerance, mako-dev modernizes with PollThreadWorker
+  ClientWorker(uint32_t id,
+               Config::SiteInfo& site_info,
+               Config* config,
+               ClientControlServiceImpl* ccsi,
+               rusty::Arc<PollThreadWorker> poll_thread_worker,
+               bool* volatile failover = nullptr,
+               volatile bool* failover_server_quit = nullptr,
+               volatile locid_t* failover_server_idxm = nullptr,
+               volatile double* total_throughput = nullptr);
   ClientWorker() = delete;
   ~ClientWorker();
   void retrive_statistic();

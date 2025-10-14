@@ -52,7 +52,7 @@ friend class RaftProxy;
 #endif
 	
   RaftCommo() = delete;
-  RaftCommo(PollMgr*);
+  RaftCommo(rusty::Arc<rrr::PollThreadWorker>);
 
   shared_ptr<IntEvent>
   SendAppendEntries2(siteid_t site_id,

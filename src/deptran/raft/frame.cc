@@ -112,7 +112,7 @@ TxLogServer *RaftFrame::CreateScheduler() {
 
 // Make = sure that this function is a coroutine function
 // and it is called from a coroutine context.
-Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
+Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
   // clients of this method.
@@ -120,7 +120,7 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
   Log_info("CreateCommo: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
   if (commo_ == nullptr) {
     Log_info("CreateCommo: Creating new RaftCommo");
-    commo_ = new RaftCommo(poll);
+    commo_ = new RaftCommo(poll_thread_worker);
   }
 
   #ifdef RAFT_TEST_CORO
@@ -195,7 +195,7 @@ Communicator *RaftFrame::CreateCommo(PollMgr *poll) {
 vector<rrr::Service *>
 RaftFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
-                                   rrr::PollMgr *poll_mgr,
+                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();

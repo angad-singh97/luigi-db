@@ -1,4 +1,5 @@
 #pragma once
+#include <rusty/arc.hpp>
 
 #include "__dep__.h"
 #include "coordinator.h"
@@ -605,7 +606,7 @@ public:
   std::atomic<int> n_submit{0};
   std::atomic<int> n_tot{0};
   SubmitPool* submit_pool = nullptr;
-  rrr::PollMgr* svr_poll_mgr_ = nullptr;
+  rusty::Arc<rrr::PollThreadWorker> svr_poll_thread_worker_;
   vector<rrr::Service*> services_ = {};
   rrr::Server* rpc_server_ = nullptr;
   base::ThreadPool* thread_pool_g = nullptr;
@@ -618,9 +619,9 @@ public:
   int is_leader;
   int bulk_writer = 0;
   int bulk_reader = 0;
-  
 
-  rrr::PollMgr* svr_hb_poll_mgr_g = nullptr;
+
+  rusty::Arc<rrr::PollThreadWorker> svr_hb_poll_thread_worker_g;
   ServerControlServiceImpl* scsi_ = nullptr;
   rrr::Server* hb_rpc_server_ = nullptr;
   base::ThreadPool* hb_thread_pool_g = nullptr;
@@ -679,8 +680,8 @@ public:
   void register_apply_callback(std::function<void(const char*, int)>);
   void register_apply_callback_par_id(std::function<void(const char*&, int, int)>);
   void register_apply_callback_par_id_return(std::function<int(const char*&, int, int, int, std::queue<std::tuple<int, int, int, int, const char *>> &)>);
-  rrr::PollMgr * GetPollMgr(){
-      return svr_poll_mgr_;
+  rusty::Arc<rrr::PollThreadWorker> GetPollThreadWorker(){
+      return svr_poll_thread_worker_;
   }
 };
 

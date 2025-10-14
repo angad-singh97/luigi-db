@@ -129,7 +129,7 @@ friend class FpgaRaftProxy;
 	int index;
 	
   FpgaRaftCommo() = delete;
-  FpgaRaftCommo(PollMgr*);
+  FpgaRaftCommo(rusty::Arc<rrr::PollThreadWorker>);
   shared_ptr<FpgaRaftForwardQuorumEvent>
   SendForward(parid_t par_id, parid_t self_id, shared_ptr<Marshallable> cmd);  
 	void BroadcastHeartbeat(parid_t par_id,
