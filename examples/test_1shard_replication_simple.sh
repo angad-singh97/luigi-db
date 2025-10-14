@@ -11,24 +11,27 @@ ps aux | grep -i simpleTransactionRep | awk "{print \$2}" | xargs kill -9 2>/dev
 rm -f simple-shard0*.log nfs_sync_*
 rm -rf /tmp/mako_rocksdb_shard*
 
-# Start shard 0 in background
+# Start shard 0 in background - capture ALL PIDs
 echo "Starting shard 0..."
 nohup ./build/simpleTransactionRep 1 0 6 localhost 1 > simple-shard0-localhost.log 2>&1 &
+PID_LOCALHOST=$!
 nohup ./build/simpleTransactionRep 1 0 6 learner 1 > simple-shard0-learner.log 2>&1 &
+PID_LEARNER=$!
 nohup ./build/simpleTransactionRep 1 0 6 p2 1 > simple-shard0-p2.log 2>&1 &
+PID_P2=$!
 sleep 1
 nohup ./build/simpleTransactionRep 1 0 6 p1 1  > simple-shard0-p1.log 2>&1 &
-SHARD0_PID=$!
+PID_P1=$!
 sleep 2
 
 # Wait for experiments to run
 echo "Running experiments"
 sleep 20
 
-# Kill the processes
+# Kill ALL processes
 echo "Stopping shards..."
-kill $SHARD0_PID 2>/dev/null
-wait $SHARD0_PID 2>/dev/null
+kill $PID_LOCALHOST $PID_LEARNER $PID_P2 $PID_P1 2>/dev/null
+wait $PID_LOCALHOST $PID_LEARNER $PID_P2 $PID_P1 2>/dev/null
 
 echo ""
 echo "========================================="

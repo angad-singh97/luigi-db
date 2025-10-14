@@ -17,35 +17,43 @@ ps aux | grep -i simplePaxos | awk "{print \$2}" | xargs kill -9 2>/dev/null
 ps aux | grep -i simpleTransactionRep | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
 
-# Start shard 0 in background
+# Start shard 0 in background - capture ALL PIDs
 echo "Starting shard 0..."
 trd=6
 nohup ./build/simpleTransactionRep 2 0 $trd localhost 1 > simple-shard0-localhost.log 2>&1 &
+PID_S0_LOCALHOST=$!
 nohup ./build/simpleTransactionRep 2 0 $trd learner 1 > simple-shard0-learner.log 2>&1 &
+PID_S0_LEARNER=$!
 nohup ./build/simpleTransactionRep 2 0 $trd p2 1 > simple-shard0-p2.log 2>&1 &
+PID_S0_P2=$!
 sleep 1
 nohup ./build/simpleTransactionRep 2 0 $trd p1 1  > simple-shard0-p1.log 2>&1 &
-SHARD0_PID=$!
+PID_S0_P1=$!
 
 sleep 2
 
-# Start shard 1 in background
+# Start shard 1 in background - capture ALL PIDs
 echo "Starting shard 1..."
 nohup ./build/simpleTransactionRep 2 1 $trd localhost 1 > simple-shard1-localhost.log 2>&1 &
+PID_S1_LOCALHOST=$!
 nohup ./build/simpleTransactionRep 2 1 $trd learner 1 > simple-shard1-learner.log 2>&1 &
+PID_S1_LEARNER=$!
 nohup ./build/simpleTransactionRep 2 1 $trd p2 1 > simple-shard1-p2.log 2>&1 &
+PID_S1_P2=$!
 sleep 1
 nohup ./build/simpleTransactionRep 2 1 $trd p1 1  > simple-shard1-p1.log 2>&1 &
-SHARD1_PID=$!
+PID_S1_P1=$!
 
 # Wait for experiments to run
 echo "Running experiments for 30 seconds..."
 sleep 60
 
-# Kill the processes
+# Kill ALL processes from both shards
 echo "Stopping shards..."
-kill $SHARD0_PID $SHARD1_PID 2>/dev/null
-wait $SHARD0_PID $SHARD1_PID 2>/dev/null
+kill $PID_S0_LOCALHOST $PID_S0_LEARNER $PID_S0_P2 $PID_S0_P1 \
+     $PID_S1_LOCALHOST $PID_S1_LEARNER $PID_S1_P2 $PID_S1_P1 2>/dev/null
+wait $PID_S0_LOCALHOST $PID_S0_LEARNER $PID_S0_P2 $PID_S0_P1 \
+     $PID_S1_LOCALHOST $PID_S1_LEARNER $PID_S1_P2 $PID_S1_P1 2>/dev/null
 
 echo ""
 echo "========================================="

@@ -8,8 +8,17 @@ project(mako)
 set(BUILD_SHARED_LIBS ON)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Check compiler and version
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12.0)
+        message(FATAL_ERROR "GCC version 12 or higher is required. Found ${CMAKE_CXX_COMPILER_VERSION}")
+    endif()
+else()
+    message(WARNING "You are not using GCC. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
+endif()
 
 # Configure and enable rusy-cpp-checker
 include(${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/cmake/RustyCppSubmodule.cmake)
@@ -738,6 +747,7 @@ add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(simplePaxos examples/simplePaxos.cc)
 add_apps(test_rocksdb_persistence examples/test_rocksdb_persistence.cc)
+add_apps(rocksdb_replay_app src/mako/benchmarks/rocksdb_replay_app.cc)
 add_apps(test_callback_demo examples/test_callback_demo.cc)
 add_apps(test_ordered_callbacks examples/test_ordered_callbacks.cc)
 add_apps(test_partitioned_queues examples/test_partitioned_queues.cc)
