@@ -7,21 +7,26 @@
 # Variables
 BUILD_DIR = build
 CMAKE_OPTIONS ?= -DPAXOS_LIB_ENABLED=1
+RAFT_TEST_FLAG ?= OFF
+
+PARALLEL_JOBS := $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4)
 
 .PHONY: all configure build clean rebuild run raft-test help test test-verbose test-parallel
 
 all: build
 
 configure:
-	cmake -S . -B $(BUILD_DIR) $(CMAKE_OPTIONS)
+	cmake -S . -B $(BUILD_DIR) $(CMAKE_OPTIONS) -DRAFT_TEST=$(RAFT_TEST_FLAG)
 
 build: configure
-	@echo "Building with $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) parallel jobs..."
-	cmake --build $(BUILD_DIR) --parallel $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4)
+	@echo "Building with $(PARALLEL_JOBS) parallel jobs..."
+	cmake --build $(BUILD_DIR) --parallel $(PARALLEL_JOBS)
 
-# Build with Raft testing coroutines enabled
-raft-test: CMAKE_OPTIONS += -DRAFT_TEST=ON
-raft-test: rebuild
+# Build with Raft testing coroutines enabled without nuking existing build artifacts
+raft-test:
+	cmake -S . -B $(BUILD_DIR) $(CMAKE_OPTIONS) -DRAFT_TEST=ON
+	@echo "Building Raft test binaries with $(PARALLEL_JOBS) parallel jobs..."
+	cmake --build $(BUILD_DIR) --parallel $(PARALLEL_JOBS)
 
 clean:
 	rm -rf $(BUILD_DIR)

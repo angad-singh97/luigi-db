@@ -133,7 +133,7 @@ namespace janus {
 #define TPCC_REAL_DIST_PART (4)
 #define MICRO_BENCH (5)
 
-#define SIMULATE_WAN
+// #define SIMULATE_WAN
 #define YES (1)
 #define NO  (0)
 

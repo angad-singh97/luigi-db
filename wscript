@@ -71,7 +71,7 @@ def configure(conf):
 
     _enable_tcmalloc(conf)
     _enable_jemalloc(conf)
-    _enable_cxx14(conf)
+    _enable_cxx23(conf)
     _enable_debug(conf)
     _enable_profile(conf)
     _enable_event_timeout(conf)
@@ -308,12 +308,12 @@ def _enable_pic(conf):
     conf.env.append_value("CXXFLAGS", "-fPIC")
     conf.env.append_value("LINKFLAGS", "-fPIC")
 
-def _enable_cxx14(conf):
-    Logs.pprint("PINK", "C++17 features enabled (required for rusty-cpp)")
+def _enable_cxx23(conf):
+    Logs.pprint("PINK", "C++23 features enabled (required for move-only coroutines)")
     if sys.platform == "darwin":
         conf.env.append_value("CXXFLAGS", "-stdlib=libc++")
         conf.env.append_value("LINKFLAGS", "-stdlib=libc++")
-    conf.env.append_value("CXXFLAGS", "-std=c++17")
+    conf.env.append_value("CXXFLAGS", "-std=c++23")
 
 def _enable_profile(conf):
     if Options.options.prof:
