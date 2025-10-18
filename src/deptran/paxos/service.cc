@@ -146,17 +146,17 @@ void MultiPaxosServiceImpl::BulkDecide(const MarshallDeputy& md_cmd,
                                        i32* valid,
                                        rrr::DeferredReply* defer) {
   verify(sched_ != nullptr);
-  Log_info("BulkDecide RPC handler called");
+  // Log_info("BulkDecide RPC handler called");
   Coroutine::CreateRun([&] () {
-    Log_info("BulkDecide coroutine executing, calling OnBulkCommit");
+    // Log_info("BulkDecide coroutine executing, calling OnBulkCommit");
     sched_->OnBulkCommit(const_cast<MarshallDeputy&>(md_cmd).sp_data_,
                          ballot,
                          valid,
                          std::bind(&rrr::DeferredReply::reply, defer));
-    Log_info("BulkDecide coroutine finished");
+    // Log_info("BulkDecide coroutine finished");
     //defer->reply();
   });
-  Log_info("BulkDecide RPC handler returning");
+  // Log_info("BulkDecide RPC handler returning");
 }
 
 void MultiPaxosServiceImpl::SyncLog(const MarshallDeputy& md_cmd,
