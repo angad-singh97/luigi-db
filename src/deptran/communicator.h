@@ -73,6 +73,8 @@ class PaxosPrepareQuorumEvent: public QuorumEvent {
     } else {
       n_voted_no_++;
     }
+    // Self-notification: call Test() to push to ready queue when quorum reached
+    Test();
   }
 
 
@@ -87,6 +89,8 @@ class PaxosAcceptQuorumEvent: public QuorumEvent {
     } else {
       n_voted_no_++;
     }
+    // Self-notification: call Test() to push to ready queue when quorum reached
+    Test();
   }
 };
 
