@@ -1,287 +1,272 @@
 # Mako
+
+<div align="center">
+
 ![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![OSDI'25](https://img.shields.io/badge/OSDI'25-Mako-orange.svg)](#)
 
-## Quickstart 
+**High-Performance Distributed Transactional Key-Value Store with Geo-Replication Support**
 
-This is tested on Debian 12 and Ubuntu 22.04.
+[Why Choose Mako](#why-choose-mako) • [Quick Start](#quick-start) • [Use Cases](#use-cases) • [Benchmarks](#benchmarks)
 
-Recursive clone everything 
+</div>
+
+---
+
+## What is Mako?
+
+**Mako** is a high-performance distributed transactional key-value store system with geo-replication support, built on cutting-edge systems research.
+Mako's core design-level innovation is **decoupling transaction execution from replication** using a novel speculative 2PC protocol. Unlike traditional systems where transactions must wait for replication and persistence before committing, Mako allows distributed transactions to execute speculatively without blocking on cross-datacenter consensus. Transactions run at full speed locally while replication happens asynchronously in the background, achieving fault-tolerance without sacrificing performance. The system employs novel mechanisms to prevent unbounded cascading aborts when shards fail during replication, ensuring both high throughput (processing **3.66M TPC-C transactions per second** with 10 shards replicated cross the continent) and strong consistency guarantees. More details can be found in our [OSDI'25 paper](https://www.usenix.org/conference/osdi25/presentation/shen-weihai).
+
+---
+
+## Why Choose Mako?
+
+### Proven Research & Performance
+- Backed by peer-reviewed research published at OSDI'25, one of the top-tier systems conferences
+- **8.6× higher throughput** than state-of-the-art geo-replicated systems
+- Processing **3.66M TPC-C transactions per second** with geo-replication
+
+### Core Capabilities
+- **Serializable Transactions**: Strongest isolation level with full ACID guarantees across distributed partitions
+- **Geo-Replication**: Multi-datacenter support with configurable consistency for disaster recovery
+- **High-Performance Storage**: Built on **Masstree** for in-memory indexing; RocksDB backend for persistence
+- **Horizontal Scalability**: Automatic sharding and data partitioning across nodes
+- **Fault Tolerance**: Crash recovery and replication for high availability
+- **Advanced Networking**: DPDK support for kernel bypass and ultra-low latency
+- **Rust-like memory safety** by using RustyCpp for borrow checking and lifetime analysis.
+
+### Developer-Friendly
+- **Industry-standard benchmarks**: TPC-C, TPC-A, read-write workloads, and micro-benchmarks
+- **RocksDB-like interface** for easy migration from single-node deployments
+- **Redis-compatible layer** for familiar API with enhanced consistency
+- Comprehensive test suite
+- Modular architecture for extensions
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+Tested on **Debian 12** and **Ubuntu 22.04**.
+
+### Installation
 
 ```bash
+# 1. Clone the repository with submodules
 git clone --recursive https://github.com/makodb/mako.git
-```
+cd mako
 
-Install all dependencies
-
-```
+# 2. Install dependencies
 bash apt_packages.sh
 source install_rustc.sh
-```
 
-Configure and compile
-
-```bash
-# if you run on your PC, you can use fewer CPU cores (e.g., j4)
+# 3. Build (use fewer cores on PC, e.g., -j4)
 make -j32
 ```
-You should now see libmako.a and a few examples in the build folder, and run all examples via `./ci/ci.sh all`
 
-
-## erpc - socket implementation test
-```bash
-cd ./third-party/erpc
-rm -rf CMakeFiles cmake_install.cmake CMakeCache.txt
-cmake . -DTRANSPORT=fake -DROCE=off -DPERF=off
-make 
-make latency
-```
-
-* Edit the file `scripts/autorun_process_file` like below (server first, then client) 
-```
-130.245.173.102 31850 0
-130.245.173.103 32850 0
-```
-  * We use port `31850` and `32850` to establish the connection for first time, then we use `31850+10000` and `32850+10000` to exchange messages 
-
-* Run the eRPC application (the latency benchmark by default):
-  * At 130.245.173.102: `./scripts/do.sh 0 0 eth`
-  * At 130.245.173.103: `./scripts/do.sh 1 0 eth`
-
-
-## Several assumptions
-1. All servers, including all followers, and learners, are managed via nfs. We use it to do some execution flow control.
-
-<!-- 
-Run the helloworld:
+### Run Tests
 
 ```bash
-./build/helloworld
+# Run all integration tests
+./ci/ci.sh all
+
+# Run specific tests
+./ci/ci.sh simpleTransaction    # Simple transactions
+./ci/ci.sh simplePaxos           # Paxos replication
+./ci/ci.sh shard1Replication     # 1-shard with replication
+./ci/ci.sh shard2Replication     # 2-shards with replication
 ```
 
-Config hosts
-```bash
-# if Multi-servers: Update bash/ips_{p1|p2|leader|learner}, bash/ips_{p1|p2|leader|learner}.pub, n_partitions 
-bash ./src/mako/update_config.sh 
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Client Applications                   │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Transaction Coordinators                    │
+│  ┌──────────┬──────────┬──────────┬──────────┐         │
+│  │  Mako    │   2PL    │   OCC    │   Paxos  │         │
+│  └──────────┴──────────┴──────────┴──────────┘         │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│                RPC Communication Layer                   │
+│        (TCP/IP, DPDK, RDMA, eRPC)                       │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Sharded Data Partitions                     │
+│  ┌─────────────┬─────────────┬─────────────┐           │
+│  │   Shard 1   │   Shard 2   │   Shard N   │           │
+│  │  (Replicas) │  (Replicas) │  (Replicas) │           │
+│  └─────────────┴─────────────┴─────────────┘           │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Storage Backends                            │
+│    Masstree (In-Memory)  |  RocksDB (Persistent)        │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Experiment Runner
+---
 
-The `run_experiment.py` script automates the compilation and execution of distributed system experiments.
+## Benchmarks
 
-### Setup
+Performance results from our OSDI'25 evaluation on Azure cloud infrastructure (TPC-C benchmark):
 
-The script uses `sshpass` by default for SSH authentication. Set your password as an environment variable:
+### Mako Performance
 
-```bash
-export SSHPASS="your_password"
-```
+| Configuration | Shards | Threads/Shard | Throughput | Median Latency | Notes |
+|--------------|--------|---------------|------------|----------------|-------|
+| Single Shard | 1      | 24            | 960K TPS   | -              | 22.5× faster than Calvin |
+| Geo-Replicated | 10   | 24            | 3.66M TPS  | 121 ms*        | 8.6× faster than Calvin |
 
-Make sure can you ssh your all servers with each other without password
+\* Median latency breakdown: ~50 ms cross-datacenter RTT, 13 ms batching, rest for watermark advancement
 
-### Compile and Run
+### Performance Advantages
 
-```bash
-# compile
-# If the error <command-line>: fatal error: src/mako/masstree/config.h appears on the first run, rerun the script.
-./run_experiment.py --shards 1 --threads 6 --ssh-user $USER --dry-run --only-compile
-bash experiment_s1_norepl_t6_tpcc_r30s_compile-only.sh
+- **8.6× higher throughput** than Calvin (state-of-the-art geo-replicated system)
+- **22.5× higher throughput** than Calvin at single shard
+- **32.2× higher throughput** than OCC+OR at 10 shards
+- **~10× lower latency** than traditional 2PC at high throughput (due to reduced aborts)
 
-# run
-# all results are under ./results/*.log
-./run_experiment.py --shards 1 --threads 6 --ssh-user $USER --dry-run --skip-compile
-bash experiment_s1_norepl_t6_tpcc_r30s_no-compile.sh
-sleep 1
-tail -f *./results/*.log
+*Results from OSDI'25 paper evaluation on Azure. Performance varies based on hardware, network topology, and workload characteristics.*
 
-# kill
-./run_experiment.py --shards 1 --threads 6 --ssh-user $USER --cleanup-only
+---
 
-# more help
-./run_experiment.py --help
-```
+## Documentation
 
-### TODOs
- - TODO replace paxos waf script with standard cmake build
+### Getting Started
+- [Installation Guide](docs/install.md) - Detailed installation instructions
+- [Configuration Guide](docs/config.md) - YAML configuration reference
+- [Deployment Guide](docs/deploy.md) - Distributed deployment instructions
 
+### Development
+- [Architecture Overview](CLAUDE.md) - System architecture and design
+- [Protocol Implementation](docs/protocols.md) - Adding new protocols
+- [Benchmarking Guide](docs/benchmarks.md) - Running and analyzing benchmarks
 
-## Notes
-1. we use nfs to sync some data, e.g., we use nfs to control all worker threads execute at the roughly same time (we used memcached in the past and removed this external dependencies)
-2. for erpc, we add pure ethernet support so that you can use widely adopted sockets
-```
-cd ./third-party/erpc
-make clean
-cmake . -DTRANSPORT=fake -DROCE=off -DPERF=off
-make -j10
+---
 
-cd ~/janus
-echo "eth" > env.txt
+## Use Cases
 
-sudo for bash/shard.sh is not rquired for socket-based transport
-``` 
+### Distributed RocksDB Alternative
 
-## Helloworld - Minimal Example
+Need a high-performance distributed database with a RocksDB-like interface? Mako provides a familiar key-value API with the added benefits of distributed transactions, geo-replication, and fault tolerance. Perfect for applications that have outgrown single-node RocksDB and need:
+- **Horizontal scalability** across multiple nodes
+- **ACID transactions** spanning multiple keys or partitions
+- **Geographic replication** for disaster recovery and low-latency global access
+- **Drop-in replacement** with minimal code changes from existing RocksDB applications
 
-Here's a minimal example to get you started with Mako:
+### Redis Alternative with Transactions
 
-#### Step 1: Create `helloworld.cc`
+Mako includes a Redis-compatible layer, making it an excellent alternative to Redis when you need:
+- **Strong consistency** with serializable transactions instead of Redis's eventual consistency
+- **Multi-key atomic operations** with full ACID guarantees
+- **Geographic distribution** with automatic failover and replication
+- **Persistent storage** with both in-memory (Masstree) and disk-based (RocksDB) backends
+- **Familiar Redis API** for easy migration with enhanced reliability and consistency guarantees
 
-```cpp
-// helloworld.cc - A minimal Mako database example
-#include <iostream>
-#include <mako.hh>
+---
 
-using namespace std;
+## Development
 
-int main() {
-    // 1. Create database instance
-    abstract_db *db = new mbta_wrapper;
-    
-    // 2. Set up configuration (required for sharding)
-    config = new transport::Configuration(
-        "./src/mako/config/local-shards1-warehouses1.yml"
-    );
-    
-    // 3. Initialize thread context
-    scoped_db_thread_ctx ctx(db, false);
-    mbta_ordered_index::mbta_type::thread_init();
-    
-    // 4. Open or create a table
-    abstract_ordered_index *table = db->open_index("hello_table", 1, false, false);
-    
-    // 5. Set up persistent arena and transaction buffer
-    str_arena arena;
-    string txn_buf;
-    txn_buf.reserve(str_arena::MinStrReserveLength);
-    txn_buf.resize(db->sizeof_txn_object(0));
-    
-    // 6. Perform a write transaction
-    {
-        void *txn = db->new_txn(0, arena, (void*)txn_buf.data());
-        scoped_str_arena s_arena(arena);  // RAII for arena management
-        
-        try {
-            // Write a key-value pair
-            string key = "hello";
-            string actual_value = "world!";
-            // Mako requires padding for internal versioning
-            string padded_value = actual_value + string(mako::EXTRA_BITS_FOR_VALUE, '\0');
-            table->put(txn, key, StringWrapper(padded_value));
-            
-            // Commit the transaction
-            db->commit_txn(txn);
-            cout << "Successfully wrote: " << key << " -> " << actual_value << endl;
-            
-        } catch (abstract_db::abstract_abort_exception &ex) {
-            cout << "Transaction aborted!" << endl;
-            db->abort_txn(txn);
-        }
-    }
-    
-    // 7. Perform a read transaction
-    {
-        void *txn = db->new_txn(0, arena, (void*)txn_buf.data());
-        scoped_str_arena s_arena(arena);  // RAII for arena management
-        
-        try {
-            // Read the value
-            string key = "hello";
-            string value = "";
-            table->get(txn, key, value);
-            
-            // Commit the transaction
-            db->commit_txn(txn);
-            
-            // Extract the actual value (removing null padding)
-            size_t actual_length = value.find('\0');
-            if (actual_length == string::npos) {
-                actual_length = value.length();
-            }
-            string actual_value = value.substr(0, actual_length);
-            cout << "Successfully read: " << key << " -> " << actual_value << endl;
-            
-        } catch (abstract_db::abstract_abort_exception &ex) {
-            cout << "Transaction aborted!" << endl;
-            db->abort_txn(txn);
-        }
-    }
-    
-    // 8. Clean up
-    delete config;
-    delete db;
-    
-    cout << "Hello World example completed!" << endl;
-    return 0;
-}
-```
-
-#### Step 2: Compile as Standalone Program
-
-You can compile the helloworld example as a standalone program without modifying CMakeLists.txt:
+### Building Different Configurations
 
 ```bash
-# From project root, after building libmako.a with 'make'
-g++ -std=c++17 \
-    -I./src/mako \
-    -I./src/mako/masstree \
-    -I./src \
-    -I./third-party/erpc/src \
-    -I./third-party/erpc/third_party/asio/include \
-    -I. \
-    -DCONFIG_H=\"./src/mako/config/config-perf.h\" \
-    -DERPC_FAKE=true \
-    -include ./src/mako/masstree/config.h \
-    -o helloworld \
-    examples/helloworld.cc \
-    ./build/libmako.a \
-    ./build/third-party/erpc/liberpc.a \
-    ./rust-lib/target/release/librust_redis.a \
-    ./build/libtxlog.so \
-    -lyaml-cpp -lpthread -lnuma -levent_pthreads -levent \
-    -lboost_fiber -lboost_context -lboost_system -lboost_thread \
-    -ljemalloc -lrt -ldl
+# Full build with all features
+make build
 
-# Run the example (from project root)
-./helloworld
+# Build specific components
+make dbtest        # Database tests
+make configure     # CMake configuration only
+make clean         # Clean all build artifacts
 ```
 
-Alternatively, if you prefer using CMake (modifying CMakeLists.txt):
+### Running Tests
 
-#### Step 3: Build with CMake
-
-Add this line to `CMakeLists.txt` (around line 573):
-```cmake
-add_apps(helloworld examples/helloworld.cc)
-```
-
-Then build and run:
 ```bash
-# From project root
-cd build
-cmake ..
-make helloworld
-
-# Run the example (from project root)
-./build/helloworld
+# CTest integration
+make test                 # Run all tests
+make test-verbose         # Verbose test output
+make test-parallel        # Parallel test execution
 ```
 
-### Key Concepts
+### Code Organization
 
-#### Transaction Management
-- **Begin Transaction**: `db->new_txn(...)` creates a new transaction
-- **Commit**: `db->commit_txn(txn)` commits changes
-- **Abort**: `db->abort_txn(txn)` rolls back changes
-- **Exception Handling**: Always wrap transactions in try-catch blocks
+```
+mako/
+├── src/
+│   ├── deptran/        # Transaction protocols (2PL, OCC, RCC, etc.)
+│   ├── mako/           # Mako system with Masstree
+│   ├── bench/          # Benchmark implementations (TPC-C, TPC-A)
+│   └── rrr/            # Custom RPC framework
+├── config/             # YAML configuration files
+├── test/               # Test configurations and scripts
+├── third-party/        # External dependencies
+└── rust-lib/           # Rust components
+```
 
-#### Table Operations
-- **Open Table**: `db->open_index(name, ...)` opens or creates a table
-- **Put**: `table->put(txn, key, value)` writes a key-value pair
-- **Get**: `table->get(txn, key, value)` reads a value
-- **Scan**: `table->scan(...)` iterates over a range of keys
+---
 
-#### Memory Management
-- **str_arena**: Thread-local memory arena for efficient allocation
-- **Transaction Buffer**: Pre-allocated buffer for transaction metadata
-- **scoped_db_thread_ctx**: RAII wrapper for thread initialization
-- **scoped_str_arena**: RAII wrapper for arena management
+## Contributing
 
--->
+We welcome contributions! Here's how you can help:
+
+### Reporting Issues
+- Use GitHub Issues for bug reports
+- Include reproduction steps and environment details
+- Check existing issues before creating new ones
+
+### Pull Requests
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Ensure all tests pass (`make test`)
+5. Submit a pull request
+
+### Code Style
+- Follow existing code conventions
+- Use C++17 features where appropriate
+- Document complex logic with comments
+- Add tests for new functionality
+
+---
+
+## Community
+
+### Getting Help
+- **Documentation**: Check the [docs](docs/) directory
+- **Issues**: Search existing GitHub Issues
+- **Discussions**: Use GitHub Discussions for questions
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+- **Research Team**: Mako research and development team
+- **Contributors**: All researchers and students who have contributed
+- **Dependencies**: Built on excellent open-source projects including Janus, Masstree, RocksDB, eRPC, and many others
+
+---
+
+<div align="center">
+
+**⭐ Star this repository if you find it useful! ⭐**
+
+[Report Bug](https://github.com/makodb/mako/issues) • [Request Feature](https://github.com/makodb/mako/issues) • [Documentation](docs/)
+
+</div>
