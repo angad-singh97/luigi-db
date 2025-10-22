@@ -57,9 +57,22 @@ The unified CMake build system provides the following executables:
 - **`deptran_server`**: Server executable for Raft/Jetpack consensus
 
 ### Build Commands
-# if you run on your PC, you can use fewer CPU cores (e.g., j4)
-make -j32
+
+```bash
+# Clean build (recommended after git pull or configuration changes)
+rm -rf build && mkdir build
+cmake -B build -DRAFT_TEST=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build -j32
+
+# Or use the convenience script
+bash compile-cmake.sh
+
+# If you run on your PC, you can use fewer CPU cores (e.g., -j4)
+make -j4
 ```
+
+**Important**: The `-DREUSE_CORO` flag is now enabled by default in CMakeLists.txt. This is **required for Raft stability**.
+
 You should now see libmako.a and a few examples in the build folder, and run all examples via `./ci/ci.sh all`
 
 
@@ -87,7 +100,7 @@ make latency
 ## Several assumptions
 1. All servers, including all followers, and learners, are managed via nfs. We use it to do some execution flow control.
 
-<!-- 
+
 Run the helloworld:
 
 ```bash
@@ -245,21 +258,9 @@ export MAKO_MULTI_SITE=1 && ./build/dbtest -t 6 -s 1 -S 1 -K 3 \
 
 ## Running Raft (Jetpack)
 
-### Building for Raft
+Raft uses the `deptran_server` executable. After building with `make -j32`, you can run Raft with different configurations.
 
-Raft uses the `deptran_server` executable:
-
-```bash
-# Production Raft (default)
-cmake -B build -DRAFT_TEST=OFF
-cmake --build build --target deptran_server -j32
-
-# Raft lab testing (with coroutine-based execution)
-cmake -B build -DRAFT_TEST=ON
-cmake --build build --target deptran_server -j32
-```
-
-### Running Raft with Different Configurations
+### Production Raft Configurations
 
 **Basic Raft (local 3 machines, closed-loop 1×1 clients):**
 ```bash
@@ -272,7 +273,7 @@ cmake --build build --target deptran_server -j32
   -d 30 -m 100 -P localhost
 ```
 
-**Raft with higher concurrency (12×12 clients):**
+**Raft with higher concurrency (12×12 clients, high throughput ~25k TPS):**
 ```bash
 ./build/deptran_server \
   -f config/none_raft.yml \
@@ -297,10 +298,12 @@ cmake --build build --target deptran_server -j32
 
 ### Raft Lab Tests
 
+For testing with coroutine-based execution:
+
 ```bash
 # Build with RAFT_TEST enabled
 cmake -B build -DRAFT_TEST=ON
-cmake --build build --target deptran_server -j32
+cmake --build build -j32
 
 # Run Raft lab tests
 ./build/deptran_server -f config/raft_lab_test.yml
@@ -333,62 +336,6 @@ Configuration files are in `config/`:
 - `config/1c1s3r1p.yml`: 1 client, 1 shard, 3 replicas, 1 partition
 - `config/concurrent_*.yml`: Concurrency level (1, 12, etc.)
 
-## Troubleshooting
-
-### Raft Crashes with "verify failed: currentTerm == term"
-
-**Cause**: Missing `-DREUSE_CORO` compiler flag.
-
-**Solution**: The flag is now enabled by default. If you're experiencing this:
-1. Clean rebuild:
-   ```bash
-   rm -rf build && mkdir build
-   cmake -B build -DRAFT_TEST=OFF
-   cmake --build build -j32
-   ```
-2. Verify the flag is present:
-   ```bash
-   grep "\-DREUSE_CORO" build/compile_commands.json
-   ```
-
-### Build Fails After Modifying CMakeLists.txt
-
-**Cause**: Stale CMake cache.
-
-**Solution**: Always reconfigure CMake:
-```bash
-rm -rf build && mkdir build
-cmake -B build [OPTIONS]
-cmake --build build -j32
-```
-
-### "RAFT_TEST_CORO enabled" Error in Production
-
-**Cause**: Wrong CMake configuration.
-
-**Solution**: Reconfigure with `-DRAFT_TEST=OFF`:
-```bash
-cmake -B build -DRAFT_TEST=OFF
-cmake --build build --target deptran_server -j32
-```
-
-### Build Timeout
-
-**Cause**: Short timeout on large codebase.
-
-**Solution**: Use longer timeout (10+ minutes) or no timeout:
-```bash
-# Don't use short timeouts like 60s or 120s
-timeout 1800 cmake --build build -j32  # 30 minutes
-# Or just let it finish
-cmake --build build -j32
-```
-
-### Performance Regression After Merge
-
-**Known Issue**: The merged codebase has a 3x performance regression in Paxos replication throughput due to `shared_ptr` overhead in RPC hot paths. This causes `shard1Replication` test to fail (requires replay_batch > 1000, gets ~800).
-
-**Workaround**: Tests with lower thresholds (e.g., `shard1ReplicationSimple`) pass successfully.
 
 ## Results Processing
 
@@ -399,19 +346,10 @@ python3 results_processor.py <Experiment time (directory name under results fold
 python3 results_processor.py 2023-10-10-03:38:03
 ```
 
-## Additional Resources
-
-- **Architecture documentation**: `COMPATIBILITY_ANALYSIS.md`
-- **Merge documentation**: `MERGE_DOCUMENTATION.md`
-- **Original Mako README**: `OLD-README.md`
-- **TODO list**: `doc/TODO.md`
-- **EC2 deployment**: `doc/ec2.md`
-- **Profiling guide**: `doc/profile.md`
-
 ## Project Structure
 
 ```
-mako_temp/
+mako/
 ├── src/
 │   ├── deptran/          # Transaction protocols (Janus, 2PL, OCC, Paxos, Raft)
 │   │   ├── paxos/        # Paxos/Mako implementation
@@ -428,7 +366,3 @@ mako_temp/
 └── README.md             # This file
 ```
 
-## License
-
-See the LICENSE file in the repository.
--->
