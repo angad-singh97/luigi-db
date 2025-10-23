@@ -24,7 +24,6 @@ namespace mako
     public:
         ShardReceiver(std::string file);
         void Register(abstract_db *db,
-                 const map<string, abstract_ordered_index *> &open_tables,
                  const map<int, abstract_ordered_index *> &open_tables_table_id /*,
                  const map<string, vector<abstract_ordered_index *>> &partitions,
                  const map<string, vector<abstract_ordered_index *>> &remote_partitions*/);
@@ -66,7 +65,6 @@ namespace mako
 
         // store layer
         abstract_db *db;
-        map<string, abstract_ordered_index *> open_tables;
         map<int, abstract_ordered_index *> open_tables_table_id;
         // map<string, vector<abstract_ordered_index *>> partitions;
         // map<string, vector<abstract_ordered_index *>> remote_partitions;
@@ -89,7 +87,7 @@ namespace mako
         void Register(abstract_db *db,
                  mako::HelperQueue *queue,
                  mako::HelperQueue *queue_res,
-                 const map<string, abstract_ordered_index *> &open_tables /*,
+                 const map<int, abstract_ordered_index *> &open_tables /*,
                  const map<string, vector<abstract_ordered_index *>> &partitions,
                  const map<string, vector<abstract_ordered_index *>> &remote_partitions*/);
         void Run();
@@ -107,7 +105,6 @@ namespace mako
         abstract_db *db;
         mako::HelperQueue *queue;
         mako::HelperQueue *queue_response;
-        map<string, abstract_ordered_index *> open_tables;
         map<int, abstract_ordered_index *> open_tables_table_id;
         // map<string, vector<abstract_ordered_index *>> partitions;
         // map<string, vector<abstract_ordered_index *>> remote_partitions;

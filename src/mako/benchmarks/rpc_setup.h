@@ -20,9 +20,7 @@ namespace mako {
 // Launch helper threads for all remote warehouses across shards.
 void setup_helper(
   abstract_db *db,
-  const std::map<std::string, abstract_ordered_index *> &open_tables/*,
-  const std::map<std::string, std::vector<abstract_ordered_index *>> &partitions,
-  const std::map<std::string, std::vector<abstract_ordered_index *>> &remote_partitions*/);
+  const std::map<int, abstract_ordered_index *> &open_tables);
 
 // Signal helper threads to stop processing requests.
 void stop_helper();

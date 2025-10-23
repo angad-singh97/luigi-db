@@ -485,10 +485,10 @@ int main(int argc, char **argv) {
         mbta_sharded_ordered_index *table = db->open_sharded_index("customer_0");
 
         mako::setup_erpc_server();
-        map<string, abstract_ordered_index*> open_tables;
+        map<int, abstract_ordered_index*> open_tables;
         auto *local_table = table->shard_for_index(benchConfig.getShardIndex());
         if (local_table) {
-            open_tables["customer_0"] = local_table;
+            open_tables[local_table->get_table_id()] = local_table;
         }
         mako::setup_helper(db, std::ref(open_tables));
 

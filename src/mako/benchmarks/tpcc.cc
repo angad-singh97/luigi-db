@@ -3749,11 +3749,16 @@ tpcc_do_test(abstract_db *db, int argc, char **argv, int run = 0, bench_runner *
   r = new tpcc_bench_runner(db, f_mode==1);
   // the erpc server and redirect requests to helper threads on the server side
   mako::setup_erpc_server();
+  std::map<int, abstract_ordered_index *> open_tables_by_id;
+  for (const auto &entry : r->get_open_tables_ref()) {
+    abstract_ordered_index *tbl = entry.second;
+    if (tbl) {
+      open_tables_by_id[tbl->get_table_id()] = tbl;
+    }
+  }
   mako::setup_helper(
     db,
-    r->get_open_tables_ref()/*,
-    r->get_partitions(),
-    r->get_remote_partitions()*/);
+    open_tables_by_id);
   r->f_mode=f_mode;
   auto x1 = std::chrono::high_resolution_clock::now() ;
   printf("start worker:%d\n",
