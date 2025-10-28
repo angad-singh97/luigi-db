@@ -398,7 +398,7 @@ void RaftServer::HeartbeatLoop() {
         term = currentTerm;
         mtx_.unlock();
 
-      // send 1 AppendEntries to each follower that needs one
+        // send 1 AppendEntries to each follower that needs one
         // auto site_id = it->first;
         // if (site_id == site_id_) {
         //   continue;
@@ -446,7 +446,9 @@ void RaftServer::HeartbeatLoop() {
 
 #ifdef RAFT_BATCH_OPTIMIZATION
         vector<shared_ptr<TpcCommitCommand> > batch_buffer_;
-        for (int idx = it->second; idx <= lastLogIndex; idx++) {
+        Log_info("loc_id_=%d idx from %d to %d", loc_id_, it->second, lastLogIndex);
+        // [Jetpack] Start from max(it->second, min_active_slot_) since after failure, new elected leader it->second is not updated and can be 1
+        for (int idx = max(it->second, min_active_slot_); idx <= lastLogIndex; idx++) {
           auto curInstance = GetRaftInstance(idx);
           shared_ptr<TpcCommitCommand> curCmd = dynamic_pointer_cast<TpcCommitCommand>(curInstance->log_);
           curCmd->term = curInstance->term;
