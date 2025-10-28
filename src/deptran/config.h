@@ -178,6 +178,8 @@ class Config {
  public:
   static int CreateConfig(int argc,
                           char **argv);
+
+  // @safe
   static Config* GetConfig();
   static void DestroyConfig();
 
@@ -227,6 +229,7 @@ class Config {
   vector<SiteInfo> SitesByLocaleId(uint32_t locale_id, SiteInfoType type=SERVER);
   vector<SiteInfo> SitesByProcessName(string proc_name, SiteInfoType type=SERVER);
   SiteInfo* SiteByName(std::string name);
+  // @safe
   int GetPartitionSize(parid_t par_id);
   void UpgradeFromLearnerToLeader();
   void UpgradeFromP1ToLeader();

@@ -566,6 +566,7 @@ class TxLogServer {
   }
 #endif
 
+  // @unsafe
   void JetpackRecoveryEntry();
 
   void JetpackBeginRecovery();

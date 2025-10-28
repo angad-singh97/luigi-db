@@ -58,6 +58,7 @@ friend class RaftProxy;
   RaftCommo() = delete;
   RaftCommo(rusty::Arc<rrr::PollThreadWorker>);
 
+  // @unsafe
   shared_ptr<IntEvent>
   SendAppendEntries2(siteid_t site_id,
                     parid_t par_id,
@@ -89,6 +90,7 @@ friend class RaftProxy;
                     uint64_t commitIndex,
                     shared_ptr<Marshallable> cmd,
                     uint64_t cmdLogTerm);
+  // @unsafe
   shared_ptr<RaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
                         slotid_t lst_log_idx,

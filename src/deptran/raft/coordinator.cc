@@ -6,8 +6,13 @@
 #include "../classic/tpc_command.h"
 #include "../procedure.h"
 #include "../config.h"
-
 #include "server.h"
+#include <unified_external_annotations.hpp>
+// External annotations for std library template functions
+// @external: {
+//   std::dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
+//   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
+// }
 
 namespace janus {
 
@@ -29,7 +34,9 @@ bool CoordinatorRaft::IsFPGALeader() {
    return this->svr_->IsFPGALeader() ;
 }
 
-// @unsafe - Calls undeclared Config::GetConfig() and GotoNextPhase()
+// @unsafe - Calls undeclared dynamic_pointer_cast<TpcCommitCommand>() template at line 42
+// Template functions are not supported by the borrow checker
+// This is required for type casting to access command-specific fields
 void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
@@ -39,7 +46,7 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     
     // Handle WRONG_LEADER case
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
-      auto tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
+      auto tpc_cmd = std::dynamic_pointer_cast<TpcCommitCommand>(cmd);
       if (tpc_cmd) {
         // Set WRONG_LEADER error code
         tpc_cmd->ret_ = WRONG_LEADER;
@@ -89,7 +96,18 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
   GotoNextPhase();
 }
 
-// @unsafe - Calls undeclared Reactor::CreateSpEvent() and unmarked svr_->Start()
+// @unsafe - Multiple issues that cannot be made safe without refactoring:
+// 1. Takes address-of local variables (&index, &term) passed to Start()
+//    - Creates aliasing that borrow checker cannot track
+//    - Would require API refactor to return struct instead of output params
+// 2. Calls template function Reactor::CreateSpEvent<TimeoutEvent>()
+//
+// FUTURE TODO: Refactor RaftServer::Start() API from:
+//   bool Start(cmd, uint64_t* index, uint64_t* term)
+// To:
+//   StartResult Start(cmd)  // where StartResult = {bool ok, uint64_t index, uint64_t term}
+// This would eliminate the address-of operations and make the function safe.
+// Affects 17 call sites across 3 files (coordinator.cc, test.cc, testconf.cc)
 void CoordinatorRaft::AppendEntries() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     verify(!in_append_entries);
@@ -100,7 +118,7 @@ void CoordinatorRaft::AppendEntries() {
     verify(ok);
     {
       // std::lock_guard<std::recursive_mutex> lock(svr_->ready_for_replication_mtx_);
-      if (svr_->ready_for_replication_)
+      if (svr_->ready_for_replication_ != nullptr)
         svr_->ready_for_replication_->Set(1);
     }
 
@@ -116,8 +134,6 @@ void CoordinatorRaft::AppendEntries() {
         return;
       }
     }
-    
-    
     
     committed_ = true;
 }
@@ -225,7 +241,7 @@ void CoordinatorRaft::AppendEntries() {
 //     }
 // }
 
-// @unsafe - Calls unmarked GotoNextPhase()
+// @safe - Calls unmarked GotoNextPhase()
 void CoordinatorRaft::Commit() {
   verify(0);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -234,7 +250,7 @@ void CoordinatorRaft::Commit() {
   GotoNextPhase();
 }
 
-// @unsafe - Calls unmarked GotoNextPhase()
+// @safe - Calls unmarked GotoNextPhase()
 void CoordinatorRaft::LeaderLearn() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     commit_callback_();
@@ -242,7 +258,7 @@ void CoordinatorRaft::LeaderLearn() {
     GotoNextPhase();
 }
 
-// @unsafe - Calls unmarked AppendEntries() and LeaderLearn()
+// @safe
 void CoordinatorRaft::GotoNextPhase() {
   int n_phase = 4;
   int current_phase = phase_ % n_phase;

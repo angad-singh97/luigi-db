@@ -10,6 +10,7 @@
 #include "test.h"
 // #include "../kv/server.h"
 
+
 namespace janus {
 
 REG_FRAME(MODE_RAFT, vector<string>({"raft"}), RaftFrame);
@@ -39,6 +40,7 @@ struct foo : automatic_register<foo> {
   }
 };*/
 
+// @safe
 RaftFrame::RaftFrame(int mode) : Frame(mode) {
   
 }
@@ -54,12 +56,15 @@ uint16_t RaftFrame::n_commo_created_ = 0;
 #endif
 
 
-
+// @safe
 Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
   Executor *exec = new RaftExecutor(cmd_id, sched);
   return exec;
 }
 
+// @unsafe - Two reasons:
+// 1. Takes address-of member (&slot_hint_) - creates aliasing borrow checker cannot track
+// The shared mutable slot counter pattern is inherently unsafe in RustyCpp's model
 Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
                                                 Config *config,
                                                 int benchmark,
@@ -87,6 +92,7 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
   return coo;
 }
 
+// @safe
 TxLogServer *RaftFrame::CreateScheduler() {
   if(svr_ == nullptr)
   {
@@ -109,9 +115,7 @@ TxLogServer *RaftFrame::CreateScheduler() {
   return svr_ ;
 }
 
-
-// Make = sure that this function is a coroutine function
-// and it is called from a coroutine context.
+// @safe
 Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
@@ -192,6 +196,7 @@ Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thre
   return commo_;
 }
 
+// @safe
 vector<rrr::Service *>
 RaftFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,

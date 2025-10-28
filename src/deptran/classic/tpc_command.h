@@ -61,6 +61,7 @@ public:
   vector<shared_ptr<TpcCommitCommand> > cmds_;
 
   void AddCmd(shared_ptr<TpcCommitCommand> cmd);
+  // @safe
   void AddCmds(vector<shared_ptr<TpcCommitCommand> >& cmds);
   void ClearCmd();
   inline size_t Size() const { return cmds_.size(); }

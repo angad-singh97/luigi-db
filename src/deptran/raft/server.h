@@ -80,6 +80,7 @@ class RaftServer : public TxLogServer {
   } 
 	void setIsLeader(bool isLeader);
 
+  // @unsafe
   void doVote(const slotid_t& lst_log_idx,
               const ballot_t& lst_log_term,
               const siteid_t& can_id,
@@ -178,6 +179,7 @@ class RaftServer : public TxLogServer {
     return is_leader_ ;
   }
 
+  // @unsafe
   bool Start(shared_ptr<Marshallable> &cmd, uint64_t *index, uint64_t *term, slotid_t slot_id = -1, ballot_t ballot = 1);
 
   // @safe
@@ -187,6 +189,7 @@ class RaftServer : public TxLogServer {
     *term = currentTerm;
   }
 
+  // @unsafe
   void SetLocalAppend(shared_ptr<Marshallable>& cmd, uint64_t* term, uint64_t* index, slotid_t slot_id = -1, ballot_t ballot = 1 ){
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     *index = lastLogIndex ;
@@ -236,6 +239,7 @@ class RaftServer : public TxLogServer {
     *term = currentTerm ;
   }
   
+  // @safe
   shared_ptr<RaftData> GetInstance(slotid_t id) {
     verify(id >= min_active_slot_ || lastLogIndex == 0);
     auto& sp_instance = logs_[id];
@@ -253,6 +257,8 @@ class RaftServer : public TxLogServer {
     raft_logs_.push_back(sp_instance) ;
     return sp_instance;
   }*/
+
+  // @unsafe
    shared_ptr<RaftData> GetRaftInstance(slotid_t id) {
     verify(id >= min_active_slot_ || id == 0);
      auto& sp_instance = raft_logs_[id];
@@ -304,6 +310,7 @@ class RaftServer : public TxLogServer {
     verify(0);
   };
 
+  // @unsafe
   void removeCmd(slotid_t slot);
 };
 } // namespace janus

@@ -58,7 +58,7 @@ void RaftServer::Setup() {
   // Election timer will be started in Start() method when first command is submitted
 }
 
-// @unsafe - Calls undeclared commo() and uses raw pointer casts
+// @safe
 void RaftServer::Disconnect(const bool disconnect) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(disconnected_ != disconnect);
@@ -266,7 +266,7 @@ void RaftServer::setIsLeader(bool isLeader) {
   }
 }
 
-// @unsafe - Calls undeclared callback app_next_ and @unsafe removeCmd()
+// @unsafe - Uses STL smart pointers/maps (undeclared)
 void RaftServer::applyLogs() {
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {
@@ -574,7 +574,7 @@ RaftServer::~RaftServer() {
       partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
 }
 
-// @unsafe - Uses frame_ raw pointer member and calls undeclared functions
+// @safe
 bool RaftServer::RequestVote() {
   // for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
 
@@ -680,7 +680,7 @@ bool RaftServer::RequestVote() {
   }
 }
 
-// @unsafe - Calls undeclared doVote() and uses std::function callback
+// @safe - Calls undeclared doVote() and uses std::function callback
 void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
                                const ballot_t& lst_log_term,
                                const siteid_t& can_id,
@@ -736,7 +736,7 @@ void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
 
 }
 
-// @unsafe - Calls undeclared Coroutine::CreateRun(), resetTimer(), uses frame_ raw pointer
+// @unsafe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::StartElectionTimer() {
   resetTimer() ;
   Coroutine::CreateRun([&]() {
@@ -766,7 +766,7 @@ void RaftServer::StartElectionTimer() {
   });
 }
 
-// @unsafe - Calls undeclared SetLocalAppend()
+// @unsafe - Pointer operations "*index = lastLogIndex;"
 bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        uint64_t *index,
                        uint64_t *term,
@@ -809,7 +809,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 /* NOTE: same as ReceiveAppend */
 /* NOTE: broadcast send to all of the host even to its own server
  * should we exclude the execution of this function for leader? */
-// @unsafe - Calls undeclared functions and uses callbacks
+// @unsafe - Calling unsafe function 'dynamic_pointer_cast (undeclared - must be explicitly marked @safe or @unsafe)' requires unsafe context
 void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const ballot_t ballot,
                                  const uint64_t leaderCurrentTerm,

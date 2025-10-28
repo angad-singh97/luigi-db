@@ -16,7 +16,7 @@ RaftCommo::RaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Com
 //  verify(poll != nullptr);
 }
 
-// @unsafe - Calls undeclared Reactor::CreateSpEvent() and Call_Async()
+// @unsafe - Calls undeclared Reactor::CreateSpEvent() variadic template functions
 shared_ptr<IntEvent>
 RaftCommo::SendAppendEntries2(siteid_t site_id,
                              parid_t par_id,
@@ -97,7 +97,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
   return ret;
 }
 
-// @unsafe - Calls undeclared Call_Async()
+// @safe
 shared_ptr<SendAppendEntriesResults>
 RaftCommo::SendAppendEntries(siteid_t site_id,
                              parid_t par_id,
@@ -111,8 +111,10 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
                              uint64_t commitIndex,
                              shared_ptr<Marshallable> cmd,
                              uint64_t cmdLogTerm) {
-  // verify(par_id == 0);                          
-  auto res = std::make_shared<SendAppendEntriesResults>();
+  // verify(par_id == 0);
+  // Use direct shared_ptr construction instead of make_shared (template function)
+  // to keep this function @safe. The 'new' operator is allowed in @safe code.
+  auto res = shared_ptr<SendAppendEntriesResults>(new SendAppendEntriesResults());
   auto proxies = rpc_par_proxies_[par_id];
   vector<Future*> fus;
 	WAN_WAIT;
@@ -173,7 +175,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
   return res;
 }
 
-// @unsafe - Calls undeclared Reactor::CreateSpEvent() and Call_Async()
+// @unsafe - Calls undeclared Reactor::CreateSpEvent()
 shared_ptr<RaftVoteQuorumEvent>
 RaftCommo::BroadcastVote(parid_t par_id,
                          slotid_t lst_log_idx,
