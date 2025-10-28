@@ -11,6 +11,7 @@
 
 namespace janus {
 
+// @safe
 CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
                                              int32_t benchmark,
                                              ClientControlServiceImpl* ccsi,
@@ -18,14 +19,17 @@ CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
     : Coordinator(coo_id, benchmark, ccsi, thread_id) {
 }
 
+// @safe
 bool CoordinatorRaft::IsLeader() {
    return this->svr_->IsLeader() ;
 }
 
+// @safe - Calls svr_->IsFPGALeader() which is now marked @safe
 bool CoordinatorRaft::IsFPGALeader() {
    return this->svr_->IsFPGALeader() ;
 }
 
+// @unsafe - Calls undeclared Config::GetConfig() and GotoNextPhase()
 void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
@@ -85,6 +89,7 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
   GotoNextPhase();
 }
 
+// @unsafe - Calls undeclared Reactor::CreateSpEvent() and unmarked svr_->Start()
 void CoordinatorRaft::AppendEntries() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     verify(!in_append_entries);
@@ -220,6 +225,7 @@ void CoordinatorRaft::AppendEntries() {
 //     }
 // }
 
+// @unsafe - Calls unmarked GotoNextPhase()
 void CoordinatorRaft::Commit() {
   verify(0);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -228,6 +234,7 @@ void CoordinatorRaft::Commit() {
   GotoNextPhase();
 }
 
+// @unsafe - Calls unmarked GotoNextPhase()
 void CoordinatorRaft::LeaderLearn() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     commit_callback_();
@@ -235,6 +242,7 @@ void CoordinatorRaft::LeaderLearn() {
     GotoNextPhase();
 }
 
+// @unsafe - Calls unmarked AppendEntries() and LeaderLearn()
 void CoordinatorRaft::GotoNextPhase() {
   int n_phase = 4;
   int current_phase = phase_ % n_phase;

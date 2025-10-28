@@ -7,13 +7,16 @@
 #include "../command_marshaler.h"
 #include "../rcc_rpc.h"
 #include "macros.h"
+#include <utility>
 
 namespace janus {
 
+// @safe
 RaftCommo::RaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
 //  verify(poll != nullptr);
 }
 
+// @unsafe - Calls undeclared Reactor::CreateSpEvent() and Call_Async()
 shared_ptr<IntEvent>
 RaftCommo::SendAppendEntries2(siteid_t site_id,
                              parid_t par_id,
@@ -94,6 +97,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
   return ret;
 }
 
+// @unsafe - Calls undeclared Call_Async()
 shared_ptr<SendAppendEntriesResults>
 RaftCommo::SendAppendEntries(siteid_t site_id,
                              parid_t par_id,
@@ -169,6 +173,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
   return res;
 }
 
+// @unsafe - Calls undeclared Reactor::CreateSpEvent() and Call_Async()
 shared_ptr<RaftVoteQuorumEvent>
 RaftCommo::BroadcastVote(parid_t par_id,
                          slotid_t lst_log_idx,
@@ -200,7 +205,7 @@ RaftCommo::BroadcastVote(parid_t par_id,
     };
     Call_Async(proxy, Vote, lst_log_idx, lst_log_term, self_id, cur_term, fuattr);
   }
-  return e;
+  return std::move(e);
 }
 
 } // namespace janus

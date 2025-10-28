@@ -11,9 +11,12 @@ class TxData;
 class RaftVoteQuorumEvent: public QuorumEvent {
  public:
   using QuorumEvent::QuorumEvent;
+  // @safe
   bool HasAcceptedValue() {
     return false;
   }
+
+  // @safe - Calls parent class VoteYes/VoteNo methods
   void FeedResponse(bool y, ballot_t term) {
     if (y) {
       VoteYes();
@@ -22,10 +25,11 @@ class RaftVoteQuorumEvent: public QuorumEvent {
       if(term > highest_term_)
       {
         highest_term_ = term ;
-      }      
+      }
     }
   }
-  
+
+  // @safe
   int64_t Term() {
     return highest_term_;
   }

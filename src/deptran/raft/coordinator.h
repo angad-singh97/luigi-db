@@ -38,6 +38,7 @@ class CoordinatorRaft : public Coordinator {
   slotid_t *slot_hint_ = nullptr;
   uint64_t cmt_idx_ = 0 ;
 
+  // @safe
   uint32_t n_replica() {
     verify(n_replica_ > 0);
     return n_replica_;
@@ -46,6 +47,7 @@ class CoordinatorRaft : public Coordinator {
   bool IsLeader() ;
   bool IsFPGALeader() ;
 
+  // @unsafe - Uses raw pointer slot_hint_
   slotid_t GetNextSlot() {
     verify(0);
     verify(slot_hint_ != nullptr);
@@ -53,6 +55,7 @@ class CoordinatorRaft : public Coordinator {
     return 0;
   }
 
+  // @safe
   uint32_t GetQuorum() {
     return n_replica() / 2 + 1;
   }

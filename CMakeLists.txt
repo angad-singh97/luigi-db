@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-# using g++
-set(CMAKE_C_COMPILER "gcc" CACHE STRING "C compiler")
-set(CMAKE_CXX_COMPILER "g++" CACHE STRING "C++ compiler")
+# Force GCC 12 toolchain to meet minimum version requirement
+set(CMAKE_C_COMPILER "gcc-12" CACHE STRING "C compiler")
+set(CMAKE_CXX_COMPILER "g++-12" CACHE STRING "C++ compiler")
 project(mako)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Prefer shared libraries when available
 set(BUILD_SHARED_LIBS ON)
@@ -613,7 +615,7 @@ add_library(txlog SHARED
     ${MEMDB_SRC}
 )
 
-set_target_properties(txlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# set_target_properties(txlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Add dependency to ensure rcc_rpc.h is generated before txlog is built
 add_dependencies(txlog rcc_rpc_gen)
@@ -650,6 +652,55 @@ set_target_properties(txlog PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     OUTPUT_NAME "txlog"
 )
+
+# Temporary Raft-only target for borrow checking
+file(GLOB RAFT_BORROW_SRC
+    "src/deptran/raft/*.cc"
+    "src/deptran/raft/*.cpp"
+)
+
+if(RAFT_BORROW_SRC)
+    add_library(raft_borrow OBJECT ${RAFT_BORROW_SRC})
+    set_target_properties(raft_borrow PROPERTIES EXCLUDE_FROM_ALL YES)
+
+    target_include_directories(raft_borrow PUBLIC
+        src
+        src/rrr
+        src/deptran
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
+    )
+    target_compile_options(raft_borrow PUBLIC ${BENCH_CXXFLAGS})
+    target_compile_definitions(raft_borrow PUBLIC CONFIG_H="${CONFIG_H}")
+
+    if(ENABLE_BORROW_CHECKING AND CPP_BORROW_CHECKER)
+        set(RAFT_BORROW_STAMPS)
+        foreach(SOURCE ${RAFT_BORROW_SRC})
+            get_filename_component(FILE_NAME ${SOURCE} NAME_WE)
+            get_filename_component(SOURCE_ABS ${SOURCE} ABSOLUTE)
+            set(STAMP_FILE "${CMAKE_CURRENT_BINARY_DIR}/borrow_check_raft_${FILE_NAME}.stamp")
+
+            add_custom_command(
+                OUTPUT ${STAMP_FILE}
+                COMMAND ${CPP_BORROW_CHECKER} --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json ${SOURCE_ABS}
+                COMMAND ${CMAKE_COMMAND} -E touch ${STAMP_FILE}
+                DEPENDS ${SOURCE_ABS} ${CPP_BORROW_CHECKER}
+                COMMENT "Borrow checking ${SOURCE}"
+                VERBATIM
+            )
+
+            list(APPEND RAFT_BORROW_STAMPS ${STAMP_FILE})
+        endforeach()
+
+        add_custom_target(borrow_check_raft
+            DEPENDS ${RAFT_BORROW_STAMPS}
+            COMMENT "Running borrow checker on Raft sources only"
+        )
+
+        if(TARGET build_rusty_cpp_checker)
+            add_dependencies(borrow_check_raft build_rusty_cpp_checker)
+        endif()
+    endif()
+endif()
 
 # Build stamp files
 add_custom_command(

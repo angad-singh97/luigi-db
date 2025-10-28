@@ -5,18 +5,25 @@
 #include "coordinator.h"
 #include "../classic/tpc_command.h"
 
+// @external: {
+//   std::dynamic_pointer_cast: [safe, (shared_ptr) -> shared_ptr]
+//   dynamic_pointer_cast: [safe, (shared_ptr) -> shared_ptr]
+// }
 
 namespace janus {
 
-RaftServer::RaftServer(Frame * frame) {
+// @safe - Uses rusty::Box for timer ownership
+RaftServer::RaftServer(Frame * frame)
+  : timer_(new Timer())  // Initialize Box in member initializer list
+{
   frame_ = frame ;
 #ifdef RAFT_TEST_CORO
   setIsLeader(false);
 #endif
   stop_ = false ;
-  timer_ = new Timer() ;
 }
 
+// @unsafe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::Setup() {
 
 #ifdef RAFT_TEST_CORO
@@ -51,6 +58,7 @@ void RaftServer::Setup() {
   // Election timer will be started in Start() method when first command is submitted
 }
 
+// @unsafe - Calls undeclared commo() and uses raw pointer casts
 void RaftServer::Disconnect(const bool disconnect) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(disconnected_ != disconnect);
@@ -80,6 +88,7 @@ void RaftServer::Disconnect(const bool disconnect) {
   disconnected_ = disconnect;
 }
 
+// @safe
 bool RaftServer::IsDisconnected() {
   return disconnected_;
 }
@@ -162,6 +171,7 @@ bool RaftServer::IsDisconnected() {
 //   }
 // }
 
+// @unsafe - Calls undeclared Config::GetConfig(), commo(), JetpackRecoveryEntry()
 void RaftServer::setIsLeader(bool isLeader) {
   bool prev_is_leader = is_leader_;
 #ifdef RAFT_LEADER_ELECTION_DEBUG
@@ -256,13 +266,14 @@ void RaftServer::setIsLeader(bool isLeader) {
   }
 }
 
+// @unsafe - Calls undeclared callback app_next_ and @unsafe removeCmd()
 void RaftServer::applyLogs() {
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {
     return;
   }
   in_applying_logs_ = true;
-  
+
   for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
     auto next_instance = GetRaftInstance(id);
     if (next_instance && next_instance->log_) {
@@ -281,6 +292,7 @@ void RaftServer::applyLogs() {
   min_active_slot_ = i;
 }
 
+// @unsafe - Raw pointer allocation, calls undeclared Config::GetConfig(), Reactor::CreateSpEvent()
 void RaftServer::HeartbeatLoop() {
   auto hb_timer = new Timer();
   hb_timer->start();
@@ -551,16 +563,18 @@ void RaftServer::HeartbeatLoop() {
 }
 
 
+// @safe
 RaftServer::~RaftServer() {
   if (heartbeat_ && looping_) {
     looping_ = false;
 	}
-  
+
   stop_ = true ;
-  Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", 
+  Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d",
       partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
 }
 
+// @unsafe - Uses frame_ raw pointer member and calls undeclared functions
 bool RaftServer::RequestVote() {
   // for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
 
@@ -666,6 +680,7 @@ bool RaftServer::RequestVote() {
   }
 }
 
+// @unsafe - Calls undeclared doVote() and uses std::function callback
 void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
                                const ballot_t& lst_log_term,
                                const siteid_t& can_id,
@@ -721,6 +736,7 @@ void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
 
 }
 
+// @unsafe - Calls undeclared Coroutine::CreateRun(), resetTimer(), uses frame_ raw pointer
 void RaftServer::StartElectionTimer() {
   resetTimer() ;
   Coroutine::CreateRun([&]() {
@@ -750,6 +766,7 @@ void RaftServer::StartElectionTimer() {
   });
 }
 
+// @unsafe - Calls undeclared SetLocalAppend()
 bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        uint64_t *index,
                        uint64_t *term,
@@ -790,8 +807,9 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 }
 
 /* NOTE: same as ReceiveAppend */
-/* NOTE: broadcast send to all of the host even to its own server 
+/* NOTE: broadcast send to all of the host even to its own server
  * should we exclude the execution of this function for leader? */
+// @unsafe - Calls undeclared functions and uses callbacks
 void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const ballot_t ballot,
                                  const uint64_t leaderCurrentTerm,
@@ -920,6 +938,7 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
     cb();
 }
 
+// @unsafe - Uses dynamic_pointer_cast (STL not fully annotated yet)
 void RaftServer::removeCmd(slotid_t slot) {
   auto cmd = dynamic_pointer_cast<TpcCommitCommand>(raft_logs_[slot]->log_);
   if (!cmd)

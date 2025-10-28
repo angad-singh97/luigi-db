@@ -5,6 +5,7 @@
 
 namespace janus {
 
+// @safe
 RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
     : svr_((RaftServer*)sched) {
 	struct timespec curr_time;
@@ -12,6 +13,7 @@ RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
 	srand(curr_time.tv_nsec);
 }
 
+// @safe - Refactored to use lambda instead of std::bind to avoid pointer operations
 void RaftServiceImpl::HandleVote(const uint64_t& lst_log_idx,
                                     const ballot_t& lst_log_term,
                                     const siteid_t& can_id,
@@ -22,9 +24,13 @@ void RaftServiceImpl::HandleVote(const uint64_t& lst_log_idx,
   verify(svr_ != nullptr);
   svr_->OnRequestVote(lst_log_idx,lst_log_term, can_id, can_term,
                     reply_term, vote_granted,
-                    std::bind(&rrr::DeferredReply::reply, defer));
+                    [defer]() { defer->reply(); });
 }
 
+// @unsafe - Calls Coroutine::CreateRun() template function
+// CreateRun is a template (template <typename Func>) which the borrow checker might not be able parse??
+// Templates are skipped during analysis, so CreateRun appears as "undeclared"
+// Safe functions cannot call undeclared functions, hence this must be @unsafe
 void RaftServiceImpl::HandleAppendEntries(const uint64_t& slot,
                                         const ballot_t& ballot,
                                         const uint64_t& leaderCurrentTerm,
@@ -39,22 +45,6 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& slot,
                                         uint64_t *followerLastLogIndex,
                                         rrr::DeferredReply* defer) {
   verify(svr_ != nullptr);
-	//Log_info("CreateRunning2");
-
-
-	/*if (ballot == 1000000000 || leaderPrevLogIndex + 1 < svr_->lastLogIndex) {
-		*followerAppendOK = 1;
-		*followerCurrentTerm = leaderCurrentTerm;
-		*followerLastLogIndex = svr_->lastLogIndex + 1;
-		/*for (int i = 0; i < 1000000; i++) {
-			for (int j = 0; j < 1000; j++) {
-				Log_info("wow: %d %d", leaderPrevLogIndex, svr_->lastLogIndex);
-			}
-		}
-		defer->reply();
-		return;
-	}*/
-
 
   Coroutine::CreateRun([&] () {
     svr_->OnAppendEntries(slot,
@@ -69,12 +59,15 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& slot,
                             followerAppendOK,
                             followerCurrentTerm,
                             followerLastLogIndex,
-                            std::bind(&rrr::DeferredReply::reply, defer));
+                            [defer]() { defer->reply(); });
 
   });
-	
 }
 
+// @unsafe - Calls Coroutine::CreateRun() template function
+// CreateRun is a template (template <typename Func>) which the borrow checker might not be able to parse??
+// Templates are skipped during analysis, so CreateRun appears as "undeclared"
+// Safe functions cannot call undeclared functions, hence this must be @unsafe
 void RaftServiceImpl::HandleEmptyAppendEntries(const uint64_t& slot,
                                              const ballot_t& ballot,
                                              const uint64_t& leaderCurrentTerm,
@@ -100,7 +93,7 @@ void RaftServiceImpl::HandleEmptyAppendEntries(const uint64_t& slot,
                             followerAppendOK,
                             followerCurrentTerm,
                             followerLastLogIndex,
-                            std::bind(&rrr::DeferredReply::reply, defer));
+                            [defer]() { defer->reply(); });
   });
 }
 

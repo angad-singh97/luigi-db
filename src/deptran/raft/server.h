@@ -46,7 +46,7 @@ class RaftServer : public TxLogServer {
   std::map<siteid_t, uint64_t> next_index_{};
   std::vector<std::thread> timer_threads_ = {};
   void timer_thread(bool *vote) ;
-  Timer *timer_;
+  rusty::Box<Timer> timer_;  // Owned timer, auto-cleaned on destruction
   uint64_t last_heartbeat_time_ = 0;
   bool stop_ = false ;
   siteid_t vote_for_ = INVALID_SITEID ;
@@ -131,6 +131,7 @@ class RaftServer : public TxLogServer {
     }
   }
 
+  // @safe
   void resetTimer() {
     // Log_info("site %d resetting timer", site_id_);
     last_heartbeat_time_ = Time::now();
@@ -140,7 +141,8 @@ class RaftServer : public TxLogServer {
     }
   }
 
-  double randDuration() 
+  // @safe
+  double randDuration()
   {
     // election timeout between 0.4 and 0.7 seconds
     return RandomGenerator::rand_double(0.4, 0.7) ;
@@ -170,6 +172,7 @@ class RaftServer : public TxLogServer {
 
   void StartElectionTimer() ;
 
+  // @safe
   bool IsLeader()
   {
     return is_leader_ ;
@@ -177,6 +180,7 @@ class RaftServer : public TxLogServer {
 
   bool Start(shared_ptr<Marshallable> &cmd, uint64_t *index, uint64_t *term, slotid_t slot_id = -1, ballot_t ballot = 1);
 
+  // @safe
   void GetState(bool *is_leader, uint64_t *term) {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     *is_leader = IsLeader();
@@ -261,6 +265,7 @@ class RaftServer : public TxLogServer {
   RaftServer(Frame *frame) ;
   ~RaftServer() ;
 
+  // @unsafe - Calls undeclared doVote() and uses std::function callback
   void OnRequestVote(const slotid_t& lst_log_idx,
                      const ballot_t& lst_log_term,
                      const siteid_t& can_id,
@@ -285,6 +290,7 @@ class RaftServer : public TxLogServer {
 
   void Disconnect(const bool disconnect = true);
 
+  // @safe - Calls Disconnect (@unsafe) and resetTimer (@safe)
   void Reconnect() {
     Disconnect(false);
     resetTimer() ;

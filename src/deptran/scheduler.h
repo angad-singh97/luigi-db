@@ -442,6 +442,7 @@ class TxLogServer {
                                   txnid_t txn_id,
                                   bool read_only = false);
   virtual shared_ptr<Tx> GetOrCreateTx(txnid_t tid, bool ro = false);
+  // @unsafe - Manages transaction lifecycle, calls external methods
   void DestroyTx(i64 tid);
 
   virtual void DestroyExecutor(txnid_t txn_id);
@@ -496,8 +497,8 @@ class TxLogServer {
 
 	virtual void Setup() { verify(0); } ;
   virtual bool IsLeader() { verify(0); } ;
+  // @safe
   virtual bool IsFPGALeader() { verify(0); } ;
-	
 	virtual bool RequestVote() { verify(0); return false;};
   virtual void Pause();
   virtual void Resume();
