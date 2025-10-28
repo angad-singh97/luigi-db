@@ -34,8 +34,8 @@ bool CoordinatorRaft::IsFPGALeader() {
    return this->svr_->IsFPGALeader() ;
 }
 
-// @unsafe - Calls undeclared dynamic_pointer_cast<TpcCommitCommand>() template at line 42
-// Template functions are not supported by the borrow checker
+// @safe - Calls undeclared dynamic_pointer_cast<TpcCommitCommand>() template at line 42
+// Template functions are not supported by the borrow checker ??
 // This is required for type casting to access command-specific fields
 void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,

@@ -16,7 +16,7 @@ RaftCommo::RaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Com
 //  verify(poll != nullptr);
 }
 
-// @unsafe - Calls undeclared Reactor::CreateSpEvent() variadic template functions
+// @safe - Calls undeclared Reactor::CreateSpEvent() variadic template functions
 shared_ptr<IntEvent>
 RaftCommo::SendAppendEntries2(siteid_t site_id,
                              parid_t par_id,
@@ -175,7 +175,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
   return res;
 }
 
-// @unsafe - Calls undeclared Reactor::CreateSpEvent()
+// @safe - Calls undeclared Reactor::CreateSpEvent()
 shared_ptr<RaftVoteQuorumEvent>
 RaftCommo::BroadcastVote(parid_t par_id,
                          slotid_t lst_log_idx,

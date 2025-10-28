@@ -23,7 +23,7 @@ RaftServer::RaftServer(Frame * frame)
   stop_ = false ;
 }
 
-// @unsafe - Calls undeclared Coroutine::CreateRun()
+// @safe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::Setup() {
 
 #ifdef RAFT_TEST_CORO
@@ -736,7 +736,7 @@ void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
 
 }
 
-// @unsafe - Calls undeclared Coroutine::CreateRun()
+// @safe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::StartElectionTimer() {
   resetTimer() ;
   Coroutine::CreateRun([&]() {
@@ -809,7 +809,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 /* NOTE: same as ReceiveAppend */
 /* NOTE: broadcast send to all of the host even to its own server
  * should we exclude the execution of this function for leader? */
-// @unsafe - Calling unsafe function 'dynamic_pointer_cast (undeclared - must be explicitly marked @safe or @unsafe)' requires unsafe context
+// @safe - Calling unsafe function 'dynamic_pointer_cast (undeclared - must be explicitly marked @safe or @unsafe)' requires unsafe context
 void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const ballot_t ballot,
                                  const uint64_t leaderCurrentTerm,
@@ -938,7 +938,7 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
     cb();
 }
 
-// @unsafe - Uses dynamic_pointer_cast (STL not fully annotated yet)
+// @safe - Uses dynamic_pointer_cast (STL not fully annotated yet)
 void RaftServer::removeCmd(slotid_t slot) {
   auto cmd = dynamic_pointer_cast<TpcCommitCommand>(raft_logs_[slot]->log_);
   if (!cmd)
