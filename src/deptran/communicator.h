@@ -413,6 +413,7 @@ class Communicator {
   };
   
   // View management methods (static for global access)
+  // @unsafe
   static void UpdatePartitionView(parid_t partition_id, const std::shared_ptr<ViewData>& view_data);
   static View GetPartitionView(parid_t partition_id);
   static locid_t GetLeaderForPartition(parid_t partition_id);

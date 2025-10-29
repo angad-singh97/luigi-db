@@ -5,7 +5,6 @@
 #include <vector>
 #include <sstream>
 #include <chrono>
-
 namespace janus {
 
 class View {
@@ -14,7 +13,7 @@ class View {
   std::vector<int> leaders_; // leader ids (size = 1 for Raft since raft only have 1 leader)
   epoch_t view_id_; // corresponding term in Raft
   uint64_t timestamp_; // timestamp when view was created (microseconds since epoch)
-  
+
   View() : n_(0), view_id_(0), timestamp_(0) {}
   
   View(int n, const std::vector<int>& leaders, epoch_t view_id) 
@@ -23,11 +22,15 @@ class View {
         std::chrono::system_clock::now().time_since_epoch()).count();
   }
   
+  // @unsafe
   View(int n, int leader, epoch_t view_id) 
       : n_(n), leaders_{leader}, view_id_(view_id) {
     timestamp_ = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
   }
+
+  // @unsafe
+  View& operator=(const View&) = default;
   
   bool operator==(const View& other) const {
     return n_ == other.n_ && leaders_ == other.leaders_ && view_id_ == other.view_id_;

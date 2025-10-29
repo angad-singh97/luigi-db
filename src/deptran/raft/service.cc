@@ -27,10 +27,7 @@ void RaftServiceImpl::HandleVote(const uint64_t& lst_log_idx,
                     [defer]() { defer->reply(); });
 }
 
-// @safe - Calls Coroutine::CreateRun() template function
-// CreateRun is a template (template <typename Func>) which the borrow checker might not be able parse??
-// Templates are skipped during analysis, so CreateRun appears as "undeclared"
-// Safe functions cannot call undeclared functions, hence this must be @unsafe
+// @safe
 void RaftServiceImpl::HandleAppendEntries(const uint64_t& slot,
                                         const ballot_t& ballot,
                                         const uint64_t& leaderCurrentTerm,
@@ -64,10 +61,7 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& slot,
   });
 }
 
-// @safe - Calls Coroutine::CreateRun() template function
-// CreateRun is a template (template <typename Func>) which the borrow checker might not be able to parse??
-// Templates are skipped during analysis, so CreateRun appears as "undeclared"
-// Safe functions cannot call undeclared functions, hence this must be @unsafe
+// @safe
 void RaftServiceImpl::HandleEmptyAppendEntries(const uint64_t& slot,
                                              const ballot_t& ballot,
                                              const uint64_t& leaderCurrentTerm,

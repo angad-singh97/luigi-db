@@ -10,8 +10,10 @@
 #include <unified_external_annotations.hpp>
 // External annotations for std library template functions
 // @external: {
-//   std::dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
 //   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
+//   shared_ptr::operator bool: [unsafe, () -> bool]
+//   shared_ptr::operator bool() const: [unsafe, () -> bool]
+//   operator bool: [unsafe, () -> bool]
 // }
 
 namespace janus {
@@ -34,9 +36,7 @@ bool CoordinatorRaft::IsFPGALeader() {
    return this->svr_->IsFPGALeader() ;
 }
 
-// @safe - Calls undeclared dynamic_pointer_cast<TpcCommitCommand>() template at line 42
-// Template functions are not supported by the borrow checker ??
-// This is required for type casting to access command-specific fields
+// @safe
 void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
@@ -46,7 +46,7 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     
     // Handle WRONG_LEADER case
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
-      auto tpc_cmd = std::dynamic_pointer_cast<TpcCommitCommand>(cmd);
+      auto tpc_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
       if (tpc_cmd) {
         // Set WRONG_LEADER error code
         tpc_cmd->ret_ = WRONG_LEADER;
@@ -100,7 +100,6 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
 // 1. Takes address-of local variables (&index, &term) passed to Start()
 //    - Creates aliasing that borrow checker cannot track
 //    - Would require API refactor to return struct instead of output params
-// 2. Calls template function Reactor::CreateSpEvent<TimeoutEvent>()
 //
 // FUTURE TODO: Refactor RaftServer::Start() API from:
 //   bool Start(cmd, uint64_t* index, uint64_t* term)

@@ -6,8 +6,21 @@
 #include "../classic/tpc_command.h"
 
 // @external: {
-//   std::dynamic_pointer_cast: [safe, (shared_ptr) -> shared_ptr]
-//   dynamic_pointer_cast: [safe, (shared_ptr) -> shared_ptr]
+//   std::dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
+//   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
+//   std::make_shared: [unsafe, template<T, Args...>(Args&&... args) -> std::shared_ptr<T>]
+//   make_shared: [unsafe, template<T, Args...>(Args&&... args) -> std::shared_ptr<T>]
+//   std::min: [unsafe, template<T>(const T& a, const T& b) -> T]
+//   min: [unsafe, template<T>(const T& a, const T& b) -> T]
+//   std::copy: [unsafe, template<InputIt, OutputIt>(InputIt first, InputIt last, OutputIt d_first) -> OutputIt]
+//   copy: [unsafe, template<InputIt, OutputIt>(InputIt first, InputIt last, OutputIt d_first) -> OutputIt]
+//   std::shared_ptr::operator bool: [unsafe, () -> bool]
+//   std::shared_ptr::reset: [unsafe, (&'a mut) -> void]
+//   shared_ptr::operator bool: [unsafe, () -> bool]
+//   shared_ptr::reset: [unsafe, (&'a mut) -> void]
+//   operator bool: [unsafe, () -> bool]
+//   std::sort: [unsafe, template<RandomIt>(RandomIt first, RandomIt last) -> void]
+//   sort: [unsafe, template<RandomIt>(RandomIt first, RandomIt last) -> void]
 // }
 
 namespace janus {
@@ -171,7 +184,7 @@ bool RaftServer::IsDisconnected() {
 //   }
 // }
 
-// @unsafe - Calls undeclared Config::GetConfig(), commo(), JetpackRecoveryEntry()
+// @unsafe : Unsafe pointer address-of: pointer operations require unsafe context
 void RaftServer::setIsLeader(bool isLeader) {
   bool prev_is_leader = is_leader_;
 #ifdef RAFT_LEADER_ELECTION_DEBUG
@@ -266,7 +279,7 @@ void RaftServer::setIsLeader(bool isLeader) {
   }
 }
 
-// @unsafe - Uses STL smart pointers/maps (undeclared)
+// @unsafe - Unsafe pointer address-of in function call: pointer operations require unsafe context
 void RaftServer::applyLogs() {
   // This prevents the log entry from being applied twice
   if (in_applying_logs_) {
@@ -292,7 +305,7 @@ void RaftServer::applyLogs() {
   min_active_slot_ = i;
 }
 
-// @unsafe - Raw pointer allocation, calls undeclared Config::GetConfig(), Reactor::CreateSpEvent()
+// @unsafe - Raw pointer allocation andManipulates raw reactor event pointers (ready_for_replication_) and reuses moved containers (matchedIndices/batch_buffer_/batch_cmd/cmd/r) during RPC batching; requires audit.
 void RaftServer::HeartbeatLoop() {
   auto hb_timer = new Timer();
   hb_timer->start();
@@ -809,7 +822,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 /* NOTE: same as ReceiveAppend */
 /* NOTE: broadcast send to all of the host even to its own server
  * should we exclude the execution of this function for leader? */
-// @safe - Calling unsafe function 'dynamic_pointer_cast (undeclared - must be explicitly marked @safe or @unsafe)' requires unsafe context
+// @safe
 void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  const ballot_t ballot,
                                  const uint64_t leaderCurrentTerm,
@@ -938,7 +951,7 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
     cb();
 }
 
-// @safe - Uses dynamic_pointer_cast (STL not fully annotated yet)
+// @safe
 void RaftServer::removeCmd(slotid_t slot) {
   auto cmd = dynamic_pointer_cast<TpcCommitCommand>(raft_logs_[slot]->log_);
   if (!cmd)
