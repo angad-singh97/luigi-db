@@ -13,9 +13,12 @@
 #include <unordered_map>
 #include <map>
 #include <tuple>
+#include <vector>
 #include "benchmarks/tpcc.h"
 #include "benchmarks/benchmark_config.h"
 #include "lib/common.h"
+#include "benchmarks/rpc_setup.h"
+#include "mbta_sharded_ordered_index.hh"
 
 // We have to do it on the coordinator instead of transaction.cc, because it only has a local copy of the readSet;
 #define GET_NODE_POINTER(val,len) reinterpret_cast<mako::Node *>((char*)(val+len-mako::BITS_OF_NODE));
@@ -981,7 +984,11 @@ public:
 #if defined(DISABLE_MULTI_VERSION)
     TThread::disable_multiversion();
 #else
-    TThread::enable_multiverison();
+    if (BenchmarkConfig::getInstance().getIsReplicated()) {
+      TThread::enable_multiverison();
+    }else{
+      TThread::disable_multiversion();
+    }
 #endif
     TThread::set_shard_index(BenchmarkConfig::getInstance().getShardIndex());
     TThread::set_nshards(BenchmarkConfig::getInstance().getNshards());
@@ -1131,6 +1138,7 @@ public:
       std::cout << "existing table is createded with name: " << name 
               << ", table-id: " << tbl->get_table_id()
               << ", on shard-server id:" << shard_index << std::endl;
+      mako::setup_update_table(table_id, tbl);
       return tbl ;
     }
 
@@ -1163,7 +1171,20 @@ public:
     std::cout << "new table is createded with name: " << name 
               << ", table-id: " << tbl->get_table_id()
               << ", on shard-server id:" << shard_index << std::endl;
+    mako::setup_update_table(available_table_id, tbl);
     return tbl;
+  }
+
+  mbta_sharded_ordered_index *
+  open_sharded_index(const std::string &name) override {
+    auto &benchConfig = BenchmarkConfig::getInstance();
+    const size_t shard_count = static_cast<size_t>(benchConfig.getNshards());
+    return mbta_sharded_ordered_index::build(
+        name,
+        shard_count,
+        [this, &name](size_t shard) {
+          return open_index(name, static_cast<int>(shard));
+        });
   }
 
   // replay will use this function, otherwise NO; get table back;
