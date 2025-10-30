@@ -196,6 +196,11 @@ option(DEBUG "Enable debug mode" OFF)
 option(CHECK_INVARIANTS "Enable invariant checking" OFF)
 option(COCO "Enable COCO" OFF)
 option(RAFT_TEST "Enable Raft lab testing coroutine" OFF)
+option(MAKO_USE_RAFT "Build Mako with the Raft replication helper" OFF)
+
+if(MAKO_USE_RAFT)
+  add_compile_definitions(MAKO_USE_RAFT=1)
+endif()
 set(USE_MALLOC_MODE 1 CACHE STRING "Malloc mode: 0=libc, 1=jemalloc, 2=tcmalloc, 3=flow")
 set(MODE "perf" CACHE STRING "Build mode: perf, backoff, factor-gc, factor-gc-nowriteinplace, factor-fake-compression, sandbox")
 option(STO_RMW "Enable STO read-modify-write" OFF)
@@ -603,13 +608,23 @@ file(GLOB_RECURSE DEPTRAN_SRC
 # Exclude specific files as per WAF configuration
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/s_main.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/paxos_main_helper.cc")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/raft_main_helper.cc")
+# Ensure helper sources are removed regardless of path format
+list(REMOVE_ITEM DEPTRAN_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/paxos_main_helper.cc")
+list(REMOVE_ITEM DEPTRAN_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/raft_main_helper.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
 # Exclude MongoDB backend (requires mongocxx library)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
 
 # Build libtxlog as a shared library
+if(MAKO_USE_RAFT)
+  set(TXLOG_HELPER_SRC src/deptran/raft_main_helper.cc)
+else()
+  set(TXLOG_HELPER_SRC src/deptran/paxos_main_helper.cc)
+endif()
+
 add_library(txlog SHARED
-    src/deptran/paxos_main_helper.cc
+    ${TXLOG_HELPER_SRC}
     ${DEPTRAN_SRC}
     ${RRR_SRC}
     ${MEMDB_SRC}
@@ -1074,4 +1089,3 @@ if(BUILD_TESTS)
     message(STATUS "Run tests with: make run_tests")
     message(STATUS "Or individually: make test && ctest")
 endif()
-

@@ -27,7 +27,11 @@
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/rpc_setup.h"
 
+#ifdef MAKO_USE_RAFT
+#include "deptran/raft_main_helper.h"
+#else
 #include "deptran/s_main.h"
+#endif
 
 #include "lib/configuration.h"
 #include "lib/fasttransport.h"

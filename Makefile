@@ -28,6 +28,12 @@ raft-test:
 	@echo "Building Raft test binaries with $(PARALLEL_JOBS) parallel jobs..."
 	cmake --build $(BUILD_DIR) --parallel $(PARALLEL_JOBS)
 
+# Build Mako with the Raft helper enabled
+mako-raft:
+	cmake -S . -B $(BUILD_DIR) -DMAKO_USE_RAFT=ON
+	@echo "Building Mako with Raft helper using $(PARALLEL_JOBS) parallel jobs..."
+	cmake --build $(BUILD_DIR) --parallel $(PARALLEL_JOBS)
+
 clean:
 	rm -rf $(BUILD_DIR)
 	# Remove all test files
