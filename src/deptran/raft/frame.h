@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <deptran/communicator.h>
 #include "../frame.h"
 #include "../constants.h"
@@ -22,9 +23,10 @@ class RaftFrame : public Frame {
 #endif
  public:
   RaftFrame(int mode);
-  RaftCommo *commo_ = nullptr;
+  ~RaftFrame();  // Destructor to clean up owned resources
+  std::unique_ptr<RaftCommo> commo_;  // Owned RaftCommo, automatically cleaned up
   /* TODO: have another class for common data */
-  RaftServer *svr_ = nullptr;
+  std::unique_ptr<RaftServer> svr_;  // Owned RaftServer, automatically cleaned up
   Executor *CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) override;
   Coordinator *CreateCoordinator(cooid_t coo_id,
                                  Config *config,

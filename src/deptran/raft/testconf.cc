@@ -514,7 +514,7 @@ void RaftTestConfig::slow(siteid_t svr, uint32_t msec) {
 }
 
 RaftServer *RaftTestConfig::GetServer(siteid_t svr) {
-  return RaftTestConfig::replicas[svr]->svr_;
+  return RaftTestConfig::replicas[svr]->svr_.get();
 }
 
 siteid_t RaftTestConfig::mapServerId(siteid_t server_id) const {

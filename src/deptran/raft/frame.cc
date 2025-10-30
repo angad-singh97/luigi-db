@@ -42,7 +42,12 @@ struct foo : automatic_register<foo> {
 
 // @safe
 RaftFrame::RaftFrame(int mode) : Frame(mode) {
-  
+
+}
+
+// @safe - Properly cleans up owned resources
+RaftFrame::~RaftFrame() {
+  // commo_ and svr_ automatically cleaned up by unique_ptr
 }
 
 #ifdef RAFT_TEST_CORO
@@ -79,10 +84,10 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
                                   id);
   coo->frame_ = this;
   verify(commo_ != nullptr);
-  coo->commo_ = commo_;
+  coo->commo_ = commo_.get();
   /* TODO: remove when have a class for common data */
   verify(svr_ != nullptr);
-  coo->svr_ = this->svr_;
+  coo->svr_ = this->svr_.get();
   coo->slot_hint_ = &slot_hint_;
   coo->slot_id_ = slot_hint_++;
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);
@@ -96,7 +101,7 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
 TxLogServer *RaftFrame::CreateScheduler() {
   if(svr_ == nullptr)
   {
-    svr_ = new RaftServer(this);
+    svr_ = std::make_unique<RaftServer>(this);
   }
   else
   {
@@ -112,7 +117,7 @@ TxLogServer *RaftFrame::CreateScheduler() {
   raft_test_mutex_.unlock();
 #endif
 
-  return svr_ ;
+  return svr_.get();
 }
 
 // @safe
@@ -124,7 +129,7 @@ Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thre
   Log_info("CreateCommo: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
   if (commo_ == nullptr) {
     Log_info("CreateCommo: Creating new RaftCommo");
-    commo_ = new RaftCommo(poll_thread_worker);
+    commo_ = std::make_unique<RaftCommo>(poll_thread_worker);
   }
 
   #ifdef RAFT_TEST_CORO
@@ -192,8 +197,8 @@ Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thre
   }
   #endif
 
-  Log_info("CreateCommo: Returning commo_ = %p", commo_);
-  return commo_;
+  Log_info("CreateCommo: Returning commo_ = %p", commo_.get());
+  return commo_.get();
 }
 
 // @safe

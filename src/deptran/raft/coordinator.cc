@@ -7,12 +7,11 @@
 #include "../procedure.h"
 #include "../config.h"
 #include "server.h"
-#include <unified_external_annotations.hpp>
+#include <std_annotation.hpp>
+#include <external_annotations.hpp>
 // External annotations for std library template functions
 // @external: {
 //   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
-//   shared_ptr::operator bool: [unsafe, () -> bool]
-//   shared_ptr::operator bool() const: [unsafe, () -> bool]
 //   operator bool: [unsafe, () -> bool]
 // }
 

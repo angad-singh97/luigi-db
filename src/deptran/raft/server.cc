@@ -6,20 +6,13 @@
 #include "../classic/tpc_command.h"
 
 // @external: {
-//   std::dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
 //   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
-//   std::make_shared: [unsafe, template<T, Args...>(Args&&... args) -> std::shared_ptr<T>]
 //   make_shared: [unsafe, template<T, Args...>(Args&&... args) -> std::shared_ptr<T>]
-//   std::min: [unsafe, template<T>(const T& a, const T& b) -> T]
 //   min: [unsafe, template<T>(const T& a, const T& b) -> T]
-//   std::copy: [unsafe, template<InputIt, OutputIt>(InputIt first, InputIt last, OutputIt d_first) -> OutputIt]
 //   copy: [unsafe, template<InputIt, OutputIt>(InputIt first, InputIt last, OutputIt d_first) -> OutputIt]
-//   std::shared_ptr::operator bool: [unsafe, () -> bool]
-//   std::shared_ptr::reset: [unsafe, (&'a mut) -> void]
 //   shared_ptr::operator bool: [unsafe, () -> bool]
 //   shared_ptr::reset: [unsafe, (&'a mut) -> void]
 //   operator bool: [unsafe, () -> bool]
-//   std::sort: [unsafe, template<RandomIt>(RandomIt first, RandomIt last) -> void]
 //   sort: [unsafe, template<RandomIt>(RandomIt first, RandomIt last) -> void]
 // }
 
@@ -27,7 +20,7 @@ namespace janus {
 
 // @safe - Uses rusty::Box for timer ownership
 RaftServer::RaftServer(Frame * frame)
-  : timer_(new Timer())  // Initialize Box in member initializer list
+  : timer_(rusty::Box<Timer>::make(Timer()))  // Initialize Box in member initializer list
 {
   frame_ = frame ;
 #ifdef RAFT_TEST_CORO

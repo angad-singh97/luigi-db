@@ -5,6 +5,7 @@
 #include "../scheduler.h"
 #include "../classic/tpc_command.h"
 #include "commo.h"
+#include <rusty/box.hpp>
 
 namespace janus {
 class Command;
