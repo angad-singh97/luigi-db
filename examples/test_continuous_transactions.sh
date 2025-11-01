@@ -68,10 +68,6 @@ done
 
 # Give shards time to initialize eRPC servers
 echo ""
-echo "Waiting for shards to initialize eRPC servers (12 seconds)..."
-sleep 12
-
-echo ""
 echo "========================================="
 echo "Running continuous transactions..."
 echo "========================================="

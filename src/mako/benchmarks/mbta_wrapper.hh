@@ -1138,7 +1138,6 @@ public:
       std::cout << "existing table is createded with name: " << name 
               << ", table-id: " << tbl->get_table_id()
               << ", on shard-server id:" << shard_index << std::endl;
-      mako::setup_update_table(table_id, tbl);
       return tbl ;
     }
 
