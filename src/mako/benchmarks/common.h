@@ -44,6 +44,7 @@ public:
         static int mark_shard_up_and_wait() {
             mako::NFSSync::mark_current_shard_up() ;
             mako::NFSSync::wait_for_all_up() ;
+            return 0;
         }
 
         static int mark_current_shard_up() {

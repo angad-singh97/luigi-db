@@ -14,6 +14,7 @@
 #include "lib/server.h"
 #include "deptran/s_main.h"
 #include "benchmarks/sto/Interface.hh"
+#include "spinbarrier.h"
 
 
 using namespace std;
@@ -43,7 +44,8 @@ void helper_server(
   abstract_db *db,
   mako::HelperQueue *queue,
   mako::HelperQueue *queue_response,
-  std::map<int, abstract_ordered_index *> open_tables)
+  std::map<int, abstract_ordered_index *> open_tables,
+  spin_barrier *barrier_ready)
 {
   scoped_db_thread_ctx ctx(db, true, 1);
   TThread::set_mode(1);
@@ -65,6 +67,12 @@ void helper_server(
     std::lock_guard<std::mutex> lock(g_helper_mu);
     g_helper_servers.push_back(ss);
   }
+
+  // Signal that this helper is ready before starting the event loop
+  if (barrier_ready) {
+    barrier_ready->count_down();
+  }
+
   ss->Run(); // event-driven
 }
 
@@ -115,6 +123,18 @@ void mako::setup_helper(
   auto &cfg = BenchmarkConfig::getInstance();
   auto &queue_holders = cfg.getQueueHolders();
   auto &queue_holders_response = cfg.getQueueHoldersResponse();
+
+  // Count the number of helper threads that will be created
+  int num_helpers = 0;
+  for (int i = 0; i < (int)NumWarehousesTotal(); i++) {
+    if (i / (int)NumWarehouses() == (int)cfg.getShardIndex())
+      continue;
+    num_helpers++;
+  }
+
+  // Create barrier to wait for all helpers to be ready
+  spin_barrier barrier_ready(num_helpers+1);
+
   for (int i = 0; i < (int)NumWarehousesTotal(); i++) {
     if (i / (int)NumWarehouses() == (int)cfg.getShardIndex())
       continue;
@@ -129,10 +149,15 @@ void mako::setup_helper(
       db,
       queue_holders[i],
       queue_holders_response[i],
-      open_tables);
+      open_tables,
+      &barrier_ready);
     pthread_setname_np(t.native_handle(), ("helper_" + std::to_string(i)).c_str());
     t.detach();
   }
+
+  // Wait for all helper threads to finish initialization before returning
+  barrier_ready.count_down();
+  barrier_ready.wait_for();
 }
 
 void mako::setup_update_table(int table_id, abstract_ordered_index *table)
@@ -159,6 +184,10 @@ void mako::stop_helper()
     std::lock_guard<std::mutex> lock(g_helper_mu);
     g_helper_servers.clear();
   }
+}
+
+void mako::initialize_per_thread(abstract_db *db_) {
+  scoped_db_thread_ctx ctx(db_, false);
 }
 
 void mako::setup_erpc_server()

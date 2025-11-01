@@ -45,10 +45,6 @@ public:
         num_shards_ = BenchmarkConfig::getInstance().getNshards();
     }
 
-    void initialize() {
-        scoped_db_thread_ctx ctx(db_, false);
-    }
-
     void executeTransactions() {
         mbta_sharded_ordered_index *table = db_->open_sharded_index("customer_0");
         uint64_t key_counter = 0;
@@ -120,7 +116,7 @@ public:
         }
     }
 
-private:
+public:
     abstract_db *db_;
     int worker_id_;
     int home_shard_;
@@ -187,23 +183,11 @@ int main(int argc, char **argv) {
     if (benchConfig.getLeaderConfig()) {
         // pre-declare sharded tables
         mako::setup_erpc_server();
+        mako::setup_helper(db, {});
         mbta_sharded_ordered_index *table = db->open_sharded_index("customer_0");
-
-        map<int, abstract_ordered_index*> open_tables;
-        auto *local_table = table->shard_for_index(benchConfig.getShardIndex());
-        if (local_table) {
-            open_tables[local_table->get_table_id()] = local_table;
-        }
-        mako::setup_helper(db, ref(open_tables));
     }
 
-    // Wait for all shards to initialize their eRPC servers
-    // This is critical for multi-shard setups to avoid connection retry loops
-    printf("Waiting for all shards to initialize (10 seconds)...\n");
-    fflush(stdout);
-    this_thread::sleep_for(chrono::seconds(10));
-    printf("Starting transaction execution...\n\n");
-    fflush(stdout);
+    mako::NFSSync::mark_shard_up_and_wait();
 
     // Create per-worker commit counters
     vector<atomic<uint64_t>> worker_commits(nthreads);
@@ -221,7 +205,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < nthreads; i++) {
         workers.emplace_back(make_unique<ContinuousWorker>(db, i, &worker_commits[i]));
         worker_threads.emplace_back([&workers, i]() {
-            workers[i]->initialize();
+            mako::initialize_per_thread(workers[i]->db_) ;
             workers[i]->executeTransactions();
         });
     }
