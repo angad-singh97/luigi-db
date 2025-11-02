@@ -70,6 +70,30 @@ This demonstrates:
 - Distributed transactions across shards
 - Automatic failover
 
+### Shard Fault Tolerance Test
+
+Test independent shard operation during partner failures:
+
+```bash
+./ci/ci.sh shardFaultTolerance
+```
+
+This test:
+- Starts 2 shards without replication
+- Runs continuous transaction workload
+- Periodically reboots each shard
+- Verifies the other shard continues processing transactions independently
+- Validates graceful degradation under shard failures
+
+**Custom parameters**:
+```bash
+# Run with custom settings
+bash examples/test_shard_fault_tolerance.sh [threads] [num_reboots] [interval_seconds]
+
+# Example: 8 threads, 3 reboot cycles, 15-second intervals
+bash examples/test_shard_fault_tolerance.sh 8 3 15
+```
+
 ## Step 4: Understanding the Output
 
 When you run the tests, you'll see output like this:
@@ -216,7 +240,8 @@ mako/
 │   └── ...
 ├── examples/           # Example scripts
 │   ├── simplePaxos.sh
-│   └── test_2shard_replication.sh
+│   ├── test_2shard_replication.sh
+│   └── test_shard_fault_tolerance.sh
 └── ci/                 # CI/test scripts
     └── ci.sh           # Main test runner
 ```

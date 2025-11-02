@@ -63,6 +63,11 @@ run_rocksdb_tests() {
     bash ./examples/run_rocksdb_test.sh
 }
 
+run_shard_fault_tolerance() {
+    cleanup_processes
+    bash ./examples/test_shard_fault_tolerance.sh
+}
+
 # Main entry point with command parsing
 case "${1:-}" in
     compile)
@@ -92,6 +97,9 @@ case "${1:-}" in
     rocksdbTests)
         run_rocksdb_tests
         ;;
+    shardFaultTolerance)
+        run_shard_fault_tolerance
+        ;;
     all)
         # Run all steps in sequence
         compile
@@ -103,6 +111,7 @@ case "${1:-}" in
         run_1shard_replication_simple
         run_2shard_replication_simple
         run_rocksdb_tests
+        run_shard_fault_tolerance
         echo "All CI steps completed successfully!"
         ;;
 esac

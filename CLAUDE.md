@@ -61,6 +61,9 @@ make -j32
 
 # RocksDB persistence and partitioned queues tests
 ./ci/ci.sh rocksdbTests
+
+# Shard fault tolerance test (reboots shards to test independent operation)
+./ci/ci.sh shardFaultTolerance
 ```
 
 ## Code Architecture
