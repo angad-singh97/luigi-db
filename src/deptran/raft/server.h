@@ -77,8 +77,7 @@ class RaftServer : public TxLogServer {
 	void HeartbeatLoop() ;
   RaftCommo* commo() {
     return (RaftCommo*) commo_;
-  } 
-	void setIsLeader(bool isLeader);
+  }
 
   void doVote(const slotid_t& lst_log_idx,
               const ballot_t& lst_log_term,
@@ -174,6 +173,9 @@ class RaftServer : public TxLogServer {
   {
     return is_leader_ ;
   }
+  
+  // Made public to allow Jetpack recovery to restore leader state
+  void setIsLeader(bool isLeader);
 
   bool Start(shared_ptr<Marshallable> &cmd, uint64_t *index, uint64_t *term, slotid_t slot_id = -1, ballot_t ballot = 1);
 
