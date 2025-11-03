@@ -169,11 +169,41 @@ void RaftServer::setIsLeader(bool isLeader) {
            site_id_, frame_->site_info_->locale_id, currentTerm, prev_is_leader, isLeader);
 #endif
 
+
+  if (isLeader) {  // [Jetpack] This need to be done before new leader realized it is a leader, otherwise new leader will use incorrect next_index_ balabala
+    // Add null check for communicator
+    if (commo_ == nullptr) {
+      Log_info("commo_ is null, skipping leader initialization");
+    } else {
+      // Reset leader volatile state
+      RaftCommo *c = (RaftCommo*) commo();
+      auto proxies = c->rpc_par_proxies_[partition_id_];
+      if(failover_) {
+        for (auto& p : proxies) {
+          if (p.first != site_id_) {
+            // set matchIndex = 0
+            match_index_[p.first] = 0;
+            // set nextIndex = lastLogIndex + 1
+            next_index_[p.first] = lastLogIndex + 1;
+            Log_info("loc_id_=%d match_index_[%d]=%d, next_index_[%d]=%d", loc_id_, p.first, match_index_[p.first], p.first, next_index_[p.first]);
+          }
+        }
+        // matchedIndex and nextIndex should have indices for all servers except self
+        verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+        verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+      }
+    }
+  }
+
+  
+  // This 2 lines MUST put BEFORE is_leader_ = isLeader ! otherwise they will become 0, and new view will without leader
   bool become_new_leader = isLeader && !is_leader_;
   bool become_new_follower = !isLeader && is_leader_;
 
   // Update the leader state after view handling
   is_leader_ = isLeader;
+
+  Log_info("RaftServer::setIsLeader site_id_ %d become_new_leader %d become_new_follower %d isLeader %d", site_id_, become_new_leader, become_new_follower, isLeader);
 
   // Only update view when transitioning from non-leader to leader
   if (become_new_leader) {
@@ -217,49 +247,32 @@ void RaftServer::setIsLeader(bool isLeader) {
     // View will be updated when we learn about the new leader
   }
   
-  if (isLeader) {
+  if (isLeader) { 
     // Add null check for communicator
     if (commo_ == nullptr) {
       Log_info("commo_ is null, skipping leader initialization");
-      return;
-    }
-    
-    // JetpackRecovery();
-    // if (heartbeat_) {
-    //   Log_debug("starting heartbeat loop at site %d", site_id_);
-    //   Coroutine::CreateRun([this](){
-    //     this->HeartbeatLoop(); 
-    //   });
-    //   // Start election timeout loop
-    //   if (failover_) {
-    //     Coroutine::CreateRun([this](){
-    //       StartElectionTimer(); 
-    //     });
-    //   }
-    // }
-    // Log_info("!!!!!!! if (!failover_)");
-    // if (!failover_) {
-    //   verify(frame_->site_info_->id == 0);
-    //   return;
-    // }
-    // }
-    // Reset leader volatile state
-    RaftCommo *c = (RaftCommo*) commo();
-    auto proxies = c->rpc_par_proxies_[partition_id_];
-    if(failover_) {
-    for (auto& p : proxies) {
-      if (p.first != site_id_) {
-        // set matchIndex = 0
-        match_index_[p.first] = 0;
-        // set nextIndex = lastLogIndex + 1
-        next_index_[p.first] = lastLogIndex + 1;
+    } else {
+      // Reset leader volatile state
+      RaftCommo *c = (RaftCommo*) commo();
+      auto proxies = c->rpc_par_proxies_[partition_id_];
+      if(failover_) {
+        for (auto& p : proxies) {
+          if (p.first != site_id_) {
+            // set matchIndex = 0
+            match_index_[p.first] = 0;
+            // set nextIndex = lastLogIndex + 1
+            next_index_[p.first] = lastLogIndex + 1;
+            Log_info("loc_id_=%d match_index_[%d]=%d, next_index_[%d]=%d", loc_id_, p.first, match_index_[p.first], p.first, next_index_[p.first]);
+          }
+        }
+        // matchedIndex and nextIndex should have indices for all servers except self
+        verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
+        verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
       }
     }
-    // matchedIndex and nextIndex should have indices for all servers except self
-    verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
-    verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
-    }
   }
+
+  
 }
 
 void RaftServer::applyLogs() {
@@ -418,6 +431,7 @@ void RaftServer::HeartbeatLoop() {
                    site_id, prevLogIndex, lastLogIndex);
           // Reset the next_index to start from the beginning to allow the follower to catch up
           it->second = 1;
+          mtx_.unlock();
           continue;
         }
         
@@ -440,7 +454,7 @@ void RaftServer::HeartbeatLoop() {
           cmd = curInstance->log_;
           cmdLogTerm = curInstance->term;
           Log_debug("loc %d Sending AppendEntries for %d to loc %d cmd=%p",
-              loc_id_, it->second, it->first, cmd.get());
+              loc_id_, it->second, site_id, cmd.get());
         }
 #endif
 
