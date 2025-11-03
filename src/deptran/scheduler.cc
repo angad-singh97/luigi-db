@@ -13,6 +13,8 @@
 #include "coordinator.h"
 #include "classic/coordinator.h"
 #include "../bench/rw/workload.h"
+#include "raft/server.h"
+#include "config.h"
 
 #include <gperftools/profiler.h>
 
@@ -973,7 +975,9 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
 #endif
       // Pull missing command from other replicas
       auto pull_e = commo()->JetpackBroadcastPullRecSetIns(partition_id_, site_id_, jepoch_, oepoch_, sid, rid);
+      Log_info("[JETPACK-RECOVERY] Waiting for PullRecSetIns sid=%d rid=%d (site=%d)", sid, rid, site_id_);
       pull_e->Wait();
+      Log_info("[JETPACK-RECOVERY] PullRecSetIns completed sid=%d rid=%d (site=%d) success=%d", sid, rid, site_id_, pull_e->Yes());
       if (pull_e->Yes()) {
         cmd = pull_e->GetRecoveredCmd();
         if (cmd) {
@@ -1040,8 +1044,8 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
     sched_type = "TX_SCHED";
   }
   
-  Log_info("[JETPACK-RECOVERY] DispatchRecoveredCommand called on %s TxLogServer %p (site_id=%d)", 
-           sched_type, this, site_id_);
+  // Log_info("[JETPACK-RECOVERY] DispatchRecoveredCommand called on %s TxLogServer %p (site_id=%d)", 
+  //          sched_type, this, site_id_);
 #ifdef JETPACK_RECOVERY_DEBUG
   Log_info("[JETPACK-RECOVERY] Dispatching recovered command, kind=%d", cmd->kind_);
 #endif
@@ -1064,7 +1068,7 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
     if (vec_piece_data && vec_piece_data->sp_vec_piece_data_) {
       // Mark this as a recovery command
       vec_piece_data->is_recovery_command_ = true;
-      Log_info("[JETPACK-RECOVERY] Marked VecPieceData as recovery command");
+      // Log_info("[JETPACK-RECOVERY] Marked VecPieceData as recovery command");
       
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Dispatching VecPieceData with %zu pieces", 
@@ -1083,6 +1087,9 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
       auto current_leader = comm->GetLeaderForPartition(par_id);
       // Log_info("[JETPACK-RECOVERY] Dispatching to partition %d, current leader is %d", 
       //          par_id, current_leader);
+      // auto view_snapshot = comm->GetPartitionView(par_id);
+      // Log_info("[JETPACK-RECOVERY] Resubmit dispatch partition %d targeting leader locale %d view=%s", 
+      //          par_id, current_leader, view_snapshot.ToString().c_str());
       
       // Create a temporary coordinator for dispatching
       // Using a special coordinator ID for recovery operations
@@ -1096,7 +1103,9 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
       // Set up callback to handle dispatch response
       auto callback = [this, par_id, recovery_event, cmd_id](int res, TxnOutput& output) {
 #ifdef JETPACK_RECOVERY_DEBUG
-        Log_info("[JETPACK-RECOVERY] Dispatch callback received, res=%d", res);
+      Log_info("[JETPACK-RECOVERY] Dispatch callback received, res=%d (sid=%d rid=%d target=%d, current=%d)",
+               res, sid, rid, recovery_event ? recovery_event->target_ : -1,
+               recovery_event ? recovery_event->value_ : -1);
 #endif
         if (res == WRONG_LEADER) {
           // This shouldn't happen if we updated the view correctly during BeginRecovery
@@ -1147,6 +1156,7 @@ void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
                                          const epoch_t& new_view_id) {
   rep_sched_->jetpack_status_ = TxLogServer::JetpackStatus::RECOVERY;
   rep_sched_->oepoch_ = new_view_id;
+  auto config = Config::GetConfig();
   
   // Extract ViewData from MarshallDeputy parameters
   auto sp_old_view_data = dynamic_pointer_cast<ViewData>(old_view.sp_data_);
@@ -1165,7 +1175,10 @@ void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
   }
   
   if (sp_new_view_data) {
-    rep_sched_->new_view_ = sp_new_view_data->GetView();
+    const View& incoming_view = sp_new_view_data->GetView();
+    Log_info("[VIEW_DEBUG] OnJetpackBeginRecovery partition %d view transition %s -> %s",
+             partition_id_, rep_sched_->new_view_.ToString().c_str(), incoming_view.ToString().c_str());
+    rep_sched_->new_view_ = incoming_view;
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Updated new_view from MarshallDeputy");
 #endif
@@ -1192,6 +1205,26 @@ void TxLogServer::OnJetpackBeginRecovery(const MarshallDeputy& old_view,
     
     Log_info("[JETPACK-RECOVERY] Updated communicator view(s) for partition %d during BeginRecovery: %s", 
              partition_id_, sp_new_view_data->GetView().ToString().c_str());
+    
+    // Log leader information from the new view
+    if (!sp_new_view_data->GetView().leaders_.empty()) {
+      int new_leader = sp_new_view_data->GetView().GetLeader();
+      bool should_be_leader = (new_leader == site_id_);
+      Log_info("[JETPACK-VIEW-UPDATE] New view leader is %d, this server is %d, should_be_leader=%d", 
+               new_leader, site_id_, should_be_leader);
+      
+      // Demote immediately if the recovery view picked a different leader
+      if ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT) && rep_sched_) {
+        if (auto* raft_server = dynamic_cast<RaftServer*>(rep_sched_)) {
+          if (new_leader != raft_server->site_id_ && raft_server->IsLeader()) {
+            Log_info("[JETPACK-VIEW-UPDATE] Stepping down due to BeginRecovery view update; new leader=%d", new_leader);
+            raft_server->setIsLeader(false);
+          }
+        }
+      }
+    } else {
+      Log_info("[JETPACK-VIEW-UPDATE] WARNING: New view has no leaders in the new view");
+    }
   } else {
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Warning: Could not extract new_view from MarshallDeputy");
