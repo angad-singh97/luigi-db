@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef MAKO_USE_RAFT
+#include "raft_main_helper.h"
+#else
+
 #include <functional>
 #include <memory>
 #include <queue>
@@ -45,3 +49,5 @@ std::vector<std::vector<int>>* nc_get_order_status_requests(int);
 std::vector<std::vector<int>>* nc_get_stock_level_requests(int); 
 std::vector<std::vector<int>>* nc_get_read_requests(int); 
 std::vector<std::vector<int>>* nc_get_rmw_requests(int); 
+
+#endif  // MAKO_USE_RAFT

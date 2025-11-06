@@ -4,6 +4,7 @@
 #include "frame.h"
 #include "coordinator.h"
 #include "../classic/tpc_command.h"
+#include <cctype>
 
 // @external: {
 //   dynamic_pointer_cast: [unsafe, template<T, U>(const std::shared_ptr<U>& ptr) -> std::shared_ptr<T> where ptr: 'a, return: 'a]
@@ -17,6 +18,42 @@
 // }
 
 namespace janus {
+
+namespace {
+
+bool JetpackRecoveryEnabled() {
+  static const bool enabled = []() {
+    const char* flag = std::getenv("MAKO_DISABLE_JETPACK");
+    if (!flag || flag[0] == '\0') {
+      return true;
+    }
+    std::string value(flag);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+      return static_cast<char>(std::tolower(c));
+    });
+
+    auto is_true = [](const std::string& v) {
+      return v == "1" || v == "true" || v == "yes" || v == "on";
+    };
+    auto is_false = [](const std::string& v) {
+      return v == "0" || v == "false" || v == "no" || v == "off";
+    };
+
+    if (is_true(value)) {
+      Log_info("[JETPACK-RUNTIME] MAKO_DISABLE_JETPACK=%s -> Jetpack recovery disabled", flag);
+      return false;
+    }
+    if (is_false(value)) {
+      return true;
+    }
+
+    Log_info("[JETPACK-RUNTIME] MAKO_DISABLE_JETPACK has unrecognised value '%s'; defaulting to disabled", flag);
+    return false;
+  }();
+  return enabled;
+}
+
+}  // namespace
 
 // @safe - Uses rusty::Box for timer ownership
 RaftServer::RaftServer(Frame * frame)
@@ -62,6 +99,14 @@ void RaftServer::Setup() {
 	}
 #endif
   // Election timer will be started in Start() method when first command is submitted
+}
+
+void RaftServer::EnsureSetup() {
+  if (heartbeat_setup_) {
+    return;
+  }
+  heartbeat_setup_ = true;
+  Setup();
 }
 
 // @safe
@@ -177,6 +222,10 @@ bool RaftServer::IsDisconnected() {
 //   }
 // }
 
+void RaftServer::RegisterLeaderChangeCallback(std::function<void(bool)> cb) {
+  leader_change_cb_ = std::move(cb);
+}
+
 // @unsafe : Unsafe pointer address-of: pointer operations require unsafe context
 void RaftServer::setIsLeader(bool isLeader) {
   bool prev_is_leader = is_leader_;
@@ -215,7 +264,9 @@ void RaftServer::setIsLeader(bool isLeader) {
                  partition_id_, site_id_);
       }
 #ifndef RAFT_TEST_CORO
-      JetpackRecoveryEntry();
+      if (JetpackRecoveryEnabled()) {
+        JetpackRecoveryEntry();
+      }
 #endif
     }
   } else if (become_new_follower) {
@@ -224,6 +275,14 @@ void RaftServer::setIsLeader(bool isLeader) {
     // When transitioning from leader to non-leader
     Log_info("[RAFT_VIEW] Server %d stepping down as leader for partition %d", site_id_, partition_id_);
     // View will be updated when we learn about the new leader
+  }
+
+  if (leader_change_cb_) {
+    if (become_new_leader) {
+      leader_change_cb_(true);
+    } else if (become_new_follower) {
+      leader_change_cb_(false);
+    }
   }
 
   
@@ -438,6 +497,15 @@ void RaftServer::HeartbeatLoop() {
         //   continue;
         // }
         auto instance = GetRaftInstance(prevLogIndex);
+
+        // CRITICAL: Defensive null check
+        if (!instance) {
+          Log_error("[HEARTBEAT-SEND] [CRITICAL] GetRaftInstance(%lu) returned NULL! Skipping follower %d",
+                    prevLogIndex, site_id);
+          mtx_.unlock();
+          continue;
+        }
+
         uint64_t prevLogTerm = instance->term;
         shared_ptr<Marshallable> cmd = nullptr;
         uint64_t cmdLogTerm = 0;
@@ -458,18 +526,40 @@ void RaftServer::HeartbeatLoop() {
 
 #ifdef RAFT_BATCH_OPTIMIZATION
         vector<shared_ptr<TpcCommitCommand> > batch_buffer_;
+        bool batch_failed = false;
+
         for (int idx = it->second; idx <= lastLogIndex; idx++) {
           auto curInstance = GetRaftInstance(idx);
           shared_ptr<TpcCommitCommand> curCmd = dynamic_pointer_cast<TpcCommitCommand>(curInstance->log_);
+
+          // Check if the cast succeeded (is this a TpcCommitCommand?)
+          if (!curCmd) {
+            // Not a TpcCommitCommand (probably a simple test LogEntry)
+            // Fall back to non-batch mode
+            Log_info("[BATCH-FALLBACK] Non-TpcCommitCommand at idx=%d, falling back to single-entry mode", idx);
+            batch_failed = true;
+            break;
+          }
+
           curCmd->term = curInstance->term;
           batch_buffer_.push_back(curCmd);
         }
-        // Log_info("batch size: %d", batch_buffer_.size());
-        shared_ptr<TpcBatchCommand> batch_cmd = std::make_shared<TpcBatchCommand>();
-        batch_cmd->AddCmds(batch_buffer_);
 
-        if (batch_buffer_.size() > 0) {
+        // Choose batch or fallback path based on what we found
+        if (batch_failed) {
+          // Fall back: send just the first entry (like non-batch mode)
+          if (it->second <= lastLogIndex) {
+            auto curInstance = GetRaftInstance(it->second);
+            cmd = curInstance->log_;  // Works for any type: LogEntry, TpcCommitCommand, etc.
+            cmdLogTerm = curInstance->term;
+            Log_debug("[BATCH-FALLBACK] Sending single entry for idx=%d", it->second);
+          }
+        } else if (batch_buffer_.size() > 0) {
+          // Normal batch path: all entries were TpcCommitCommand
+          shared_ptr<TpcBatchCommand> batch_cmd = std::make_shared<TpcBatchCommand>();
+          batch_cmd->AddCmds(batch_buffer_);
           cmd = dynamic_pointer_cast<Marshallable>(batch_cmd);
+          Log_debug("[BATCH] Sending batch of %lu TpcCommitCommand entries", batch_buffer_.size());
         }
 #endif
 
@@ -571,8 +661,20 @@ void RaftServer::HeartbeatLoop() {
 
 // @safe
 RaftServer::~RaftServer() {
+  // Stop the HeartbeatLoop
   if (heartbeat_ && looping_) {
+    Log_info("[SHUTDOWN] Stopping HeartbeatLoop for site=%d", site_id_);
     looping_ = false;
+
+    // Wake up the HeartbeatLoop if it's sleeping so it can see looping_=false
+    if (ready_for_replication_) {
+      ready_for_replication_->Set(1);
+    }
+
+    // Note: We cannot call Coroutine::Sleep() from destructor context.
+    // The HeartbeatLoop will exit on its next iteration when it checks looping_.
+    // This is a known limitation - there's a small race window, but it's better
+    // than crashing in Sleep().
 	}
 
   stop_ = true ;
@@ -653,7 +755,10 @@ bool RaftServer::RequestVote() {
 #ifdef RAFT_TEST_CORO
       // Skip JetpackRecovery in test environment to avoid RPC handler issues
 #else
-      JetpackRecoveryEntry(); // Trigger Jetpack recovery on new leader election
+      if (JetpackRecoveryEnabled()) {
+        Log_info("Triggering Jetpack recovery");
+        JetpackRecoveryEntry(); // Trigger Jetpack recovery on new leader election
+      }
 #endif
   		req_voting_ = false ;
 			return true;
@@ -903,22 +1008,41 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
         if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT){
           auto p_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
           auto sp_vec_piece = dynamic_pointer_cast<VecPieceData>(p_cmd->cmd_)->sp_vec_piece_data_;
-          
-          vector<struct KeyValue> kv_vector;
-          int index = 0;
-          for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++){
-            auto cmd_input = (*it)->input.values_;
-            for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
-              struct KeyValue key_value = {it2->first, it2->second.get_i32()};
-              kv_vector.push_back(key_value);
+
+          // Check if this is Mako data (STR values) vs Janus data (I32 values)
+          // Mako sends raw serialized transaction bytes wrapped as String values
+          // This vestigial code was written for Janus I32 key-value pairs
+          bool is_mako_data = false;
+          if (sp_vec_piece && !sp_vec_piece->empty()) {
+            auto first_cmd = (*sp_vec_piece)[0];
+            if (first_cmd && first_cmd->input.values_ && !first_cmd->input.values_->empty()) {
+              auto first_val = first_cmd->input.values_->begin()->second;
+              if (first_val.get_kind() == Value::STR) {
+                is_mako_data = true;
+                Log_debug("[RAFT-ONAPPENDENTRIES] Skipping vestigial I/O code for Mako data (STR values)");
+              }
             }
           }
 
-          struct KeyValue key_values[kv_vector.size()];
-          std::copy(kv_vector.begin(), kv_vector.end(), key_values);
+          // Only process if this is Janus data (I32 values)
+          // Skip for Mako data to avoid get_i32() crash on String values
+          if (!is_mako_data) {
+            vector<struct KeyValue> kv_vector;
+            int index = 0;
+            for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++){
+              auto cmd_input = (*it)->input.values_;
+              for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
+                struct KeyValue key_value = {it2->first, it2->second.get_i32()};
+                kv_vector.push_back(key_value);
+              }
+            }
 
-          // auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
-          // de->Wait();
+            struct KeyValue key_values[kv_vector.size()];
+            std::copy(kv_vector.begin(), kv_vector.end(), key_values);
+
+            // auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
+            // de->Wait();
+          }
         } else {
           int value = -1;
           // auto de = IO::write(filename, &value, sizeof(int), 1);

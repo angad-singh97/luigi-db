@@ -71,6 +71,7 @@ class RaftServer : public TxLogServer {
   bool heartbeat_ = true;
   bool heartbeat_setup_ = false;
 	enum { STOPPED, RUNNING } status_;
+	std::function<void(bool)> leader_change_cb_{};
   
 	bool RequestVote() ;
 
@@ -173,12 +174,19 @@ class RaftServer : public TxLogServer {
   shared_ptr<IntEvent> ready_for_replication_;
 
   void StartElectionTimer() ;
+  void EnsureSetup();
 
   // @safe
-  bool IsLeader()
-  {
+  bool IsLeader() {
+    // Defensive check: if we're shutting down (looping_=false),
+    // return false to prevent accessing member variables during destruction
+    if (!looping_) {
+      return false;
+    }
     return is_leader_ ;
   }
+
+  void RegisterLeaderChangeCallback(std::function<void(bool)> cb);
 
   // @unsafe
   bool Start(shared_ptr<Marshallable> &cmd, uint64_t *index, uint64_t *term, slotid_t slot_id = -1, ballot_t ballot = 1);
@@ -206,26 +214,46 @@ class RaftServer : public TxLogServer {
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT){
       auto p_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd);
       auto sp_vec_piece = dynamic_pointer_cast<VecPieceData>(p_cmd->cmd_)->sp_vec_piece_data_;
-			vector<struct KeyValue> kv_vector;
-			int index = 0;
-			for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++){
-				auto cmd_input = (*it)->input.values_;
-				for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
-					struct KeyValue key_value = {it2->first, it2->second.get_i32()};
-					kv_vector.push_back(key_value);
-				}
-			}
 
-			struct KeyValue key_values[kv_vector.size()];
-			std::copy(kv_vector.begin(), kv_vector.end(), key_values);
+      // Check if this is Mako data (STR values) vs Janus data (I32 values)
+      // Mako sends raw serialized transaction bytes wrapped as String values
+      // This vestigial code was written for Janus I32 key-value pairs
+      bool is_mako_data = false;
+      if (sp_vec_piece && !sp_vec_piece->empty()) {
+        auto first_cmd = (*sp_vec_piece)[0];
+        if (first_cmd && first_cmd->input.values_ && !first_cmd->input.values_->empty()) {
+          auto first_val = first_cmd->input.values_->begin()->second;
+          if (first_val.get_kind() == Value::STR) {
+            is_mako_data = true;
+            Log_debug("[RAFT-SETLOCALAPPEND] Skipping vestigial I/O code for Mako data (STR values)");
+          }
+        }
+      }
 
-			// auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
-			
-			struct timespec begin, end;
-			//clock_gettime(CLOCK_MONOTONIC, &begin);
-      // de->Wait();
-			//clock_gettime(CLOCK_MONOTONIC, &end);
-			//Log_info("Time of Write: %d", end.tv_nsec - begin.tv_nsec);
+      // Only process if this is Janus data (I32 values)
+      // Skip for Mako data to avoid get_i32() crash on String values
+      if (!is_mako_data) {
+        vector<struct KeyValue> kv_vector;
+        int index = 0;
+        for (auto it = sp_vec_piece->begin(); it != sp_vec_piece->end(); it++){
+          auto cmd_input = (*it)->input.values_;
+          for (auto it2 = cmd_input->begin(); it2 != cmd_input->end(); it2++) {
+            struct KeyValue key_value = {it2->first, it2->second.get_i32()};
+            kv_vector.push_back(key_value);
+          }
+        }
+
+        struct KeyValue key_values[kv_vector.size()];
+        std::copy(kv_vector.begin(), kv_vector.end(), key_values);
+
+        // auto de = IO::write(filename, key_values, sizeof(struct KeyValue), kv_vector.size());
+
+        struct timespec begin, end;
+        //clock_gettime(CLOCK_MONOTONIC, &begin);
+        // de->Wait();
+        //clock_gettime(CLOCK_MONOTONIC, &end);
+        //Log_info("Time of Write: %d", end.tv_nsec - begin.tv_nsec);
+      }
     } else {
 			int value = -1;
 			int value_;
@@ -261,7 +289,10 @@ class RaftServer : public TxLogServer {
 
   // @unsafe
    shared_ptr<RaftData> GetRaftInstance(slotid_t id) {
-    verify(id >= min_active_slot_ || id == 0);
+    if (id < min_active_slot_ && id != 0) {
+      Log_info("[RAFT_LOG] expanding min_active_slot_ from %lu to %lu", min_active_slot_, id);
+      min_active_slot_ = id;
+    }
      auto& sp_instance = raft_logs_[id];
      if(!sp_instance)
        sp_instance = std::make_shared<RaftData>();
