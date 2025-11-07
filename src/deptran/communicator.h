@@ -5,6 +5,7 @@
 #include "msg.h"
 #include "config.h"
 #include "command_marshaler.h"
+#include "procedure.h"
 #include "deptran/rcc/dep_graph.h"
 #include "rcc_rpc.h"
 #include <unordered_map>
@@ -141,28 +142,42 @@ class JetpackPullIdSetQuorumEvent: public QuorumEvent {
 
 class JetpackPullCmdQuorumEvent: public QuorumEvent {
  public:
-  using QuorumEvent::QuorumEvent;
-  std::map<uint64_t, int> cmd_counts_;
-  int maximum_count_ = -1;
-  shared_ptr<Marshallable> maximum_cmd_{nullptr};
-  epoch_t max_jepoch_ = -1;
-  epoch_t max_oepoch_ = -1;
-  
-  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, const MarshallDeputy& cmd) {
+  JetpackPullCmdQuorumEvent(int n_total, int quorum, const std::vector<key_t>& keys)
+      : QuorumEvent(n_total, quorum), ordered_keys_(keys) {
+    key_states_.reserve(keys.size());
+    for (size_t i = 0; i < keys.size(); i++) {
+      key_index_[keys[i]] = i;
+      key_states_.push_back(KeyState{keys[i], {}, 0, nullptr});
+    }
+    int f = (n_total_ - 1) / 2;
+    majority_threshold_ = (f + 2 + 1) / 2;
+  }
+
+  void FeedResponse(bool y, epoch_t jepoch, epoch_t oepoch, const MarshallDeputy& batch_md) {
     if (y) {
       VoteYes();
-      // Count how many times each command appears
-      if (cmd.sp_data_) {
-        uint64_t cmd_id = SimpleRWCommand::GetCombinedCmdID(cmd.sp_data_);
-        cmd_counts_[cmd_id]++;
-        if (cmd_counts_[cmd_id] > maximum_count_) {
-          maximum_count_ = cmd_counts_[cmd_id];
-          maximum_cmd_ = cmd.sp_data_;
+      auto batch = std::dynamic_pointer_cast<KeyCmdBatchData>(batch_md.sp_data_);
+      if (batch) {
+        for (size_t i = 0; i < batch->Size(); i++) {
+          auto it = key_index_.find(batch->GetKey(i));
+          if (it == key_index_.end()) {
+            continue;
+          }
+          auto cmd = batch->GetCommand(i);
+          if (!cmd) {
+            continue;
+          }
+          auto& state = key_states_[it->second];
+          uint64_t cmd_id = SimpleRWCommand::GetCombinedCmdID(cmd);
+          int count = ++state.cmd_counts_[cmd_id];
+          if (count > state.max_count) {
+            state.max_count = count;
+            state.max_cmd = cmd;
+          }
         }
       }
     } else {
       VoteNo();
-      // If ok=false, track max epochs for local update
       if (jepoch > max_jepoch_) {
         max_jepoch_ = jepoch;
       }
@@ -171,15 +186,34 @@ class JetpackPullCmdQuorumEvent: public QuorumEvent {
       }
     }
   }
-  
-  shared_ptr<Marshallable> GetCmdToRecover() {
-    int f = (n_total_ - 1) / 2;
-    int majority_threshold = (f + 2) / 2 + ((f + 2) % 2); // ⌈(f+2)/2⌉
-    if (maximum_count_ >= majority_threshold && maximum_cmd_->kind_ != MarshallDeputy::Kind::CMD_TPC_EMPTY) {
-      return maximum_cmd_;
+
+  std::vector<std::pair<key_t, shared_ptr<Marshallable>>> GetRecoveredCommands() const {
+    std::vector<std::pair<key_t, shared_ptr<Marshallable>>> result;
+    for (const auto& state : key_states_) {
+      if (state.max_cmd && state.max_count >= majority_threshold_) {
+        result.emplace_back(state.key, state.max_cmd);
+      }
     }
-    return nullptr;
+    return result;
   }
+
+  const std::vector<key_t>& OrderedKeys() const { return ordered_keys_; }
+
+  epoch_t max_jepoch_ = -1;
+  epoch_t max_oepoch_ = -1;
+
+ private:
+  struct KeyState {
+    key_t key;
+    std::unordered_map<uint64_t, int> cmd_counts_;
+    int max_count = 0;
+    shared_ptr<Marshallable> max_cmd = nullptr;
+  };
+
+  std::vector<key_t> ordered_keys_;
+  std::vector<KeyState> key_states_;
+  std::unordered_map<key_t, size_t> key_index_;
+  int majority_threshold_{0};
 };
 
 class JetpackPrepareQuorumEvent: public QuorumEvent {
@@ -463,11 +497,11 @@ class Communicator {
   shared_ptr<JetpackPullIdSetQuorumEvent> JetpackBroadcastPullIdSet(parid_t par_id, locid_t loc_id,
                                                                    epoch_t jepoch, epoch_t oepoch);
   shared_ptr<JetpackPullCmdQuorumEvent> JetpackBroadcastPullCmd(parid_t par_id, locid_t loc_id, 
-                                                               key_t key, epoch_t jepoch, epoch_t oepoch);
+                                                               const std::vector<key_t>& keys, epoch_t jepoch, epoch_t oepoch);
   shared_ptr<QuorumEvent> JetpackBroadcastRecordCmd(parid_t par_id, locid_t loc_id,
                                                     epoch_t jepoch, epoch_t oepoch, 
                                                     int sid, int rid, 
-                                                    shared_ptr<Marshallable> cmd);
+                                                    const std::vector<std::pair<key_t, shared_ptr<Marshallable>>>& cmds);
   shared_ptr<JetpackPrepareQuorumEvent> JetpackBroadcastPrepare(parid_t par_id, locid_t loc_id, 
                                                                epoch_t jepoch, epoch_t oepoch, 
                                                                ballot_t max_seen_ballot);

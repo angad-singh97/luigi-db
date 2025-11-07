@@ -594,19 +594,19 @@ class TxLogServer {
   
   void OnJetpackPullCmd(const epoch_t& jepoch,
                         const epoch_t& oepoch,
-                        const key_t& key,
+                        const std::vector<key_t>& keys,
                         bool_t* ok, 
                         epoch_t* reply_jepoch, 
                         epoch_t* reply_oepoch,
                         MarshallDeputy* reply_old_view,
                         MarshallDeputy* reply_new_view,
-                        shared_ptr<Marshallable>& cmd);
+                        shared_ptr<KeyCmdBatchData>& batch);
   
   void OnJetpackRecordCmd(const epoch_t& jepoch, 
                           const epoch_t& oepoch, 
                           const int32_t& sid, 
                           const int32_t& rid, 
-                          shared_ptr<Marshallable>& cmd);
+                          shared_ptr<KeyCmdBatchData>& batch);
   
   void OnJetpackPrepare(const epoch_t& jepoch, 
                         const epoch_t& oepoch, 

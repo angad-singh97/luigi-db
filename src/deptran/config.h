@@ -94,6 +94,7 @@ class Config {
 
   // Jetpack fast path mode
   int jetpack_fastpath_attempt_rate_ = 0;
+  int jetpack_recovery_batch_size_ = 1000;
 
   enum SiteInfoType { CLIENT, SERVER };
   struct SiteInfo {
@@ -250,6 +251,7 @@ class Config {
   int32_t get_max_retry();
   single_server_t get_single_server();
   uint32_t get_concurrent_txn();
+  int GetJetpackRecoveryBatchSize() const { return jetpack_recovery_batch_size_; }
   bool get_batch_start();
   bool do_early_return();
   bool do_logging();
