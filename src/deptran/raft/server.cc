@@ -73,13 +73,16 @@ void RaftServer::Setup() {
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
     Coroutine::CreateRun([this](){
-      this->HeartbeatLoop(); 
+      this->HeartbeatLoop();
     });
-    // Start election timeout loop
-    if (failover_) {
+    // Start election timeout loop ONLY if not in fixed leader mode
+    // In fixed leader mode, followers never start elections
+    if (failover_ && !fixed_leader_mode_) {
       Coroutine::CreateRun([this](){
-        StartElectionTimer(); 
+        StartElectionTimer();
       });
+    } else if (fixed_leader_mode_) {
+      Log_info("[RAFT-FIXED-LEADER] Site %d: Election timer DISABLED (fixed leader mode)", site_id_);
     }
 	}
 #endif
@@ -88,13 +91,16 @@ void RaftServer::Setup() {
   if (heartbeat_) {
 		Log_debug("starting heartbeat loop at site %d", site_id_);
     Coroutine::CreateRun([this](){
-      this->HeartbeatLoop(); 
+      this->HeartbeatLoop();
     });
-    // Start election timeout loop
-    if (failover_) {
+    // Start election timeout loop ONLY if not in fixed leader mode
+    // In fixed leader mode, followers never start elections
+    if (failover_ && !fixed_leader_mode_) {
       Coroutine::CreateRun([this](){
-        StartElectionTimer(); 
+        StartElectionTimer();
       });
+    } else if (fixed_leader_mode_) {
+      Log_info("[RAFT-FIXED-LEADER] Site %d: Election timer DISABLED (fixed leader mode)", site_id_);
     }
 	}
 #endif

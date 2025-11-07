@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Test 1.5: Election Stability Test
+# testElectionStability: Leader Election Stability Test
 # Purpose: Validate that leader election is stable without log submission
 
 # Clean up old log files
-rm -f test01_*.log
+rm -f election_stability_*.log
 
 echo "========================================="
-echo "Test 1.5: Election Stability Test"
+echo "Test: Election Stability"
 echo "========================================="
 echo "Testing stable leader election (no log submission)"
 echo ""
@@ -16,13 +16,13 @@ echo ""
 echo "Starting all 3 servers simultaneously..."
 
 # Use background jobs and wait for all to start
-./build/test01_election_stability p2 > test01_p2.log 2>&1 &
+./build/testElectionStability p2 > election_stability_p2.log 2>&1 &
 P2_PID=$!
 
-./build/test01_election_stability p1 > test01_p1.log 2>&1 &
+./build/testElectionStability p1 > election_stability_p1.log 2>&1 &
 P1_PID=$!
 
-./build/test01_election_stability localhost > test01_localhost.log 2>&1 &
+./build/testElectionStability localhost > election_stability_localhost.log 2>&1 &
 LOCALHOST_PID=$!
 
 echo "  - Started p2 (PID=$P2_PID)"
@@ -52,7 +52,7 @@ echo "========================================="
 failed=0
 leader_count=0
 
-for log in test01_localhost.log test01_p1.log test01_p2.log; do
+for log in election_stability_localhost.log election_stability_p1.log election_stability_p2.log; do
     if [ -f "$log" ]; then
         echo ""
         echo "--- $log ---"
@@ -106,17 +106,17 @@ fi
 echo ""
 echo "========================================="
 if [ $failed -eq 0 ]; then
-    echo "Test 1.5: Election Stability PASSED ✓"
+    echo "testElectionStability: PASSED ✓"
     exit_code=0
 else
-    echo "Test 1.5: Election Stability FAILED ✗"
+    echo "testElectionStability: FAILED ✗"
     exit_code=1
 fi
 echo "========================================="
 
 echo ""
 echo "Cleaning up processes..."
-pkill -f test01_election_stability || true
+pkill -f testElectionStability || true
 sleep 1
 
 exit $exit_code

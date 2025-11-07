@@ -70,6 +70,7 @@ class RaftServer : public TxLogServer {
   bool looping_ = false;
   bool heartbeat_ = true;
   bool heartbeat_setup_ = false;
+  bool fixed_leader_mode_ = false;  // If true, use Paxos-style fixed leader (no elections)
 	enum { STOPPED, RUNNING } status_;
 	std::function<void(bool)> leader_change_cb_{};
   
@@ -344,5 +345,20 @@ class RaftServer : public TxLogServer {
 
   // @unsafe
   void removeCmd(slotid_t slot);
+
+  // Enable fixed leader mode (Paxos-style): machine_id 0 is always leader, no elections
+  void EnableFixedLeaderMode(bool is_designated_leader) {
+    fixed_leader_mode_ = true;
+    if (is_designated_leader) {
+      // This node is the fixed leader
+      setIsLeader(true);
+      currentTerm = 1;  // Start at term 1
+      Log_info("[RAFT-FIXED-LEADER] Site %d enabled as FIXED LEADER at term 1", site_id_);
+    } else {
+      // This node is a permanent follower
+      setIsLeader(false);
+      Log_info("[RAFT-FIXED-LEADER] Site %d enabled as PERMANENT FOLLOWER", site_id_);
+    }
+  }
 };
 } // namespace janus

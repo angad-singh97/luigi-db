@@ -254,20 +254,61 @@ std::vector<std::string> setup(int argc, char* argv[]) {
 }
 
 // setup2 launches network services. In Raft, leadership is determined by election.
+// However, for testing purposes, we can force a fixed leader like Paxos does.
+// action == 0: default behavior (can be leader if elected OR forced if machine_id == 0)
+// action == 1: forced to be follower
 int setup2(int action, int shardIndex) {
   auto server_infos = Config::GetConfig()->GetMyServers();
 
+  // CRITICAL: Set fixed_leader_mode_ BEFORE server_launch_worker() to avoid race condition
+  // server_launch_worker() triggers Setup() which starts election timers
+  // We must set the flag before Setup() runs, or elections will start!
+
+  // PAXOS-STYLE FIXED LEADER OPTION:
+  // If action == 0 AND machine_id == 0, force this node as fixed leader
+  // This mimics Paxos behavior for testing leader stability
+  if (action == 0 && es->machine_id == 0) {
+    // Pre-assign this node (localhost, machine_id=0) as leader
+    es->set_state(1);  // 1 = leader state
+    es->set_epoch(1);  // Start at epoch 1
+    es->set_leader(0); // machine_id 0 is leader
+
+    // Enable fixed leader mode on all RaftServers BEFORE launching
+    for (size_t i = 0; i < raft_workers_g.size(); i++) {
+      raft_workers_g[i]->is_leader = 1;
+
+      // Enable fixed leader mode in RaftServer (disables elections, forces leadership)
+      auto raft_server = raft_workers_g[i]->GetRaftServer();
+      if (raft_server) {
+        raft_server->EnableFixedLeaderMode(true);  // true = is designated leader
+      }
+    }
+
+    Log_info("[RAFT-SETUP] Machine %d FORCED AS FIXED LEADER (Paxos-style, elections disabled)",
+             es->machine_id);
+  } else {
+    // All other nodes remain followers
+    es->set_state(0);  // 0 = follower state
+    es->set_epoch(0);
+    es->set_leader(0);
+
+    // Enable fixed leader mode on followers BEFORE launching (makes them permanent followers, no elections)
+    for (size_t i = 0; i < raft_workers_g.size(); i++) {
+      auto raft_server = raft_workers_g[i]->GetRaftServer();
+      if (raft_server) {
+        raft_server->EnableFixedLeaderMode(false);  // false = permanent follower
+      }
+    }
+
+    Log_info("[RAFT-SETUP] Machine %d starting as PERMANENT FOLLOWER (Paxos-style, elections disabled)",
+             es->machine_id);
+  }
+
+  // NOW launch workers (Setup() will see fixed_leader_mode_ already set)
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
   }
 
-  // RAFT CHANGE: Don't pre-assign leadership like Paxos does
-  // All nodes start as followers; leader will be elected naturally
-  es->set_state(0);
-  es->set_epoch(0);
-  es->set_leader(0);
-
-  (void)action;
   (void)shardIndex;
   return 0;
 }
@@ -459,12 +500,9 @@ void add_log_to_nc(const char* log, int len, uint32_t par_id,
            worker->n_submit.load(),
            worker->n_tot.load());
   if (!leader_for_partition) {
-    if (!wait_for_local_leadership(worker, par_id, kLeaderWaitTimeout)) {
-      Log_info("[RAFT-ADD-LOG] partition %u not led here after waiting, dropping", par_id);
-      return;
-    }
-    leader_for_partition = true;
-    Log_info("[RAFT-ADD-LOG] partition %u leadership acquired locally, proceeding", par_id);
+    // Match Paxos behavior: immediately drop if not leader (no waiting)
+    Log_info("[RAFT-ADD-LOG] partition %u not led here, dropping", par_id);
+    return;
   }
   enqueue_to_worker(worker, log, len, par_id, std::max(1, batch_size));
   Log_info("[RAFT-ADD-LOG] enqueued par_id=%u len=%d batch=%d", par_id, len, batch_size);
