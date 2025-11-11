@@ -1119,7 +1119,7 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
       // Use BroadcastDispatch to send to the leader
       // Log_info("[JETPACK-RECOVERY] DispatchRecoveredCommand sending cmd_id=0x%llx to partition %d (leader locale %d, sched=%s, target=%d)",
       //          (unsigned long long)cmd_id, par_id, current_leader, sched_type, recovery_event ? recovery_event->target_ : -1);
-      comm->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback, true);
+      comm->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback);
       
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Command dispatched through communicator to leader");

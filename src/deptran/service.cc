@@ -109,15 +109,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
     auto vec_piece_data = dynamic_pointer_cast<VecPieceData>(sp);
     if (vec_piece_data && vec_piece_data->is_recovery_command_) {
       is_recovery = true;
-      Log_info("[DISPATCH_SERVICE] Received recovery command for cmd_id: 0x%lx", cmd_id);
     }
-  }
-  
-  // For recovery commands, we need to wait for execution completion
-  if (is_recovery) {
-    // TODO: Implement synchronous execution wait for recovery commands
-    // For now, log a warning that this is not yet implemented
-    Log_warn("[DISPATCH_SERVICE] Recovery command synchronous execution not yet implemented, using async");
   }
   
   std::shared_ptr<ViewData> view;
