@@ -295,7 +295,7 @@ void RaftServer::applyLogs() {
 
   in_applying_logs_ = false;
   int i = min_active_slot_;
-  while (i + 6000 < executeIndex) {
+  while (i + 60000 < executeIndex) {
     removeCmd(i++);
   }
   min_active_slot_ = i;
