@@ -318,10 +318,12 @@ void TxLogServer::DestroyExecutor(txnid_t txn_id) {
 void TxLogServer::Pause() {
   Log_info("!!!!!!!! TxLogServer::Pause()");
   commo_->Pause();
+  paused_ = true;
 };
 
 void TxLogServer::Resume() {
   commo_->Resume();
+  paused_ = false;
 };
 
 void TxLogServer::TriggerUpgradeEpoch() {
@@ -984,6 +986,10 @@ void TxLogServer::JetpackResubmit(int sid, int set_size) {
     
     // Use the new dispatch method that will find the leader
     DispatchRecoveredCommand(cmd, recovery_event);
+    if (((rid + 1) % 100) == 0 || rid + 1 == set_size) {
+      Log_info("[JETPACK-RECOVERY] Step 7: Resubmitted %d/%d commands for sid=%d",
+               rid + 1, set_size, sid);
+    }
     
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] Command dispatched for sid=%d, rid=%d", sid, rid);
@@ -1045,8 +1051,7 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
     if (vec_piece_data && vec_piece_data->sp_vec_piece_data_) {
       // Mark this as a recovery command
       vec_piece_data->is_recovery_command_ = true;
-      // Log_info("[JETPACK-RECOVERY] Marked VecPieceData as recovery command");
-      
+
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Dispatching VecPieceData with %zu pieces", 
                vec_piece_data->sp_vec_piece_data_->size());
@@ -1112,7 +1117,9 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
       };
       
       // Use BroadcastDispatch to send to the leader
-      comm->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback);
+      // Log_info("[JETPACK-RECOVERY] DispatchRecoveredCommand sending cmd_id=0x%llx to partition %d (leader locale %d, sched=%s, target=%d)",
+      //          (unsigned long long)cmd_id, par_id, current_leader, sched_type, recovery_event ? recovery_event->target_ : -1);
+      comm->BroadcastDispatch(vec_piece_data->sp_vec_piece_data_, coo.get(), callback, true);
       
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] Command dispatched through communicator to leader");
@@ -1121,11 +1128,13 @@ void TxLogServer::DispatchRecoveredCommand(shared_ptr<Marshallable> cmd, shared_
 #ifdef JETPACK_RECOVERY_DEBUG
       Log_info("[JETPACK-RECOVERY] WARNING: Inner command is not VecPieceData, cannot dispatch");
 #endif
+      Log_error("[JETPACK-RECOVERY] DispatchRecoveredCommand failed: inner command kind=%d (expected VecPieceData)", inner_cmd->kind_);
     }
   } else {
 #ifdef JETPACK_RECOVERY_DEBUG
     Log_info("[JETPACK-RECOVERY] WARNING: Command kind %d not supported for dispatch", inner_cmd->kind_);
 #endif
+    Log_error("[JETPACK-RECOVERY] DispatchRecoveredCommand unsupported command kind=%d", inner_cmd->kind_);
   }
 }
 
