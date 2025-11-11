@@ -752,7 +752,9 @@ void RaftServer::StartElectionTimer() {
       auto time_now = Time::now();
       auto time_elapsed = time_now - last_heartbeat_time_;
       // Log_info("sleeped for %d ms bar %d ms", time_now - last_heartbeat_time_, 10 * HEARTBEAT_INTERVAL);
-      if (!IsLeader() && (time_now - last_heartbeat_time_ > 10 * HEARTBEAT_INTERVAL)) {
+      if (!paused_ && !IsLeader() && (time_now - last_heartbeat_time_ > 500 * HEARTBEAT_INTERVAL)) {
+        Log_info("[RAFT_TIMEOUT] server %d election timeout triggered (elapsed=%ldus, last_hb=%ld)",
+                 site_id_, time_elapsed, last_heartbeat_time_);
         Log_debug("site %d start election, time_elapsed: %d, last vote for: %d", 
           site_id_, time_elapsed, vote_for_);
         // ask to vote

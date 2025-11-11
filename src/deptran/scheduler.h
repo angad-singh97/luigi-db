@@ -372,6 +372,8 @@ class TxLogServer {
   bool in_upgrade_epoch_{false};
   const int EPOCH_DURATION = 5;
 
+  bool paused_ = false; // [Jetpack] For failure recovery additional helper
+
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
   deltas_t deltas_{};
