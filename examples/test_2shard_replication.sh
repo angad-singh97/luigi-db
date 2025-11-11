@@ -14,7 +14,8 @@ echo "========================================="
 #rm -f shard0*.log shard1*.log
 rm -f nfs_sync_*
 rm -f simple-shard0*.log simple-shard1*.log
-rm -rf /tmp/mako_rocksdb_shard*
+USERNAME=${USER:-unknown}
+rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
 trd=6
 script_name="$(basename "$0")"
@@ -29,36 +30,68 @@ sleep 1
 # Start shard 0 in background
 echo "Starting shard 0..."
 nohup bash bash/shard.sh 2 0 $trd localhost 0 1 > ${log_prefix}_shard0-localhost.log 2>&1 &
+SHARD0_LOCALHOST_PID=$!
 nohup bash bash/shard.sh 2 0 $trd learner 0 1 > ${log_prefix}_shard0-learner.log 2>&1 &
+SHARD0_LEARNER_PID=$!
 nohup bash bash/shard.sh 2 0 $trd p2 0 1 > ${log_prefix}_shard0-p2.log 2>&1 &
+SHARD0_P2_PID=$!
 sleep 1
 nohup bash bash/shard.sh 2 0 $trd p1 0 1 > ${log_prefix}_shard0-p1.log 2>&1 &
-SHARD0_PID=$!
+SHARD0_P1_PID=$!
 
 sleep 2
 
 # Start shard 1 in background
 echo "Starting shard 1..."
 nohup bash bash/shard.sh 2 1 $trd localhost 0 1 > ${log_prefix}_shard1-localhost.log 2>&1 &
+SHARD1_LOCALHOST_PID=$!
 nohup bash bash/shard.sh 2 1 $trd learner 0 1 > ${log_prefix}_shard1-learner.log 2>&1 &
+SHARD1_LEARNER_PID=$!
 nohup bash bash/shard.sh 2 1 $trd p2 0 1 > ${log_prefix}_shard1-p2.log 2>&1 &
+SHARD1_P2_PID=$!
 sleep 1
 nohup bash bash/shard.sh 2 1 $trd p1 0 1 > ${log_prefix}_shard1-p1.log 2>&1 &
-SHARD1_PID=$!
+SHARD1_P1_PID=$!
 
 # Wait for experiments to run
 echo "Running experiments for 30 seconds..."
 sleep 60
 
-# Kill the processes
+# Kill the processes - FORCE KILL ALL
 echo "Stopping shards..."
-# Kill all dbtest processes (all 8 instances: 4 per shard with different cluster names)
-pkill -9 -f "dbtest.*shard-index 0" 2>/dev/null || true
-pkill -9 -f "dbtest.*shard-index 1" 2>/dev/null || true
+
+# First, kill the parent bash scripts to prevent them from respawning dbtest
+pkill -9 -f "bash/shard.sh" 2>/dev/null || true
+
+# Kill all dbtest processes immediately with SIGKILL
+pkill -9 dbtest 2>/dev/null || true
+killall -9 dbtest 2>/dev/null || true
+
+# Wait for OS to clean up
 sleep 2
-# Original cleanup for good measure
-kill $SHARD0_PID $SHARD1_PID 2>/dev/null || true
-wait $SHARD0_PID $SHARD1_PID 2>/dev/null || true
+
+# Check for and kill any remaining processes including zombies
+remaining=$(ps aux | grep "dbtest" | grep -v grep | wc -l)
+if [ "$remaining" -gt 0 ]; then
+    echo "WARNING: $remaining dbtest processes still present after kill attempt"
+    ps aux | grep "dbtest" | grep -v grep
+
+    # Get PIDs and kill individually
+    pids=$(ps aux | grep "dbtest" | grep -v grep | awk '{print $2}')
+    for pid in $pids; do
+        echo "Force killing PID $pid"
+        kill -9 $pid 2>/dev/null || true
+    done
+
+    sleep 1
+fi
+
+# Final verification - reap zombie processes by explicitly waiting on child PIDs
+# This ensures zombie processes are reaped by their parent (this script)
+for pid in $SHARD0_LOCALHOST_PID $SHARD0_LEARNER_PID $SHARD0_P2_PID $SHARD0_P1_PID \
+           $SHARD1_LOCALHOST_PID $SHARD1_LEARNER_PID $SHARD1_P2_PID $SHARD1_P1_PID; do
+    wait $pid 2>/dev/null || true
+done
 
 echo ""
 echo "========================================="
