@@ -48,6 +48,7 @@ class RaftServer : public TxLogServer {
   void timer_thread(bool *vote) ;
   Timer *timer_;
   uint64_t last_heartbeat_time_ = 0;
+  void LogTermChange(const char* reason, uint64_t old_term, uint64_t new_term, siteid_t source = INVALID_SITEID);
   bool stop_ = false ;
   siteid_t vote_for_ = INVALID_SITEID ;
   bool init_ = false ;
@@ -98,7 +99,9 @@ class RaftServer : public TxLogServer {
       if( can_term > currentTerm)
       {
           // is_leader_ = false ;  // TODO recheck
+          auto prev_term = currentTerm;
           currentTerm = can_term ;
+          LogTermChange("vote request carried newer term", prev_term, currentTerm, can_id);
       }
 
       if(vote)

@@ -8,6 +8,23 @@
 
 namespace janus {
 
+void RaftServer::LogTermChange(const char* reason,
+                               uint64_t old_term,
+                               uint64_t new_term,
+                               siteid_t source) {
+  if (old_term == new_term) {
+    return;
+  }
+  const char* why = reason ? reason : "unspecified";
+  if (source != INVALID_SITEID) {
+    Log_info("[RAFT-TERM] server %d term %lu -> %lu (%s, source_site=%d)",
+             site_id_, old_term, new_term, why, source);
+  } else {
+    Log_info("[RAFT-TERM] server %d term %lu -> %lu (%s)",
+             site_id_, old_term, new_term, why);
+  }
+}
+
 RaftServer::RaftServer(Frame * frame) {
   frame_ = frame ;
 #ifdef RAFT_TEST_CORO
@@ -533,7 +550,9 @@ void RaftServer::HeartbeatLoop() {
           if (currentTerm == term) {
             // Log_debug("case 1: %d setting leader=false and currentTerm=%ld (received from %d)", loc_id_, ret_term, site_id);
             setIsLeader(false); // TODO problem here. When Raft requests votes, should it increase its term before sending requestvote?
+            auto prev_term = currentTerm;
             currentTerm = ret_term;
+            LogTermChange("AppendEntries reply reported higher term", prev_term, currentTerm, site_id);
           }
         } else if (ret_status == 0) {
           // case 2: AppendEntries rejected because log doesn't contain an
@@ -619,7 +638,9 @@ bool RaftServer::RequestVote() {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     prev_term = currentTerm;
     prev_vote_for = vote_for_;
+    auto prev_local_term = currentTerm;
     currentTerm++ ;
+    LogTermChange("starting election", prev_local_term, currentTerm);
     lstoff = lastLogIndex - snapidx_ ;
     if (lstoff == 0) {
       lst_idx = snapidx_;
@@ -694,7 +715,11 @@ bool RaftServer::RequestVote() {
 #endif
     //reset cur term if new term is higher
     ballot_t new_term = sp_quorum->Term() ;
-    currentTerm = new_term > currentTerm? new_term : currentTerm ;
+    if (new_term > currentTerm) {
+      auto prev_local_term = currentTerm;
+      currentTerm = new_term;
+      LogTermChange("observed higher term from RequestVote replies", prev_local_term, currentTerm);
+    }
   	req_voting_ = false ;
 		return false;
   } else {
@@ -866,7 +891,9 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
       Log_debug("refresh timer on appendentry");
       resetTimer("AppendEntries received");
       if (leaderCurrentTerm > this->currentTerm) {
+          auto prev_term = currentTerm;
           currentTerm = leaderCurrentTerm;
+          LogTermChange("AppendEntries leader term is newer", prev_term, currentTerm, leaderSiteId);
           Log_debug("server %d, set to be follower", loc_id_ ) ;
           setIsLeader(false) ;
       }
