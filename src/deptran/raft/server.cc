@@ -17,6 +17,26 @@ RaftServer::RaftServer(Frame * frame) {
   timer_ = new Timer() ;
 }
 
+void RaftServer::OnJetpackPullCmd(const epoch_t& jepoch,
+                                   const epoch_t& oepoch,
+                                   const std::vector<key_t>& keys,
+                                   bool_t* ok,
+                                   epoch_t* reply_jepoch,
+                                   epoch_t* reply_oepoch,
+                                   MarshallDeputy* reply_old_view,
+                                   MarshallDeputy* reply_new_view,
+                                   shared_ptr<KeyCmdBatchData>& batch) {
+  TxLogServer::OnJetpackPullCmd(jepoch, oepoch, keys, ok, reply_jepoch, reply_oepoch,
+                                reply_old_view, reply_new_view, batch);
+  if (!IsLeader()) {
+    resetTimer("JetpackPullCmd RPC");
+#ifdef RAFT_LEADER_ELECTION_DEBUG
+    // Log_info("[RAFT_TIMER] server %d reset election timer due to JetpackPullCmd (keys=%zu)",
+    //          site_id_, keys.size());
+#endif
+  }
+}
+
 void RaftServer::Setup() {
 
 #ifdef RAFT_TEST_CORO
@@ -744,7 +764,7 @@ void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
 }
 
 void RaftServer::StartElectionTimer() {
-  resetTimer() ;
+  resetTimer("start election timer");
   Coroutine::CreateRun([&]() {
     Log_debug("start timer for election") ;
     double duration = randDuration() ;
@@ -844,7 +864,7 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 
   if (term_ok && index_ok && prev_term_ok) {
       Log_debug("refresh timer on appendentry");
-      resetTimer() ;
+      resetTimer("AppendEntries received");
       if (leaderCurrentTerm > this->currentTerm) {
           currentTerm = leaderCurrentTerm;
           Log_debug("server %d, set to be follower", loc_id_ ) ;

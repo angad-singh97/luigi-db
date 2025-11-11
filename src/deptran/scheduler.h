@@ -594,7 +594,7 @@ class TxLogServer {
                           MarshallDeputy* reply_new_view,
                           shared_ptr<VecRecData> id_set);
   
-  void OnJetpackPullCmd(const epoch_t& jepoch,
+  virtual void OnJetpackPullCmd(const epoch_t& jepoch,
                         const epoch_t& oepoch,
                         const std::vector<key_t>& keys,
                         bool_t* ok, 

@@ -109,7 +109,7 @@ class RaftServer : public TxLogServer {
           Log_info("[RAFT_VOTE] server %d recorded vote_for=%d at term=%lu", site_id_, vote_for_, currentTerm);
 #endif
           //reset timeout
-          resetTimer() ;
+          resetTimer("granted vote");
       }
       n_vote_++ ;
       cb() ;
@@ -124,14 +124,24 @@ class RaftServer : public TxLogServer {
     auto cur_count = counter_++;
     if (cur_count > NUM_BATCH_TIMER_RESET ) {
       if (timer_->elapsed() > SEC_BATCH_TIMER_RESET) {
-        resetTimer();
+        resetTimer("batch timer adjustment");
       }
       counter_.store(0);
     }
   }
+  void OnJetpackPullCmd(const epoch_t& jepoch,
+                        const epoch_t& oepoch,
+                        const std::vector<key_t>& keys,
+                        bool_t* ok,
+                        epoch_t* reply_jepoch,
+                        epoch_t* reply_oepoch,
+                        MarshallDeputy* reply_old_view,
+                        MarshallDeputy* reply_new_view,
+                        shared_ptr<KeyCmdBatchData>& batch) override;
 
-  void resetTimer() {
-    // Log_info("site %d resetting timer", site_id_);
+  void resetTimer(const char* reason = "unspecified") {
+    const char* why = reason ? reason : "unspecified";
+    // Log_info("[RAFT_TIMER] server %d reset election timer (%s)", site_id_, why);
     last_heartbeat_time_ = Time::now();
     // Log_info("!!!!!!! if (failover_)");
     if (failover_) {
@@ -289,7 +299,7 @@ class RaftServer : public TxLogServer {
 
   void Reconnect() {
     Disconnect(false);
-    resetTimer() ;
+    resetTimer("reconnect");
   }
 
   bool IsDisconnected();
