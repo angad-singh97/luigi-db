@@ -74,17 +74,26 @@ cleanup_processes() {
 
 # Function 1: Compile
 compile() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh compile"
+    echo "========================================="
     make -j32
 }
 
 # Function 2: Run simple transaction test
 run_simple_transaction() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh simpleTransaction"
+    echo "========================================="
     cleanup_processes
     ./build/simpleTransaction
 }
 
 # Function 3: Run simple Paxos test
 run_simple_paxos() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh simplePaxos"
+    echo "========================================="
     cleanup_processes
     bash ./src/mako/update_config.sh
     set +e
@@ -98,6 +107,9 @@ run_simple_paxos() {
 
 # Function 4: Run 2-shard no replication test (RRR transport)
 run_2shard_no_replication() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shardNoReplication"
+    echo "========================================="
     cleanup_processes
     set +e
     bash ./examples/test_2shard_no_replication.sh
@@ -110,6 +122,9 @@ run_2shard_no_replication() {
 
 # Function 4b: Run 2-shard no replication test with eRPC transport
 run_2shard_no_replication_erpc() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shardNoReplicationErpc"
+    echo "========================================="
     cleanup_processes
     set +e
     MAKO_TRANSPORT=erpc bash ./examples/test_2shard_no_replication.sh
@@ -121,6 +136,9 @@ run_2shard_no_replication_erpc() {
 }
 
 run_1shard_replication() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard1Replication"
+    echo "========================================="
     cleanup_processes
     # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
@@ -135,6 +153,9 @@ run_1shard_replication() {
 }
 
 run_2shard_replication() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard2Replication"
+    echo "========================================="
     cleanup_processes
     # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
@@ -149,6 +170,9 @@ run_2shard_replication() {
 }
 
 run_2shard_replication_erpc() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard2ReplicationErpc"
+    echo "========================================="
     cleanup_processes
     # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
@@ -163,6 +187,9 @@ run_2shard_replication_erpc() {
 }
 
 run_1shard_replication_simple() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard1ReplicationSimple"
+    echo "========================================="
     cleanup_processes
     # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
@@ -177,6 +204,9 @@ run_1shard_replication_simple() {
 }
 
 run_2shard_replication_simple() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard2ReplicationSimple"
+    echo "========================================="
     cleanup_processes
     # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
@@ -191,6 +221,9 @@ run_2shard_replication_simple() {
 }
 
 run_rocksdb_tests() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh rocksdbTests"
+    echo "========================================="
     cleanup_processes
     set +e
     bash ./examples/run_rocksdb_test.sh
@@ -202,6 +235,9 @@ run_rocksdb_tests() {
 }
 
 run_shard_fault_tolerance() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shardFaultTolerance"
+    echo "========================================="
     cleanup_processes
     set +e
     bash ./examples/test_shard_fault_tolerance.sh
@@ -213,6 +249,9 @@ run_shard_fault_tolerance() {
 }
 
 run_multi_shard_single_process() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh multiShardSingleProcess"
+    echo "========================================="
     cleanup_processes
     set +e
     bash ./examples/test_multi_shard_single_process.sh
@@ -237,7 +276,7 @@ case "${1:-}" in
         compile
         ;;
     cleanup)
-       cleanup 
+       cleanup
         ;;
     simpleTransaction)
         run_simple_transaction
