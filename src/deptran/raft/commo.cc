@@ -75,6 +75,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
                                             prevLogIndex,
                                             prevLogTerm,
                                             commitIndex,
+                                            false,  // trigger_election_now (always false for SendAppendEntries2)
                                             fuattr);
     } else {
       // send a regular AppendEntries
@@ -110,7 +111,8 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
                              uint64_t prevLogTerm,
                              uint64_t commitIndex,
                              shared_ptr<Marshallable> cmd,
-                             uint64_t cmdLogTerm) {
+                             uint64_t cmdLogTerm,
+                             bool trigger_election_now) {
   // verify(par_id == 0);
   // Use direct shared_ptr construction instead of make_shared (template function)
   // to keep this function @safe. The 'new' operator is allowed in @safe code.
@@ -145,7 +147,8 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
 
     if (cmd == nullptr) {
       // send a heartbeat AppendEntries
-      Log_debug("Heartbeat AppendEntries to site %d prevLogIndex=%ld", site_id, prevLogIndex);
+      Log_debug("Heartbeat AppendEntries to site %d prevLogIndex=%ld trigger_election=%d",
+                site_id, prevLogIndex, trigger_election_now);
       Call_Async(proxy, EmptyAppendEntries, slot_id,
                                             ballot,
                                             currentTerm,
@@ -153,6 +156,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
                                             prevLogIndex,
                                             prevLogTerm,
                                             commitIndex,
+                                            trigger_election_now,
                                             fuattr);
     } else {
       // send a regular AppendEntries
@@ -208,6 +212,80 @@ RaftCommo::BroadcastVote(parid_t par_id,
     Call_Async(proxy, Vote, lst_log_idx, lst_log_term, self_id, cur_term, fuattr);
   }
   return std::move(e);
+}
+
+// ============================================================================
+// TimeoutNow RPC - Leadership Transfer Protocol
+// ============================================================================
+
+/**
+ * SendTimeoutNow - Send TimeoutNow RPC to target replica
+ *
+ * Instructs target replica to start election immediately.
+ * Part of leadership transfer protocol.
+ *
+ * Edge Cases Handled:
+ * - RPC fails (network error) → callback(false, 0)
+ * - RPC succeeds but target rejects → callback(false, follower_term)
+ * - RPC succeeds and target starts election → callback(true, follower_term)
+ */
+void RaftCommo::SendTimeoutNow(siteid_t site_id,
+                               parid_t par_id,
+                               uint64_t leader_term,
+                               siteid_t leader_site_id,
+                               std::function<void(bool success, uint64_t follower_term)> callback) {
+  auto proxies = rpc_par_proxies_[par_id];
+
+  // Find the target proxy
+  for (auto& p : proxies) {
+    if (p.first != site_id) {
+      continue;
+    }
+
+    auto proxy = (RaftProxy*) p.second;
+    FutureAttr fuattr;
+
+    fuattr.callback = [callback](Future* fu) {
+      if (fu->get_error_code() != 0) {
+        // RPC failed (network error, timeout, etc.)
+        Log_warn("[TIMEOUT-NOW-RPC] Failed to send TimeoutNow - network error (code=%d)",
+                 fu->get_error_code());
+        if (callback) {
+          callback(false, 0);
+        }
+        return;
+      }
+
+      // RPC succeeded - extract response
+      uint64_t follower_term = 0;
+      bool_t success = false;
+
+      fu->get_reply() >> follower_term;
+      fu->get_reply() >> success;
+
+      Log_info("[TIMEOUT-NOW-RPC] TimeoutNow RPC completed: success=%d, follower_term=%lu",
+               (int)success, follower_term);
+
+      if (callback) {
+        callback(success, follower_term);
+      }
+    };
+
+    Log_info("[TIMEOUT-NOW-RPC] Sending TimeoutNow to site %d (term=%lu)",
+             site_id, leader_term);
+
+    // Send TimeoutNow RPC
+    Call_Async(proxy, TimeoutNow, leader_term, leader_site_id, fuattr);
+
+    return;  // Found and sent to target
+  }
+
+  // Target not found in proxy list
+  Log_warn("[TIMEOUT-NOW-RPC] Failed to send TimeoutNow - site %d not found in proxies",
+           site_id);
+  if (callback) {
+    callback(false, 0);
+  }
 }
 
 } // namespace janus

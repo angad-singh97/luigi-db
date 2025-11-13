@@ -89,7 +89,8 @@ friend class RaftProxy;
                     uint64_t prevLogTerm,
                     uint64_t commitIndex,
                     shared_ptr<Marshallable> cmd,
-                    uint64_t cmdLogTerm);
+                    uint64_t cmdLogTerm,
+                    bool trigger_election_now = false);
   // @unsafe
   shared_ptr<RaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
@@ -97,6 +98,24 @@ friend class RaftProxy;
                         ballot_t lst_log_term,
                         siteid_t self_id,
                         ballot_t cur_term );
+
+  /**
+   * SendTimeoutNow - Send TimeoutNow RPC to target replica
+   *
+   * Instructs target replica to start election immediately.
+   * Used for leadership transfer protocol.
+   *
+   * @param site_id - Target replica (preferred leader)
+   * @param par_id - Partition ID
+   * @param leader_term - Current leader's term
+   * @param leader_site_id - Current leader's site ID
+   * @param callback - Called when RPC completes (success/failure)
+   */
+  void SendTimeoutNow(siteid_t site_id,
+                      parid_t par_id,
+                      uint64_t leader_term,
+                      siteid_t leader_site_id,
+                      std::function<void(bool success, uint64_t follower_term)> callback);
 };
 
 } // namespace janus

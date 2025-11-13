@@ -54,6 +54,14 @@ inline void set_epoch() { set_epoch(-1); }
 
 void upgrade_p1_to_leader();
 void worker_info_stats(size_t);
+
+// ============================================================================
+// PREFERRED REPLICA SYSTEM API
+// ============================================================================
+// Set the preferred leader for all Raft workers
+// @param site_id The site ID of the preferred leader replica
+void set_preferred_leader(int site_id);
+
 void nc_setup_server(int, std::string);
 std::vector<std::vector<int>> *nc_get_new_order_requests(int);
 std::vector<std::vector<int>> *nc_get_payment_requests(int);

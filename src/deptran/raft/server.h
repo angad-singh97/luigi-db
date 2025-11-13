@@ -70,9 +70,48 @@ class RaftServer : public TxLogServer {
   bool looping_ = false;
   bool heartbeat_ = true;
   bool heartbeat_setup_ = false;
-  bool fixed_leader_mode_ = false;  // If true, use Paxos-style fixed leader (no elections)
 	enum { STOPPED, RUNNING } status_;
 	std::function<void(bool)> leader_change_cb_{};
+
+  // ============================================================================
+  // PREFERRED REPLICA SYSTEM - Leadership Transfer
+  // ============================================================================
+  // Implements leadership transfer protocol where one replica is designated as
+  // the "preferred leader". The system works via:
+  // 1. Standard Raft voting (no bias) - any replica can win initial election
+  // 2. Non-preferred leader monitors for preferred replica
+  // 3. When preferred is alive & caught up, non-preferred leader:
+  //    - Ensures preferred has all committed logs
+  //    - Steps down from leadership
+  //    - Preferred replica starts election and becomes leader
+  // 4. All operations maintain Raft safety guarantees (no data loss)
+
+  siteid_t preferred_leader_site_id_ = INVALID_SITEID;     // Site ID of preferred leader
+  uint64_t leader_last_commit_index_ = 0;                   // Leader's commit index (from heartbeats)
+  bool transferring_leadership_ = false;                    // True when transfer in progress
+  uint64_t leadership_transfer_start_time_ = 0;             // When transfer started (for timeout)
+  std::atomic<bool> leadership_monitor_stop_{false};       // Signal to stop monitoring thread
+  std::thread leadership_monitor_thread_;                   // Background thread monitoring for transfer
+
+  // Check if a specific site is the preferred leader
+  bool IsPreferredLeader(siteid_t site_id) const {
+    return preferred_leader_site_id_ != INVALID_SITEID &&
+           site_id == preferred_leader_site_id_;
+  }
+
+  // Check if I am the preferred leader
+  bool AmIPreferredLeader() const {
+    return IsPreferredLeader(site_id_);
+  }
+
+  // Check if I have caught up to the current leader's commit level
+  bool HaveCaughtUp() const {
+    // We've caught up if our commitIndex >= leader's last known commitIndex
+    // Note: leader_last_commit_index_ is updated from AppendEntries heartbeats
+    return commitIndex >= leader_last_commit_index_;
+  }
+
+  // ============================================================================
   
 	bool RequestVote() ;
 
@@ -325,7 +364,28 @@ class RaftServer : public TxLogServer {
                        uint64_t *followerAppendOK,
                        uint64_t *followerCurrentTerm,
                        uint64_t *followerLastLogIndex,
-                       const function<void()> &cb);
+                       const function<void()> &cb,
+                       bool trigger_election_now = false);
+
+  /**
+   * TimeoutNow RPC Handler - Leadership Transfer Protocol
+   *
+   * Receives TimeoutNow RPC from current leader instructing this replica
+   * to start an election immediately (bypass random election timeout).
+   *
+   * Used for deterministic leadership transfer to preferred replica.
+   *
+   * @param leaderTerm - Current leader's term
+   * @param leaderSiteId - Current leader's site ID
+   * @param followerTerm - [OUT] This replica's current term
+   * @param success - [OUT] true if election started, false otherwise
+   * @param cb - Callback to invoke when handling complete
+   */
+  void OnTimeoutNow(const uint64_t leaderTerm,
+                    const siteid_t leaderSiteId,
+                    uint64_t *followerTerm,
+                    bool_t *success,
+                    const function<void()> &cb);
 
   void Disconnect(const bool disconnect = true);
 
@@ -346,19 +406,71 @@ class RaftServer : public TxLogServer {
   // @unsafe
   void removeCmd(slotid_t slot);
 
-  // Enable fixed leader mode (Paxos-style): machine_id 0 is always leader, no elections
-  void EnableFixedLeaderMode(bool is_designated_leader) {
-    fixed_leader_mode_ = true;
-    if (is_designated_leader) {
-      // This node is the fixed leader
-      setIsLeader(true);
-      currentTerm = 1;  // Start at term 1
-      Log_info("[RAFT-FIXED-LEADER] Site %d enabled as FIXED LEADER at term 1", site_id_);
-    } else {
-      // This node is a permanent follower
-      setIsLeader(false);
-      Log_info("[RAFT-FIXED-LEADER] Site %d enabled as PERMANENT FOLLOWER", site_id_);
+  // ============================================================================
+  // PUBLIC API: Preferred Replica System - Leadership Transfer
+  // ============================================================================
+
+  /**
+   * Set the preferred leader for this Raft group.
+   *
+   * @param site_id The site ID of the preferred leader (or INVALID_SITEID to disable)
+   *
+   * Behavior:
+   * - All replicas should call this with the same site_id
+   * - Standard Raft voting happens (any replica can win initial election)
+   * - Non-preferred leaders monitor for preferred replica
+   * - When preferred is alive and caught up, non-preferred leader transfers leadership
+   *
+   * Safety: This maintains all Raft safety guarantees via explicit transfer protocol.
+   */
+  void SetPreferredLeader(siteid_t site_id) {
+    std::lock_guard<std::recursive_mutex> lock(mtx_);
+
+    siteid_t old_preferred = preferred_leader_site_id_;
+    preferred_leader_site_id_ = site_id;
+
+    if (old_preferred != site_id) {
+      Log_info("[LEADERSHIP-TRANSFER] Site %d: Preferred leader set to %d",
+               site_id_, site_id);
+    }
+
+    // If I'm a non-preferred leader, start monitoring for transfer opportunity
+    if (!AmIPreferredLeader() && is_leader_ && looping_) {
+      Log_info("[LEADERSHIP-TRANSFER] Site %d: I'm non-preferred leader, starting transfer monitoring",
+               site_id_);
+      StartLeadershipTransferMonitoring();
     }
   }
+
+  /**
+   * Get the current preferred leader site ID
+   * @return Preferred leader site ID, or INVALID_SITEID if none
+   */
+  siteid_t GetPreferredLeader() const {
+    return preferred_leader_site_id_;
+  }
+
+  /**
+   * Check if leadership transfer should be initiated
+   * Called by non-preferred leaders to check if preferred replica is ready
+   */
+  bool ShouldTransferLeadership();
+
+  /**
+   * Initiate leadership transfer to preferred replica
+   * Called by non-preferred leader when preferred is caught up
+   */
+  void InitiateLeadershipTransfer();
+
+  /**
+   * Start background monitoring for leadership transfer opportunities
+   * Called by non-preferred leaders
+   */
+  void StartLeadershipTransferMonitoring();
+
+  /**
+   * Stop leadership transfer monitoring
+   */
+  void StopLeadershipTransferMonitoring();
 };
 } // namespace janus

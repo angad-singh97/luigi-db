@@ -69,6 +69,7 @@ void RaftServiceImpl::HandleEmptyAppendEntries(const uint64_t& slot,
                                              const uint64_t& leaderPrevLogIndex,
                                              const uint64_t& leaderPrevLogTerm,
                                              const uint64_t& leaderCommitIndex,
+                                             const bool_t& trigger_election_now,
                                              uint64_t *followerAppendOK,
                                              uint64_t *followerCurrentTerm,
                                              uint64_t *followerLastLogIndex,
@@ -87,8 +88,20 @@ void RaftServiceImpl::HandleEmptyAppendEntries(const uint64_t& slot,
                             followerAppendOK,
                             followerCurrentTerm,
                             followerLastLogIndex,
-                            [defer]() { defer->reply(); });
+                            [defer]() { defer->reply(); },
+                            trigger_election_now);
   });
+}
+
+// @safe
+void RaftServiceImpl::HandleTimeoutNow(const uint64_t& leaderTerm,
+                                        const siteid_t& leaderSiteId,
+                                        uint64_t* followerTerm,
+                                        bool_t* success,
+                                        rrr::DeferredReply* defer) {
+  verify(svr_ != nullptr);
+  svr_->OnTimeoutNow(leaderTerm, leaderSiteId, followerTerm, success,
+                     [defer]() { defer->reply(); });
 }
 
 } // namespace janus;

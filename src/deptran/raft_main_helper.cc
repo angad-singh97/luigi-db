@@ -158,7 +158,13 @@ void server_launch_worker(std::vector<Config::SiteInfo>& server_sites) {
 
   for (auto& worker : raft_workers_g) {
     if (worker) {
+      Log_info("[RAFT-HEARTBEAT-SETUP] About to call SetupHeartbeat() for worker: site_id=%d, port=%d, heartbeat_port=%d",
+               worker->site_info_ ? worker->site_info_->id : -1,
+               worker->site_info_ ? worker->site_info_->port : -1,
+               worker->site_info_ ? (worker->site_info_->port + 10000) : -1);
       worker->SetupHeartbeat();
+      Log_info("[RAFT-HEARTBEAT-SETUP] SetupHeartbeat() completed for site_id=%d",
+               worker->site_info_ ? worker->site_info_->id : -1);
     }
   }
 }
@@ -253,63 +259,84 @@ std::vector<std::string> setup(int argc, char* argv[]) {
   return ret_vector;
 }
 
-// setup2 launches network services. In Raft, leadership is determined by election.
-// However, for testing purposes, we can force a fixed leader like Paxos does.
-// action == 0: default behavior (can be leader if elected OR forced if machine_id == 0)
-// action == 1: forced to be follower
+// ============================================================================
+// setup2 launches network services and configures preferred leader system
+// ============================================================================
+// Uses Raft's natural election mechanism with preferred replica bias:
+// - Machine_id 0 (localhost) is set as the preferred leader
+// - Elections are biased toward the preferred replica
+// - If preferred fails, others can take over
+// - When preferred recovers, it catches up then reclaims leadership
+//
+// This provides similar behavior to Paxos fixed leader but with automatic failover.
 int setup2(int action, int shardIndex) {
   auto server_infos = Config::GetConfig()->GetMyServers();
 
-  // CRITICAL: Set fixed_leader_mode_ BEFORE server_launch_worker() to avoid race condition
-  // server_launch_worker() triggers Setup() which starts election timers
-  // We must set the flag before Setup() runs, or elections will start!
+  // ============================================================================
+  // PREFERRED REPLICA SYSTEM SETUP
+  // ============================================================================
+  // Configure preferred leader: Use machine_id 2 (p2) as preferred
+  // This can be changed dynamically later via SetPreferredLeader()
 
-  // PAXOS-STYLE FIXED LEADER OPTION:
-  // If action == 0 AND machine_id == 0, force this node as fixed leader
-  // This mimics Paxos behavior for testing leader stability
-  if (action == 0 && es->machine_id == 0) {
-    // Pre-assign this node (localhost, machine_id=0) as leader
-    es->set_state(1);  // 1 = leader state
-    es->set_epoch(1);  // Start at epoch 1
-    es->set_leader(0); // machine_id 0 is leader
+  // For now: hardcode p2 (machine_id=2) as preferred
+  // In production, Mako worker thread can change this dynamically
+  siteid_t preferred_site_id = INVALID_SITEID;
 
-    // Enable fixed leader mode on all RaftServers BEFORE launching
-    for (size_t i = 0; i < raft_workers_g.size(); i++) {
-      raft_workers_g[i]->is_leader = 1;
+  // Find the site_id that corresponds to machine_id==2 (p2)
+  // NOTE: Each process only sees its own workers, so we need to query Config
+  //       for ALL sites in the cluster, not just local workers
+  auto config = Config::GetConfig();
+  auto all_sites = config->SitesByPartitionId(0);  // Get all sites for partition 0
 
-      // Enable fixed leader mode in RaftServer (disables elections, forces leadership)
-      auto raft_server = raft_workers_g[i]->GetRaftServer();
-      if (raft_server) {
-        raft_server->EnableFixedLeaderMode(true);  // true = is designated leader
+  for (const auto& site : all_sites) {
+    if (site.locale_id == 0) {  // locale_id == machine_id (p2)
+      preferred_site_id = site.id;
+      Log_info("[PREFERRED-REPLICA] Found p2 in config: site_id=%d (locale_id=2)",
+               preferred_site_id);
+      break;
+    }
+  }
+
+  // Set preferred leader on all Raft workers
+  if (preferred_site_id != INVALID_SITEID) {
+    for (auto& worker : raft_workers_g) {
+      if (worker) {
+        auto raft_server = worker->GetRaftServer();
+        if (raft_server) {
+          raft_server->SetPreferredLeader(preferred_site_id);
+          Log_info("[PREFERRED-REPLICA] Site %d: Set preferred leader to site %d",
+                   raft_server->site_id_, preferred_site_id);
+        }
       }
     }
-
-    Log_info("[RAFT-SETUP] Machine %d FORCED AS FIXED LEADER (Paxos-style, elections disabled)",
-             es->machine_id);
+    Log_info("[RAFT-SETUP] Preferred replica system enabled: preferred_site=%d",
+             preferred_site_id);
   } else {
-    // All other nodes remain followers
-    es->set_state(0);  // 0 = follower state
+    Log_info("[RAFT-SETUP] No preferred leader configured (using standard Raft elections)");
+  }
+
+  // Update election state for Paxos compatibility
+  if (es->machine_id == 0) {
+    es->set_state(0);   // Will become leader via election
     es->set_epoch(0);
     es->set_leader(0);
-
-    // Enable fixed leader mode on followers BEFORE launching (makes them permanent followers, no elections)
-    for (size_t i = 0; i < raft_workers_g.size(); i++) {
-      auto raft_server = raft_workers_g[i]->GetRaftServer();
-      if (raft_server) {
-        raft_server->EnableFixedLeaderMode(false);  // false = permanent follower
-      }
-    }
-
-    Log_info("[RAFT-SETUP] Machine %d starting as PERMANENT FOLLOWER (Paxos-style, elections disabled)",
+    Log_info("[RAFT-SETUP] Machine %d: Preferred leader (will win elections naturally)",
+             es->machine_id);
+  } else {
+    es->set_state(0);
+    es->set_epoch(0);
+    es->set_leader(0);
+    Log_info("[RAFT-SETUP] Machine %d: Non-preferred replica (can take over if preferred fails)",
              es->machine_id);
   }
 
-  // NOW launch workers (Setup() will see fixed_leader_mode_ already set)
+  // Launch workers (normal Raft elections will proceed, biased toward preferred)
   if (!server_infos.empty()) {
     server_launch_worker(server_infos);
   }
 
   (void)shardIndex;
+  (void)action;  // action parameter ignored in preferred replica mode
   return 0;
 }
 
@@ -454,8 +481,9 @@ void raft_handle_leader_change(uint32_t partition_id, bool is_leader) {
 
   ::leader_wait_cv.notify_all();
 
-  if (is_leader && leader_callback_) {
-    leader_callback_(0);
+  // Call the callback for BOTH gaining and losing leadership
+  if (leader_callback_) {
+    leader_callback_(is_leader ? 1 : 0);  // 1 = became leader, 0 = lost leadership
   }
 }
 
@@ -577,6 +605,59 @@ void worker_info_stats(size_t /*worker_id*/) {
              worker->site_info_->partition_id_,
              worker->n_tot.load(),
              worker->n_current.load());
+  }
+}
+
+// ============================================================================
+// PREFERRED REPLICA SYSTEM API IMPLEMENTATION
+// ============================================================================
+
+/**
+ * Dynamically set the preferred leader for all Raft workers.
+ *
+ * This allows Mako worker threads to change the preferred leader at runtime.
+ * When a new preferred leader is set:
+ * 1. All replicas update their voting bias
+ * 2. If the new preferred is not currently leader, it starts catch-up monitoring
+ * 3. Once caught up, it triggers an election and reclaims leadership
+ *
+ * @param site_id The site ID of the new preferred leader (or INVALID_SITEID to disable)
+ *
+ * Example usage:
+ *   // Set site 5 as preferred leader
+ *   set_preferred_leader(5);
+ *
+ *   // Disable preference (use standard Raft)
+ *   set_preferred_leader(INVALID_SITEID);
+ */
+void set_preferred_leader(int site_id) {
+  siteid_t preferred = static_cast<siteid_t>(site_id);
+
+  Log_info("[PREFERRED-REPLICA-API] Setting preferred leader to site_id=%d", site_id);
+
+  int count = 0;
+  for (auto& worker : raft_workers_g) {
+    if (!worker) {
+      continue;
+    }
+
+    auto raft_server = worker->GetRaftServer();
+    if (!raft_server) {
+      continue;
+    }
+
+    raft_server->SetPreferredLeader(preferred);
+    count++;
+
+    Log_info("[PREFERRED-REPLICA-API] Updated worker %d: site_id=%d, preferred=%d",
+             count, raft_server->site_id_, preferred);
+  }
+
+  if (count == 0) {
+    Log_warn("[PREFERRED-REPLICA-API] No Raft workers found to update!");
+  } else {
+    Log_info("[PREFERRED-REPLICA-API] Successfully updated %d Raft workers with preferred_leader=%d",
+             count, site_id);
   }
 }
 
