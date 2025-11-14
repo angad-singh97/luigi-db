@@ -18,6 +18,7 @@
 
 #include "allocator.h"
 #include "stats_server.h"
+#include "util.h"
 
 #include "benchmarks/bench.h"
 #include "benchmarks/sto/sync_util.hh"
@@ -792,9 +793,8 @@ static void init_env() {
     if (benchConfig.getIsReplicated() && benchConfig.getLeaderConfig()) {
       auto& persistence = mako::RocksDBPersistence::getInstance();
       // Add username prefix to avoid conflicts when multiple users run on the same server
-      const char* username = getenv("USER");
-      if (!username) username = "unknown";
-      std::string db_path = "/tmp/" + std::string(username) + "_mako_rocksdb_shard" + std::to_string(benchConfig.getShardIndex())
+      std::string username = util::get_current_username();
+      std::string db_path = "/tmp/" + username + "_mako_rocksdb_shard" + std::to_string(benchConfig.getShardIndex())
                             + "_leader_pid" + std::to_string(getpid());
       size_t num_partitions = benchConfig.getNthreads();
       size_t num_threads = num_partitions;

@@ -49,6 +49,7 @@
 #include <unordered_map>
 #include <mutex>
 #include "../src/mako/rocksdb_persistence.h"
+#include "../src/mako/util.h"
 
 using namespace std;
 using namespace mako;
@@ -70,9 +71,8 @@ void test_partitioned_queues() {
     const size_t NUM_WORKER_THREADS = 4;
 
     // Add username prefix to avoid conflicts when multiple users run on the same server
-    const char* username = getenv("USER");
-    if (!username) username = "unknown";
-    string db_path = "/tmp/" + string(username) + "_test_partitioned_queues";
+    string username = util::get_current_username();
+    string db_path = "/tmp/" + username + "_test_partitioned_queues";
 
     if (!persistence.initialize(db_path, NUM_PARTITIONS, NUM_WORKER_THREADS)) {
         cerr << "Failed to initialize RocksDB!" << endl;
@@ -255,9 +255,8 @@ void test_queue_contention_comparison() {
     const size_t NUM_WORKERS = 2;
 
     // Add username prefix to avoid conflicts when multiple users run on the same server
-    const char* username = getenv("USER");
-    if (!username) username = "unknown";
-    string db_path = "/tmp/" + string(username) + "_test_contention_comparison";
+    string username = util::get_current_username();
+    string db_path = "/tmp/" + username + "_test_contention_comparison";
 
     if (!persistence.initialize(db_path, NUM_PARTITIONS, NUM_WORKERS)) {
         cerr << "Failed to initialize RocksDB!" << endl;

@@ -33,6 +33,7 @@
 #include <thread>
 #include <chrono>
 #include "../src/mako/rocksdb_persistence.h"
+#include "../src/mako/util.h"
 
 // Mock get_epoch for testing
 int get_epoch() {
@@ -49,9 +50,8 @@ int main() {
 
     // Initialize RocksDB
     // Add username prefix to avoid conflicts when multiple users run on the same server
-    const char* username = getenv("USER");
-    if (!username) username = "unknown";
-    std::string db_path = "/tmp/" + std::string(username) + "_callback_demo_db";
+    std::string username = util::get_current_username();
+    std::string db_path = "/tmp/" + username + "_callback_demo_db";
 
     auto& persistence = mako::RocksDBPersistence::getInstance();
     if (!persistence.initialize(db_path, 2, 2)) {

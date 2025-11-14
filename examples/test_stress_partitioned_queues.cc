@@ -60,6 +60,7 @@
 #include <mutex>
 #include <random>
 #include "../src/mako/rocksdb_persistence.h"
+#include "../src/mako/util.h"
 
 using namespace std;
 using namespace mako;
@@ -92,9 +93,8 @@ bool test_complex_stress() {
     cout << "  - Ordered callbacks per partition (200 messages total per partition)" << endl;
 
     // Add username prefix to avoid conflicts when multiple users run on the same server
-    const char* username = getenv("USER");
-    if (!username) username = "unknown";
-    string cleanup_cmd = "rm -rf /tmp/" + string(username) + "_test_stress_partitioned* 2>/dev/null";
+    string username = util::get_current_username();
+    string cleanup_cmd = "rm -rf /tmp/" + username + "_test_stress_partitioned* 2>/dev/null";
     system(cleanup_cmd.c_str());
 
     auto& persistence = RocksDBPersistence::getInstance();
