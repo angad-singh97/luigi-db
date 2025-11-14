@@ -95,7 +95,7 @@ class Communicator {
   const int CONNECT_SLEEP_MS = 1000;
   rusty::Arc<rrr::PollThreadWorker> rpc_poll_;
   locid_t loc_id_ = -1;
-  map<siteid_t, std::shared_ptr<rrr::Client>> rpc_clients_{};
+  map<siteid_t, rusty::Arc<rrr::Client>> rpc_clients_{};
   map<siteid_t, ClassicProxy *> rpc_proxies_{};
   map<parid_t, vector<SiteProxyPair>> rpc_par_proxies_{};
   map<parid_t, SiteProxyPair> leader_cache_ = {};

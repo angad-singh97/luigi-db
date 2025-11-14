@@ -9,7 +9,8 @@
 
 namespace janus {
 
-MultiPaxosCommo::MultiPaxosCommo(rusty::Arc<PollThreadWorker> poll) : Communicator(poll) {
+MultiPaxosCommo::MultiPaxosCommo(rusty::Arc<PollThreadWorker> poll)
+  : Communicator(poll) {
 }
 
 void MultiPaxosCommo::BroadcastPrepare(parid_t par_id,

@@ -108,11 +108,11 @@ std::atomic<int> ExtendedRPCTest::port_offset{0};
 // Test 1: Multiple clients connecting to the same server
 TEST_F(ExtendedRPCTest, MultipleClients) {
     const int num_clients = 10;
-    std::vector<std::shared_ptr<Client>> clients;
+    std::vector<rusty::Arc<Client>> clients;
 
     // Create multiple clients
     for (int i = 0; i < num_clients; i++) {
-        auto client = std::make_shared<Client>(poll_thread_worker_);
+        auto client = Client::create(poll_thread_worker_);
         ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
         clients.push_back(client);
     }
@@ -139,13 +139,13 @@ TEST_F(ExtendedRPCTest, MultipleClients) {
     // Cleanup
     for (auto client : clients) {
         client->close();
-        // shared_ptr handles cleanup automatically
+        // Arc handles cleanup automatically
     }
 }
 
 // Test 2: Client reconnection after disconnect
 TEST_F(ExtendedRPCTest, ClientReconnection) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     // Make initial request
@@ -159,13 +159,13 @@ TEST_F(ExtendedRPCTest, ClientReconnection) {
 
     // Disconnect
     client->close();
-    client.reset();  // Release the shared_ptr
+    // Arc doesn't have reset() - just reassign or let it go out of scope
 
     // Wait a bit
     std::this_thread::sleep_for(milliseconds(100));
 
     // Create new client for reconnection
-    client = std::make_shared<Client>(poll_thread_worker_);
+    client = Client::create(poll_thread_worker_);
 
     // Reconnect
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
@@ -182,12 +182,12 @@ TEST_F(ExtendedRPCTest, ClientReconnection) {
     EXPECT_EQ(service->call_count, 2);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Test 3: Request timeout handling
 TEST_F(ExtendedRPCTest, RequestTimeout) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     // Set service to delay longer than timeout
@@ -213,7 +213,7 @@ TEST_F(ExtendedRPCTest, RequestTimeout) {
 
     fu->release();
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Test 4: Rapid connect/disconnect cycles
@@ -221,7 +221,7 @@ TEST_F(ExtendedRPCTest, RapidConnectDisconnect) {
     const int num_cycles = 20;
 
     for (int i = 0; i < num_cycles; i++) {
-        auto client = std::make_shared<Client>(poll_thread_worker_);
+        auto client = Client::create(poll_thread_worker_);
         ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
         // Make a quick request
@@ -235,7 +235,7 @@ TEST_F(ExtendedRPCTest, RapidConnectDisconnect) {
         fu->release();
 
         client->close();
-        // shared_ptr handles cleanup automatically
+        // Arc handles cleanup automatically
 
         // Small delay to avoid overwhelming the system
         std::this_thread::sleep_for(milliseconds(10));
@@ -246,7 +246,7 @@ TEST_F(ExtendedRPCTest, RapidConnectDisconnect) {
 
 // Test 5: Mixed payload sizes
 TEST_F(ExtendedRPCTest, MixedPayloadSizes) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     std::vector<int> sizes = {1, 10, 100, 1000, 10000, 100000, 1000000};
@@ -269,12 +269,12 @@ TEST_F(ExtendedRPCTest, MixedPayloadSizes) {
     EXPECT_EQ(service->call_count, static_cast<int>(sizes.size()));
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Test 6: Burst traffic pattern
 TEST_F(ExtendedRPCTest, BurstTraffic) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     const int burst_size = 100;
@@ -313,12 +313,12 @@ TEST_F(ExtendedRPCTest, BurstTraffic) {
     EXPECT_EQ(service->call_count, burst_size * num_bursts);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Test 7: Interleaved request types
 TEST_F(ExtendedRPCTest, InterleavedRequestTypes) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     std::vector<Future*> futures;
@@ -373,12 +373,12 @@ TEST_F(ExtendedRPCTest, InterleavedRequestTypes) {
     EXPECT_EQ(service->call_count, 20);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Test 8: Pipelined requests (send multiple before waiting)
 TEST_F(ExtendedRPCTest, PipelinedRequests) {
-    auto client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(current_port)).c_str()), 0);
 
     const int pipeline_depth = 50;
@@ -408,7 +408,7 @@ TEST_F(ExtendedRPCTest, PipelinedRequests) {
     EXPECT_EQ(service->call_count, pipeline_depth);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 int main(int argc, char** argv) {

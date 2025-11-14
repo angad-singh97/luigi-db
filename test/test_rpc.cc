@@ -66,7 +66,7 @@ protected:
     rusty::Arc<PollThreadWorker> poll_thread_worker_;  // Shared Arc<PollThreadWorker>
     Server* server;
     TestService* service;
-    std::shared_ptr<Client> client;
+    rusty::Arc<Client> client;
     static constexpr int test_port = 8848;
 
     void SetUp() override {
@@ -81,8 +81,8 @@ protected:
 
         ASSERT_EQ(server->start(("0.0.0.0:" + std::to_string(test_port)).c_str()), 0);
 
-        // Client takes Arc<Mutex<>>
-        client = std::make_shared<Client>(poll_thread_worker_);
+        // Client must be created with factory method to initialize weak_self_
+        client = Client::create(poll_thread_worker_);
         ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(test_port)).c_str()), 0);
 
         std::this_thread::sleep_for(milliseconds(100));
@@ -287,12 +287,12 @@ TEST_F(RPCTest, ConnectionResilience) {
     fu1->release();
 
     client->close();
-    client.reset();  // Release the shared_ptr
+    client = rusty::Arc<Client>();  // Release the Arc
 
     std::this_thread::sleep_for(milliseconds(100));
 
-    // Create new client with Arc<Mutex<>>
-    client = std::make_shared<Client>(poll_thread_worker_);
+    // Create new client using factory method
+    client = Client::create(poll_thread_worker_);
     ASSERT_EQ(client->connect(("127.0.0.1:" + std::to_string(test_port)).c_str()), 0);
 
     std::this_thread::sleep_for(milliseconds(100));
@@ -395,39 +395,36 @@ protected:
 };
 
 TEST_F(ConnectionErrorTest, ConnectToNonExistentServer) {
-    std::shared_ptr<Client> client;
-    client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
 
     int result = client->connect("127.0.0.1:9999");
 
     EXPECT_NE(result, 0);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 TEST_F(ConnectionErrorTest, InvalidAddress) {
-    std::shared_ptr<Client> client;
-    client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
 
     int result = client->connect("invalid_address:1234");
 
     EXPECT_NE(result, 0);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 TEST_F(ConnectionErrorTest, InvalidPort) {
-    std::shared_ptr<Client> client;
-    client = std::make_shared<Client>(poll_thread_worker_);
+    auto client = Client::create(poll_thread_worker_);
 
     int result = client->connect("127.0.0.1:99999");
 
     EXPECT_NE(result, 0);
 
     client->close();
-    // shared_ptr handles cleanup automatically
+    // Arc handles cleanup automatically
 }
 
 // Stress test for PollThreadWorker thread safety
@@ -452,7 +449,7 @@ TEST_F(RPCTest, MultiThreadedStressTest) {
                 int thread_failures = 0;
 
                 // Each thread creates its own client using the shared PollThreadWorker
-                auto thread_client = std::make_shared<Client>(worker);
+                auto thread_client = Client::create(worker);
 
                 // Connect to server
                 int conn_result = thread_client->connect("127.0.0.1:8848");

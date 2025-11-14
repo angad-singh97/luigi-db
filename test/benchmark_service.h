@@ -32,16 +32,16 @@ inline rrr::Marshal& operator >>(rrr::Marshal& m, point3& o) {
 class BenchmarkService: public rrr::Service {
 public:
     enum {
-        FAST_PRIME = 0x679271a0,
-        FAST_DOT_PROD = 0x3b4c4925,
-        FAST_ADD = 0x2f021e20,
-        FAST_NOP = 0x4f4766c2,
-        FAST_VEC = 0x308c757d,
-        PRIME = 0x4897f15c,
-        DOT_PROD = 0x445ecc3c,
-        ADD = 0x44176f78,
-        NOP = 0x39279482,
-        SLEEP = 0x6c79fbb6,
+        FAST_PRIME = 0x5c2cf26b,
+        FAST_DOT_PROD = 0x554252c5,
+        FAST_ADD = 0x1c62d584,
+        FAST_NOP = 0x6100326c,
+        FAST_VEC = 0x14a9b2a2,
+        PRIME = 0x3f90ca43,
+        DOT_PROD = 0x12b88302,
+        ADD = 0x6e695d1b,
+        NOP = 0x6baf7e60,
+        SLEEP = 0x2e670cc7,
     };
     int __reg_to__(rrr::Server* svr) {
         int ret = 0;
@@ -90,7 +90,7 @@ public:
         return ret;
     }
     // these RPC handler functions need to be implemented by user
-    // for 'raw' handlers, req is rusty::Box (auto-cleaned); weak_ptr requires lock() before use
+    // for 'raw' handlers, req is rusty::Box (auto-cleaned); weak_sconn requires lock() before use
     virtual void fast_prime(const rrr::i32& n, rrr::i8* flag);
     virtual void fast_dot_prod(const point3& p1, const point3& p2, double* v);
     virtual void fast_add(const rrr::v32& a, const rrr::v32& b, rrr::v32* a_add_b);
@@ -102,135 +102,145 @@ public:
     virtual void nop(const std::string&);
     virtual void sleep(const double& sec);
 private:
-    void __fast_prime__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __fast_prime__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::i32 in_0;
         req->m >> in_0;
         rrr::i8 out_0;
         this->fast_prime(in_0, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __fast_dot_prod__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __fast_dot_prod__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         point3 in_0;
         req->m >> in_0;
         point3 in_1;
         req->m >> in_1;
         double out_0;
         this->fast_dot_prod(in_0, in_1, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __fast_add__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __fast_add__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::v32 in_0;
         req->m >> in_0;
         rrr::v32 in_1;
         req->m >> in_1;
         rrr::v32 out_0;
         this->fast_add(in_0, in_1, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __fast_nop__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __fast_nop__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         std::string in_0;
         req->m >> in_0;
         this->fast_nop(in_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __fast_vec__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __fast_vec__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::i32 in_0;
         req->m >> in_0;
         std::vector<rrr::i64> out_0;
         this->fast_vec(in_0, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __prime__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __prime__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::i32 in_0;
         req->m >> in_0;
         rrr::i8 out_0;
         this->prime(in_0, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __dot_prod__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __dot_prod__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         point3 in_0;
         req->m >> in_0;
         point3 in_1;
         req->m >> in_1;
         double out_0;
         this->dot_prod(in_0, in_1, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __add__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __add__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::v32 in_0;
         req->m >> in_0;
         rrr::v32 in_1;
         req->m >> in_1;
         rrr::v32 out_0;
         this->add(in_0, in_1, &out_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            *sconn << out_0;
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn) << out_0;
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __nop__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __nop__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         std::string in_0;
         req->m >> in_0;
         this->nop(in_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }
-    void __sleep__wrapper__(rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+    void __sleep__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         double in_0;
         req->m >> in_0;
         this->sleep(in_0);
-        auto sconn = weak_sconn.lock();
-        if (sconn) {
-            sconn->begin_reply(*req);
-            sconn->end_reply();
+        auto sconn_opt = weak_sconn.upgrade();
+        if (sconn_opt.is_some()) {
+            auto sconn = sconn_opt.unwrap();
+            const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
+            const_cast<rrr::ServerConnection&>(*sconn).end_reply();
         }
         // req automatically cleaned up by rusty::Box
     }

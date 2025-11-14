@@ -19,44 +19,44 @@ shared_ptr<ElectionState> es_pw = ElectionState::instance();
 static int volatile xx =
     MarshallDeputy::RegInitializer(MarshallDeputy::CONTAINER_CMD,
                                    []() -> Marshallable* {
-                                     return new LogEntry;
+                                     return new LogEntry();
                                    });
 static int volatile xxx =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_BLK_PXS,
                                      []() -> Marshallable* {
-                                       return new BulkPaxosCmd;
+                                       return new BulkPaxosCmd();
                                      });
 static int volatile x4 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_BLK_PREP_PXS,
                                      []() -> Marshallable* {
-                                       return new BulkPrepareLog;
+                                       return new BulkPrepareLog();
                                      });
 static int volatile x5 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_HRTBT_PXS,
                                      []() -> Marshallable* {
-                                       return new HeartBeatLog;
+                                       return new HeartBeatLog();
                                      });
 
 static int volatile x6 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_SYNCREQ_PXS,
                                      []() -> Marshallable* {
-                                       return new SyncLogRequest;
+                                       return new SyncLogRequest();
                                      });
 
 static int volatile x7 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_SYNCRESP_PXS,
                                      []() -> Marshallable* {
-                                       return new SyncLogResponse;
+                                       return new SyncLogResponse();
                                      });
 static int volatile x8 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_SYNCNOOP_PXS,
                                      []() -> Marshallable* {
-                                       return new SyncNoOpRequest;
+                                       return new SyncNoOpRequest();
                                      });
 static int volatile x9 =
       MarshallDeputy::RegInitializer(MarshallDeputy::CMD_PREP_PXS,
                                      []() -> Marshallable* {
-                                       return new PaxosPrepCmd;
+                                       return new PaxosPrepCmd();
                                      });
 
 static int shared_ptr_apprch = 1;
@@ -516,10 +516,11 @@ void* PaxosWorker::StartReadAccept(void* arg){
     if(cnt <= 0)continue;
     std::vector<shared_ptr<Coordinator>> sub(current.begin(), current.begin() + cnt);
     //Log_debug("Pushing coordinators for bulk accept coordinators here having size %d %d %d %d", (int)sub.size(), pw->n_current.load(), pw->n_tot.load(),pw->site_info_->locale_id);
-    auto sp_job = std::make_shared<OneTimeJob>([&pw, sub]() {
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([&pw, sub]() {
       pw->BulkSubmit(sub);
-    });
-    pw->GetPollThreadWorker()->add(sp_job);
+    }));
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
+    pw->GetPollThreadWorker()->add(arc_job_base);
     sent += cnt;
     if(sent % 2 == 0)Log_info("Total submits %d", sent);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -535,8 +536,8 @@ void PaxosWorker::AddAcceptNc(shared_ptr<Coordinator> coord) {
   all_coords[bulk_writer++] = coord;
 }
 
-void PaxosWorker::submitJob(std::shared_ptr<Job> sp_job){
-	GetPollThreadWorker()->add(sp_job);
+void PaxosWorker::submitJob(rusty::Arc<Job> arc_job){
+	GetPollThreadWorker()->add(arc_job);
 }
 
 void* PaxosWorker::StartReadAcceptNc(void* arg){
@@ -563,15 +564,16 @@ void* PaxosWorker::StartReadAcceptNc(void* arg){
     if(cnt == 0)continue;
     std::vector<shared_ptr<Coordinator>> curr2(current.begin(), current.begin() + cnt);
     //Log_info("Pushing coordinators for bulk accept coordinators here having size %d %d %d %d", (int)curr2.size(), pw->n_current.load(), pw->n_tot.load(),pw->site_info_->locale_id);
-    auto sp_job = std::make_shared<OneTimeJob>([&pw, curr2]() {
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([&pw, curr2]() {
       pw->BulkSubmit(curr2);
-    });
+    }));
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
     /*Log_info("alalslal %d %d %d", cnt, (int)pw->n_tot, (int)pw->n_current);
     if(pw->n_current + cnt >= pw->n_tot){
 	    pw->finish_cond.bcast();
     }*/
     auto strt = std::chrono::high_resolution_clock::now();
-    pw->submitJob(sp_job);
+    pw->submitJob(arc_job_base);
     auto endt = std::chrono::high_resolution_clock::now();
     sent += cnt;
     //if(sent % 2 == 0)Log_info("The number of submitted entries is %d %d", sent, cnt);
@@ -680,10 +682,11 @@ inline void PaxosWorker::_Submit(shared_ptr<Marshallable> sp_m) {
     auto sp_coo = shared_ptr<Coordinator>(coord);
     vector<shared_ptr<Coordinator>> curr2;
     curr2.push_back(sp_coo);
-    auto sp_job = std::make_shared<OneTimeJob>([this, curr2]() {
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this, curr2]() {
       this->BulkSubmit(curr2);
-    });
-    submitJob(sp_job);
+    }));
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
+    submitJob(arc_job_base);
   } else{
     coord->Submit(sp_m);
   }

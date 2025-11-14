@@ -482,9 +482,9 @@ public:
         m >> id >> name >> data;
         return m;
     }
-    
-    size_t EntitySize() override {
-        return sizeof(id) + sizeof(v64) + name.size() + 
+
+    size_t EntitySize() const override {
+        return sizeof(id) + sizeof(v64) + name.size() +
                sizeof(v64) + data.size() * sizeof(double);
     }
 };

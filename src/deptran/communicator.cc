@@ -138,14 +138,15 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = rrr::Client::create(rpc_poll_);
   double elapsed;
   int attempt = 0;
   do {
     Log_info("connect to client site: %s (attempt %d)", addr, attempt++);
     auto connect_result = rpc_cli->connect(addr);
     if (connect_result == SUCCESS) {
-      ClientControlProxy* rpc_proxy = new ClientControlProxy(rpc_cli.get());
+      // Arc::get() returns const T*, but proxy doesn't mutate client
+      ClientControlProxy* rpc_proxy = new ClientControlProxy(const_cast<rrr::Client*>(rpc_cli.get()));
       rpc_clients_.insert(std::make_pair(site.id, rpc_cli));
       Log_debug("connect to client site: %s success!", addr);
       return std::make_pair(SUCCESS, rpc_proxy);
@@ -158,7 +159,7 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to client %s", addr);
   rpc_cli->close();
-  // shared_ptr handles cleanup automatically
+  // Arc handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 
@@ -167,14 +168,15 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = rrr::Client::create(rpc_poll_);
   double elapsed;
   int attempt = 0;
   do {
     Log_info("connect to site: %s (attempt %d)", addr.c_str(), attempt++);
     auto connect_result = rpc_cli->connect(addr.c_str());
     if (connect_result == SUCCESS) {
-      ClassicProxy* rpc_proxy = new ClassicProxy(rpc_cli.get());
+      // Arc::get() returns const T*, but proxy doesn't mutate client
+      ClassicProxy* rpc_proxy = new ClassicProxy(const_cast<rrr::Client*>(rpc_cli.get()));
       rpc_clients_.insert(std::make_pair(site.id, rpc_cli));
       rpc_proxies_.insert(std::make_pair(site.id, rpc_proxy));
       Log_debug("connect to site: %s success!", addr.c_str());
@@ -188,7 +190,7 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to %s", addr.c_str());
   rpc_cli->close();
-  // shared_ptr handles cleanup automatically
+  // Arc handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 
@@ -224,7 +226,8 @@ void Communicator::BroadcastDispatch(
   auto proxy = pair_leader_proxy.second;
   shared_ptr<VecPieceData> sp_vpd(new VecPieceData);
   sp_vpd->sp_vec_piece_data_ = sp_vec_piece;
-  MarshallDeputy md(sp_vpd); // ????
+  // Use shared_ptr directly for MarshallDeputy
+  MarshallDeputy md(sp_vpd);
   auto future = proxy->async_Dispatch(cmd_id, md, fuattr);
   Future::safe_release(future);
   // FIXME fix this, this cause occ and perhaps 2pl to fail

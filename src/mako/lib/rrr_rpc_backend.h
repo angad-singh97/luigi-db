@@ -50,7 +50,7 @@ public:
     std::vector<char> response_data;
 
     // Connection to send response back
-    std::shared_ptr<rrr::ServerConnection> sconn;
+    rusty::Arc<rrr::ServerConnection> sconn;
 
     // Original request (needed for begin_reply)
     rusty::Box<rrr::Request> original_request;
@@ -63,9 +63,9 @@ public:
     uint16_t server_id;
 
     // Constructor (Box requires move semantics, no default constructor)
-    RrrRequestHandle(rusty::Box<rrr::Request>&& req, std::shared_ptr<rrr::ServerConnection> conn, uint8_t type,
+    RrrRequestHandle(rusty::Box<rrr::Request>&& req, rusty::Arc<rrr::ServerConnection> conn, uint8_t type,
                      RrrRpcBackend* be, uint16_t sid)
-        : original_request(std::move(req)), sconn(conn), req_type(type), backend(be), server_id(sid) {}
+        : original_request(std::move(req)), sconn(std::move(conn)), req_type(type), backend(be), server_id(sid) {}
 
     // Move constructor/assignment (Box is move-only)
     RrrRequestHandle(RrrRequestHandle&& other) = default;
@@ -182,7 +182,7 @@ private:
     rrr::Server* server_{nullptr};
 
     // Client connections: {(cluster_role, shard_idx, server_id) -> Client}
-    std::map<std::tuple<uint8_t, uint8_t, uint16_t>, std::shared_ptr<rrr::Client>> clients_;
+    std::map<std::tuple<uint8_t, uint8_t, uint16_t>, rusty::Arc<rrr::Client>> clients_;
     std::mutex clients_lock_;
 
     // Runtime state
@@ -205,10 +205,10 @@ private:
     std::mutex rrr_request_map_lock_;
 
     // Internal helper methods
-    std::shared_ptr<rrr::Client> GetOrCreateClient(uint8_t shard_idx, uint16_t server_id, int force_center = -1);
+    rusty::Arc<rrr::Client> GetOrCreateClient(uint8_t shard_idx, uint16_t server_id, int force_center = -1);
 
     // Static request handler for rrr::Server
-    static void RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn, RrrRpcBackend* backend);
+    static void RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn, RrrRpcBackend* backend);
 };
 
 } // namespace mako

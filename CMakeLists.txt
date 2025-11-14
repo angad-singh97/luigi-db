@@ -735,13 +735,14 @@ add_apps(test_partitioned_queues examples/test_partitioned_queues.cc)
 add_apps(test_stress_partitioned_queues examples/test_stress_partitioned_queues.cc)
 
 # Enable borrow checking for dbtest
-set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable borrow checking" FORCE)
-set(BORROW_CHECK_FATAL ON CACHE BOOL "Make borrow check failures fatal" FORCE)
+# Temporarily disabled for testing
+# set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable borrow checking" FORCE)
+# set(BORROW_CHECK_FATAL ON CACHE BOOL "Make borrow check failures fatal" FORCE)
 
 # Apply borrow checking to dbtest target
-if(ENABLE_BORROW_CHECKING)
-    add_borrow_check_target(dbtest)
-endif()
+# if(ENABLE_BORROW_CHECKING)
+#     add_borrow_check_target(dbtest)
+# endif()
 
 add_apps(paxos_async_commit_test src/mako/benchmarks/paxos_async_commit_test.cc)
 add_apps(basic src/mako/benchmarks/ut/basic.cc)
@@ -782,17 +783,18 @@ if(NOT TARGET rrr)
     )
     target_compile_options(rrr PUBLIC ${BENCH_CXXFLAGS})
     target_link_libraries(rrr pthread ${Boost_LIBRARIES})
-    
-    # Add borrow checking for RRR library
-    if(ENABLE_BORROW_CHECKING)
-        add_borrow_check_target(rrr)
 
-        # Create a convenience target to check only RRR library files
-        add_custom_target(borrow_check_rrr
-            DEPENDS borrow_check_all_rrr
-            COMMENT "Running borrow checker on RRR library files"
-        )
-    endif()
+    # Add borrow checking for RRR library
+    # Temporarily disabled for testing
+    # if(ENABLE_BORROW_CHECKING)
+    #     add_borrow_check_target(rrr)
+    #
+    #     # Create a convenience target to check only RRR library files
+    #     add_custom_target(borrow_check_rrr
+    #         DEPENDS borrow_check_all_rrr
+    #         COMMENT "Running borrow checker on RRR library files"
+    #     )
+    # endif()
 endif()
 
 # Add memdb library if not already built

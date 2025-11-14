@@ -157,14 +157,16 @@ void ClientWorker::Work() {
     Log_info("closed loop clients.");
     verify(n_concurrent_ > 0);
     int n = n_concurrent_;
-    auto sp_job = std::make_shared<OneTimeJob>([this] () {
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this] () {
       for (uint32_t n_tx = 0; n_tx < n_concurrent_; n_tx++) {
         auto coo = CreateCoordinator(n_tx);
         Log_debug("create coordinator %d", coo->coo_id_);
         this->DispatchRequest(coo);
       }
-    });
-    poll_thread_worker_->add(dynamic_pointer_cast<Job>(sp_job));
+    }));
+    // Cast OneTimeJob to Job base class for PollThreadWorker
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
+    poll_thread_worker_->add(arc_job_base);
   } else {
     Log_info("open loop clients.");
     const std::chrono::nanoseconds wait_time
@@ -178,11 +180,12 @@ void ClientWorker::Work() {
       while (tps < config_->client_rate_ && timer_->elapsed() < duration) {
         auto coo = FindOrCreateCoordinator();
         if (coo != nullptr) {
-          auto p_job = (Job*)new OneTimeJob([this, coo] () {
+          auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this, coo] () {
             this->DispatchRequest(coo);
-          });
-          shared_ptr<Job> sp_job(p_job);
-          poll_thread_worker_->add(sp_job);
+          }));
+          // Cast OneTimeJob to Job base class
+          auto arc_job_base = rusty::Arc<Job>(arc_job);
+          poll_thread_worker_->add(arc_job_base);
           txn_count++;
           elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>
               (std::chrono::steady_clock::now() - start);

@@ -27,7 +27,8 @@ void JanusCommo::SendDispatch(vector<TxPieceData>& cmd,
           verify(rgraph.vertex_index().size() > 0);
           callback(res, output, rgraph);
         } else if (md.kind_ == MarshallDeputy::RCC_GRAPH) {
-          RccGraph& graph = dynamic_cast<RccGraph&>(*md.sp_data_);
+          // Arc returns const reference, use const_cast for mutation
+          auto& graph = dynamic_cast<RccGraph&>(const_cast<Marshallable&>(*md.sp_data_));
           callback(res, output, graph);
         } else {
           verify(0);
@@ -57,7 +58,8 @@ void JanusCommo::SendInquire(parid_t pid,
   function<void(Future*)> cb = [callback](Future* fu) {
     MarshallDeputy md;
     fu->get_reply() >> md;
-    auto graph = dynamic_cast<RccGraph&>(*md.sp_data_);
+    // Arc returns const reference, use const_cast for mutation
+    auto& graph = dynamic_cast<RccGraph&>(const_cast<Marshallable&>(*md.sp_data_));
     callback(graph);
   };
   fuattr.callback = cb;
@@ -86,8 +88,10 @@ void JanusCommo::BroadcastPreAccept(
       int32_t res;
       MarshallDeputy md;
       fu->get_reply() >> res >> md;
-      auto sp = dynamic_pointer_cast<RccGraph>(md.sp_data_);
-      verify(sp);
+      // Arc returns const reference, use const_cast for mutation
+      auto& graph = dynamic_cast<RccGraph&>(const_cast<Marshallable&>(*md.sp_data_));
+      // Convert back to shared_ptr for callback (bridge pattern)
+      auto sp = std::make_shared<RccGraph>(graph);
       callback(res, sp);
     };
     verify(txn_id > 0);
@@ -95,7 +99,9 @@ void JanusCommo::BroadcastPreAccept(
     if (skip_graph) {
       f = proxy->async_JanusPreAcceptWoGraph(txn_id, RANK_UNDEFINED, cmds, fuattr);
     } else {
-      MarshallDeputy md(sp_graph);
+      // Use shared_ptr directly for MarshallDeputy
+      auto sp_graph_copy = std::make_shared<RccGraph>(*sp_graph);
+      MarshallDeputy md(sp_graph_copy);
       f = proxy->async_JanusPreAccept(txn_id, RANK_UNDEFINED, cmds, md, fuattr);
     }
     Future::safe_release(f);
@@ -118,7 +124,9 @@ void JanusCommo::BroadcastAccept(parid_t par_id,
       callback(res);
     };
     verify(cmd_id > 0);
-    MarshallDeputy md(graph);
+    // Use shared_ptr directly for MarshallDeputy
+    auto sp_graph = std::make_shared<RccGraph>(*graph);
+    MarshallDeputy md(sp_graph);
     Future::safe_release(proxy->async_JanusAccept(cmd_id,
                                                   ballot,
                                                   md,
@@ -151,7 +159,9 @@ void JanusCommo::BroadcastCommit(
       Future::safe_release(
           proxy->async_JanusCommitWoGraph(cmd_id, 0, need_validation, fuattr));
     } else {
-      MarshallDeputy md(graph);
+      // Use shared_ptr directly for MarshallDeputy
+      auto sp_graph = std::make_shared<RccGraph>(*graph);
+      MarshallDeputy md(sp_graph);
       Future::safe_release(
           proxy->async_JanusCommit(cmd_id, 0, need_validation, md, fuattr));
     }

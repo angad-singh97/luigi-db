@@ -70,7 +70,7 @@ int RrrRpcBackend::Initialize(const std::string& local_uri,
     // Register request handlers for all request types
     // Note: We capture both req_type and 'this' in the lambda
     for (uint8_t req_type = st_nr_req_types; req_type <= end_nr_req_types; req_type++) {
-        server_->reg(req_type, [this, req_type](rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn) {
+        server_->reg(req_type, [this, req_type](rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
             RequestHandler(req_type, std::move(req), weak_sconn, this);
         });
     }
@@ -156,9 +156,9 @@ void RrrRpcBackend::FreeRequestBuffer() {
 }
 
 // Get or create client connection to a shard
-std::shared_ptr<rrr::Client> RrrRpcBackend::GetOrCreateClient(uint8_t shard_idx,
-                                                               uint16_t server_id,
-                                                               int force_center) {
+rusty::Arc<rrr::Client> RrrRpcBackend::GetOrCreateClient(uint8_t shard_idx,
+                                                          uint16_t server_id,
+                                                          int force_center) {
     int clusterRoleSentTo = cluster_role_;
 
     // Handle shard failure scenarios (same logic as eRPC)
@@ -195,13 +195,13 @@ std::shared_ptr<rrr::Client> RrrRpcBackend::GetOrCreateClient(uint8_t shard_idx,
     if (it != clients_.end()) {
         clients_lock_.unlock();
         Debug("GetOrCreateClient: Reusing existing client for shard %d, server %d", shard_idx, server_id);
-        return it->second;
+        return it->second.clone();
     }
 
     // Create new client
     Debug("GetOrCreateClient: Creating new client for shard %d, server %d", shard_idx, server_id);
 
-    std::shared_ptr<rrr::Client> client = rrr::Client::create(poll_thread_worker_);
+    rusty::Arc<rrr::Client> client = rrr::Client::create(poll_thread_worker_);
 
     // Connect to destination
     int port = std::atoi(config_.shard(shard_idx, clusterRoleSentTo).port.c_str()) + server_id;
@@ -213,11 +213,11 @@ std::shared_ptr<rrr::Client> RrrRpcBackend::GetOrCreateClient(uint8_t shard_idx,
     if (ret != 0) {
         Warning("Failed to connect to %s (error %d)", addr.c_str(), ret);
         clients_lock_.unlock();
-        return nullptr;
+        return rusty::Arc<rrr::Client>();  // Return empty Arc
     }
 
     // Store client
-    clients_[session_key] = client;
+    clients_[session_key] = client.clone();
     clients_lock_.unlock();
 
     Debug("Created rrr::Client connection to %s", addr.c_str());
@@ -244,8 +244,8 @@ bool RrrRpcBackend::SendToShard(TransportReceiver* src,
         return false;
     }
 
-    std::shared_ptr<rrr::Client> client = GetOrCreateClient(shard_idx, server_id);
-    if (!client) {
+    rusty::Arc<rrr::Client> client = GetOrCreateClient(shard_idx, server_id);
+    if (!client.is_valid()) {
         Warning("Failed to get client for shard %d, server %d", shard_idx, server_id);
         return false;
     }
@@ -344,8 +344,8 @@ bool RrrRpcBackend::SendToAll(TransportReceiver* src,
 
         Debug("RrrRpcBackend::SendToAll: Sending to shard %d", shard_idx);
 
-        std::shared_ptr<rrr::Client> client = GetOrCreateClient(shard_idx, server_id, force_center);
-        if (!client) {
+        rusty::Arc<rrr::Client> client = GetOrCreateClient(shard_idx, server_id, force_center);
+        if (!client.is_valid()) {
             Warning("Failed to get client for shard %d", shard_idx);
             continue;
         }
@@ -438,8 +438,8 @@ bool RrrRpcBackend::SendBatchToAll(TransportReceiver* src,
         char* raw_data = entry.second.first;
         size_t req_len = entry.second.second;
 
-        std::shared_ptr<rrr::Client> client = GetOrCreateClient(shard_idx, server_id);
-        if (!client) continue;
+        rusty::Arc<rrr::Client> client = GetOrCreateClient(shard_idx, server_id);
+        if (!client.is_valid()) continue;
 
         rrr::Future* fu = client->begin_request(req_type);
         if (!fu) continue;
@@ -555,11 +555,11 @@ void RrrRpcBackend::RunEventLoop() {
                 }
 
                 // Send response back via rrr/rpc
-                rrr_handle->sconn->begin_reply(*rrr_handle->original_request);
+                const_cast<rrr::ServerConnection&>(*rrr_handle->sconn).begin_reply(*rrr_handle->original_request);
                 rrr::Marshal m;
                 m.write(rrr_handle->response_data.data(), msg_size);
-                *rrr_handle->sconn << m;
-                rrr_handle->sconn->end_reply();
+                const_cast<rrr::ServerConnection&>(*rrr_handle->sconn) << m;
+                const_cast<rrr::ServerConnection&>(*rrr_handle->sconn).end_reply();
 
                 msg_size_resp_sent_ += msg_size;
                 msg_counter_resp_sent_ += 1;
@@ -682,7 +682,7 @@ void RrrRpcBackend::PrintStats() {
 }
 
 // Static request handler for rrr::Server
-void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> req, std::weak_ptr<rrr::ServerConnection> weak_sconn, RrrRpcBackend* backend) {
+void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn, RrrRpcBackend* backend) {
     if (!backend) {
         Warning("RequestHandler called with null backend pointer!");
         return;
@@ -693,13 +693,13 @@ void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> re
         Debug("RequestHandler: Backend is stopping, ignoring request type %d", req_type);
         return;
     }
-
-    // Lock the weak_ptr to get shared_ptr
-    auto sconn = weak_sconn.lock();
-    if (!sconn) {
+    // Upgrade weak reference to get Arc
+    auto sconn_opt = weak_sconn.upgrade();
+    if (!sconn_opt.is_some()) {
         Warning("ServerConnection closed before handling request");
         return;
     }
+    auto sconn = sconn_opt.unwrap();
 
     // Handle special request types
     if (req_type == watermarkReqType) {
@@ -717,11 +717,11 @@ void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> re
         resp.shard_index = TThread::get_shard_index();
 
         // Send response
-        sconn->begin_reply(*req);
+        const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
         rrr::Marshal m;
         m.write(&resp, sizeof(resp));
-        *sconn << m;
-        sconn->end_reply();
+        const_cast<rrr::ServerConnection&>(*sconn) << m;
+        const_cast<rrr::ServerConnection&>(*sconn).end_reply();
 
         backend->msg_size_resp_sent_ += sizeof(resp);
         backend->msg_counter_resp_sent_ += 1;
@@ -740,11 +740,11 @@ void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> re
         resp.status = ErrorCode::SUCCESS;
         resp.shard_index = TThread::get_shard_index();
 
-        sconn->begin_reply(*req);
+        const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
         rrr::Marshal m;
         m.write(&resp, sizeof(resp));
-        *sconn << m;
-        sconn->end_reply();
+        const_cast<rrr::ServerConnection&>(*sconn) << m;
+        const_cast<rrr::ServerConnection&>(*sconn).end_reply();
 
         backend->msg_size_resp_sent_ += sizeof(resp);
         backend->msg_counter_resp_sent_ += 1;
@@ -774,11 +774,11 @@ void RrrRpcBackend::RequestHandler(uint8_t req_type, rusty::Box<rrr::Request> re
         resp.status = ErrorCode::SUCCESS;
         resp.shard_index = TThread::get_shard_index();
 
-        sconn->begin_reply(*req);
+        const_cast<rrr::ServerConnection&>(*sconn).begin_reply(*req);
         rrr::Marshal m;
         m.write(&resp, sizeof(resp));
-        *sconn << m;
-        sconn->end_reply();
+        const_cast<rrr::ServerConnection&>(*sconn) << m;
+        const_cast<rrr::ServerConnection&>(*sconn).end_reply();
 
         backend->msg_size_resp_sent_ += sizeof(resp);
         backend->msg_counter_resp_sent_ += 1;

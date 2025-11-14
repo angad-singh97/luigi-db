@@ -61,7 +61,9 @@ void RccCommo::SendFinish(parid_t pid,
   };
   fuattr.callback = cb;
   auto proxy = NearestProxyForPartition(pid).second;
-  MarshallDeputy md(graph);
+  // Use shared_ptr directly for MarshallDeputy
+  auto sp_graph = std::make_shared<RccGraph>(*graph);
+  MarshallDeputy md(sp_graph);
   Future::safe_release(proxy->async_RccFinish(tid, md, fuattr));
 }
 
@@ -104,7 +106,9 @@ void RccCommo::BroadcastCommit(parid_t par_id,
     if (skip_graph) {
       Future::safe_release(proxy->async_JanusCommitWoGraph(cmd_id, RANK_UNDEFINED, need_validation, fuattr));
     } else {
-      MarshallDeputy md(graph);
+      // Use shared_ptr directly for MarshallDeputy
+      auto sp_graph = std::make_shared<RccGraph>(*graph);
+      MarshallDeputy md(sp_graph);
       Future::safe_release(proxy->async_JanusCommit(cmd_id, RANK_UNDEFINED, need_validation, md, fuattr));
     }
   }

@@ -90,7 +90,7 @@ TEST(CoroutineTest, yield) {
   ASSERT_EQ(x, 3);
 }
 
-shared_ptr<Coroutine> xxx() {
+rusty::Rc<Coroutine> xxx() {
     int x;
     auto coro1 = Coroutine::CreateRun([&x] () {
         x = 1;
@@ -100,7 +100,7 @@ shared_ptr<Coroutine> xxx() {
 }
 
 TEST(CoroutineTest, destruct) {
-    shared_ptr<Coroutine> c = xxx();
+    rusty::Rc<Coroutine> c = xxx();
     c->Continue();
 }
 
