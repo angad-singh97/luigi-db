@@ -97,9 +97,12 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
             // setup frame and scheduler
             //worker->SetupBase();
             // start server service
+            Log_info("[DEBUG] site %d: calling SetupService()", (int)site_info_for_thread.id);
             worker->SetupService();
+            Log_info("[DEBUG] site %d: SetupService() complete, calling SetupCommo()", (int)site_info_for_thread.id);
             // setup communicator
             worker->SetupCommo();
+            Log_info("[DEBUG] site %d: SetupCommo() complete, calling InitQueueRead()", (int)site_info_for_thread.id);
             worker->InitQueueRead();
             Log_info("site %d launched!", (int)site_info_for_thread.id);
         }));
@@ -314,9 +317,17 @@ int shutdown_paxos() {
     fflush(stderr);
     fflush(stdout);
 
+    // Add a small delay to allow network operations to complete gracefully
+    // This prevents crashes during cleanup when connections are still active
+    usleep(100 * 1000); // 100ms delay
+
     for (auto& worker : pxs_workers_g) {
         worker->ShutDown();
     }
+
+    // Another small delay before clearing workers
+    usleep(50 * 1000); // 50ms delay
+
     pxs_workers_g.clear();
 
     RandomGenerator::destroy();
@@ -414,20 +425,26 @@ static tp firstTime;
 static tp endTime;
 static bool debug = false;
 void add_log_to_nc(const char* log, int len, uint32_t par_id, int batch_size) {
-  //Log_info("add_log_to_nc, par_id:%d, len:%d, es->mid:%d, isLeader:%d, batch_size:%d",par_id,len,es->machine_id, pxs_workers_g[par_id]->is_leader, batch_size);
-  //pxs_workers_g[par_id]->election_state_lock.lock();
-  if(!pxs_workers_g[par_id]->is_leader){
-    if(es->machine_id != 0)
-	     Log_info("Did not find to be leader, len: %d,par_id:%d",len,par_id);
-  //pxs_workers_g[par_id]->election_state_lock.unlock();
+  // Find the worker for this partition by iterating, don't assume index == partition_id
+  for (auto& worker : pxs_workers_g) {
+    if (worker->site_info_->partition_id_ != par_id) {
+      continue;
+    }
+
+    // Check if this worker is the leader for this partition
+    if(!worker->is_leader){
+      if(es->machine_id != 0)
+        Log_info("Did not find to be leader, len: %d,par_id:%d",len,par_id);
+      return;
+    }
+
+    // Submit the log
+    add_log_without_queue((char*)log, len, par_id);
     return;
   }
-  //pxs_workers_g[par_id]->election_state_lock.unlock();
 
-	// l_.lock();
-	// len = len;
-	add_log_without_queue((char*)log, len, par_id);
-	// l_.unlock();
+  // If we get here, no worker found for this partition
+  Log_error("add_log_to_nc: no worker found for par_id %d", par_id);
 }
 
 void* PollSubQNc(void* arg){

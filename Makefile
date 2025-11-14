@@ -8,7 +8,7 @@ BUILD_DIR = build
 all: build
 
 configure:
-	cmake -S . -B $(BUILD_DIR) 
+	cmake -S . -B $(BUILD_DIR) -DCMAKE_CXX_FLAGS="-DREUSE_CORO" 
 
 build: configure
 	@echo "Building with $(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) parallel jobs..."
