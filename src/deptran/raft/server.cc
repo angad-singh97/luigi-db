@@ -1565,11 +1565,14 @@ void RaftServer::StartLeadershipTransferMonitoring() {
  * - Server is shutting down
  */
 void RaftServer::StopLeadershipTransferMonitoring() {
-  // Just set the stop flag - don't join the thread here to avoid deadlocks
-  // The thread will exit on its own when it sees the flag
-  // The destructor will clean up the thread handle if needed
   leadership_monitor_stop_ = true;
-  Log_debug("[LEADERSHIP-TRANSFER] Site %d: Monitor stop flag set (thread will exit naturally)", site_id_);
+
+  // Detach the monitor thread so it can exit gracefully without deadlock
+  // The thread will see leadership_monitor_stop_ and exit on its own
+  if (leadership_monitor_thread_.joinable()) {
+    Log_debug("[LEADERSHIP-TRANSFER] Site %d: Detaching monitor thread (will exit on its own)", site_id_);
+    leadership_monitor_thread_.detach();
+  }
 }
 
 } // namespace janus

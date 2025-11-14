@@ -291,8 +291,6 @@ int setup2(int action, int shardIndex) {
   for (const auto& site : all_sites) {
     if (site.locale_id == 0) {  // locale_id == machine_id (p2)
       preferred_site_id = site.id;
-      Log_info("[PREFERRED-REPLICA] Found p2 in config: site_id=%d (locale_id=2)",
-               preferred_site_id);
       break;
     }
   }

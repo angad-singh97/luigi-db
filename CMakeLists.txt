@@ -813,6 +813,7 @@ add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(continuousTransactions examples/continuousTransactions.cc)
 add_apps(simplePaxos examples/simplePaxos.cc)
+add_apps(simpleRaft examples/mako-raft-tests/simpleRaft.cc)
 
 add_apps(testPreferredReplicaStartup examples/mako-raft-tests/testPreferredReplicaStartup.cc)
 add_apps(testPreferredReplicaLogReplication examples/mako-raft-tests/testPreferredReplicaLogReplication.cc)
