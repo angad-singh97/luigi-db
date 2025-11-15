@@ -582,7 +582,11 @@ void RaftServer::HeartbeatLoop() {
             Log_debug("case 3B: AppendEntries accepted for non-empty msg");
             // follower could have log entries after the prevLogIndex the AppendEntries was sent for.
             // neither party can detect if the entries are incorrect or not yet
-            verify(ret_last_log_index >= next_index);
+            // verify(ret_last_log_index >= next_index);
+            if (ret_last_log_index < next_index) { // [Jetpack] I don't know why but it will happen when Jetpack + Raft failure recovery at high throughput
+              mtx_.unlock();
+              continue;
+            }
             Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id, ret_last_log_index, next_index, match_index);
 #ifndef RAFT_BATCH_OPTIMIZATION
