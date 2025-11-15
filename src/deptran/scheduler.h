@@ -11,6 +11,7 @@
 #include "classic/tpc_command.h"
 #include "RW_command.h"
 #include "config.h"
+#include <chrono>
 
 namespace janus {
 
@@ -339,6 +340,7 @@ class TxLogServer {
   int sid, rid, sid_cnt_ = 0;
   RecoverySet rec_set_;
   bool simulated_fail_ = false;
+  std::chrono::steady_clock::time_point jetpack_recovery_start_time_{};
   /* Some Jetpack elements end */
 
   void *svr_workers_g{nullptr};

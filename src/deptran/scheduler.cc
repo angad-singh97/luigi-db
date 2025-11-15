@@ -683,6 +683,7 @@ void Witness::print_log() {
 
 
 void TxLogServer::JetpackRecoveryEntry() {
+  jetpack_recovery_start_time_ = std::chrono::steady_clock::now();
   Log_info("[JETPACK-RECOVERY] ===== STARTING JETPACK RECOVERY ======");
   Log_info("[JETPACK-RECOVERY] Leader: site_id=%d, jepoch=%d, oepoch=%d", site_id_, jepoch_, oepoch_);
   
@@ -692,7 +693,11 @@ void TxLogServer::JetpackRecoveryEntry() {
   // Step 2: Pull ID sets and recover commands, then proceed with consensus
   JetpackRecovery();
   
-  Log_info("[JETPACK-RECOVERY] ===== JETPACK RECOVERY COMPLETED ======");
+  auto recovery_end_time = std::chrono::steady_clock::now();
+  auto recovery_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      recovery_end_time - jetpack_recovery_start_time_).count();
+  Log_info("[JETPACK-RECOVERY] ===== JETPACK RECOVERY COMPLETED ====== duration=%lldms",
+           static_cast<long long>(recovery_duration_ms));
 }
 
 void TxLogServer::JetpackBeginRecovery() {
