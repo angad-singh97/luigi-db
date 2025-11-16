@@ -11,6 +11,14 @@
 #include "misc/marshal.hpp"
 #include "benchmark_service.h"
 
+// External safety annotations for STL functions
+// @external: {
+//   std::function::function: [unsafe]
+//   std::vector::push_back: [unsafe]
+//   Log_error: [unsafe]
+//   std::map::erase: [unsafe]
+// }
+
 using namespace rrr;
 using namespace benchmark;
 using namespace std::chrono;

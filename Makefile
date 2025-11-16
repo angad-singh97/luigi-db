@@ -192,19 +192,6 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named borrow_check_all
-
-# Build rule for target.
-borrow_check_all: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 borrow_check_all
-.PHONY : borrow_check_all
-
-# fast build rule for target.
-borrow_check_all/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/borrow_check_all.dir/build.make CMakeFiles/borrow_check_all.dir/build
-.PHONY : borrow_check_all/fast
-
-#=============================================================================
 # Target rules for targets named build_rusty_cpp_checker
 
 # Build rule for target.
@@ -6095,7 +6082,6 @@ help:
 	@echo "... package_source"
 	@echo "... rebuild_cache"
 	@echo "... test"
-	@echo "... borrow_check_all"
 	@echo "... borrow_check_all_dbtest"
 	@echo "... borrow_check_all_rrr"
 	@echo "... borrow_check_all_test_future"
