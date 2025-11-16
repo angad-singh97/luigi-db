@@ -305,10 +305,10 @@ std::shared_ptr<TpcCommitCommand> RaftWorker::CreateRaftLogCommand(
 
 // Submit hands the log to RaftServer::Start; only leaders should ever accept it.
 void RaftWorker::Submit(const char* log_entry, int length, uint32_t par_id) {
-  Log_info("[RAFT-SUBMIT] Enter Submit: par_id=%d length=%d", par_id, length);
+  // Log_debug("[RAFT-SUBMIT] Enter Submit: par_id=%d length=%d", par_id, length);
 
   if (!IsLeader(par_id)) {
-    Log_info("[RAFT-SUBMIT] Not leader for partition %d, ignoring submit", par_id);
+    // Log_debug("[RAFT-SUBMIT] Not leader for partition %d, ignoring submit", par_id);
     return;
   }
 
@@ -318,7 +318,7 @@ void RaftWorker::Submit(const char* log_entry, int length, uint32_t par_id) {
     return;
   }
 
-  Log_info("[RAFT-SUBMIT] Creating TpcCommitCommand for partition %d", par_id);
+  // Log_debug("[RAFT-SUBMIT] Creating TpcCommitCommand for partition %d", par_id);
 
   // Use a simple incrementing tx_id (in production this would be a global txn ID)
   static std::atomic<txnid_t> next_tx_id{1};
@@ -328,23 +328,23 @@ void RaftWorker::Submit(const char* log_entry, int length, uint32_t par_id) {
   // This matches the structure expected by RAFT_BATCH_OPTIMIZATION and SetLocalAppend
   auto tpc_cmd = CreateRaftLogCommand(log_entry, length, tx_id);
 
-  Log_info("[RAFT-SUBMIT] TpcCommitCommand created: tx_id=%lu, wrapped in VecPieceData", tx_id);
+  // Log_debug("[RAFT-SUBMIT] TpcCommitCommand created: tx_id=%lu, wrapped in VecPieceData", tx_id);
 
   auto cmd = std::static_pointer_cast<Marshallable>(tpc_cmd);
 
   uint64_t index = 0;
   uint64_t term = 0;
-  Log_info("[RAFT-SUBMIT] Calling raft_server->Start() for partition %d", par_id);
+  // Log_debug("[RAFT-SUBMIT] Calling raft_server->Start() for partition %d", par_id);
   bool appended = raft_server->Start(cmd, &index, &term);
   if (!appended) {
-    Log_info("[RAFT-SUBMIT] Start() rejected for partition %d (not leader)", par_id);
+    // Log_debug("[RAFT-SUBMIT] Start() rejected for partition %d (not leader)", par_id);
     return;
   }
 
   n_tot++;
 
-  Log_info("[RAFT-SUBMIT] Start() succeeded for partition %d, index=%lu term=%lu n_tot=%d",
-            par_id, index, term, n_tot.load());
+  // Log_debug("[RAFT-SUBMIT] Start() succeeded for partition %d, index=%lu term=%lu n_tot=%d",
+  //          par_id, index, term, n_tot.load());
 }
 
 // IncSubmit bumps the total-submitted counter used by WaitForSubmit.
@@ -376,7 +376,13 @@ void RaftWorker::WaitForSubmit() {
 // register_apply_callback installs a simple (log,len) callback for leader-side code.
 void RaftWorker::register_apply_callback(std::function<void(const char*, int)> cb) {
   this->callback_ = cb;
-  verify(rep_sched_ != nullptr);
+
+  // Guard against accessing scheduler during shutdown
+  if (!rep_sched_) {
+    Log_warn("[RAFT-CALLBACK] Scheduler already torn down; skip apply callback registration");
+    return;
+  }
+
   rep_sched_->RegLearnerAction(std::bind(&RaftWorker::Next,
                                          this,
                                          std::placeholders::_1,
@@ -387,7 +393,13 @@ void RaftWorker::register_apply_callback(std::function<void(const char*, int)> c
 void RaftWorker::register_apply_callback_par_id(
     std::function<void(const char*&, int, int)> cb) {
   this->callback_par_id_ = cb;
-  verify(rep_sched_ != nullptr);
+
+  // Guard against accessing scheduler during shutdown
+  if (!rep_sched_) {
+    Log_warn("[RAFT-CALLBACK] Scheduler already torn down; skip apply callback registration");
+    return;
+  }
+
   rep_sched_->RegLearnerAction(std::bind(&RaftWorker::Next,
                                          this,
                                          std::placeholders::_1,
@@ -399,7 +411,13 @@ void RaftWorker::register_leader_callback_par_id_return(
     std::function<int(const char*&, int, int, int,
                       std::queue<std::tuple<int, int, int, int, const char*>>&)> cb) {
   this->leader_callback_par_id_return_ = cb;
-  verify(rep_sched_ != nullptr);
+
+  // Guard against accessing scheduler during shutdown
+  if (!rep_sched_) {
+    Log_warn("[RAFT-CALLBACK] Scheduler already torn down; skip leader callback registration for partition %d",
+             site_info_ ? site_info_->partition_id_ : -1);
+    return;
+  }
 
   // Register Next() with RaftServer if not already registered
   // Next() will dynamically choose leader vs follower callback
@@ -417,7 +435,13 @@ void RaftWorker::register_follower_callback_par_id_return(
     std::function<int(const char*&, int, int, int,
                       std::queue<std::tuple<int, int, int, int, const char*>>&)> cb) {
   this->follower_callback_par_id_return_ = cb;
-  verify(rep_sched_ != nullptr);
+
+  // Guard against accessing scheduler during shutdown
+  if (!rep_sched_) {
+    Log_warn("[RAFT-CALLBACK] Scheduler already torn down; skip follower callback registration for partition %d",
+             site_info_ ? site_info_->partition_id_ : -1);
+    return;
+  }
 
   // Register Next() with RaftServer if not already registered
   rep_sched_->RegLearnerAction(std::bind(&RaftWorker::Next,

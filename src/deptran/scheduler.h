@@ -496,7 +496,12 @@ class TxLogServer {
   virtual void Next(Marshallable& cmd) { verify(0); };
 
 	virtual void Setup() { verify(0); } ;
-  virtual bool IsLeader() { verify(0); } ;
+  virtual bool IsLeader() {
+    if (rep_sched_) {
+      return rep_sched_->IsLeader();
+    }
+    return false;
+  }
   // @safe
   virtual bool IsFPGALeader() { verify(0); } ;
 	virtual bool RequestVote() { verify(0); return false;};

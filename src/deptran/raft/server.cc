@@ -380,12 +380,13 @@ void RaftServer::HeartbeatLoop() {
   // if (!failover_) {
     auto proxies = commo()->rpc_par_proxies_[partition_id];
     for (auto& p : proxies) {
-      if (p.first != loc_id_) {
-        // set matchIndex = 0
-        match_index_[p.first] = 0;
-        // set nextIndex = 1
-        next_index_[p.first] = 1;
+      if (p.first == site_id_) {
+        continue;  // skip self
       }
+      // set matchIndex = 0
+      match_index_[p.first] = 0;
+      // set nextIndex = 1
+      next_index_[p.first] = 1;
     }
     // matchedIndex and nextIndex should have indices for all servers except self
     verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id) - 1);
@@ -620,8 +621,12 @@ void RaftServer::HeartbeatLoop() {
             verify(ret_term == term);
             // follower could have log entries after the prevLogIndex the AppendEntries was sent for.
             // neither party can detect if the entries are incorrect or not yet
-            verify(ret_last_log_index >= next_index - 1);
-            if (ret_last_log_index >= next_index) {
+            // Handle case where follower is behind (e.g., during leadership transfer)
+            if (ret_last_log_index + 1 < next_index) {
+              Log_debug("Follower %d is behind (last_index=%lu, next_index=%lu), backing up next_index",
+                        site_id, ret_last_log_index, next_index);
+              next_index = ret_last_log_index + 1;
+            } else if (ret_last_log_index >= next_index) {
               if (next_index <= lastLogIndex) {
                 next_index++;
                 Log_debug("empty heartbeat incrementing next_index for site: %d, next_index: %d", site_id, next_index);
@@ -631,7 +636,15 @@ void RaftServer::HeartbeatLoop() {
             Log_debug("case 3B: AppendEntries accepted for non-empty msg");
             // follower could have log entries after the prevLogIndex the AppendEntries was sent for.
             // neither party can detect if the entries are incorrect or not yet
-            verify(ret_last_log_index >= next_index);
+            // Handle case where follower is behind (standard Raft backtracking)
+            if (ret_last_log_index + 1 < next_index) {
+              Log_debug("Follower %d lagging (last_index=%lu, next_index=%lu), backing up",
+                        site_id, ret_last_log_index, next_index);
+              next_index = ret_last_log_index + 1;
+              match_index = ret_last_log_index;
+              // Don't increment - let next heartbeat retry from backed-up position
+              goto skip_increment;
+            }
             Log_debug("loc %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
                 site_id, ret_last_log_index, next_index, match_index);
 #ifndef RAFT_BATCH_OPTIMIZATION
@@ -648,7 +661,8 @@ void RaftServer::HeartbeatLoop() {
             if (match_index > lastLogIndex) {
               match_index = lastLogIndex;
             }
-            Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld", 
+skip_increment:  // Label for goto when we backtrack next_index
+            Log_debug("leader site %d receiving site %ld followerLastLogIndex=%ld followerNextIndex=%ld followerMatchedIndex=%ld",
                 site_id_, site_id, ret_last_log_index, next_index, match_index);
           }
         }

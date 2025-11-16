@@ -217,7 +217,7 @@ class RaftServer : public TxLogServer {
   void EnsureSetup();
 
   // @safe
-  bool IsLeader() {
+  bool IsLeader() override {
     // Defensive check: if we're shutting down (looping_=false),
     // return false to prevent accessing member variables during destruction
     if (!looping_) {

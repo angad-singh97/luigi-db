@@ -123,13 +123,18 @@ void server_launch_worker(std::vector<Config::SiteInfo>& server_sites) {
              server_sites[i].proc_name.c_str(), server_sites[i].partition_id_);
   }
 
+  for (auto& worker : raft_workers_g) {
+    if (worker) {
+      worker->SetupService();
+    }
+  }
+
   for (size_t i = 0; i < server_sites.size() && i < raft_workers_g.size(); ++i) {
     auto& worker = raft_workers_g[i];
     if (!worker) {
       continue;
     }
 
-    worker->SetupService();
     worker->SetupCommo();
 
     // CRITICAL: Call RaftServer::Setup() AFTER SetupCommo()
@@ -514,24 +519,24 @@ void add_log_without_queue(const char* log, int len, uint32_t par_id) {
 // add_log_to_nc ensures we are leader (waiting briefly if needed) then enqueues.
 void add_log_to_nc(const char* log, int len, uint32_t par_id,
                    int batch_size) {
-  Log_info("[RAFT-ADD-LOG] par_id=%u len=%d batch=%d", par_id, len, batch_size);
+  // Log_debug("[RAFT-ADD-LOG] par_id=%u len=%d batch=%d", par_id, len, batch_size);
   auto* worker = find_worker(par_id);
   if (!worker) {
     Log_warn("[RAFT-ADD-LOG] no worker found for par_id=%u", par_id);
     return;
   }
   bool leader_for_partition = worker->IsLeader(par_id);
-  Log_info("[RAFT-ADD-LOG] worker leader=%s n_submit=%d n_tot=%d",
-           leader_for_partition ? "true" : "false",
-           worker->n_submit.load(),
-           worker->n_tot.load());
+  // Log_debug("[RAFT-ADD-LOG] worker leader=%s n_submit=%d n_tot=%d",
+  //          leader_for_partition ? "true" : "false",
+  //          worker->n_submit.load(),
+  //          worker->n_tot.load());
   if (!leader_for_partition) {
     // Match Paxos behavior: immediately drop if not leader (no waiting)
-    Log_info("[RAFT-ADD-LOG] partition %u not led here, dropping", par_id);
+    // Log_debug("[RAFT-ADD-LOG] partition %u not led here, dropping", par_id);
     return;
   }
   enqueue_to_worker(worker, log, len, par_id, std::max(1, batch_size));
-  Log_info("[RAFT-ADD-LOG] enqueued par_id=%u len=%d batch=%d", par_id, len, batch_size);
+  // Log_debug("[RAFT-ADD-LOG] enqueued par_id=%u len=%d batch=%d", par_id, len, batch_size);
 }
 
 // wait_for_submit blocks until the worker drained its submission queue.
