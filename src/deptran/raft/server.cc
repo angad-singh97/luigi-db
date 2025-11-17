@@ -534,7 +534,7 @@ void RaftServer::HeartbeatLoop() {
                                             &ret_status,
                                             &ret_term,
                                             &ret_last_log_index);
-        r->Wait(100000);
+        r->Wait(); // [Jetpack] aws geo-distributed situation may need more than 100ms
         if (r->status_ == Event::TIMEOUT) {
           continue;
         }
