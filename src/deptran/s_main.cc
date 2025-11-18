@@ -369,6 +369,7 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         // }
         // TODO the idx of client
         idx = find_current_leader();
+        if (idx == -1) break; // [Jetpack] If no leader found, do not need to pause.
 #ifdef FAILOVER_DEBUG
         Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ before pause %d", svr_workers_g[idx].site_info_->id);
         // Log_info("client_workers_g size: %d", client_workers_g.size());
