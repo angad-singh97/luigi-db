@@ -72,6 +72,7 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     
     // Still call the callback to signal completion, but with error status
     func();
+    svr_->app_next_(*cmd); // [Jetpack] Even wrong leader, need a reply to call callback function to update view to avoid wrong leader again next time.
     return;
   } else {
     // Log_info("[YYYYY] Submit to loc_id %d, which is leader. Command kind=%d, is_recovery=%d", 
