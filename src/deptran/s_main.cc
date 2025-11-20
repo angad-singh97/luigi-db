@@ -369,13 +369,14 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         //   }
         // }
         // TODO the idx of client
+        idx = find_current_leader();
+        if (idx == -1) break; // [Jetpack] If no leader found, do not need to pause.
 #ifdef FAILOVER_DEBUG
-        Log_info("!!!!!!!!!!!!!!before pause 0");
-        Log_info("client_workers_g size: %d", client_workers_g.size());
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ before pause %d", svr_workers_g[idx].site_info_->id);
+        // Log_info("client_workers_g size: %d", client_workers_g.size());
 #endif
         // client_workers_g[0]->Pause(idx) ;
-        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ client_workers_g paused");
-        idx = find_current_leader();
+        // Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ client_workers_g paused");
         svr_workers_g[idx].Pause() ;
         Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ svr_workers_g %d paused", idx);
         for (int i = 0; i < client_workers_g.size() ; ++i)
@@ -399,7 +400,7 @@ void server_failover_co(bool random, bool leader, int srv_idx)
         //   }
         // }        
 #ifdef FAILOVER_DEBUG
-        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ before resume 0");
+        Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ before resume %d", svr_workers_g[idx].site_info_->id);
 #endif
         // client_workers_g[0]->Resume(idx) ;
         Log_info("@@@@@@@@@@@@@@@@@@@@@@@@ failover resumed");
@@ -412,6 +413,7 @@ void server_failover_co(bool random, bool leader, int srv_idx)
           // get current leader
           idx = failover_server_idx ;
         }
+        break; // [Jetpack] Only simulate failure once
     }
 
 }

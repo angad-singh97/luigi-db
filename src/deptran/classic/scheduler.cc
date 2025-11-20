@@ -256,17 +256,12 @@ int SchedulerClassic::OnCommit(txnid_t tx_id,
 
     coo->Submit(sp_m);
     
-    // // Check if Submit failed due to WRONG_LEADER
-    // if (cmd->ret_ == WRONG_LEADER) {
-    //   Log_info("[WRONG_LEADER] OnCommit: Server is not leader for tx_id: %lu", tx_id);
-    //   // The command already has view data attached by CoordinatorRaft::Submit
-    //   // Set the result so it doesn't wait forever
-    //   sp_tx->commit_result->Set(1);
-    //   // Return WRONG_LEADER to propagate to client
-    //   return WRONG_LEADER;
-    // }
-    
     sp_tx->commit_result->Wait();
+
+    // Check if Submit failed due to WRONG_LEADER
+    if (cmd->ret_ == WRONG_LEADER)
+      return WRONG_LEADER;
+
     gettimeofday(&tp, NULL);
     double finish_ms = tp.tv_sec * 1000 + tp.tv_usec / 1000.0;
     tx2tx.append(finish_ms - start_ms);

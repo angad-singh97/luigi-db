@@ -382,19 +382,19 @@ abstract service Classic {
   
   defer JetpackPullCmd(epoch_t jepoch,
                        epoch_t oepoch,
-                       key_t key |
+                       MarshallDeputy key_batch |
                        bool_t ok,
                        epoch_t reply_jepoch,
                        epoch_t reply_oepoch,
                        MarshallDeputy reply_old_view,
                        MarshallDeputy reply_new_view,
-                       MarshallDeputy cmd);
+                       MarshallDeputy cmd_batch);
   
   defer JetpackRecordCmd(epoch_t jepoch,
                          epoch_t oepoch,
                          int32_t sid,
                          int32_t rid,
-                         MarshallDeputy cmd);
+                         MarshallDeputy cmd_batch);
   
   defer JetpackPrepare(epoch_t jepoch,
                        epoch_t oepoch,

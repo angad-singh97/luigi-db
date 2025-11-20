@@ -300,20 +300,20 @@ class ClassicServiceImpl : public ClassicService {
 
   void JetpackPullCmd(const epoch_t& jepoch,
                       const epoch_t& oepoch,
-                      const key_t& key,
+                      const MarshallDeputy& key_batch,
                       bool_t* ok,
                       epoch_t* reply_jepoch,
                       epoch_t* reply_oepoch,
                       MarshallDeputy* reply_old_view,
                       MarshallDeputy* reply_new_view,
-                      MarshallDeputy* cmd,
+                      MarshallDeputy* cmd_batch,
                       rrr::DeferredReply* defer) override;
  
   void JetpackRecordCmd(const epoch_t& jepoch,
                         const epoch_t& oepoch,
                         const int32_t& sid,
                         const int32_t& rid,
-                        const MarshallDeputy& cmd, 
+                        const MarshallDeputy& cmd_batch, 
                         rrr::DeferredReply* defer) override;
  
   void JetpackPrepare(const epoch_t& jepoch,
@@ -369,4 +369,3 @@ class ClassicServiceImpl : public ClassicService {
 };
 
 } // namespace janus
-

@@ -50,18 +50,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
         Log_info("Get a error message in reply");
         return;
       }
-      // std::lock_guard<std::recursive_mutex> lk(res->mtx);
       fu->get_reply() >> *ret_status >> *ret_term >> *ret_last_log_index;
-      // fu->get_reply() >> res->followerTerm;
-      // fu->get_reply() >> res->followerLastLogIndex;
-      // res->empty = (cmd == nullptr);
-      // false, 0, 0 is the return value reserved to simulate a lost RPC.
-      // only set res->done if it's not a lost RPC
-      // if (res->ok == false && res->followerTerm == 0 && res->followerLastLogIndex == 0) {
-      //   res->done = false;
-      // } else {
-      //   res->done = true;
-      // }
       ret->Set(1);
     };
 

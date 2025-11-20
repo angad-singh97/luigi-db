@@ -1414,13 +1414,13 @@ shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(
 }
 
 shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(parid_t par_id, locid_t loc_id, 
-                                                                        key_t key, epoch_t jepoch, epoch_t oepoch) {
+                                                                        const std::vector<key_t>& keys, epoch_t jepoch, epoch_t oepoch) {
   // Log_info("[JETPACK-DEBUG] JetpackBroadcastPullCmd called with par_id=%d, loc_id=%d, key=%d", par_id, loc_id, key);
   
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   // Log_info("[JETPACK-DEBUG] Partition size n=%d", n);
   
-  auto e = Reactor::CreateSpEvent<JetpackPullCmdQuorumEvent>(n, n/2+1);
+  auto e = Reactor::CreateSpEvent<JetpackPullCmdQuorumEvent>(n, n/2+1, keys);
   // if (!e) {
   //   Log_info("[JETPACK-DEBUG] ERROR: Failed to create JetpackPullCmdQuorumEvent!");
   // }
@@ -1433,6 +1433,10 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
   // Log_info("[JETPACK-DEBUG] Found %zu proxies for partition %d", proxies.size(), par_id);
   
   vector<Future*> fus;
+  auto key_batch = std::make_shared<VecRecData>();
+  key_batch->key_data_ = std::make_shared<vector<key_t>>(keys.begin(), keys.end());
+  MarshallDeputy key_batch_md;
+  key_batch_md.SetMarshallable(key_batch);
 	WAN_WAIT;
   for (auto& p : proxies) {
     // TODO: Local call optimization temporarily commented out
@@ -1469,7 +1473,7 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
     };
     
     // Log_info("[JETPACK-DEBUG] About to call async_JetpackPullCmd");
-    auto fu = proxy->async_JetpackPullCmd(jepoch, oepoch, key, fuattr);
+    auto fu = proxy->async_JetpackPullCmd(jepoch, oepoch, key_batch_md, fuattr);
     // if (!fu) {
     //   Log_info("[JETPACK-DEBUG] ERROR: async_JetpackPullCmd returned NULL Future!");
     // }
@@ -1483,7 +1487,7 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
 shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, locid_t loc_id,
                                                                epoch_t jepoch, epoch_t oepoch, 
                                                                int sid, int rid, 
-                                                               shared_ptr<Marshallable> cmd) {
+                                                               const std::vector<std::pair<key_t, shared_ptr<Marshallable>>>& cmds) {
   // Log_info("[JETPACK-DEBUG] JetpackBroadcastRecordCmd called: par_id=%d, loc_id=%d, sid=%d, rid=%d", 
   //          par_id, loc_id, sid, rid);
   
@@ -1493,8 +1497,12 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
   vector<Future*> fus;
 	WAN_WAIT;
   
+  auto batch_data = std::make_shared<KeyCmdBatchData>();
+  for (const auto& entry : cmds) {
+    batch_data->AddEntry(entry.first, entry.second);
+  }
   MarshallDeputy cmd_deputy;
-  cmd_deputy.SetMarshallable(cmd);
+  cmd_deputy.SetMarshallable(batch_data);
   
   // Log_info("[JETPACK-DEBUG] Broadcasting RecordCmd to %zu sites, need %d votes", proxies.size(), n/2+1);
   
@@ -1692,6 +1700,13 @@ void Communicator::UpdatePartitionView(parid_t partition_id, const std::shared_p
   
   // Check if we have an existing view
   auto it = partition_views_.find(partition_id);
+  if (it != partition_views_.end()) {
+    const View& prev_view = it->second;
+    Log_info("[VIEW_DEBUG] partition %d view update %s -> %s", partition_id,
+             prev_view.ToString().c_str(), view.ToString().c_str());
+  } else {
+    Log_info("[VIEW_DEBUG] partition %d initial view %s", partition_id, view.ToString().c_str());
+  }
   if (it != partition_views_.end()) {
     // Only update if the new view is newer
     if (view.timestamp_ > it->second.timestamp_) {

@@ -11,6 +11,7 @@
 #include "classic/tpc_command.h"
 #include "RW_command.h"
 #include "config.h"
+#include <chrono>
 
 namespace janus {
 
@@ -339,6 +340,7 @@ class TxLogServer {
   int sid, rid, sid_cnt_ = 0;
   RecoverySet rec_set_;
   bool simulated_fail_ = false;
+  std::chrono::steady_clock::time_point jetpack_recovery_start_time_{};
   /* Some Jetpack elements end */
 
   void *svr_workers_g{nullptr};
@@ -371,6 +373,8 @@ class TxLogServer {
   map<parid_t, map<siteid_t, epoch_t>> epoch_replies_{};
   bool in_upgrade_epoch_{false};
   const int EPOCH_DURATION = 5;
+
+  bool paused_ = false; // [Jetpack] For failure recovery additional helper
 
 #ifdef CHECK_ISO
   typedef map<Row*, map<colid_t, int>> deltas_t;
@@ -600,21 +604,21 @@ class TxLogServer {
                           MarshallDeputy* reply_new_view,
                           shared_ptr<VecRecData> id_set);
   
-  void OnJetpackPullCmd(const epoch_t& jepoch,
+  virtual void OnJetpackPullCmd(const epoch_t& jepoch,
                         const epoch_t& oepoch,
-                        const key_t& key,
+                        const std::vector<key_t>& keys,
                         bool_t* ok, 
                         epoch_t* reply_jepoch, 
                         epoch_t* reply_oepoch,
                         MarshallDeputy* reply_old_view,
                         MarshallDeputy* reply_new_view,
-                        shared_ptr<Marshallable>& cmd);
+                        shared_ptr<KeyCmdBatchData>& batch);
   
   void OnJetpackRecordCmd(const epoch_t& jepoch, 
                           const epoch_t& oepoch, 
                           const int32_t& sid, 
                           const int32_t& rid, 
-                          shared_ptr<Marshallable>& cmd);
+                          shared_ptr<KeyCmdBatchData>& batch);
   
   void OnJetpackPrepare(const epoch_t& jepoch, 
                         const epoch_t& oepoch, 

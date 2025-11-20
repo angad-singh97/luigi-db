@@ -55,6 +55,7 @@ class RaftServer : public TxLogServer {
   void timer_thread(bool *vote) ;
   rusty::Box<Timer> timer_;  // Owned timer, auto-cleaned on destruction
   uint64_t last_heartbeat_time_ = 0;
+  void LogTermChange(const char* reason, uint64_t old_term, uint64_t new_term, siteid_t source = INVALID_SITEID);
   bool stop_ = false ;
   siteid_t vote_for_ = INVALID_SITEID ;
   bool init_ = false ;
@@ -138,8 +139,7 @@ class RaftServer : public TxLogServer {
 	void HeartbeatLoop() ;
   RaftCommo* commo() {
     return (RaftCommo*) commo_;
-  } 
-	void setIsLeader(bool isLeader);
+  }
 
   // @unsafe
   void doVote(const slotid_t& lst_log_idx,
@@ -161,7 +161,9 @@ class RaftServer : public TxLogServer {
       if( can_term > currentTerm)
       {
           // is_leader_ = false ;  // TODO recheck
+          auto prev_term = currentTerm;
           currentTerm = can_term ;
+          LogTermChange("vote request carried newer term", prev_term, currentTerm, can_id);
       }
 
       if(vote)
@@ -172,7 +174,7 @@ class RaftServer : public TxLogServer {
           Log_info("[RAFT_VOTE] server %d recorded vote_for=%d at term=%lu", site_id_, vote_for_, currentTerm);
 #endif
           //reset timeout
-          resetTimer() ;
+          resetTimer("granted vote");
       }
       n_vote_++ ;
       cb() ;
@@ -187,15 +189,24 @@ class RaftServer : public TxLogServer {
     auto cur_count = counter_++;
     if (cur_count > NUM_BATCH_TIMER_RESET ) {
       if (timer_->elapsed() > SEC_BATCH_TIMER_RESET) {
-        resetTimer();
+        resetTimer("batch timer adjustment");
       }
       counter_.store(0);
     }
   }
+  void OnJetpackPullCmd(const epoch_t& jepoch,
+                        const epoch_t& oepoch,
+                        const std::vector<key_t>& keys,
+                        bool_t* ok,
+                        epoch_t* reply_jepoch,
+                        epoch_t* reply_oepoch,
+                        MarshallDeputy* reply_old_view,
+                        MarshallDeputy* reply_new_view,
+                        shared_ptr<KeyCmdBatchData>& batch) override;
 
-  // @safe
-  void resetTimer() {
-    // Log_info("site %d resetting timer", site_id_);
+  void resetTimer(const char* reason = "unspecified") {
+    const char* why = reason ? reason : "unspecified";
+    // Log_info("[RAFT_TIMER] server %d reset election timer (%s)", site_id_, why);
     last_heartbeat_time_ = Time::now();
     // Log_info("!!!!!!! if (failover_)");
     if (failover_) {
@@ -256,6 +267,9 @@ class RaftServer : public TxLogServer {
     }
     return is_leader_ ;
   }
+  
+  // Made public to allow Jetpack recovery to restore leader state
+  void setIsLeader(bool isLeader);
 
   void RegisterLeaderChangeCallback(std::function<void(bool)> cb);
 
@@ -423,7 +437,7 @@ class RaftServer : public TxLogServer {
   // @safe - Calls Disconnect (@unsafe) and resetTimer (@safe)
   void Reconnect() {
     Disconnect(false);
-    resetTimer() ;
+    resetTimer("reconnect");
   }
 
   bool IsDisconnected();

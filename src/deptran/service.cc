@@ -109,15 +109,7 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
     auto vec_piece_data = dynamic_pointer_cast<VecPieceData>(sp);
     if (vec_piece_data && vec_piece_data->is_recovery_command_) {
       is_recovery = true;
-      Log_info("[DISPATCH_SERVICE] Received recovery command for cmd_id: 0x%lx", cmd_id);
     }
-  }
-  
-  // For recovery commands, we need to wait for execution completion
-  if (is_recovery) {
-    // TODO: Implement synchronous execution wait for recovery commands
-    // For now, log a warning that this is not yet implemented
-    Log_warn("[DISPATCH_SERVICE] Recovery command synchronous execution not yet implemented, using async");
   }
   
   std::shared_ptr<ViewData> view;
@@ -736,30 +728,22 @@ void ClassicServiceImpl::JetpackPullIdSet(const epoch_t& jepoch,
 
 void ClassicServiceImpl::JetpackPullCmd(const epoch_t& jepoch,
                                         const epoch_t& oepoch, 
-                                        const key_t& key, 
+                                        const MarshallDeputy& key_batch, 
                                         bool_t* ok, 
                                         epoch_t* reply_jepoch, 
                                         epoch_t* reply_oepoch,
                                         MarshallDeputy* reply_old_view,
                                         MarshallDeputy* reply_new_view,
-                                        MarshallDeputy* cmd, 
+                                        MarshallDeputy* cmd_batch, 
                                         rrr::DeferredReply* defer) {
-  
-  // Initialize the output MarshallDeputy with TpcEmptyCommand as placeholder
-  cmd->SetMarshallable(std::make_shared<TpcCommitCommand>());
-  shared_ptr<TpcCommitCommand> sp_cmd = dynamic_pointer_cast<TpcCommitCommand>(cmd->sp_data_);
-  
-  // Call the scheduler method - reply_old_view and reply_new_view will be set inside
-  dtxn_sched()->OnJetpackPullCmd(jepoch, oepoch, key, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, sp_cmd->cmd_);
-  
-  
-  // Update cmd MarshallDeputy based on what was returned
-  if (sp_cmd->cmd_) {
-  } else {
-    // No command found, use the TpcEmptyCommand
-    cmd->SetMarshallable(std::make_shared<TpcEmptyCommand>());
+  auto vec_keys = std::dynamic_pointer_cast<VecRecData>(key_batch.sp_data_);
+  std::vector<key_t> keys;
+  if (vec_keys && vec_keys->key_data_) {
+    keys.assign(vec_keys->key_data_->begin(), vec_keys->key_data_->end());
   }
-  
+  auto batch_result = std::make_shared<KeyCmdBatchData>();
+  dtxn_sched()->OnJetpackPullCmd(jepoch, oepoch, keys, ok, reply_jepoch, reply_oepoch, reply_old_view, reply_new_view, batch_result);
+  cmd_batch->SetMarshallable(batch_result);
   defer->reply();
 
 }
@@ -770,8 +754,11 @@ void ClassicServiceImpl::JetpackRecordCmd(const epoch_t& jepoch,
                                           const int32_t& rid,
                                           const MarshallDeputy& md, 
                                           rrr::DeferredReply* defer) {
-  shared_ptr<Marshallable> sp = md.sp_data_;
-  dtxn_sched()->OnJetpackRecordCmd(jepoch, oepoch, sid, rid, sp);
+  auto batch = std::dynamic_pointer_cast<KeyCmdBatchData>(md.sp_data_);
+  if (!batch) {
+    batch = std::make_shared<KeyCmdBatchData>();
+  }
+  dtxn_sched()->OnJetpackRecordCmd(jepoch, oepoch, sid, rid, batch);
   defer->reply();
 }
 

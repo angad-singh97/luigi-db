@@ -272,6 +272,64 @@ class ViewData : public Marshallable {
   }
 };
 
+class KeyCmdBatchData : public Marshallable {
+ public:
+  std::vector<key_t> keys_;
+  std::vector<shared_ptr<Marshallable>> commands_;
+
+  KeyCmdBatchData() : Marshallable(MarshallDeputy::CMD_KEY_CMD_BATCH) {}
+
+  void AddEntry(key_t key, const shared_ptr<Marshallable>& cmd) {
+    if (!cmd) {
+      return;
+    }
+    keys_.push_back(key);
+    commands_.push_back(cmd);
+  }
+
+  size_t Size() const {
+    verify(keys_.size() == commands_.size());
+    return commands_.size();
+  }
+
+  key_t GetKey(size_t idx) const {
+    verify(idx < keys_.size());
+    return keys_[idx];
+  }
+
+  shared_ptr<Marshallable> GetCommand(size_t idx) const {
+    verify(idx < commands_.size());
+    return commands_[idx];
+  }
+
+  Marshal& ToMarshal(Marshal& m) const override {
+    verify(keys_.size() == commands_.size());
+    int32_t sz = commands_.size();
+    m << sz;
+    for (int32_t i = 0; i < sz; i++) {
+      m << keys_[i];
+      MarshallDeputy deputy;
+      deputy.SetMarshallable(commands_[i]);
+      m << deputy;
+    }
+    return m;
+  }
+
+  Marshal& FromMarshal(Marshal& m) override {
+    int32_t sz = 0;
+    m >> sz;
+    keys_.resize(sz);
+    commands_.resize(sz);
+    for (int32_t i = 0; i < sz; i++) {
+      m >> keys_[i];
+      MarshallDeputy deputy;
+      m >> deputy;
+      commands_[i] = deputy.sp_data_;
+    }
+    return m;
+  }
+};
+
 /**
  * input ready levels:
  *   1. shard ready
@@ -401,4 +459,3 @@ class TxData: public CmdData {
 };
 
 } // namespace rcc
-

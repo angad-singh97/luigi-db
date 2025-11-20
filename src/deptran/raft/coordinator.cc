@@ -40,8 +40,12 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
                                    const function<void()>& func,
                                    const function<void()>& exe_callback) {
   if (!IsLeader()) {
-    verify(0);
-    Log_info("[WRONG_LEADER] Submit to server %d (loc_id %d), which is not leader", svr_->site_id_, loc_id_);
+    // verify(0);
+    auto config = Config::GetConfig();
+    auto& site = config->SiteById(svr_->site_id_);
+    Log_info("[WRONG_LEADER] Submit to server %d (loc_id %d) which is not leader (currentTerm=%lu, commitIndex=%lu, lastLogIndex=%lu)",
+             svr_->site_id_, loc_id_, svr_->currentTerm, svr_->commitIndex, svr_->lastLogIndex);
+    Log_info("[WRONG_LEADER] Server %d site info: host=%s locale_id=%d partition=%d", svr_->site_id_, site.host.c_str(), site.locale_id, site.partition_id_);
     
     // Handle WRONG_LEADER case
     if (cmd->kind_ == MarshallDeputy::CMD_TPC_COMMIT) {
@@ -78,6 +82,9 @@ void CoordinatorRaft::Submit(shared_ptr<Marshallable>& cmd,
     
     // Still call the callback to signal completion, but with error status
     func();
+    // [Jetpack] Even wrong leader, need a reply to call callback function to update view to avoid wrong leader again next time.
+    // Pass 0 as log index since we're not actually committing (WRONG_LEADER error path)
+    svr_->app_next_(0, cmd);
     return;
   } else {
     // Log_info("[YYYYY] Submit to loc_id %d, which is leader. Command kind=%d, is_recovery=%d", 
