@@ -366,24 +366,43 @@ void RaftServer::setIsLeader(bool isLeader) {
 }
 
 void RaftServer::applyLogs() {
-  // This prevents the log entry from being applied twice
+  // Only mark pending if there's actually new work to apply
+  if (executeIndex < commitIndex) {
+    apply_pending_.store(true, std::memory_order_release);
+  }
+
+  // If already applying, return - the current apply loop will pick up our work
   if (in_applying_logs_) {
     return;
   }
+
   in_applying_logs_ = true;
-  
-  for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
-    auto next_instance = GetRaftInstance(id);
-    if (next_instance && next_instance->log_) {
-      RuleWitnessGC(next_instance->log_);
-      app_next_(id, next_instance->log_);  // Pass both id and log (signature requires 2 args)
-      executeIndex = id;
-    } else {
-      break;
+
+  // Keep applying logs until no more pending work arrives
+  // This ensures we never drop work even under heavy load
+  do {
+    // Clear the pending flag before processing
+    apply_pending_.store(false, std::memory_order_release);
+
+    // Apply all committed logs
+    for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
+      auto next_instance = GetRaftInstance(id);
+      if (next_instance && next_instance->log_) {
+        RuleWitnessGC(next_instance->log_);
+        app_next_(id, next_instance->log_);  // Pass both id and log (signature requires 2 args)
+        executeIndex = id;
+      } else {
+        break;
+      }
     }
-  }
+
+    // Check if new work arrived while we were applying
+    // If so, loop again to process it
+  } while (apply_pending_.load(std::memory_order_acquire));
 
   in_applying_logs_ = false;
+
+  // Cleanup old commands to prevent memory buildup
   int i = min_active_slot_;
   while (i + 60000 < executeIndex) {
     removeCmd(i++);
@@ -666,21 +685,71 @@ void RaftServer::HeartbeatLoop() {
         mtx_.unlock();
       }
     }
+
+    // ============================================================================
+    // LEADERSHIP TRANSFER: Check if we should transfer to preferred replica
+    // ============================================================================
+    // After sending heartbeats to all followers, check if we're a non-preferred
+    // leader and the preferred replica has caught up. If so, initiate transfer.
+    //
+    // This implements the piggybacked transfer approach in HeartbeatLoop instead
+    // of using a separate monitoring thread (which doesn't work in multi-partition
+    // systems due to global state conflicts).
+    //
+    // Check is done once per heartbeat cycle to avoid excessive overhead.
+    if (IsLeader() && ShouldTransferLeadership()) {
+      Log_info("[LEADERSHIP-TRANSFER] Site %d (partition %d): Initiating transfer from HeartbeatLoop",
+               site_id_, partition_id_);
+      InitiateLeadershipTransfer();
+      // After initiating transfer, we'll step down and exit the heartbeat loop
+      break;
+    }
 	}
 }
 
 
 RaftServer::~RaftServer() {
+  // CRITICAL: Set stop_ FIRST to signal all coroutines to stop
+  // This must happen before vtable collapse to prevent race conditions
+  stop_ = true;
+
+  // Stop the HeartbeatLoop
   if (heartbeat_ && looping_) {
+    Log_info("[SHUTDOWN] Stopping HeartbeatLoop for site=%d", site_id_);
     looping_ = false;
-	}
-  
-  stop_ = true ;
-  Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d", 
+
+    // Wake up the HeartbeatLoop if it's sleeping so it can see looping_=false
+    if (ready_for_replication_) {
+      ready_for_replication_->Set(1);
+    }
+  }
+
+  // Stop leadership transfer monitoring thread if running
+  StopLeadershipTransferMonitoring();
+
+  // CRITICAL: Sleep briefly to allow detached coroutines to see stop_=true and exit
+  // The election timer coroutine (StartElectionTimer) and leadership transfer coroutine
+  // (InitiateLeadershipTransfer) are detached and check stop_ before calling RequestVote().
+  // We need to give them time to notice stop_=true and return before the vtable collapses.
+  // Without this sleep, there's a race where the coroutine wakes up, checks stop_=false,
+  // then the destructor runs (vtable collapses), then the coroutine calls RequestVote()
+  // through the base class vtable, hitting verify(0) and aborting.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  Log_info("site par %d, loc %d: prepare %d, accept %d, commit %d",
       partition_id_, loc_id_, n_prepare_, n_accept_, n_commit_);
 }
 
 bool RaftServer::RequestVote() {
+  // FIX 2: Prevent RequestVote during shutdown
+  // The election timer coroutine may fire after ~RaftServer destructor runs,
+  // causing a call to the base class TxLogServer::RequestVote() which hits verify(0)
+  // Check stop_ flag to avoid this crash during teardown
+  if (stop_) {
+    Log_debug("[RAFT-SHUTDOWN] RequestVote called during shutdown (site=%d), ignoring to prevent crash", site_id_);
+    return false;
+  }
+
   // for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
 
   parid_t par_id = this->frame_->site_info_->partition_id_ ;
@@ -956,6 +1025,9 @@ void RaftServer::StartElectionTimer() {
           Log_info("[RAFT_TIMER] server %d triggering RequestVote() time_elapsed=%ld last_hb=%ld current_term=%lu vote_for=%d",
                    site_id_, time_elapsed, last_heartbeat_time_, currentTerm, vote_for_);
 #endif
+          // CRITICAL: Check stop_ before calling RequestVote() to prevent
+          // calling through collapsed vtable after object destruction
+          if (stop_) return;
           RequestVote() ;
         }
         while(req_voting_) {
@@ -1149,6 +1221,43 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 /*if (rand() % 1000 == 0) {
 	usleep(25*1000);
 }*/
+
+    // ============================================================================
+    // PIGGYBACKED LEADERSHIP TRANSFER: Handle trigger_election_now flag
+    // ============================================================================
+    // The leader sends trigger_election_now=true to ALL replicas during transfer.
+    // How we handle it depends on whether we're the preferred replica or not.
+    if (trigger_election_now) {
+        if (AmIPreferredLeader()) {
+            // I'm the PREFERRED replica - start election (if not already leader)
+            if (!IsLeader()) {
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (preferred): Received transfer signal from leader %d - will start election after 30ms",
+                         site_id_, leaderSiteId);
+
+                // Wait before starting election to allow old leader's heartbeats
+                // to reach other replicas. This prevents election storms.
+                Coroutine::CreateRun([this]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                    // CRITICAL: Check stop_ before calling RequestVote() to prevent
+                    // calling through collapsed vtable after object destruction
+                    if (stop_) return;
+                    RequestVote();
+                });
+            } else {
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (preferred): Received transfer signal but already leader - ignoring",
+                         site_id_);
+            }
+        } else {
+            // I'm a NON-PREFERRED replica - activate election suppression
+            if (!suppress_election_for_transfer_.load(std::memory_order_acquire)) {
+                suppress_election_for_transfer_.store(true, std::memory_order_release);
+                election_suppression_start_time_ = Time::now();
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (non-preferred): Received transfer signal - activating election suppression (preferred=%d)",
+                         site_id_, preferred_leader_site_id_);
+            }
+        }
+    }
+
     cb();
 }
 
