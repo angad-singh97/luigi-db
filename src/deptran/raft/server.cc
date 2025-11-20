@@ -68,6 +68,8 @@ RaftServer::RaftServer(Frame * frame)
 
 // @safe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::Setup() {
+  // Record startup time for grace period logic
+  startup_timestamp_ = Time::now();
 
 #ifdef RAFT_TEST_CORO
   if (heartbeat_) {
@@ -243,17 +245,41 @@ void RaftServer::setIsLeader(bool isLeader) {
   // Only update view when transitioning from non-leader to leader
   if (become_new_leader) {
     // ============================================================================
+    // LEADERSHIP TRANSFER: Clear transfer flags when becoming leader
+    // ============================================================================
+    // If we just became leader, any previous transfer is now complete
+    transferring_leadership_ = false;
+
+    // If we're the preferred leader, also clear election suppression
+    if (AmIPreferredLeader()) {
+      suppress_election_for_transfer_.store(false, std::memory_order_release);
+      Log_info("[LEADERSHIP-TRANSFER] Site %d (preferred): Became leader, cleared transfer flags", site_id_);
+    }
+
+    // ============================================================================
     // PREFERRED REPLICA: Stop catch-up monitoring when we become leader
     // ============================================================================
-    // LEADERSHIP TRANSFER: If I'm non-preferred leader, start monitoring for transfer
+    // LEADERSHIP TRANSFER: Disabled monitoring thread, using piggybacked approach only
     // ============================================================================
-    if (!AmIPreferredLeader() && preferred_leader_site_id_ != INVALID_SITEID) {
-      Log_info("[LEADERSHIP-TRANSFER] Site %d: I'm non-preferred leader, starting transfer monitoring",
-               site_id_);
-      StartLeadershipTransferMonitoring();
-    } else if (AmIPreferredLeader()) {
-      Log_info("[LEADERSHIP-TRANSFER] Site %d: I'm preferred leader, no transfer needed", site_id_);
-    }
+    // The background monitoring thread (StartLeadershipTransferMonitoring) is disabled
+    // because it doesn't work correctly with multi-partition systems where one RaftServer
+    // manages multiple partitions with different preferred leaders.
+    //
+    // Instead, we rely entirely on the piggybacked transfer approach:
+    // - Non-preferred leaders detect preferred replica catchup in HeartbeatLoop
+    // - They piggyback trigger_election_now flag in AppendEntries
+    // - Preferred replica receives signal and starts election
+    // - Transfer completes in ~30ms
+    //
+    // This approach is partition-aware and works correctly in multi-partition systems.
+
+    // if (!AmIPreferredLeader() && preferred_leader_site_id_ != INVALID_SITEID) {
+    //   Log_info("[LEADERSHIP-TRANSFER] Site %d: I'm non-preferred leader, starting transfer monitoring",
+    //            site_id_);
+    //   StartLeadershipTransferMonitoring();
+    // } else if (AmIPreferredLeader()) {
+    //   Log_info("[LEADERSHIP-TRANSFER] Site %d: I'm preferred leader, no transfer needed", site_id_);
+    // }
 
     // Only update view if we have enough information (not during initialization)
     if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
@@ -346,23 +372,42 @@ void RaftServer::setIsLeader(bool isLeader) {
 
 // @unsafe - Unsafe pointer address-of in function call: pointer operations require unsafe context
 void RaftServer::applyLogs() {
-  // This prevents the log entry from being applied twice
+  // Only mark pending if there's actually new work to apply
+  if (executeIndex < commitIndex) {
+    apply_pending_.store(true, std::memory_order_release);
+  }
+
+  // If already applying, return - the current apply loop will pick up our work
   if (in_applying_logs_) {
     return;
   }
+
   in_applying_logs_ = true;
 
-  for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
-    auto next_instance = GetRaftInstance(id);
-    if (next_instance && next_instance->log_) {
-      app_next_(id, next_instance->log_);
-      executeIndex = id;
-    } else {
-      break;
+  // Keep applying logs until no more pending work arrives
+  // This ensures we never drop work even under heavy load
+  do {
+    // Clear the pending flag before processing
+    apply_pending_.store(false, std::memory_order_release);
+
+    // Apply all committed logs
+    for (slotid_t id = executeIndex + 1; id <= commitIndex; id++) {
+      auto next_instance = GetRaftInstance(id);
+      if (next_instance && next_instance->log_) {
+        app_next_(id, next_instance->log_);
+        executeIndex = id;
+      } else {
+        break;
+      }
     }
-  }
+
+    // Check if new work arrived while we were applying
+    // If so, loop again to process it
+  } while (apply_pending_.load(std::memory_order_acquire));
 
   in_applying_logs_ = false;
+
+  // Cleanup old commands to prevent memory buildup
   int i = min_active_slot_;
   while (i + 6000 < executeIndex) {
     removeCmd(i++);
@@ -439,6 +484,7 @@ void RaftServer::HeartbeatLoop() {
           Log_debug("heartbeat from site: %d", site_id);
           // Log_info("site %d in heartbeat_loop, not leader", site_id_);
         }
+
         mtx_.lock();
         // update commitIndex first
         std::vector<uint64_t> matchedIndices{};
@@ -590,6 +636,7 @@ void RaftServer::HeartbeatLoop() {
         if (r->status_ == Event::TIMEOUT) {
           continue;
         }
+
         mtx_.lock();
         auto& next_index = next_index_[site_id];
         auto& match_index = match_index_[site_id];
@@ -669,6 +716,25 @@ skip_increment:  // Label for goto when we backtrack next_index
         mtx_.unlock();
       }
     }
+
+    // ============================================================================
+    // LEADERSHIP TRANSFER: Check if we should transfer to preferred replica
+    // ============================================================================
+    // After sending heartbeats to all followers, check if we're a non-preferred
+    // leader and the preferred replica has caught up. If so, initiate transfer.
+    //
+    // This implements the piggybacked transfer approach in HeartbeatLoop instead
+    // of using a separate monitoring thread (which doesn't work in multi-partition
+    // systems due to global state conflicts).
+    //
+    // Check is done once per heartbeat cycle to avoid excessive overhead.
+    if (IsLeader() && ShouldTransferLeadership()) {
+      Log_info("[LEADERSHIP-TRANSFER] Site %d (partition %d): Initiating transfer from HeartbeatLoop",
+               site_id_, partition_id_);
+      InitiateLeadershipTransfer();
+      // After initiating transfer, we'll step down and exit the heartbeat loop
+      break;
+    }
 	}
 }
 
@@ -701,6 +767,15 @@ RaftServer::~RaftServer() {
 
 // @safe
 bool RaftServer::RequestVote() {
+  // FIX 2: Prevent RequestVote during shutdown
+  // The election timer coroutine may fire after ~RaftServer destructor runs,
+  // causing a call to the base class TxLogServer::RequestVote() which hits verify(0)
+  // Check stop_ flag to avoid this crash during teardown
+  if (stop_) {
+    Log_debug("[RAFT-SHUTDOWN] RequestVote called during shutdown (site=%d), ignoring to prevent crash", site_id_);
+    return false;
+  }
+
   // for(int i = 0; i < 1000; i++) Log_info("not calling the wrong method");
   uint64_t vote_start_time = Time::now();
 
@@ -830,11 +905,23 @@ void RaftServer::OnRequestVote(const slotid_t& lst_log_idx,
   }
 
   // has voted to a machine in the same term, vote no
-  // TODO when to reset the vote_for_??
-//  if( can_term == cur_term && vote_for_ != INVALID_PARID )
-  if( can_term == cur_term)
+  // CRITICAL FIX: Only reject if we already voted for someone else in this term
+  // Standard Raft allows voting for the SAME candidate multiple times (idempotent)
+  // and allows voting if we haven't voted yet in this term
+  if( can_term == cur_term && vote_for_ != INVALID_SITEID && vote_for_ != can_id )
   {
+    Log_debug("site %d vote NO for %d (already voted for %d in term %lu)",
+              site_id_, can_id, vote_for_, cur_term);
     doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, false, cb) ;
+    return ;
+  }
+
+  // If we already voted for this same candidate in this term, vote YES again (idempotent)
+  if( can_term == cur_term && vote_for_ == can_id )
+  {
+    Log_debug("site %d vote YES for %d (already voted for them in term %lu, idempotent)",
+              site_id_, can_id, cur_term);
+    doVote(lst_log_idx, lst_log_term, can_id, can_term, reply_term, vote_granted, true, cb) ;
     return ;
   }
 
@@ -1001,30 +1088,159 @@ void RaftServer::OnTimeoutNow(const uint64_t leaderTerm,
 
 
 
+// @safe
+uint64_t RaftServer::GetElectionTimeout() {
+  uint64_t base_timeout;
+  uint64_t current_time = Time::now();
+  bool in_grace_period = (current_time - startup_timestamp_) < 5000000; // 5 seconds in microseconds
+
+  if (AmIPreferredLeader()) {
+    // Preferred replica: Short timeout (150-300ms) to win elections quickly
+    base_timeout = 150000; // 150ms
+    uint64_t jitter = RandomGenerator::rand(0, 150000);
+    return base_timeout + jitter; // 150-300ms
+  } else if (in_grace_period) {
+    // Non-preferred during grace period: Long timeout (1-2s) to allow preferred to win
+    base_timeout = 1000000; // 1s
+    uint64_t jitter = RandomGenerator::rand(0, 1000000);
+    return base_timeout + jitter; // 1-2s
+  } else {
+    // Non-preferred after grace: Medium timeout (500ms-1s) to enable failover
+    base_timeout = 500000; // 500ms
+    uint64_t jitter = RandomGenerator::rand(0, 500000);
+    return base_timeout + jitter; // 500ms-1s
+  }
+}
+
 // @safe - Calls undeclared Coroutine::CreateRun()
 void RaftServer::StartElectionTimer() {
   resetTimer();
   last_heartbeat_time_ = Time::now();
 
-  Coroutine::CreateRun([&]() {
+  Coroutine::CreateRun([this]() {
     Log_debug("start timer for election") ;
-    double duration = randDuration() ;
 
     while(!stop_) {
-      Coroutine::Sleep(RandomGenerator::rand((frame_->site_info_->locale_id + 1) * 5*HEARTBEAT_INTERVAL,(frame_->site_info_->locale_id + 1) *10*HEARTBEAT_INTERVAL));
+      // Use dynamic election timeout based on preferred replica role and grace period
+      uint64_t election_timeout = GetElectionTimeout();
+
+      // Sleep for a portion of the timeout before checking
+      Coroutine::Sleep(RandomGenerator::rand(HEARTBEAT_INTERVAL * 2, HEARTBEAT_INTERVAL * 4));
+
       auto time_now = Time::now();
       auto time_elapsed = time_now - last_heartbeat_time_;
 
-      if (!IsLeader() && (time_now - last_heartbeat_time_ > 10 * HEARTBEAT_INTERVAL)) {
-        Log_debug("site %d start election, time_elapsed: %d, last vote for: %d",
-          site_id_, time_elapsed, vote_for_);
-        // ask to vote
-        req_voting_ = true ;
+      if (!IsLeader() && time_elapsed > election_timeout) {
+
+        // ============================================================================
+        // PHASE 2: CONDITIONAL ELECTION SUPPRESSION FOR NON-PREFERRED REPLICAS
+        // ============================================================================
+        // Non-preferred replicas check if preferred leader is still alive before
+        // starting elections. This prevents election churn when heartbeats are
+        // occasionally delayed under load (CPU/network/lock contention).
+        //
+        // Key insight: "Timeout fired" != "Leader is dead"
+        // - Heartbeats can be delayed 500ms-1s under load
+        // - Non-preferred timeout is 500ms-1s (competitive!)
+        // - If preferred sent heartbeat within PREFERRED_ALIVE_THRESHOLD (1.5s),
+        //   suppress election (preferred is alive, just slow)
+        // - If no heartbeat for > 1.5s, allow election (preferred is dead, failover)
+        //
+        // This balances:
+        // - Stable leadership (no churn from temporary delays)
+        // - Fast failover (1.5s if preferred crashes)
+        bool should_suppress = false;
+
+        if (!AmIPreferredLeader() && preferred_leader_site_id_ != INVALID_SITEID) {
+          // I'm non-preferred and we have a designated preferred leader
+          // Check if preferred leader is still alive
+          uint64_t time_since_preferred_heartbeat = time_now - last_heartbeat_from_preferred_time_;
+
+          if (last_heartbeat_from_preferred_time_ > 0 &&
+              time_since_preferred_heartbeat < PREFERRED_ALIVE_THRESHOLD) {
+            // Preferred leader sent heartbeat recently (< 1.5s ago)
+            // Even though my timeout fired, preferred is alive - suppress election
+            should_suppress = true;
+
+            // Log occasionally to track suppression
+            static uint64_t last_phase2_log = 0;
+            if (time_now - last_phase2_log > 5000000) {  // Log every 5s
+              Log_info("[PHASE2-SUPPRESS] Site %d: Election suppressed - preferred leader %d alive "
+                       "(last heartbeat %lu us ago, threshold %lu us)",
+                       site_id_, preferred_leader_site_id_,
+                       time_since_preferred_heartbeat, PREFERRED_ALIVE_THRESHOLD);
+              last_phase2_log = time_now;
+            }
+          } else {
+            // No recent heartbeat from preferred (> 1.5s or never received)
+            // Preferred appears dead - allow election for failover
+            if (last_heartbeat_from_preferred_time_ > 0) {
+              Log_info("[PHASE2-FAILOVER] Site %d: Allowing election - no heartbeat from preferred %d "
+                       "for %lu us (threshold %lu us)",
+                       site_id_, preferred_leader_site_id_,
+                       time_since_preferred_heartbeat, PREFERRED_ALIVE_THRESHOLD);
+            }
+          }
+        }
+
+        // ============================================================================
+        // ELECTION SUPPRESSION DURING LEADERSHIP TRANSFER ONLY
+        // ============================================================================
+        // Standard Raft election logic: ALL replicas can start elections when they
+        // timeout waiting for heartbeats. This ensures the system can always elect
+        // a leader and maintain availability.
+        //
+        // ONLY suppress elections during active leadership transfer (when the
+        // suppress_election_for_transfer_ flag is set). This flag is set when:
+        // - A non-preferred follower receives a piggybacked transfer signal
+        // - The transfer is in progress and we're waiting for preferred replica
+        //
+        // After a non-preferred replica wins an election, the background monitoring
+        // thread (MonitorLeadershipAndTransfer) will detect this and initiate a
+        // leadership transfer to the preferred replica.
+        //
+        // This approach:
+        // - Maintains Raft safety and liveness (elections always possible)
+        // - Achieves preferred leadership through transfer (not election suppression)
+        // - Prevents cascading cross-partition deadlocks
+        // - Works correctly with multiple independent Raft partitions
+
+        // Only suppress during active leadership transfer
+        if (suppress_election_for_transfer_.load(std::memory_order_acquire)) {
+          should_suppress = true;
+
+          // Check for transfer timeout (40 seconds)
+          if (election_suppression_start_time_ > 0) {
+            uint64_t suppression_duration = time_now - election_suppression_start_time_;
+            const uint64_t TRANSFER_TIMEOUT = 40000000;  // 40 seconds
+
+            if (suppression_duration > TRANSFER_TIMEOUT) {
+              Log_info("[ELECTION-SUPPRESSION] Site %d: Transfer timeout expired (%lu us), clearing suppression",
+                       site_id_, suppression_duration);
+              suppress_election_for_transfer_.store(false, std::memory_order_release);
+              election_suppression_start_time_ = 0;
+              should_suppress = false;
+            } else {
+              // Log occasionally during suppression
+              static uint64_t last_suppress_log = 0;
+              if (time_now - last_suppress_log > 5000000) {
+                Log_info("[ELECTION-SUPPRESSION] Site %d: Active transfer in progress, suppressing elections (%lu us elapsed)",
+                         site_id_, suppression_duration);
+                last_suppress_log = time_now;
+              }
+            }
+          }
+        }
+
+        if (!should_suppress) {
+          // ask to vote
+          req_voting_ = true ;
 #ifdef RAFT_LEADER_ELECTION_DEBUG
-        Log_info("[RAFT_TIMER] server %d triggering RequestVote() time_elapsed=%ld last_hb=%ld current_term=%lu vote_for=%d",
-                 site_id_, time_elapsed, last_heartbeat_time_, currentTerm, vote_for_);
+          Log_info("[RAFT_TIMER] server %d triggering RequestVote() time_elapsed=%ld last_hb=%ld current_term=%lu vote_for=%d",
+                   site_id_, time_elapsed, last_heartbeat_time_, currentTerm, vote_for_);
 #endif
-        RequestVote() ;
+          RequestVote() ;
+        }
         while(req_voting_) {
           Coroutine::Sleep(wait_int_);
           if(stop_) return ;
@@ -1101,11 +1317,8 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
                                  uint64_t *followerLastLogIndex,
                                  const function<void()> &cb,
                                  bool trigger_election_now) {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  // if (cmd != nullptr) {
-  //   Log_debug("[APPEND_ENTRIES_RECEIVED] Follower %d: received NEW log entry from leader %d, leaderTerm=%ld, prevLogIndex=%ld, prevLogTerm=%ld, leaderCommit=%ld, currentTerm=%ld, lastLogIndex=%ld", 
-  //            this->loc_id_, leaderSiteId, leaderCurrentTerm, leaderPrevLogIndex, leaderPrevLogTerm, leaderCommitIndex, currentTerm, lastLogIndex);
-  // }
+  std::unique_lock<std::recursive_mutex> lock(mtx_);
+
   bool term_ok = (leaderCurrentTerm >= this->currentTerm);
   bool index_ok = (leaderPrevLogIndex <= this->lastLogIndex);
   uint64_t local_prev_term = 0;
@@ -1116,11 +1329,42 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 
   if (term_ok && index_ok && prev_term_ok) {
       Log_debug("refresh timer on appendentry");
+
+      // DEBUG: Log timer reset
+      // Log_info("[TIMER-RESET] Site %d (partition %d) | Heartbeat from Site %d reset election timer",
+              //  site_id_, partition_id_, leaderSiteId);
+
       resetTimer() ;
       if (leaderCurrentTerm > this->currentTerm) {
           currentTerm = leaderCurrentTerm;
           Log_debug("server %d, set to be follower", loc_id_ ) ;
           setIsLeader(false) ;
+      }
+
+      // ============================================================================
+      // ELECTION SUPPRESSION: Manage suppression during leadership transfer
+      // ============================================================================
+      // When we receive heartbeat from preferred leader: clear suppression AND transfer flag
+      if (leaderSiteId == preferred_leader_site_id_ &&
+          suppress_election_for_transfer_.load(std::memory_order_acquire)) {
+        // Preferred leader is now active - clear suppression
+        suppress_election_for_transfer_.store(false, std::memory_order_release);
+        transferring_leadership_ = false;  // Transfer complete, can accept commands again
+        Log_info("[ELECTION-SUPPRESSION] Site %d: Cleared (preferred leader %d now active)",
+                 site_id_, preferred_leader_site_id_);
+      }
+      // When we receive heartbeat from NON-preferred leader: activate suppression
+      // This tells us a transfer is likely in progress to the preferred replica
+      else if (leaderSiteId != preferred_leader_site_id_ &&
+               preferred_leader_site_id_ != INVALID_SITEID &&
+               !AmIPreferredLeader() &&
+               !suppress_election_for_transfer_.load(std::memory_order_acquire)) {
+        // Non-preferred leader exists and we're also non-preferred
+        // Activate suppression to prevent election storms during transfer
+        suppress_election_for_transfer_.store(true, std::memory_order_release);
+        election_suppression_start_time_ = Time::now();
+        Log_info("[ELECTION-SUPPRESSION] Site %d: Activated (non-preferred leader %d detected, waiting for transfer to preferred %d)",
+                 site_id_, leaderSiteId, preferred_leader_site_id_);
       }
 
       // ============================================================================
@@ -1132,6 +1376,18 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
         leader_last_commit_index_ = leaderCommitIndex;
         Log_debug("[PREFERRED-REPLICA] Site %d: Updated leader commit index to %lu (my commit: %lu)",
                   site_id_, leader_last_commit_index_, commitIndex);
+      }
+
+      // ============================================================================
+      // PHASE 2: Track heartbeat from preferred leader for election suppression
+      // ============================================================================
+      // Update timestamp when we receive heartbeat from preferred leader.
+      // Non-preferred replicas use this to avoid starting elections when
+      // preferred leader is alive but heartbeats are delayed under load.
+      if (IsPreferredLeader(leaderSiteId)) {
+        last_heartbeat_from_preferred_time_ = Time::now();
+        Log_debug("[PHASE2] Site %d: Received heartbeat from preferred leader %d",
+                  site_id_, leaderSiteId);
       }
       
       // // Update follower's view to track the current leader
@@ -1170,16 +1426,29 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 #endif
       }
 
-      // update commitIndex and apply logs if necessary
+      // update commitIndex and trigger log application
+      bool need_apply = false;
       if (leaderCommitIndex > commitIndex) {
         commitIndex = std::min(leaderCommitIndex, lastLogIndex);
         verify(lastLogIndex >= commitIndex);
-        applyLogs();
+        need_apply = true;
       }
 
       *followerAppendOK = 1;
       *followerCurrentTerm = this->currentTerm;
       *followerLastLogIndex = this->lastLogIndex;
+
+      // CRITICAL FIX: Release mutex before applying logs!
+      // This allows concurrent AppendEntries to be processed
+      // while we're applying the current batch
+      lock.unlock();
+
+      if (need_apply) {
+        applyLogs();  // Now called WITHOUT holding the mutex!
+      }
+
+      // Re-acquire mutex before returning (to handle remaining code safely)
+      lock.lock();
 
 #ifndef RAFT_TEST_CORO
       if (cmd != nullptr) {
@@ -1230,6 +1499,10 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 #endif
     }
     else {
+        // DEBUG: Log why heartbeat was rejected
+        Log_info("[HB-REJECT] Site %d ← Site %d | REJECTED | term_ok=%d index_ok=%d prev_term_ok=%d | leaderTerm=%lu myTerm=%lu",
+                 site_id_, leaderSiteId, term_ok, index_ok, prev_term_ok, leaderCurrentTerm, currentTerm);
+
 #ifdef RAFT_LEADER_ELECTION_DEBUG
         Log_info("[RAFT_APPEND_REJECT] follower=%d leader=%d leaderTerm=%lu localTerm=%lu prevIdx=%lu localLastIdx=%lu term_ok=%d index_ok=%d prev_term_ok=%d local_prev_term=%lu",
                  this->site_id_, leaderSiteId, leaderCurrentTerm, currentTerm, leaderPrevLogIndex, lastLogIndex,
@@ -1245,33 +1518,36 @@ void RaftServer::OnAppendEntries(const slotid_t slot_id,
 }*/
 
     // ============================================================================
-    // PIGGYBACKED LEADERSHIP TRANSFER (Approach 2)
+    // PIGGYBACKED LEADERSHIP TRANSFER: Handle trigger_election_now flag
     // ============================================================================
-    // If leader sent trigger_election_now flag, start election after a delay
+    // The leader sends trigger_election_now=true to ALL replicas during transfer.
+    // How we handle it depends on whether we're the preferred replica or not.
     if (trigger_election_now) {
-        Log_info("[PIGGYBACKED-TRANSFER] Site %d: Received trigger_election_now from leader %d - will start election after 30ms delay",
-                 site_id_, leaderSiteId);
+        if (AmIPreferredLeader()) {
+            // I'm the PREFERRED replica - start election (if not already leader)
+            if (!IsLeader()) {
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (preferred): Received transfer signal from leader %d - will start election after 30ms",
+                         site_id_, leaderSiteId);
 
-        // CRITICAL: Wait before starting election to allow old leader's heartbeats
-        // to reach other replicas. This prevents election storms.
-        //
-        // Timeline:
-        // t=0ms:  Old leader sends heartbeats to all replicas (async)
-        // t=0ms:  We (preferred replica) receive trigger, start waiting
-        // t=0-10ms: Heartbeats arrive at other replicas, they reset their timers
-        // t=30ms: We start election
-        // t=30ms: Other replicas receive our RequestVote, vote for us
-        //
-        // Without this delay:
-        // t=0ms:  We start election immediately, send RequestVote to old leader
-        // t=0ms:  Old leader receives RequestVote with higher term, steps down immediately
-        // t=0ms:  Old leader's heartbeats may not have been fully sent yet
-        // t=50ms+: Other replicas timeout, start their own elections → storm!
-        Coroutine::CreateRun([this]() {
-            // Wait for old leader's heartbeats to reach other replicas
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            RequestVote();
-        });
+                // Wait before starting election to allow old leader's heartbeats
+                // to reach other replicas. This prevents election storms.
+                Coroutine::CreateRun([this]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                    RequestVote();
+                });
+            } else {
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (preferred): Received transfer signal but already leader - ignoring",
+                         site_id_);
+            }
+        } else {
+            // I'm a NON-PREFERRED replica - activate election suppression
+            if (!suppress_election_for_transfer_.load(std::memory_order_acquire)) {
+                suppress_election_for_transfer_.store(true, std::memory_order_release);
+                election_suppression_start_time_ = Time::now();
+                Log_info("[PIGGYBACKED-TRANSFER] Site %d (non-preferred): Received transfer signal - activating election suppression (preferred=%d)",
+                         site_id_, preferred_leader_site_id_);
+            }
+        }
     }
 
     cb();
@@ -1406,6 +1682,13 @@ void RaftServer::InitiateLeadershipTransfer() {
     par_id = partition_id_;
     current_term_snapshot = currentTerm;
 
+    // Mark transfer as in progress - this will suppress elections on non-preferred replicas
+    transferring_leadership_ = true;
+    leadership_transfer_start_time_ = Time::now();
+
+    Log_info("[LEADERSHIP-TRANSFER] Site %d (partition %d): Starting transfer to site %d",
+             site_id_, partition_id_, target_site_id);
+
     // Send heartbeats to ALL replicas
     for (auto& kv : match_index_) {
       siteid_t peer_site_id = kv.first;
@@ -1423,7 +1706,10 @@ void RaftServer::InitiateLeadershipTransfer() {
         prevLogTerm = logs_[prevLogIndex]->term;
       }
 
-      bool trigger_election = (peer_site_id == target_site_id);
+      // Send trigger_election_now=true to ALL replicas during transfer:
+      // - Preferred replica: Will start election
+      // - Non-preferred replicas: Will activate election suppression
+      bool trigger_election = true;  // Signal transfer to ALL replicas
 
       commo()->SendAppendEntries(
         peer_site_id,

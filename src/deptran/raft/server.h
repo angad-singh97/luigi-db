@@ -41,6 +41,12 @@ struct KeyValue {
 #define HEARTBEAT_INTERVAL 5000
 #endif
 
+// Phase 2: Conditional Election Suppression
+// Non-preferred replicas suppress elections if they heard from preferred leader
+// within this threshold. Set to 1.5s (longer than non-preferred timeout of 500ms-1s)
+// to allow failover when preferred is truly dead.
+#define PREFERRED_ALIVE_THRESHOLD 1500000  // 1.5 seconds in microseconds
+
 class RaftServer : public TxLogServer {
  private:
   std::map<siteid_t, uint64_t> match_index_{};
@@ -59,6 +65,7 @@ class RaftServer : public TxLogServer {
   bool disconnected_ = false;
   bool req_voting_ = false ;
   bool in_applying_logs_ = false ;
+  std::atomic<bool> apply_pending_{false};  // Tracks if new work arrived while applying logs
 #ifdef RAFT_TEST_CORO
   bool failover_{true} ;
 #else
@@ -92,6 +99,18 @@ class RaftServer : public TxLogServer {
   uint64_t leadership_transfer_start_time_ = 0;             // When transfer started (for timeout)
   std::atomic<bool> leadership_monitor_stop_{false};       // Signal to stop monitoring thread
   std::thread leadership_monitor_thread_;                   // Background thread monitoring for transfer
+
+  // Election suppression during leadership transfer
+  // When a non-preferred follower receives heartbeat from old leader during transfer,
+  // it sets this flag to prevent starting elections while preferred replica takes over
+  std::atomic<bool> suppress_election_for_transfer_{false};
+  uint64_t election_suppression_start_time_ = 0;            // When suppression started (for timeout)
+  uint64_t startup_timestamp_ = 0;                          // When server started (for grace period)
+
+  // Phase 2: Conditional Election Suppression
+  // Track when we last received heartbeat from preferred leader to prevent
+  // election churn when heartbeats are occasionally delayed under load
+  uint64_t last_heartbeat_from_preferred_time_ = 0;         // Last heartbeat from preferred leader
 
   // Check if a specific site is the preferred leader
   bool IsPreferredLeader(siteid_t site_id) const {
@@ -190,6 +209,18 @@ class RaftServer : public TxLogServer {
     // election timeout between 0.4 and 0.7 seconds
     return RandomGenerator::rand_double(0.4, 0.7) ;
   }
+
+  /**
+   * Get dynamic election timeout based on preferred replica role and grace period
+   *
+   * Returns:
+   * - Preferred replica: 150-300ms (short timeout to win elections quickly)
+   * - Non-preferred during grace period (0-5s after startup): 1-2s (long timeout to allow preferred to win)
+   * - Non-preferred after grace period: 500ms-1s (medium timeout to enable failover)
+   *
+   * This implements startup election bias for preferred replica system.
+   */
+  uint64_t GetElectionTimeout();
  public:
   slotid_t min_active_slot_ = 1; // anything before (lt) this slot is freed
   slotid_t max_executed_slot_ = 0;

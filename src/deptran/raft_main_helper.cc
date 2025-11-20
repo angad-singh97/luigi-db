@@ -280,43 +280,53 @@ int setup2(int action, int shardIndex) {
   // ============================================================================
   // PREFERRED REPLICA SYSTEM SETUP
   // ============================================================================
-  // Configure preferred leader: Use machine_id 2 (p2) as preferred
+  // Configure preferred leader: Use localhost (locale_id==0) as preferred for all partitions
   // This can be changed dynamically later via SetPreferredLeader()
+  //
+  // IMPORTANT: In multi-partition systems, each partition has its own set of replicas
+  // with different site_ids. We must set the preferred leader PER PARTITION.
+  //
+  // Example with 6 partitions:
+  //   Partition 0: sites s101(localhost), s201(p1), s302(p2) → preferred = s101
+  //   Partition 1: sites s102(localhost), s202(p1), s303(p2) → preferred = s102
+  //   etc.
 
-  // For now: hardcode p2 (machine_id=2) as preferred
-  // In production, Mako worker thread can change this dynamically
-  siteid_t preferred_site_id = INVALID_SITEID;
-
-  // Find the site_id that corresponds to machine_id==2 (p2)
-  // NOTE: Each process only sees its own workers, so we need to query Config
-  //       for ALL sites in the cluster, not just local workers
   auto config = Config::GetConfig();
-  auto all_sites = config->SitesByPartitionId(0);  // Get all sites for partition 0
 
-  for (const auto& site : all_sites) {
-    if (site.locale_id == 0) {  // locale_id == machine_id (p2)
-      preferred_site_id = site.id;
-      break;
-    }
-  }
+  // Set preferred leader for each worker based on its partition
+  for (auto& worker : raft_workers_g) {
+    if (!worker) continue;
 
-  // Set preferred leader on all Raft workers
-  if (preferred_site_id != INVALID_SITEID) {
-    for (auto& worker : raft_workers_g) {
-      if (worker) {
-        auto raft_server = worker->GetRaftServer();
-        if (raft_server) {
-          raft_server->SetPreferredLeader(preferred_site_id);
-          Log_info("[PREFERRED-REPLICA] Site %d: Set preferred leader to site %d",
-                   raft_server->site_id_, preferred_site_id);
-        }
+    auto raft_server = worker->GetRaftServer();
+    if (!raft_server) continue;
+
+    parid_t partition_id = raft_server->partition_id_;
+    siteid_t my_site_id = raft_server->site_id_;
+
+    // Get all sites for THIS partition
+    auto partition_sites = config->SitesByPartitionId(partition_id);
+
+    // Find the site in THIS partition that has locale_id == 0 (localhost)
+    siteid_t preferred_site_id = INVALID_SITEID;
+    for (const auto& site : partition_sites) {
+      if (site.locale_id == 0) {  // localhost
+        preferred_site_id = site.id;
+        break;
       }
     }
-    Log_info("[RAFT-SETUP] Preferred replica system enabled: preferred_site=%d",
-             preferred_site_id);
-  } else {
-    Log_info("[RAFT-SETUP] No preferred leader configured (using standard Raft elections)");
+
+    // Set the preferred leader for THIS partition
+    if (preferred_site_id != INVALID_SITEID) {
+      raft_server->SetPreferredLeader(preferred_site_id);
+      Log_info("[PREFERRED-REPLICA] Partition %d, Site %d: Set preferred leader to site %d (localhost)",
+               partition_id, my_site_id, preferred_site_id);
+    } else {
+      Log_info("[PREFERRED-REPLICA] Partition %d, Site %d: No preferred leader found (using standard Raft)",
+               partition_id, my_site_id);
+    }
   }
+
+  Log_info("[RAFT-SETUP] Preferred replica system configured for all partitions (localhost preferred)");
 
   // Update election state for Paxos compatibility
   if (es->machine_id == 0) {
