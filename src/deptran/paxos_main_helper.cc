@@ -93,16 +93,12 @@ void server_launch_worker(vector<Config::SiteInfo>& server_sites) {
                      site_info_for_thread.id,
                      site_info_for_thread.GetBindAddress().c_str());
             auto& worker = pxs_workers_g[thread_index];
-            //worker->site_info_ = const_cast<Config::SiteInfo*>(&config->SiteById(site_info.id));
-            // setup frame and scheduler
-            //worker->SetupBase();
-            // start server service
-            Log_info("[DEBUG] site %d: calling SetupService()", (int)site_info_for_thread.id);
+            // start server service FIRST so it can receive connections
             worker->SetupService();
-            Log_info("[DEBUG] site %d: SetupService() complete, calling SetupCommo()", (int)site_info_for_thread.id);
-            // setup communicator
+            // THEN setup communicator (connects to other sites)
+            // Note: there is a small race window where Next() callback could fire
+            // before commo_ is set - the Next() code must handle commo_==nullptr
             worker->SetupCommo();
-            Log_info("[DEBUG] site %d: SetupCommo() complete, calling InitQueueRead()", (int)site_info_for_thread.id);
             worker->InitQueueRead();
             Log_info("site %d launched!", (int)site_info_for_thread.id);
         }));

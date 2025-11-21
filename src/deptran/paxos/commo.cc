@@ -126,7 +126,7 @@ void MultiPaxosCommo::ForwardToLearner(parid_t par_id,
 
   for (int i=0;i<n+1;i++) {
     auto p = proxies.at(cur_batch_idx*(Config::GetConfig()->GetPartitionSize(par_id)) + i);
-    if (Config::GetConfig()->SiteById(p.first).role!=2) continue; 
+    if (Config::GetConfig()->SiteById(p.first).role!=2) continue;
      auto proxy = (MultiPaxosProxy*) p.second;
      FutureAttr fuattr;
      fuattr.callback = [/*e, */cb] (rusty::Arc<Future> fu) {
@@ -147,7 +147,7 @@ void MultiPaxosCommo::ForwardToLearner(parid_t par_id,
      // Arc auto-released
 
     // auto p = proxies.at(cur_batch_idx*(Config::GetConfig()->GetPartitionSize(par_id)) + i);
-    // if (Config::GetConfig()->SiteById(p.first).role!=2) continue; 
+    // if (Config::GetConfig()->SiteById(p.first).role!=2) continue;
     //  auto proxy = (MultiPaxosProxy*) p.second;
     //  MarshallDeputy md(cmd);
     //  uint64_t *slotr;

@@ -111,6 +111,7 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
   // }
   auto& sp_log_entry = dynamic_cast<LogEntry&>(*cmd.get());
   int len = sp_log_entry.length;
+
   //Log_info("apply a log, par_id:%d, epoch:%d, slot_id:%d, len:%d,",site_info_->partition_id_, cur_epoch, slot_id, len);
   if (cmd.get()->kind_== MarshallDeputy::CONTAINER_CMD) {
     if (this->callback_par_id_return_ != nullptr) {
@@ -118,14 +119,17 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
       // we use p1 to forward requests to save leader's bandwidth
       // it's better to start p1 at the end
       if ((site_info_->proc_name.compare("p1")==0)) {
-        auto coord = rep_frame_->CreateBulkCoordinator(Config::GetConfig(), 0);
-        coord->commo_->ForwardToLearner(site_info_->partition_id_,
-                                       slot_id,
-                                       ((CoordinatorMultiPaxos*)coord)->curr_ballot_,
-                                       cmd,
-                                       [&](uint64_t slot, ballot_t ballot) {
-                                         //Log_info("received a ack from the learner, slot: %d, ballot: %d", slot, ballot);
-                                       });
+        // Check if commo_ is ready (handles race condition during initialization)
+        // Note: Use rep_commo_ (PaxosWorker member) which is set in SetupCommo()
+        if (rep_commo_ != nullptr) {
+          ((MultiPaxosCommo*)rep_commo_)->ForwardToLearner(site_info_->partition_id_,
+                                         slot_id,
+                                         cur_epoch,  // Use PaxosWorker's cur_epoch instead of coordinator
+                                         cmd,
+                                         [](uint64_t slot, ballot_t ballot) {
+                                           //Log_info("received a ack from the learner, slot: %d, ballot: %d", slot, ballot);
+                                         });
+        }
       }
 
       auto& sp_log_entry = dynamic_cast<LogEntry&>(*cmd.get());
