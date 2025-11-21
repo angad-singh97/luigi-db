@@ -1,7 +1,8 @@
 #include "paxos/server.h"
 #include "paxos/commo.h"
 #include "service.h"
-#include "chrono"
+#include <chrono>
+#include <thread>
 #include <cstdlib>
 #include <ctime>
 
@@ -119,8 +120,9 @@ int PaxosWorker::Next(int slot_id, shared_ptr<Marshallable> cmd) {
       // we use p1 to forward requests to save leader's bandwidth
       // it's better to start p1 at the end
       if ((site_info_->proc_name.compare("p1")==0)) {
-        // Check if commo_ is ready (handles race condition during initialization)
-        // Note: Use rep_commo_ (PaxosWorker member) which is set in SetupCommo()
+        // Forward commits to learner
+        // Note: rep_commo_ should be initialized before workload starts
+        // If workload starts before all sites connect, this will be skipped
         if (rep_commo_ != nullptr) {
           ((MultiPaxosCommo*)rep_commo_)->ForwardToLearner(site_info_->partition_id_,
                                          slot_id,
