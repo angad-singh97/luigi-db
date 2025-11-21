@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 # using g++
 set(CMAKE_C_COMPILER "gcc" CACHE STRING "C compiler")
 set(CMAKE_CXX_COMPILER "g++" CACHE STRING "C++ compiler")
+
+# Enable compile_commands.json generation for language servers (clangd, etc.)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(mako)
 
 # Set C++ standard
