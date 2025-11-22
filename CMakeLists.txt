@@ -965,6 +965,60 @@ if(BUILD_TESTS)
     target_link_libraries(test_and_event ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_and_event COMMAND test_and_event)
 
+    # Transport Backend Tests (Comprehensive)
+    # Tests use mock implementations to avoid mako/eRPC dependencies
+    add_executable(test_transport_backend test/test_transport_backend.cc)
+    target_include_directories(test_transport_backend PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_transport_backend PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_transport_backend ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_transport_backend COMMAND test_transport_backend)
+
+    # Transport Backend Stress Tests
+    add_executable(stress_transport_backend test/stress_transport_backend.cc)
+    target_include_directories(stress_transport_backend PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(stress_transport_backend PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(stress_transport_backend ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    # Stress tests have longer timeout
+    add_test(NAME stress_transport_backend COMMAND stress_transport_backend)
+    set_tests_properties(stress_transport_backend PROPERTIES TIMEOUT 120)
+
+    # Transport Integration Tests (uses real rrr/rpc network I/O)
+    add_executable(test_transport_integration test/test_transport_integration.cc)
+    target_include_directories(test_transport_integration PRIVATE
+        ${TEST_INCLUDE_DIRS}
+        ${GTEST_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/mako
+    )
+    target_compile_options(test_transport_integration PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_transport_integration
+        rrr
+        ${TEST_LINK_LIBS}
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+    )
+    add_test(NAME test_transport_integration COMMAND test_transport_integration)
+    set_tests_properties(test_transport_integration PROPERTIES TIMEOUT 120)
+
+    # eRPC Integration Tests (uses socket-based "fake" transport - no RDMA required)
+    add_executable(test_erpc_integration test/test_erpc_integration.cc)
+    target_include_directories(test_erpc_integration PRIVATE
+        ${TEST_INCLUDE_DIRS}
+        ${GTEST_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/third_party/asio/include
+    )
+    target_compile_options(test_erpc_integration PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_erpc_integration
+        erpc
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+        numa
+    )
+    add_test(NAME test_erpc_integration COMMAND test_erpc_integration)
+    set_tests_properties(test_erpc_integration PROPERTIES TIMEOUT 120)
+
     # Integration tests from CI
     add_test(NAME simpleTransaction COMMAND simpleTransaction)
 
