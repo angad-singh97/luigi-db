@@ -721,7 +721,7 @@ static void cleanup_and_shutdown()
   }
 
   sync_util::sync_logger::shutdown();
-  std::quick_exit( EXIT_SUCCESS );
+  //std::quick_exit( EXIT_SUCCESS ); // don't exit early
 }
 
 static char** prepare_paxos_args(const vector<string>& paxos_config_file,
@@ -756,7 +756,7 @@ static char** prepare_paxos_args(const vector<string>& paxos_config_file,
   return argv_paxos;
 }
 
-static void init_env() {
+static abstract_db * init_env() {
   auto& benchConfig = BenchmarkConfig::getInstance();
 
   // Setup callbacks
@@ -777,7 +777,7 @@ static void init_env() {
     std::vector<std::string> ret = setup(18, argv_paxos);
     if (ret.empty()) {
       Warning("paxos args errors");
-      return ;
+      return db;
     }
 
     // Setup Paxos callbacks have to be after setup() is called
@@ -824,7 +824,9 @@ static void init_env() {
       bench_runner *r = start_workers_tpcc(1, db, benchConfig.getNthreads(), true);
       modeMonitor(db, benchConfig.getNthreads(), r) ;
     }
+    return db;
   }
+  return nullptr;
 }
 
 static void send_end_signal() {

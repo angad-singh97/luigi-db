@@ -27,7 +27,7 @@ sleep 2
 
 # Wait for experiments to run
 echo "Running experiments"
-sleep 20
+sleep 40
 
 # Kill ALL processes
 echo "Stopping shards..."

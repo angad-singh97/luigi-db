@@ -222,7 +222,7 @@ rusty::Option<rusty::Arc<rrr::Client>> RrrRpcBackend::GetOrCreateClient(uint8_t 
 
     int ret = client->connect(addr.c_str());
     if (ret != 0) {
-        Warning("Failed to connect to %s (error %d)", addr.c_str(), ret);
+        //Warning("Failed to connect to %s (error %d)", addr.c_str(), ret);
         clients_lock_.unlock();
         return rusty::None;  // Return None
     }
@@ -356,7 +356,7 @@ bool RrrRpcBackend::SendToAll(TransportReceiver* src,
 
         auto client_opt = GetOrCreateClient(shard_idx, server_id, force_center);
         if (client_opt.is_none()) {
-            Warning("Failed to get client for shard %d", shard_idx);
+            //Warning("Failed to get client for shard %d", shard_idx);
             continue;
         }
         rusty::Arc<rrr::Client> client = client_opt.unwrap();
