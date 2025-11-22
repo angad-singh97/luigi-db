@@ -921,6 +921,19 @@ if(BUILD_TESTS)
     target_compile_options(bench_future PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(bench_future ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
 
+    # Masstree unit tests (run with ctest/make test)
+    add_executable(test_masstree test/test_masstree.cc)
+    target_include_directories(test_masstree PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_masstree PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_masstree mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_masstree COMMAND test_masstree)
+
+    # Masstree performance benchmark (on-demand JSON output)
+    add_executable(masstree_perf test/masstree_perf.cc)
+    target_include_directories(masstree_perf PRIVATE ${TEST_INCLUDE_DIRS})
+    target_compile_options(masstree_perf PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(masstree_perf mako ${TEST_LINK_LIBS})
+
     # Reactor/Event System Tests
     add_executable(test_reactor test/test_reactor.cc)
     target_include_directories(test_reactor PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -990,7 +1003,7 @@ if(BUILD_TESTS)
     # Add a convenience target to run all tests
     add_custom_target(run_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        DEPENDS test_marshal test_rpc test_future test_reactor test_rpc_extended test_reactor_extended rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
+        DEPENDS test_marshal test_rpc test_future test_masstree test_reactor test_rpc_extended test_reactor_extended rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
         COMMENT "Running all RRR tests"
     )
     
@@ -1001,7 +1014,6 @@ if(BUILD_TESTS)
         # test_alock is disabled
         add_borrow_check_target(test_future)
         add_borrow_check_target(test_reactor)
-
         # Create a convenience target to check all test files
         add_custom_target(borrow_check_tests
             DEPENDS borrow_check_all_test_marshal borrow_check_all_test_rpc
@@ -1016,11 +1028,13 @@ if(BUILD_TESTS)
     message(STATUS "  - test_rpc_extended: Extended RPC tests (timeouts, reconnection, load)")
     # message(STATUS "  - test_alock: Atomic lock tests")  # Commented out due to crashes
     message(STATUS "  - test_future: Future/async operation tests")
+    message(STATUS "  - test_masstree: Core Masstree b-tree regression tests")
     message(STATUS "  - test_reactor: Reactor/event system tests")
     message(STATUS "  - test_reactor_extended: Extended reactor tests (events, coroutines, load)")
     message(STATUS "  - rpcbench: RPC performance benchmark test")
+    message(STATUS "Additional perf binaries:")
+    message(STATUS "  - masstree_perf: On-demand Masstree throughput benchmark (JSON output)")
     message(STATUS "")
     message(STATUS "Run tests with: make run_tests")
     message(STATUS "Or individually: make test && ctest")
 endif()
-
