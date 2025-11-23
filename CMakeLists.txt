@@ -284,13 +284,16 @@ set(BORROW_CHECKER_INCLUDE_PATHS
 add_compile_definitions(MASSTREE_CONFIG_H=\"${CMAKE_CURRENT_SOURCE_DIR}/${W}/masstree/config.h\")
 add_compile_definitions(MASSTREE_SUPPORT_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/src/mako/masstree_btree.h\")
 
+# Note: add_borrow_check() names targets by basename, so prefer the .c/.cc file
+# when both header and source exist to avoid duplicate target names.
 set(MASSTREE_BORROW_CHECK_SOURCES
     src/mako/rcu.h
     src/mako/prefetch.h
     src/mako/amd64.h
     src/mako/macros.h
+    src/mako/masstree/config.h
     src/mako/masstree/btree_leaflink.hh
-    src/mako/masstree/checkpoint.hh
+    src/mako/masstree/checkpoint.cc
     src/mako/masstree/circular_int.hh
     src/mako/masstree/clp.c
     src/mako/masstree/masstree_struct.hh
@@ -305,43 +308,44 @@ set(MASSTREE_BORROW_CHECK_SOURCES
     src/mako/masstree/masstree_print.hh
     src/mako/masstree/nodeversion.hh
     src/mako/masstree/stringbag.hh
-    src/mako/masstree/value_array.hh
+    src/mako/masstree/value_array.cc
     src/mako/masstree/value_bag.hh
-    src/mako/masstree/value_string.hh
-    src/mako/masstree/value_versioned_array.hh
-    src/mako/masstree/compiler.hh
-    src/mako/masstree/file.hh
+    src/mako/masstree/value_string.cc
+    src/mako/masstree/value_versioned_array.cc
+    src/mako/masstree/compiler.cc
+    src/mako/masstree/file.cc
     src/mako/masstree/hashcode.hh
-    src/mako/masstree/json.hh
+    src/mako/masstree/json.cc
     src/mako/masstree/jsontest.cc
     src/mako/masstree/kpermuter.hh
-    src/mako/masstree/kvio.hh
+    src/mako/masstree/ksearch.hh
+    src/mako/masstree/kvio.cc
     src/mako/masstree/kvproto.hh
-    src/mako/masstree/kvrandom.hh
+    src/mako/masstree/kvrandom.cc
     src/mako/masstree/kvrow.hh
     src/mako/masstree/kvstats.hh
     src/mako/masstree/kvtest.hh
-    src/mako/masstree/kvthread.hh
-    src/mako/masstree/memdebug.hh
-    src/mako/masstree/misc.hh
-    src/mako/masstree/msgpack.hh
+    src/mako/masstree/kvthread.cc
+    src/mako/masstree/memdebug.cc
+    src/mako/masstree/misc.cc
+    src/mako/masstree/msgpack.cc
     src/mako/masstree/msgpacktest.cc
-    src/mako/masstree/mtclient.hh
+    src/mako/masstree/mtclient.cc
     src/mako/masstree/mtcounters.hh
     src/mako/masstree/mtd.cc
     src/mako/masstree/mttest.cc
-    src/mako/masstree/perfstat.hh
-    src/mako/masstree/query_masstree.hh
+    src/mako/masstree/perfstat.cc
+    src/mako/masstree/query_masstree.cc
     src/mako/masstree/scantest.cc
     src/mako/masstree/small_vector.hh
-    src/mako/masstree/str.hh
-    src/mako/masstree/straccum.hh
+    src/mako/masstree/str.cc
+    src/mako/masstree/straccum.cc
     src/mako/masstree/string_base.hh
-    src/mako/masstree/string.hh
-    src/mako/masstree/string_slice.hh
+    src/mako/masstree/string.cc
+    src/mako/masstree/string_slice.cc
     src/mako/masstree/test_atomics.cc
     src/mako/masstree/test_string.cc
-    src/mako/masstree/testrunner.hh
+    src/mako/masstree/testrunner.cc
     src/mako/masstree/timestamp.hh
 )
 
