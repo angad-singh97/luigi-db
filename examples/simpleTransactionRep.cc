@@ -474,7 +474,7 @@ int main(int argc, char **argv) {
     benchConfig.setConfig(config);
     benchConfig.setPaxosConfigFile(paxos_config_file);
 
-    init_env();
+    abstract_db* replicated_db = init_env();
 
     printf("=== Mako Transaction Tests  ===\n");
     
@@ -499,25 +499,25 @@ int main(int argc, char **argv) {
         run_tests(db);
     }
 
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    // Cleanup: stop helper and eRPC server threads before closing DB on leaders
+    if (benchConfig.getLeaderConfig()) {
+        mako::stop_erpc_server();
+    }
+
+    db_close() ; // EXIT 0
+
     {
-        mbta_sharded_ordered_index *table = db->open_sharded_index("customer_0");
-        auto records = scan_tables(db, table);
+        abstract_db * db2 = benchConfig.getLeaderConfig()? db : replicated_db;
+        mbta_sharded_ordered_index *table = db2->open_sharded_index("customer_0");
+        auto records = scan_tables(db2, table);
         printf("\n=== Database contents (%zu rows) ===\n", records.size());
         for (const auto &entry : records) {
             printf("%s => %s\n", entry.first.c_str(), entry.second.c_str());
         }
         fflush(stdout);
     }
-
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-
-    // Cleanup: stop helper and eRPC server threads before closing DB
-    if (benchConfig.getLeaderConfig()) {
-        mako::stop_helper();
-        mako::stop_erpc_server();
-    }
-
-    db_close() ;
 
     printf("\n" GREEN "All tests completed successfully!" RESET "\n");
     std::cout.flush();

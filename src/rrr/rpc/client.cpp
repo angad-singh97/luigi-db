@@ -310,7 +310,7 @@ FutureResult Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */
 
   auto fu = Future::create(xid_counter_.borrow_mut()->next(), attr);
   pending_fu_l_.get()->lock();
-  (*pending_fu_.borrow_mut())[fu->xid_] = fu;  // Store Arc in map (refcount now 2)
+  pending_fu_.borrow_mut()->insert_or_assign(fu->xid_, fu);  // Store Arc in map (refcount now 2)
   pending_fu_l_.get()->unlock();
   //Log_info("Starting a new request with rpc_id %ld,xid_:%llu", rpc_id,fu->xid_);
   // check if the client gets closed in the meantime
@@ -325,7 +325,9 @@ FutureResult Client::begin_request(i32 rpc_id, const FutureAttr& attr /* =... */
     return FutureResult::Err(ENOTCONN);
   }
 
-  *bmark_.borrow_mut() = rusty::Some(rusty::Box<Marshal::bookmark>(out_.borrow_mut()->set_bookmark(sizeof(i32)))); // will fill packet size later
+  // Separate the borrows to avoid overlapping mutable borrows
+  Marshal::bookmark* bm = out_.borrow_mut()->set_bookmark(sizeof(i32)); // will fill packet size later
+  *bmark_.borrow_mut() = rusty::Some(rusty::Box<Marshal::bookmark>(bm));
 
   *this << v64(fu->xid_);
   *this << rpc_id;
@@ -356,15 +358,15 @@ void Client::end_request() const {
 
 // @unsafe - Constructs pool with PollThreadWorker ownership
 // SAFETY: Shared ownership of PollThreadWorker
-ClientPool::ClientPool(rusty::Arc<PollThreadWorker> poll_thread_worker /* =? */,
+ClientPool::ClientPool(rusty::Option<rusty::Arc<PollThreadWorker>> poll_thread_worker /* =? */,
                        int parallel_connections /* =? */)
     : parallel_connections_(parallel_connections) {
 
   verify(parallel_connections_ > 0);
-  if (!poll_thread_worker) {
-    poll_thread_worker_ = PollThreadWorker::create();
+  if (poll_thread_worker.is_none()) {
+    poll_thread_worker_ = rusty::Some(PollThreadWorker::create());
   } else {
-    poll_thread_worker_ = poll_thread_worker;
+    poll_thread_worker_ = std::move(poll_thread_worker);
   }
 }
 
@@ -378,24 +380,24 @@ ClientPool::~ClientPool() {
   }
 
   // Shutdown PollThreadWorker if we own it
-  if (poll_thread_worker_) {
-    poll_thread_worker_->shutdown();
+  if (poll_thread_worker_.is_some()) {
+    poll_thread_worker_.as_ref().unwrap()->shutdown();
   }
 }
 
 // @unsafe - Gets cached or creates new client connections
 // SAFETY: Protected by spinlock, handles connection failures gracefully
-rusty::Arc<Client> ClientPool::get_client(const string& addr) {
-  rusty::Arc<Client> sp_cl;
+rusty::Option<rusty::Arc<Client>> ClientPool::get_client(const string& addr) {
+  rusty::Option<rusty::Arc<Client>> sp_cl = rusty::None;
   l_.lock();
   auto it = cache_.find(addr);
   if (it != cache_.end()) {
-    sp_cl = it->second[rand_() % parallel_connections_];
+    sp_cl = rusty::Some(it->second[rand_() % parallel_connections_].clone());
   } else {
     std::vector<rusty::Arc<Client>> parallel_clients;
     bool ok = true;
     for (int i = 0; i < parallel_connections_; i++) {
-      auto client = Client::create(this->poll_thread_worker_);
+      auto client = Client::create(this->poll_thread_worker_.as_ref().unwrap().clone());
       if (client->connect(addr.c_str()) != 0) {
         ok = false;
         break;
@@ -403,7 +405,7 @@ rusty::Arc<Client> ClientPool::get_client(const string& addr) {
       parallel_clients.push_back(client);
     }
     if (ok) {
-      sp_cl = parallel_clients[rand_() % parallel_connections_];
+      sp_cl = rusty::Some(parallel_clients[rand_() % parallel_connections_].clone());
       cache_[addr] = std::move(parallel_clients);
     }
     // If not ok, parallel_clients automatically cleaned up by Arc
