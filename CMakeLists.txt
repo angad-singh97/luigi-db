@@ -270,6 +270,85 @@ else()
 endif()
 set(O "${O}.masstree")
 
+# Borrow checker inputs (place after CONFIG_H so it is available to the checker)
+set(BORROW_CHECKER_INCLUDE_PATHS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mako
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mako/masstree
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
+    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4
+    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/third_party/masstree-beta
+)
+
+# Make config paths visible to the borrow checker (will be turned into -include)
+add_compile_definitions(MASSTREE_CONFIG_H=\"${CMAKE_CURRENT_SOURCE_DIR}/${W}/masstree/config.h\")
+add_compile_definitions(MASSTREE_SUPPORT_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/src/mako/masstree_btree.h\")
+
+set(MASSTREE_BORROW_CHECK_SOURCES
+    src/mako/rcu.h
+    src/mako/prefetch.h
+    src/mako/amd64.h
+    src/mako/macros.h
+    src/mako/masstree/btree_leaflink.hh
+    src/mako/masstree/checkpoint.hh
+    src/mako/masstree/circular_int.hh
+    src/mako/masstree/clp.c
+    src/mako/masstree/masstree_struct.hh
+    src/mako/masstree/masstree.hh
+    src/mako/masstree/masstree_key.hh
+    src/mako/masstree/masstree_tcursor.hh
+    src/mako/masstree/masstree_get.hh
+    src/mako/masstree/masstree_insert.hh
+    src/mako/masstree/masstree_remove.hh
+    src/mako/masstree/masstree_split.hh
+    src/mako/masstree/masstree_scan.hh
+    src/mako/masstree/masstree_print.hh
+    src/mako/masstree/nodeversion.hh
+    src/mako/masstree/stringbag.hh
+    src/mako/masstree/value_array.hh
+    src/mako/masstree/value_bag.hh
+    src/mako/masstree/value_string.hh
+    src/mako/masstree/value_versioned_array.hh
+    src/mako/masstree/compiler.hh
+    src/mako/masstree/file.hh
+    src/mako/masstree/hashcode.hh
+    src/mako/masstree/json.hh
+    src/mako/masstree/jsontest.cc
+    src/mako/masstree/kpermuter.hh
+    src/mako/masstree/kvio.hh
+    src/mako/masstree/kvproto.hh
+    src/mako/masstree/kvrandom.hh
+    src/mako/masstree/kvrow.hh
+    src/mako/masstree/kvstats.hh
+    src/mako/masstree/kvtest.hh
+    src/mako/masstree/kvthread.hh
+    src/mako/masstree/memdebug.hh
+    src/mako/masstree/misc.hh
+    src/mako/masstree/msgpack.hh
+    src/mako/masstree/msgpacktest.cc
+    src/mako/masstree/mtclient.hh
+    src/mako/masstree/mtcounters.hh
+    src/mako/masstree/mtd.cc
+    src/mako/masstree/mttest.cc
+    src/mako/masstree/perfstat.hh
+    src/mako/masstree/query_masstree.hh
+    src/mako/masstree/scantest.cc
+    src/mako/masstree/small_vector.hh
+    src/mako/masstree/str.hh
+    src/mako/masstree/straccum.hh
+    src/mako/masstree/string_base.hh
+    src/mako/masstree/string.hh
+    src/mako/masstree/string_slice.hh
+    src/mako/masstree/test_atomics.cc
+    src/mako/masstree/test_string.cc
+    src/mako/masstree/testrunner.hh
+    src/mako/masstree/timestamp.hh
+)
+
+foreach(SRC ${MASSTREE_BORROW_CHECK_SOURCES})
+    add_borrow_check(${SRC})
+endforeach()
+
 # Compiler flags
 set(CXXFLAGS
   -w
