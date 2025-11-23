@@ -20,6 +20,7 @@
 #include <errno.h>
 #include "string.hh"
 
+// @unsafe - performs raw POSIX reads without borrow tracking
 inline ssize_t
 safe_read(int fd, void *buf, size_t count)
 {
@@ -39,6 +40,7 @@ safe_read(int fd, void *buf, size_t count)
     return pos;
 }
 
+// @unsafe - performs raw POSIX writes without borrow tracking
 inline ssize_t
 safe_write(int fd, const void *buf, size_t count)
 {
@@ -58,6 +60,7 @@ safe_write(int fd, const void *buf, size_t count)
     return pos;
 }
 
+// @unsafe - asserts raw write completion
 inline void
 checked_write(int fd, const void *buf, size_t count)
 {
@@ -72,6 +75,7 @@ checked_write(int fd, const T *x)
 }
 
 
+// @unsafe - read helpers use raw FDs
 lcdf::String read_file_contents(int fd);
 lcdf::String read_file_contents(const char *filename);
 int sync_write_file_contents(const char *filename, const lcdf::String &contents,

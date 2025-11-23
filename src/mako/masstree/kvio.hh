@@ -27,6 +27,7 @@ struct kvout {
     unsigned capacity; // allocated size of buf
     unsigned n;   // # of chars we've written to buf
 
+    // @unsafe - appends into raw buffer
     inline void append(char c);
     inline char* reserve(int n);
     inline void adjust_length(int delta);

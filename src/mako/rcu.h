@@ -173,12 +173,14 @@ public:
   };
 
   // thin forwarders
+  // @unsafe - performs raw memory allocation from the RCU arena
   inline void *
   alloc(size_t sz)
   {
     return mysync().alloc(sz);
   }
 
+  // @unsafe - allocates static arena memory without borrow tracking
   inline void *
   alloc_static(size_t sz)
   {
@@ -187,12 +189,14 @@ public:
 
   // this releases memory back to the allocator subsystem
   // this should NOT be used to free objects!
+  // @unsafe - frees raw memory blocks; caller must ensure lifetime ordering
   inline void
   dealloc(void *p, size_t sz)
   {
     return mysync().dealloc(p, sz);
   }
 
+  // @unsafe - schedules deferred free on raw pointer
   void dealloc_rcu(void *p, size_t sz);
 
   inline bool
@@ -207,6 +211,7 @@ public:
     mysync().do_cleanup();
   }
 
+  // @unsafe - invokes arbitrary deleter on raw pointer
   void free_with_fn(void *p, deleter_t fn);
 
   template <typename T>

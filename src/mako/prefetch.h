@@ -7,6 +7,7 @@
 #include "macros.h"
 
 #if !MASSTREE_COMPILER_HH
+// @unsafe - raw cache prefetch on arbitrary pointer, caller must guarantee validity
 // assumes cache-aligned
 static inline ALWAYS_INLINE void
 prefetch(const void *ptr)
@@ -17,6 +18,7 @@ prefetch(const void *ptr)
 #define PREFETCH_DEFINED 1
 #endif
 
+// @unsafe - pointer arithmetic without lifetime tracking
 // assumes cache-aligned
 template <typename T>
 static inline ALWAYS_INLINE void
@@ -29,6 +31,7 @@ prefetch_object(const T *ptr)
     prefetch((const char *) ptr + i);
 }
 
+// @unsafe - directly touches bytes over [ptr, ptr + n)
 // prefetch an object resident in [ptr, ptr + n). doesn't assume cache aligned
 static inline ALWAYS_INLINE void
 prefetch_bytes(const void *p, size_t n)

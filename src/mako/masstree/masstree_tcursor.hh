@@ -60,6 +60,7 @@ class unlocked_tcursor {
           lv_(leafvalue<P>::make_empty()), root_(table.fix_root()) {
     }
 
+    // @unsafe - traverses nodes without locks; relies on raw pointer invariants
     bool find_unlocked(threadinfo& ti);
 
     inline value_type value() const {
@@ -152,9 +153,12 @@ class tcursor {
         return new_nodes_;
     }
 
+    // @unsafe - acquires locks and manipulates raw nodes
     inline bool find_locked(threadinfo& ti);
+    // @unsafe - inserts via raw node manipulation
     inline bool find_insert(threadinfo& ti);
 
+    // @unsafe - updates node state and releases locks
     inline void finish(int answer, threadinfo& ti);
 
     inline nodeversion_value_type previous_full_version_value() const;

@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+// @unsafe - reads raw file descriptor without borrow checking
 lcdf::String read_file_contents(int fd) {
     lcdf::StringAccum sa;
     while (1) {

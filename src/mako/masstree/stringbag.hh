@@ -82,6 +82,7 @@ class stringbag {
         to new. Allocate space for a stringbag, then call the constructor on
         that space using placement new. @a capacity must be no bigger than
         the allocated space. */
+    // @unsafe - requires caller-managed storage; manipulates raw offsets
     stringbag(int width, size_t capacity) {
         size_t firstpos = overhead(width);
         assert(capacity >= firstpos && capacity <= max_size());
@@ -119,6 +120,7 @@ class stringbag {
         @return true if the assignment succeeded, false if it failed
            (because the stringbag is out of capacity)
         @pre @a p >= 0 && @a p < bag width */
+    // @unsafe - copies raw bytes into backing buffer
     bool assign(int p, const char *s, int len) {
         unsigned pos, mylen = info_[p].len;
         if (mylen >= (unsigned) len)

@@ -17,6 +17,9 @@
 #define VALUE_ARRAY_HH
 #include "compiler.hh"
 #include "json.hh"
+#include "kvthread.hh"
+#include "timestamp.hh"
+using lcdf::Str;
 
 class value_array {
   public:
@@ -94,6 +97,7 @@ inline size_t value_array::shallow_size() const {
     return shallow_size(ncol_);
 }
 
+// @unsafe - allocates raw inline_string storage
 inline lcdf::inline_string* value_array::make_column(Str str, threadinfo& ti) {
     using lcdf::inline_string;
     if (str) {
@@ -105,12 +109,14 @@ inline lcdf::inline_string* value_array::make_column(Str str, threadinfo& ti) {
         return 0;
 }
 
+// @unsafe - frees raw inline_string memory
 inline void value_array::deallocate_column(lcdf::inline_string* col,
                                            threadinfo& ti) {
     if (col)
         ti.deallocate(col, col->size(), memtag_value);
 }
 
+// @unsafe - schedules raw inline_string free
 inline void value_array::deallocate_column_rcu(lcdf::inline_string* col,
                                                threadinfo& ti) {
     if (col)
@@ -123,6 +129,7 @@ inline value_array* value_array::create(const Json* first, const Json* last,
     return empty.update(first, last, ts, ti);
 }
 
+// @unsafe - constructs array using raw allocator without borrow checking
 inline value_array* value_array::create1(Str value, kvtimestamp_t ts, threadinfo& ti) {
     value_array* row = (value_array*) ti.allocate(shallow_size(1), memtag_value);
     row->ts_ = ts;

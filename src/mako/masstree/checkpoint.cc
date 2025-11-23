@@ -17,6 +17,7 @@
 
 // add one key/value to a checkpoint.
 // called by checkpoint_tree() for each node.
+// @unsafe - serializes raw row pointers into checkpoint stream
 bool ckstate::visit_value(Str key, const row_type* value, threadinfo&) {
     if (endkey && key >= endkey)
         return false;

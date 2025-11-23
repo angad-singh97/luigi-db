@@ -20,6 +20,7 @@
 namespace Masstree {
 
 template <typename P>
+// @unsafe - performs raw-node inserts under locks
 bool tcursor<P>::find_insert(threadinfo& ti)
 {
     find_locked(ti);

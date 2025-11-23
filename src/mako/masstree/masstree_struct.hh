@@ -69,6 +69,7 @@ class node_base : public make_nodeversion<P>::type {
     inline bool has_parent() const {
         return parent_exists(parent());
     }
+    // @unsafe - manipulates parent pointers under locks
     inline internode_type* locked_parent(threadinfo& ti) const;
     inline void set_parent(base_type* p) {
         if (this->isleaf())
@@ -85,6 +86,7 @@ class node_base : public make_nodeversion<P>::type {
         return parent_exists(x) ? x : const_cast<base_type*>(this);
     }
 
+    // @unsafe - traverses tree via raw pointers
     inline leaf_type* reach_leaf(const key_type& k, nodeversion_type& version,
                                  threadinfo& ti) const;
 
@@ -152,9 +154,11 @@ class internode : public node_base<P> {
 
     void print(FILE* f, const char* prefix, int indent, int kdepth);
 
+    // @unsafe - frees leaf memory and ksuf storage manually
     void deallocate(threadinfo& ti) {
         ti.pool_deallocate(this, sizeof(*this), memtag_masstree_internode);
     }
+    // @unsafe - schedules RCU free for leaf and ksuf storage
     void deallocate_rcu(threadinfo& ti) {
         ti.pool_deallocate_rcu(this, sizeof(*this), memtag_masstree_internode);
     }
@@ -293,6 +297,7 @@ class leaf : public node_base<P> {
             phantom_epoch_[0] = phantom_epoch;
     }
 
+    // @unsafe - allocates leaf with raw memory pools
     static leaf<P>* make(int ksufsize, phantom_epoch_type phantom_epoch, threadinfo& ti) {
         size_t sz = iceil(sizeof(leaf<P>) + std::min(ksufsize, 128), 64);
         void* ptr = ti.pool_allocate(sz, memtag_masstree_leaf);
@@ -302,6 +307,7 @@ class leaf : public node_base<P> {
             n->created_at_[0] = ti.operation_timestamp();
         return n;
     }
+    // @unsafe - creates root leaf via raw allocation
     static leaf<P>* make_root(int ksufsize, leaf<P>* parent, threadinfo& ti) {
         leaf<P>* n = make(ksufsize, parent ? parent->phantom_epoch() : phantom_epoch_type(), ti);
         n->next_.ptr = n->prev_ = 0;
@@ -486,6 +492,7 @@ class leaf : public node_base<P> {
         modstate_ = modstate_deleted_layer;
     }
 
+    // @unsafe - writes key/value directly into leaf slots
     inline void assign(int p, const key_type& ka, threadinfo& ti) {
         lv_[p] = leafvalue_type::make_empty();
         ikey0_[p] = ka.ikey();
@@ -506,6 +513,7 @@ class leaf : public node_base<P> {
             assign_ksuf(p, ka.suffix(), true, ti);
         }
     }
+    // @unsafe - copies data between leaves without extra checks
     inline void assign_initialize(int p, leaf<P>* x, int xp, threadinfo& ti) {
         lv_[p] = x->lv_[xp];
         ikey0_[p] = x->ikey0_[xp];

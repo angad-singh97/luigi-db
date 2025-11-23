@@ -32,6 +32,7 @@
 
 
 // API to allocate a new kvout.
+// @unsafe - allocates unmanaged buffer for kv output
 kvout* new_kvout(int fd, int buflen) {
     kvout* kv = (kvout*) malloc(sizeof(kvout));
     assert(kv);

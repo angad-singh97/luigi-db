@@ -68,6 +68,7 @@
  * @return 0 if @a x = 0; otherwise the index of first bit set, where the
  * most significant bit is numbered 1.
  */
+// @unsafe - bit-twiddling helpers with raw intrinsics
 inline int ffs_msb(unsigned x) {
     return (x ? __builtin_clz(x) + 1 : 0);
 }

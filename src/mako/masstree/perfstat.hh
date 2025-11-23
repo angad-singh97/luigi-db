@@ -24,6 +24,7 @@ namespace Perf {
 struct stat {
     /** @brief An initialization call from main function
      */
+    // @unsafe - sets up global perf state
     static void initmain(bool pinthreads);
 #if GCSTATS
     int gc_nfree;

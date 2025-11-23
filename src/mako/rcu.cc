@@ -252,6 +252,7 @@ rcu::sync::do_cleanup()
   }
 }
 
+// @unsafe - manipulates raw pointers deferred through custom deleter queues
 void
 rcu::free_with_fn(void *p, deleter_t fn)
 {
@@ -267,6 +268,7 @@ rcu::free_with_fn(void *p, deleter_t fn)
   ++evt_rcu_frees;
 }
 
+// @unsafe - schedules raw pointer deallocation after grace period
 void
 rcu::dealloc_rcu(void *p, size_t sz)
 {

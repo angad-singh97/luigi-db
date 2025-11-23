@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// @unsafe - aborts process on assertion failure
 void fail_always_assert(const char* file, int line,
                         const char* assertion, const char* message) {
     if (message)
@@ -28,6 +29,7 @@ void fail_always_assert(const char* file, int line,
     abort();
 }
 
+// @unsafe - aborts process on invariant failure
 void fail_masstree_invariant(const char* file, int line,
                              const char* assertion, const char* message) {
     if (message)

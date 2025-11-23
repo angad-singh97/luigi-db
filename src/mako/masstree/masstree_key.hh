@@ -105,6 +105,7 @@ class key {
 
     /** @brief Shift this key forward to model the current key's suffix.
         @pre has_suffix() */
+    // @unsafe - performs unchecked pointer arithmetic into raw key buffer
     void shift() {
         s_ += ikey_size;
         len_ -= ikey_size;
@@ -112,6 +113,7 @@ class key {
     }
     /** @brief Shift this key forward to model the current key's suffix.
         @pre has_suffix() */
+    // @unsafe - adjusts raw suffix pointer
     void shift_by(int delta) {
         s_ += delta;
         len_ -= delta;

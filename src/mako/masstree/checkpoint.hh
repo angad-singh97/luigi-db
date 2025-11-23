@@ -32,9 +32,11 @@ struct ckstate {
     template <typename SS, typename K>
     void visit_leaf(const SS&, const K&, threadinfo&) {
     }
+    // @unsafe - writes checkpoint rows without additional lifetime tracking
     bool visit_value(Str key, const row_type* value, threadinfo& ti);
 
     template <typename T>
+    // @unsafe - inserts rows via raw pointers and unchecked parsing
     static void insert(T& table, msgpack::parser& par, threadinfo& ti);
 };
 

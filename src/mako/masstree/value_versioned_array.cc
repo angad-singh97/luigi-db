@@ -17,6 +17,7 @@
 #include "value_versioned_array.hh"
 #include <string.h>
 
+// @unsafe - allocates array backing store directly
 value_versioned_array* value_versioned_array::make_sized_row(int ncol, kvtimestamp_t ts, threadinfo& ti) {
     value_versioned_array* row = (value_versioned_array*) ti.allocate(shallow_size(ncol), memtag_value);
     row->ts_ = ts;
@@ -47,6 +48,7 @@ void value_versioned_array::snapshot(value_versioned_array*& storage,
     }
 }
 
+// @unsafe - updates row using raw memory ops
 value_versioned_array*
 value_versioned_array::update(const Json* first, const Json* last,
                               kvtimestamp_t ts, threadinfo& ti,

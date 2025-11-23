@@ -20,6 +20,7 @@
 namespace Masstree {
 
 template <typename P>
+// @unsafe - traverses the B-tree without locks via raw pointers
 bool unlocked_tcursor<P>::find_unlocked(threadinfo& ti)
 {
     int match;
@@ -57,6 +58,7 @@ bool unlocked_tcursor<P>::find_unlocked(threadinfo& ti)
 }
 
 template <typename P>
+// @unsafe - wraps unlocked traversal; safe wrappers must audit callers
 inline bool basic_table<P>::get(Str key, value_type &value,
                                 threadinfo& ti) const
 {
@@ -68,6 +70,7 @@ inline bool basic_table<P>::get(Str key, value_type &value,
 }
 
 template <typename P>
+// @unsafe - locks & manipulates raw nodes directly
 bool tcursor<P>::find_locked(threadinfo& ti)
 {
     node_base<P>* root = const_cast<node_base<P>*>(root_);

@@ -84,6 +84,7 @@ class nodeversion {
         return (x.v_ ^ v_) >= P::vsplit_lowbit;
     }
 
+    // @unsafe - spins/CAS on raw version words
     nodeversion<P> lock() {
         return lock(*this);
     }
@@ -107,6 +108,7 @@ class nodeversion {
         return expected;
     }
 
+    // @unsafe - releases raw lock bits and mutates version
     void unlock() {
         unlock(*this);
     }

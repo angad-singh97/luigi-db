@@ -24,6 +24,7 @@
 #include "timestamp.hh"
 #include "clp.h"
 
+// @unsafe - manipulates process timers directly
 inline void xalarm(double d) {
     double ip, fp = modf(d, &ip);
     struct itimerval x;

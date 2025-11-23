@@ -86,6 +86,7 @@ inline key_indexed_position key_lower_bound(const KA& ka, const T& n)
 }
 
 
+// @unsafe - scans raw permutations without lifetime tracking
 template <typename KA, typename T, typename F>
 int key_find_upper_bound_by(const KA& ka, const T& n, F comparator)
 {
@@ -102,6 +103,7 @@ int key_find_upper_bound_by(const KA& ka, const T& n, F comparator)
     return l;
 }
 
+// @unsafe - linear search over raw key slots
 template <typename KA, typename T, typename F>
 key_indexed_position key_find_lower_bound_by(const KA& ka, const T& n, F comparator)
 {

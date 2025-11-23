@@ -35,6 +35,7 @@
 typedef size_t hashcode_t;	///< Typical type for a hashcode() value.
 
 template <typename T>
+// @unsafe - raw hash helpers without lifetime tracking
 inline hashcode_t hashcode(T const &x) {
     return x.hashcode();
 }

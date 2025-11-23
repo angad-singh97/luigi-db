@@ -17,6 +17,8 @@
 #define VALUE_STRING_HH
 #include "compiler.hh"
 #include "json.hh"
+#include "kvthread.hh"
+#include "timestamp.hh"
 
 class value_string {
   public:
@@ -113,11 +115,13 @@ inline lcdf::Str value_string::col(index_type idx) const {
     }
 }
 
+// @unsafe - frees raw value_string memory
 template <typename ALLOC>
 inline void value_string::deallocate(ALLOC& ti) {
     ti.deallocate(this, size(), memtag_value);
 }
 
+// @unsafe - schedules raw value_string memory free
 inline void value_string::deallocate_rcu(threadinfo& ti) {
     ti.deallocate_rcu(this, size(), memtag_value);
 }
@@ -130,6 +134,7 @@ inline size_t value_string::shallow_size() const {
     return shallow_size(vallen_);
 }
 
+// @unsafe - constructs new value_string via raw allocations
 template <typename ALLOC>
 value_string* value_string::update(const Json* first, const Json* last,
                                    kvtimestamp_t ts, ALLOC& ti) const {
@@ -152,6 +157,7 @@ value_string* value_string::update(const Json* first, const Json* last,
     return row;
 }
 
+// @unsafe - calls update which allocates raw buffers
 inline value_string* value_string::create(const Json* first, const Json* last,
                                           kvtimestamp_t ts, threadinfo& ti) {
     value_string empty;

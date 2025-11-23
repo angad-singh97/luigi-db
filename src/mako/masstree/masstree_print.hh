@@ -50,6 +50,7 @@ void node_base<P>::print(FILE *f, const char *prefix, int indent, int kdepth)
         ((internode<P> *) this)->print(f, prefix, indent, kdepth);
 }
 
+// @unsafe - prints contents by walking raw nodes
 template <typename P>
 void leaf<P>::print(FILE *f, const char *prefix, int indent, int kdepth)
 {
@@ -117,6 +118,7 @@ void leaf<P>::print(FILE *f, const char *prefix, int indent, int kdepth)
         fprintf(f, "%s%*s[DELETED]\n", prefix, indent + 2, "");
 }
 
+// @unsafe - recursively prints raw internodes
 template <typename P>
 void internode<P>::print(FILE *f, const char *prefix, int indent, int kdepth)
 {
@@ -153,6 +155,7 @@ void internode<P>::print(FILE *f, const char *prefix, int indent, int kdepth)
         fprintf(f, "%s%*s[]\n", prefix, indent + 4, "");
 }
 
+// @unsafe - exposes raw tree structure for debugging
 template <typename P>
 void basic_table<P>::print(FILE *f, int indent) const {
     root_->print(f ? f : stdout, "", indent, 0);

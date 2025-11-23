@@ -65,7 +65,9 @@ class basic_table {
 
     inline basic_table();
 
+    // @unsafe - mutates root pointer using raw allocation
     void initialize(threadinfo& ti);
+    // @unsafe - tears down tree via raw pointers
     void destroy(threadinfo& ti);
 
     inline node_type* root() const;

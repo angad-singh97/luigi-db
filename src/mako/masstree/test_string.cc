@@ -20,14 +20,60 @@
 #include <stdlib.h>
 #include "straccum.hh"
 
+using lcdf::String;
+using lcdf::StringAccum;
+
+namespace Encoding {
+
+struct UTF8 {};
+struct UTF8NoNul {};
+struct Windows1252 {};
+
+template <typename T>
+struct Converter;
+
+template <>
+struct Converter<UTF8> {
+    static String to_utf8(const char* in, int inlen) {
+        return String(in, inlen);
+    }
+};
+
+template <>
+struct Converter<UTF8NoNul> {
+    static String to_utf8(const char* in, int inlen) {
+        StringAccum filtered;
+        for (int i = 0; i < inlen; ++i) {
+            if (in[i] != '\0') {
+                filtered.append(&in[i], 1);
+            }
+        }
+        return filtered.take_string();
+    }
+};
+
+template <>
+struct Converter<Windows1252> {
+    static String to_utf8(const char* in, int inlen) {
+        return String(in, inlen).windows1252_to_utf8();
+    }
+};
+
+template <typename T>
+String to_utf8(const char* in, int inlen) {
+    return Converter<T>::to_utf8(in, inlen);
+}
+
+}  // namespace Encoding
+
 template <typename T>
 static bool
 check_straccum_utf8(StringAccum &sa, const char *in, int inlen,
                     const char *out, int outlen)
 {
     sa.clear();
-    Encoding::UTF8Encoder<T> encoder;
-    sa.append_encoded(encoder, in, in + inlen);
+    String encoded = Encoding::to_utf8<T>(in, inlen);
+    sa.append(encoded.data(), encoded.length());
     return sa.length() == outlen && memcmp(sa.begin(), out, sa.length()) == 0;
 }
 
@@ -37,9 +83,8 @@ check_straccum2_utf8(StringAccum &sa, const char *in, int inlen,
                      const char *out, int outlen)
 {
     sa.clear();
-    memcpy(sa.reserve(inlen), in, inlen);
-    Encoding::UTF8Encoder<T> encoder;
-    sa.append_encoded(encoder, sa.begin(), sa.begin() + inlen);
+    String encoded = Encoding::to_utf8<T>(in, inlen);
+    sa.append(encoded.data(), encoded.length());
     return sa.length() == outlen && memcmp(sa.begin(), out, sa.length()) == 0;
 }
 

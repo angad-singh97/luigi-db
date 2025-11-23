@@ -9,118 +9,98 @@
 ## File Catalog & Scope
 The following files make up the Masstree surface that must receive `@safe`/`@unsafe` annotations during the migration. Grouping the scope avoids surprises during later phases and mirrors the breadth of the recent RRR safety work (latest commits touched `marshal`, `pollthread`, futures, etc.).
 
-### Integration Wrappers & Entry Points (`src/mako/`)
-- `masstree_btree.h`
-- `base_txn_btree.h`
-- `txn_btree.h`, `txn_btree.cc`
-- `typed_txn_btree.h`
-- `txn_proto2_impl.h`, `txn_proto2_impl.cc` (Masstree-backed transactional logic)
-- `txn.h`, `txn.cc` (interfaces invoked directly by Masstree-backed code)
-- `tuple.h`, `tuple.cc`, `tuple_btree.cc` (tuple storage for Masstree pages)
-- `ownership_checker.h`
-- `rcu.h`, `rcu.cc`
-- `prefetch.h`, `amd64.h`, `macros.h` (utility headers Masstree relies on)
+### Priority Batches
+To keep the migration manageable, files are grouped into batches ordered by how urgently they need RustyCpp coverage. Refactor one batch at a time—only move to the next once the borrow checker is green and all unsafe blocks are justified.
 
-### Vendored Masstree Sources (`src/mako/masstree/`)
-These files come directly from the upstream Masstree drop and must be annotated in-place so downstream wrappers can remain `@safe`. The list intentionally includes configuration helpers and benchmarks because they exercise the same raw structures.
+#### **Batch 0 — Safety Infrastructure & Contracts (critical)**
+These files define the contract every Masstree call relies on. They must be annotated first so later work can build on the safe abstractions.
+- `src/mako/rcu.h`, `src/mako/rcu.cc`
+- `src/mako/prefetch.h`, `src/mako/amd64.h`, `src/mako/macros.h`
+- `src/mako/ownership_checker.h`
+- `src/mako/masstree_btree.h` (simple_threadinfo, mbtree interface)
 
-```
-src/mako/masstree/AUTHORS
-src/mako/masstree/GNUmakefile.in
-src/mako/masstree/LICENSE
-src/mako/masstree/README.md
-src/mako/masstree/_masstree_config.d
-src/mako/masstree/bootstrap.sh
-src/mako/masstree/btree_leaflink.hh
-src/mako/masstree/checkpoint.cc
-src/mako/masstree/checkpoint.hh
-src/mako/masstree/circular_int.hh
-src/mako/masstree/clp.c
-src/mako/masstree/clp.h
-src/mako/masstree/compiler.cc
-src/mako/masstree/compiler.hh
-src/mako/masstree/configure.ac
-src/mako/masstree/doc/.gitignore
-src/mako/masstree/doc/GNUmakefile
-src/mako/masstree/doc/elements.mp
-src/mako/masstree/doc/elemfig.sty
-src/mako/masstree/doc/examples.mp
-src/mako/masstree/doc/insert1.mp
-src/mako/masstree/doc/masstree.mp
-src/mako/masstree/doc/patches.mp
-src/mako/masstree/doc/remove1.mp
-src/mako/masstree/doc/remove2.mp
-src/mako/masstree/doc/spec.tex
-src/mako/masstree/file.cc
-src/mako/masstree/file.hh
-src/mako/masstree/hashcode.hh
-src/mako/masstree/json.cc
-src/mako/masstree/json.hh
-src/mako/masstree/jsontest.cc
-src/mako/masstree/kpermuter.hh
-src/mako/masstree/ksearch.hh
-src/mako/masstree/kvio.cc
-src/mako/masstree/kvio.hh
-src/mako/masstree/kvproto.hh
-src/mako/masstree/kvrandom.cc
-src/mako/masstree/kvrandom.hh
-src/mako/masstree/kvrow.hh
-src/mako/masstree/kvstats.hh
-src/mako/masstree/kvtest.hh
-src/mako/masstree/kvthread.cc
-src/mako/masstree/kvthread.hh
-src/mako/masstree/masstree.hh
-src/mako/masstree/masstree_get.hh
-src/mako/masstree/masstree_insert.hh
-src/mako/masstree/masstree_key.hh
-src/mako/masstree/masstree_print.hh
-src/mako/masstree/masstree_remove.hh
-src/mako/masstree/masstree_scan.hh
-src/mako/masstree/masstree_split.hh
-src/mako/masstree/masstree_struct.hh
-src/mako/masstree/masstree_tcursor.hh
-src/mako/masstree/memdebug.cc
-src/mako/masstree/memdebug.hh
-src/mako/masstree/misc.cc
-src/mako/masstree/misc.hh
-src/mako/masstree/msgpack.cc
-src/mako/masstree/msgpack.hh
-src/mako/masstree/msgpacktest.cc
-src/mako/masstree/mtclient.cc
-src/mako/masstree/mtclient.hh
-src/mako/masstree/mtcounters.hh
-src/mako/masstree/mtd.cc
-src/mako/masstree/mttest.cc
-src/mako/masstree/nodeversion.hh
-src/mako/masstree/perfstat.cc
-src/mako/masstree/perfstat.hh
-src/mako/masstree/query_masstree.cc
-src/mako/masstree/query_masstree.hh
-src/mako/masstree/scantest.cc
-src/mako/masstree/small_vector.hh
-src/mako/masstree/str.cc
-src/mako/masstree/str.hh
-src/mako/masstree/straccum.cc
-src/mako/masstree/straccum.hh
-src/mako/masstree/string.cc
-src/mako/masstree/string.hh
-src/mako/masstree/string_base.hh
-src/mako/masstree/string_slice.cc
-src/mako/masstree/string_slice.hh
-src/mako/masstree/stringbag.hh
-src/mako/masstree/test_atomics.cc
-src/mako/masstree/test_string.cc
-src/mako/masstree/testrunner.cc
-src/mako/masstree/testrunner.hh
-src/mako/masstree/timestamp.hh
-src/mako/masstree/value_array.cc
-src/mako/masstree/value_array.hh
-src/mako/masstree/value_bag.hh
-src/mako/masstree/value_string.cc
-src/mako/masstree/value_string.hh
-src/mako/masstree/value_versioned_array.cc
-src/mako/masstree/value_versioned_array.hh
-```
+#### **Batch 1 — Core Tree Structures (highest priority)**
+Templated internals that implement nodes, cursors, scans, and versioning. Every other Masstree translation unit pulls these in.
+- `src/mako/masstree/masstree_struct.hh`
+- `src/mako/masstree/masstree.hh`
+- `src/mako/masstree/masstree_key.hh`
+- `src/mako/masstree/masstree_tcursor.hh`
+- `src/mako/masstree/masstree_scan.hh`
+- `src/mako/masstree/masstree_insert.hh`
+- `src/mako/masstree/masstree_remove.hh`
+- `src/mako/masstree/masstree_split.hh`
+- `src/mako/masstree/nodeversion.hh`
+- `src/mako/masstree/ksearch.hh`
+- `src/mako/masstree/btree_leaflink.hh`
+
+#### **Batch 2 — Value/Key Helpers & Runtime Utilities**
+Handle strings, timestamps, hashing, and other helpers that participate in every operation.
+- `src/mako/masstree/string.hh`, `string.cc`, `string_base.hh`
+- `src/mako/masstree/str.hh`, `str.cc`, `straccum.hh`, `straccum.cc`
+- `src/mako/masstree/string_slice.hh`, `string_slice.cc`, `stringbag.hh`
+- `src/mako/masstree/value_array.hh`, `value_array.cc`
+- `src/mako/masstree/value_versioned_array.hh`, `value_versioned_array.cc`
+- `src/mako/masstree/value_string.hh`, `value_string.cc`
+- `src/mako/masstree/value_bag.hh`
+- `src/mako/masstree/timestamp.hh`
+- `src/mako/masstree/hashcode.hh`
+- `src/mako/masstree/small_vector.hh`
+- `src/mako/masstree/circular_int.hh`
+
+#### **Batch 3 — Persistence, IO, and Tooling Layers**
+Files that interact with disk/logging, perf counters, or wrap the tree in binaries. These depend on the core batches.
+- `src/mako/masstree/checkpoint.hh`, `checkpoint.cc`
+- `src/mako/masstree/file.hh`, `file.cc`
+- `src/mako/masstree/perfstat.hh`, `perfstat.cc`
+- `src/mako/masstree/memdebug.hh`, `memdebug.cc`
+- `src/mako/masstree/misc.hh`, `misc.cc`
+- `src/mako/masstree/msgpack.hh`, `msgpack.cc`, `msgpacktest.cc`
+- `src/mako/masstree/kvio.hh`, `kvio.cc`
+- `src/mako/masstree/kvrandom.hh`, `kvrandom.cc`
+- `src/mako/masstree/kvthread.hh`, `kvthread.cc`
+- `src/mako/masstree/kvproto.hh`
+- `src/mako/masstree/kvrow.hh`
+- `src/mako/masstree/kvstats.hh`
+- `src/mako/masstree/kvtest.hh`
+- `src/mako/masstree/query_masstree.hh`, `query_masstree.cc`
+- `src/mako/masstree/mtclient.hh`, `mtclient.cc`
+- `src/mako/masstree/mtd.cc`, `mttest.cc`, `scantest.cc`
+- `src/mako/masstree/testrunner.hh`, `testrunner.cc`
+- `src/mako/masstree/test_atomics.cc`, `test_string.cc`
+- `src/mako/masstree/mtcounters.hh`
+
+#### **Batch 4 — Transactional & Integration Layers**
+Once the core masstree code is safe, update the higher-level wrappers and transactional layers in `src/mako/`.
+- `src/mako/base_txn_btree.h`
+- `src/mako/txn_btree.h`, `txn_btree.cc`
+- `src/mako/typed_txn_btree.h`
+- `src/mako/txn_proto2_impl.h`, `txn_proto2_impl.cc`
+- `src/mako/txn.h`, `txn.cc`
+- `src/mako/tuple.h`, `tuple.cc`, `tuple_btree.cc`
+
+#### **Batch 5 — Remaining Utilities & Benchmarks**
+Lower-priority files (tooling, standalone clients) that can be migrated last once the main library is stable.
+- `src/mako/masstree/clp.c`, `clp.h`
+- `src/mako/masstree/jsontest.cc`
+- `src/mako/masstree/json.hh`, `json.cc`
+- `src/mako/masstree/mtclient.hh`, `mtclient.cc` (client harnesses)
+- `src/mako/masstree/mtd.cc`, `mtcounters.hh`
+- `src/mako/benchmarks/sto/masstree-beta/**`
+- `src/mako/benchmarks/tpcc.cc`, `benchmarks/rpc_setup.cc`
+- `src/mako/benchmarks/encstress.cc`, `benchmarks/bid.cc`, `benchmarks/queue.cc`
+
+#### Detailed Refactor Order
+To respect RustyCpp’s “audit ratchet” (once a function is `@safe` every callee must already be audited), tackle the files in this strict order. Each group must pass the checker before advancing to the next.
+
+1. **RCU & platform primitives** – `src/mako/rcu.{h,cc}`, `prefetch.h`, `amd64.h`, `macros.h`, `ownership_checker.h`, `masstree_btree.h`.
+2. **Core node machinery** – `masstree_struct.hh`, `masstree.hh`, `masstree_key.hh`, `masstree_tcursor.hh`, `masstree_scan.hh`, `masstree_insert.hh`, `masstree_remove.hh`, `masstree_split.hh`, `nodeversion.hh`, `ksearch.hh`, `btree_leaflink.hh`.
+3. **Key/value helpers** – all `string*`, `str*`, `string_slice*`, `stringbag`, `value_*`, `timestamp.hh`, `hashcode.hh`, `small_vector.hh`, `circular_int.hh`.
+4. **Runtime utilities** – persistence/logging/misc (`checkpoint.*`, `file.*`, `perfstat.*`, `memdebug.*`, `misc.*`, `msgpack.*`, `kvio.*`, `kvrandom.*`, `kvthread.*`, `kvproto.hh`, `kvrow.hh`, `kvstats.hh`, `kvtest.hh`, `query_masstree.*`, `mtclient.*`, `mtd.cc`, `mttest.cc`, `scantest.cc`, `testrunner.*`, `test_atomics.cc`, `test_string.cc`, `mtcounters.hh`).
+5. **Transactional wrappers** – `base_txn_btree.h`, `txn_btree.*`, `typed_txn_btree.h`, `txn_proto2_impl.*`, `txn.*`, `tuple*.{h,cc}`.
+6. **Benchmarks & tooling** – `clp.*`, `json*`, remaining client/benchmark sources under `src/mako/masstree/` and `src/mako/benchmarks/**`.
+
+Deviating from this order would force `@safe` functions to call undeclared code, causing the checker to fail.
+
 
 ### Benchmarks & Harnesses Outside the Vendored Tree
 - `src/mako/benchmarks/sto/masstree-beta/**` (STO microbench harness; mirrors upstream files and must stay consistent)
@@ -254,4 +234,3 @@ Every `@unsafe` region must state:
 - Stress & perf – existing scripts (`src/mako/benchmarks/sto/TRcu.cc`, `benchmarks/rpc_setup.cc`) plus new ones capturing throughput & latency.
 
 ---
-

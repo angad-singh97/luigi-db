@@ -17,6 +17,7 @@
 #include "value_array.hh"
 #include <string.h>
 
+// @unsafe - allocates raw value_array storage
 value_array* value_array::make_sized_row(int ncol, kvtimestamp_t ts,
                                          threadinfo& ti) {
     value_array *tv;
@@ -27,6 +28,7 @@ value_array* value_array::make_sized_row(int ncol, kvtimestamp_t ts,
     return tv;
 }
 
+// @unsafe - rebuilds value_array via raw allocations
 value_array* value_array::update(const Json* first, const Json* last,
                                  kvtimestamp_t ts, threadinfo& ti) const {
     masstree_precondition(ts >= ts_);

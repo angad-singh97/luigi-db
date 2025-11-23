@@ -17,6 +17,7 @@ class small_vector {
     typedef unsigned size_type;
     static constexpr size_type small_capacity = N;
 
+    // @unsafe - manual small-buffer management
     inline small_vector(const A& allocator = A());
     small_vector(const small_vector<T, N, A>& x);
     template <unsigned NN, typename AA>

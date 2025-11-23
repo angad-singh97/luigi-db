@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include "kvthread.hh"
 
+// @unsafe - parser uses raw string conversion
 int clp_parse_suffixdouble(Clp_Parser *clp, const char *vstr,
 			   int complain, void *)
 {

@@ -47,6 +47,7 @@ leaf<P>::ikey_after_insert(const permuter_type& perm, int i,
     *@a nr, and 2 for the sequential-order optimization (@a ka went into *@a
     nr and no other keys were moved). */
 template <typename P>
+// @unsafe - splits leaf nodes via raw pointer shuffling
 int leaf<P>::split_into(leaf<P>* nr, int p, const key_type& ka,
                         ikey_type& split_ikey, threadinfo& ti)
 {
@@ -109,6 +110,7 @@ int leaf<P>::split_into(leaf<P>* nr, int p, const key_type& ka,
 }
 
 template <typename P>
+// @unsafe - splits internode using direct memory copies
 int internode<P>::split_into(internode<P> *nr, int p, ikey_type ka,
                              node_base<P> *value, ikey_type& split_ikey,
                              int split_type)

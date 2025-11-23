@@ -32,6 +32,7 @@
 
 typedef uint64_t kvtimestamp_t;
 
+// @unsafe - reads wall clock without safety guarantees
 inline kvtimestamp_t timestamp() {
     struct timeval tv;
     gettimeofday(&tv, 0);

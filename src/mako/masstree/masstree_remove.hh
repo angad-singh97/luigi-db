@@ -21,6 +21,7 @@
 namespace Masstree {
 
 template <typename P>
+// @unsafe - removes entire layers via raw pointer rewrites
 bool tcursor<P>::gc_layer(threadinfo& ti)
 {
     find_locked(ti);
