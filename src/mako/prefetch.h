@@ -24,6 +24,7 @@ template <typename T>
 static inline ALWAYS_INLINE void
 prefetch_object(const T *ptr)
 {
+  // @unsafe { raw pointer arithmetic and assembly prefetch }
   for (unsigned i = CACHELINE_SIZE;
        i < std::min(static_cast<unsigned>(sizeof(*ptr)),
                     static_cast<unsigned>(4 * CACHELINE_SIZE));
@@ -36,6 +37,7 @@ prefetch_object(const T *ptr)
 static inline ALWAYS_INLINE void
 prefetch_bytes(const void *p, size_t n)
 {
+  // @unsafe { raw pointer arithmetic }
   const char *ptr = (const char *) p;
   // round down to nearest cacheline, then prefetch
   const void * const pend =
