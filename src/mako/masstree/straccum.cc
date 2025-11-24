@@ -75,6 +75,7 @@ StringAccum::assign_out_of_memory()
     r_.len = 0;
 }
 
+// @unsafe - reallocates raw buffer and memcpy existing contents
 char* StringAccum::grow(int ncap) {
     // can't append to out-of-memory strings
     if (r_.cap < 0) {
@@ -123,6 +124,7 @@ StringAccum::resize(int len)
     }
 }
 
+// @unsafe - may reallocate buffer and adjust length without borrow tracking
 char *
 StringAccum::hard_extend(int nadjust, int nreserve)
 {
@@ -136,6 +138,7 @@ StringAccum::hard_extend(int nadjust, int nreserve)
     return x;
 }
 
+// @unsafe - steals or copies underlying String storage without extra guards
 void StringAccum::transfer_from(String& x) {
     if (x.is_shared() || x._r.memo_offset != -memo_space) {
         append(x.begin(), x.end());
@@ -153,6 +156,7 @@ void StringAccum::transfer_from(String& x) {
     length(), and later append() and similar operations can overwrite it. If
     appending the null character fails, the StringAccum becomes
     out-of-memory and the returned value is a null string. */
+// @unsafe - writes terminator into raw buffer; caller must honor lifetime
 const char *
 StringAccum::c_str()
 {
@@ -169,6 +173,7 @@ StringAccum::append_fill(int c, int len)
         memset(s, c, len);
 }
 
+// @unsafe - appends via raw memcpy and manual realloc/free
 void
 StringAccum::hard_append(const char *s, int len)
 {

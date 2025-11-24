@@ -164,6 +164,7 @@ inline value_string* value_string::create(const Json* first, const Json* last,
     return empty.update(first, last, ts, ti);
 }
 
+// @unsafe - builds new row by memcpy into freshly allocated buffer
 inline value_string* value_string::create1(Str value,
                                            kvtimestamp_t ts,
                                            threadinfo& ti) {
@@ -178,6 +179,7 @@ inline void value_string::deallocate_rcu_after_update(const Json*, const Json*, 
     deallocate_rcu(ti);
 }
 
+// @unsafe - frees raw buffer on failed update
 inline void value_string::deallocate_after_failed_update(const Json*, const Json*, threadinfo& ti) {
     deallocate(ti);
 }

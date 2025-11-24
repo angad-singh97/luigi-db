@@ -131,7 +131,7 @@ template <int width> class kpermuter {
         <li>Given j with j == i, q[j] == x</li>
         <li>Given j with i < j < q.size(), q[j] == p[j-1] && q[j] != x</li>
         </ul> */
-    // @unsafe - updates permutation without additional checks
+    // @unsafe - updates packed permutation bits without additional bounds/lifetime tracking
     int insert_from_back(int i) {
         int value = back();
         // increment size, leave lower slots unchanged
@@ -177,6 +177,7 @@ template <int width> class kpermuter {
         <li>Given j with i <= j < q.size(), q[j] == p[j+1]</li>
         <li>q[q.size()] == p[i]</li>
         </ul> */
+    // @unsafe - mutates packed permutation bits directly
     void remove(int i) {
         (void) width;
         if (int(x_ & 15) == i + 1)

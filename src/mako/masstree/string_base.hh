@@ -34,19 +34,23 @@ class String_generic {
     static const char base64_encoding_table[65];
     static const unsigned char base64_decoding_map[256];
     enum { out_of_memory_length = 14 };
+    // @unsafe - compares raw buffers; caller must provide valid pointers/lengths
     static bool out_of_memory(const char* s) {
         return unlikely(s >= out_of_memory_data
                         && s <= out_of_memory_data + out_of_memory_length);
     }
+    // @unsafe - trusts callers to supply correct lengths for memcmp
     static bool equals(const char* a, int a_len, const char* b, int b_len) {
         return a_len == b_len && memcmp(a, b, a_len) == 0;
     }
+    // @unsafe - raw memcmp on unmanaged buffers
     static int compare(const char* a, int a_len, const char* b, int b_len);
     static inline int compare(const unsigned char* a, int a_len,
                               const unsigned char* b, int b_len) {
         return compare(reinterpret_cast<const char*>(a), a_len,
                        reinterpret_cast<const char*>(b), b_len);
     }
+    // @unsafe - walks digit sequences directly in caller-provided buffers
     static int natural_compare(const char* a, int a_len, const char* b, int b_len);
     static int natural_compare(const unsigned char* a, int a_len,
                                const unsigned char* b, int b_len) {
@@ -98,6 +102,7 @@ class String_base {
 
         Only the first length() characters are valid, and the string data
         might not be null-terminated. @sa data() */
+    // @unsafe - exposes raw pointer without additional lifetime tracking
     const unsigned char* udata() const {
         return reinterpret_cast<const unsigned char*>(data());
     }
@@ -148,6 +153,7 @@ class String_base {
     /** @brief Return the @a i th character in the string.
 
         Does not check bounds. @sa at() */
+    // @unsafe - unchecked access into underlying buffer
     const char& operator[](int i) const {
         return data()[i];
     }
@@ -162,12 +168,14 @@ class String_base {
     /** @brief Return the first character in the string.
 
         Does not check bounds. Same as (*this)[0]. */
+    // @unsafe - caller must ensure string is nonempty
     const char& front() const {
         return data()[0];
     }
     /** @brief Return the last character in the string.
 
         Does not check bounds. Same as (*this)[length() - 1]. */
+    // @unsafe - caller must ensure string is nonempty
     const char& back() const {
         return data()[length() - 1];
     }

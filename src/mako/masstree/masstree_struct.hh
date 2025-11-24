@@ -170,6 +170,7 @@ class internode : public node_base<P> {
         ikey0_[p] = ikey;
     }
 
+    // @unsafe - raw memcpy of key/child arrays during split/merge
     void shift_from(int p, const internode<P>* x, int xp, int n) {
         masstree_precondition(x != this);
         if (n) {
@@ -177,11 +178,13 @@ class internode : public node_base<P> {
             memcpy(child_ + p + 1, x->child_ + xp + 1, sizeof(child_[0]) * n);
         }
     }
+    // @unsafe - raw memmove of key/child arrays
     void shift_up(int p, int xp, int n) {
         memmove(ikey0_ + p, ikey0_ + xp, sizeof(ikey0_[0]) * n);
         for (node_base<P> **a = child_ + p + n, **b = child_ + xp + n; n; --a, --b, --n)
             *a = *b;
     }
+    // @unsafe - raw memmove of key/child arrays
     void shift_down(int p, int xp, int n) {
         memmove(ikey0_ + p, ikey0_ + xp, sizeof(ikey0_[0]) * n);
         for (node_base<P> **a = child_ + p + 1, **b = child_ + xp + 1; n; ++a, ++b, --n)

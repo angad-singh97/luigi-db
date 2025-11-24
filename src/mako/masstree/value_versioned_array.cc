@@ -27,6 +27,7 @@ value_versioned_array* value_versioned_array::make_sized_row(int ncol, kvtimesta
     return row;
 }
 
+// @unsafe - clones row by memcpy without additional bounds/lifetime checks
 void value_versioned_array::snapshot(value_versioned_array*& storage,
                                      const std::vector<index_type>& f, threadinfo& ti) const {
     if (!storage || storage->ncol_cap_ < ncol_) {
@@ -86,12 +87,14 @@ value_versioned_array::update(const Json* first, const Json* last,
     return row;
 }
 
+// @unsafe - frees raw columns and backing row memory
 void value_versioned_array::deallocate(threadinfo &ti) {
     for (short i = 0; i < ncol_; ++i)
         value_array::deallocate_column(cols_[i], ti);
     ti.deallocate(this, shallow_size(), memtag_value);
 }
 
+// @unsafe - defers frees through RCU for raw columns and row
 void value_versioned_array::deallocate_rcu(threadinfo &ti) {
     for (short i = 0; i < ncol_; ++i)
         value_array::deallocate_column_rcu(cols_[i], ti);

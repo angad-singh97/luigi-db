@@ -43,24 +43,28 @@ value_array* value_array::update(const Json* first, const Json* last,
     return row;
 }
 
+// @unsafe - frees raw value slots and backing row memory
 void value_array::deallocate(threadinfo& ti) {
     for (short i = 0; i < ncol_; ++i)
         deallocate_column(cols_[i], ti);
     ti.deallocate(this, shallow_size(), memtag_value);
 }
 
+// @unsafe - schedules raw frees through RCU
 void value_array::deallocate_rcu(threadinfo& ti) {
     for (short i = 0; i < ncol_; ++i)
         deallocate_column_rcu(cols_[i], ti);
     ti.deallocate_rcu(this, shallow_size(), memtag_value);
 }
 
+// @unsafe - frees updated columns and row via RCU after copy
 void value_array::deallocate_rcu_after_update(const Json* first, const Json* last, threadinfo& ti) {
     for (; first != last && first[0].as_u() < unsigned(ncol_); first += 2)
         deallocate_column_rcu(cols_[first[0].as_u()], ti);
     ti.deallocate_rcu(this, shallow_size(), memtag_value);
 }
 
+// @unsafe - rolls back failed update by freeing columns and row
 void value_array::deallocate_after_failed_update(const Json* first, const Json* last, threadinfo& ti) {
     for (; first != last; first += 2)
         deallocate_column(cols_[first[0].as_u()], ti);
