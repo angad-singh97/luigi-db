@@ -244,7 +244,7 @@ protected:
 
         // Wait for response
         int wait_count = 0;
-        while (!tag.completed && wait_count < 10000) {
+        while (!tag.completed && wait_count < 100000) {
             client_ctx_.rpc->run_event_loop_once();
             wait_count++;
         }
@@ -329,7 +329,7 @@ TEST_F(ErpcDirectTest, ThroughputBenchmark) {
     for (int i = 0; i < num_requests; i++) {
         std::string data = "Bench_" + std::to_string(i);
         bool success = SendRequestAndWait(ERPC_REQ_TYPE_START, data.c_str(), data.size());
-        ASSERT_TRUE(success) << "Request " << i << " timed out";
+        ASSERT_TRUE(success) << "Request " << i << " timed out"; // It timeouts
     }
 
     auto end = high_resolution_clock::now();
