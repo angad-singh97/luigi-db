@@ -76,6 +76,28 @@ else
     fi
 fi
 
+# Check all 4 logs for data integrity verification
+echo ""
+echo "Checking data integrity verification in all logs:"
+echo "-----------------"
+for log_suffix in localhost learner p2 p1; do
+    log="simple-shard0-${log_suffix}.log"
+
+    if [ ! -f "$log" ]; then
+        echo "  ✗ $log: Log file not found"
+        failed=1
+        continue
+    fi
+
+    # Check for "ALL VERIFICATIONS PASSED" message
+    if grep -q "ALL VERIFICATIONS PASSED" "$log"; then
+        echo "  ✓ $log: Data integrity verified"
+    else
+        echo "  ✗ $log: Data integrity verification FAILED or not found"
+        failed=1
+    fi
+done
+
 echo ""
 echo "========================================="
 if [ $failed -eq 0 ]; then
@@ -90,7 +112,7 @@ else
     echo "Check simple-shard0-localhost.log and simple-shard0-p1.log for details"
     echo ""
     echo "Last 10 lines of simple-shard0-localhost.log:"
-    tail -10 simple-shard0-localhost.log 
+    tail -10 simple-shard0-localhost.log
     echo ""
     echo "Last 5 lines with 'replay_batch' from simple-shard0-p1.log:"
     grep "replay_batch" simple-shard0-p1.log | tail -5 2>/dev/null || echo "No replay_batch entries found"
