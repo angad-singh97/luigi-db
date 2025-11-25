@@ -40,6 +40,8 @@ if(NOT EXISTS ${CPP_BORROW_CHECKER})
 endif()
 
 # Enable borrow checking (can be disabled with -DENABLE_BORROW_CHECKING=OFF)
+# Force ON here so the checker actually runs unless explicitly turned off in a fresh configure.
+set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable RustyCpp borrow checking" FORCE)
 if(ENABLE_BORROW_CHECKING)
     enable_borrow_checking()
 endif()
@@ -287,70 +289,36 @@ set(BORROW_CHECKER_INCLUDE_PATHS
 add_compile_definitions(MASSTREE_CONFIG_H=\"${CMAKE_CURRENT_SOURCE_DIR}/${W}/masstree/config.h\")
 add_compile_definitions(MASSTREE_SUPPORT_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/src/mako/masstree_btree.h\")
 
-# Note: add_borrow_check() names targets by basename, so prefer the .c/.cc file
-# when both header and source exist to avoid duplicate target names.
-set(MASSTREE_BORROW_CHECK_SOURCES
+# Borrow check Masstree like rrr: glob the directory but prefer a single target
+# per stem (choose .c/.cc when both a header and source exist).
+set(_MASSTREE_BORROW_CHECK_LIST
     src/mako/rcu.h
     src/mako/prefetch.h
     src/mako/amd64.h
     src/mako/macros.h
-    src/mako/masstree/config.h
-    src/mako/masstree/btree_leaflink.hh
-    src/mako/masstree/checkpoint.cc
-    src/mako/masstree/circular_int.hh
-    src/mako/masstree/clp.c
-    src/mako/masstree/masstree_struct.hh
-    src/mako/masstree/masstree.hh
-    src/mako/masstree/masstree_key.hh
-    src/mako/masstree/masstree_tcursor.hh
-    src/mako/masstree/masstree_get.hh
-    src/mako/masstree/masstree_insert.hh
-    src/mako/masstree/masstree_remove.hh
-    src/mako/masstree/masstree_split.hh
-    src/mako/masstree/masstree_scan.hh
-    src/mako/masstree/masstree_print.hh
-    src/mako/masstree/nodeversion.hh
-    src/mako/masstree/stringbag.hh
-    src/mako/masstree/value_array.cc
-    src/mako/masstree/value_bag.hh
-    src/mako/masstree/value_string.cc
-    src/mako/masstree/value_versioned_array.cc
-    src/mako/masstree/compiler.cc
-    src/mako/masstree/file.cc
-    src/mako/masstree/hashcode.hh
-    src/mako/masstree/json.cc
-    src/mako/masstree/jsontest.cc
-    src/mako/masstree/kpermuter.hh
-    src/mako/masstree/ksearch.hh
-    src/mako/masstree/kvio.cc
-    src/mako/masstree/kvproto.hh
-    src/mako/masstree/kvrandom.cc
-    src/mako/masstree/kvrow.hh
-    src/mako/masstree/kvstats.hh
-    src/mako/masstree/kvtest.hh
-    src/mako/masstree/kvthread.cc
-    src/mako/masstree/memdebug.cc
-    src/mako/masstree/misc.cc
-    src/mako/masstree/msgpack.cc
-    src/mako/masstree/msgpacktest.cc
-    src/mako/masstree/mtclient.cc
-    src/mako/masstree/mtcounters.hh
-    src/mako/masstree/mtd.cc
-    src/mako/masstree/mttest.cc
-    src/mako/masstree/perfstat.cc
-    src/mako/masstree/query_masstree.cc
-    src/mako/masstree/scantest.cc
-    src/mako/masstree/small_vector.hh
-    src/mako/masstree/str.cc
-    src/mako/masstree/straccum.cc
-    src/mako/masstree/string_base.hh
-    src/mako/masstree/string.cc
-    src/mako/masstree/string_slice.cc
-    src/mako/masstree/test_atomics.cc
-    src/mako/masstree/test_string.cc
-    src/mako/masstree/testrunner.cc
-    src/mako/masstree/timestamp.hh
 )
+file(GLOB_RECURSE MASSTREE_BORROW_CHECK_CANDIDATES
+    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+    src/mako/masstree/*.c
+    src/mako/masstree/*.cc
+    src/mako/masstree/*.h
+    src/mako/masstree/*.hh
+)
+unset(_MASSTREE_BC_MAP)
+foreach(F ${MASSTREE_BORROW_CHECK_CANDIDATES})
+    get_filename_component(_stem ${F} NAME_WE)
+    if(DEFINED _MASSTREE_BC_MAP_${_stem})
+        if(F MATCHES "\\.(c|cc)$" AND NOT _MASSTREE_BC_MAP_${_stem} MATCHES "\\.(c|cc)$")
+            list(REMOVE_ITEM _MASSTREE_BORROW_CHECK_LIST ${_MASSTREE_BC_MAP_${_stem}})
+            set(_MASSTREE_BC_MAP_${_stem} ${F})
+            list(APPEND _MASSTREE_BORROW_CHECK_LIST ${F})
+        endif()
+    else()
+        set(_MASSTREE_BC_MAP_${_stem} ${F})
+        list(APPEND _MASSTREE_BORROW_CHECK_LIST ${F})
+    endif()
+endforeach()
+set(MASSTREE_BORROW_CHECK_SOURCES ${_MASSTREE_BORROW_CHECK_LIST})
 
 foreach(SRC ${MASSTREE_BORROW_CHECK_SOURCES})
     add_borrow_check(${SRC})
