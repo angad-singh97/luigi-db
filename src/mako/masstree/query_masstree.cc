@@ -33,6 +33,7 @@
 
 namespace Masstree {
 
+// @unsafe - diagnostic walker traverses raw Masstree nodes without borrow tracking
 static uint64_t heightcounts[300], fillcounts[100];
 
 template <typename P>

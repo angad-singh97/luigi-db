@@ -37,9 +37,11 @@ uint16_t xw[100];
 uint32_t xl[100];
 
 struct fake_threadinfo {
+    // @unsafe - hands out unmanaged buffers to satisfy allocator interface
     static void* allocate(size_t sz, memtag = memtag_none) {
 	return new char[sz];
     }
+    // @unsafe - frees unmanaged buffers without borrow tracking
     static void deallocate(void* p, size_t, memtag = memtag_none) {
 	delete[] reinterpret_cast<char*>(p);
     }
@@ -66,6 +68,7 @@ void test_atomics() {
     x = xchg(&xb[0], 3);
     assert(x == 2 && xb[0] == 3 && xb[1] == 0 && xb[2] == 0 && xb[3] == 0);
 
+    // @unsafe - uses raw atomic helpers on unmanaged buffers
     x = xchg(&xw[0], 1);
     assert(x == 0);
 
@@ -111,6 +114,7 @@ void time_random() {
 }
 
 template <typename T>
+// @unsafe - uses malloc/fread on raw buffers for timing
 void time_keyslice() {
     char *b = (char *) malloc(4096);
     FILE *f = fopen("/dev/urandom", "rb");

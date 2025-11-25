@@ -33,6 +33,7 @@ static struct {
 } numa[MaxNumaNode];
 #endif
 
+// @unsafe - initializes perf accounting using raw NUMA/system calls
 void
 stat::initmain(bool pinthreads) {
     (void) pinthreads;
@@ -48,6 +49,7 @@ stat::initmain(bool pinthreads) {
 #endif
 }
 
+// @unsafe - sums stats via raw pointer reinterpret_cast into struct fields
 template <typename T>
 kvstats
 sum_all_cores(const stat **s, int n, const int offset) {
@@ -61,6 +63,7 @@ sum_all_cores(const stat **s, int n, const int offset) {
     return sum;
 }
 
+// @unsafe - aggregates stats for one chip via pointer arithmetic
 template <typename T>
 kvstats
 sum_one_chip(const stat **s, int n, const int offset, const int chipidx) {
@@ -74,6 +77,7 @@ sum_one_chip(const stat **s, int n, const int offset, const int chipidx) {
     return sum;
 }
 
+// @unsafe - aggregates per-chip stats via pointer arithmetic
 template <typename T>
 kvstats
 sum_all_per_chip(const stat **s, int n, const int offset) {

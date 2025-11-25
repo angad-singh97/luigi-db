@@ -19,12 +19,19 @@
 #include <stddef.h>
 
 struct memdebug {
+    // @unsafe - annotates allocation headers using raw pointer math
     static inline void* make(void* ptr, size_t sz, memtag tag);
+    // @unsafe - stores file/line metadata in raw header
     static inline void set_landmark(void* ptr, const char* file, int line);
+    // @unsafe - validates and rewrites raw header on free
     static inline void* check_free(void* ptr, size_t sz, memtag tag);
+    // @unsafe - marks header as pending RCU free
     static inline void check_rcu(void* ptr, size_t sz, memtag tag);
+    // @unsafe - validates RCU frees and marks header
     static inline void* check_free_after_rcu(void* ptr, memtag tag);
+    // @unsafe - inspects raw header state
     static inline bool check_use(const void* ptr, memtag allowed);
+    // @unsafe - asserts on raw header state
     static inline void assert_use(const void* ptr, memtag allowed);
 
 #if HAVE_MEMDEBUG

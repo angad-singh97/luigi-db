@@ -29,6 +29,7 @@ threadinfo *threadinfo::allthreads;
 int threadinfo::no_pool_value;
 #endif
 
+// @unsafe - initializes thread-local pools and limbo lists with raw memory
 inline threadinfo::threadinfo(int purpose, int index) {
     memset(this, 0, sizeof(*this));
     purpose_ = purpose;
@@ -40,6 +41,7 @@ inline threadinfo::threadinfo(int purpose, int index) {
     ts_ = 2;
 }
 
+// @unsafe - constructs threadinfo via placement new on raw malloc'd buffer
 threadinfo *threadinfo::make(int purpose, int index) {
     static int threads_initialized;
 
@@ -58,6 +60,7 @@ threadinfo *threadinfo::make(int purpose, int index) {
     return ti;
 }
 
+// @unsafe - manipulates limbo queues via raw pointer arithmetic
 void threadinfo::refill_rcu() {
     if (limbo_head_ == limbo_tail_ && !limbo_tail_->next_
         && limbo_tail_->head_ == limbo_tail_->tail_)
@@ -71,6 +74,7 @@ void threadinfo::refill_rcu() {
         limbo_tail_ = limbo_tail_->next_;
 }
 
+// @unsafe - walks limbo lists and frees raw pointers outside borrow tracking
 void threadinfo::hard_rcu_quiesce() {
     mrcu_epoch_type min_epoch = gc_epoch_;
     for (threadinfo *ti = allthreads; ti; ti = ti->next()) {
@@ -124,6 +128,7 @@ void threadinfo::hard_rcu_quiesce() {
     limbo_epoch_ = (lb == le ? 0 : lb->epoch_);
 }
 
+// @unsafe - inspects raw limbo slots for debugging
 void threadinfo::report_rcu(void *ptr) const
 {
     for (limbo_group *lg = limbo_head_; lg; lg = lg->next_) {
@@ -141,6 +146,7 @@ void threadinfo::report_rcu(void *ptr) const
     }
 }
 
+// @unsafe - iterates all threads' limbo lists via raw pointers
 void threadinfo::report_rcu_all(void *ptr)
 {
     for (threadinfo *ti = allthreads; ti; ti = ti->next())
@@ -168,6 +174,7 @@ static size_t read_superpage_size() {
 static size_t superpage_size = 0;
 #endif
 
+// @unsafe - builds freelist pointers inside raw pool buffer
 static void initialize_pool(void* pool, size_t sz, size_t unit) {
     char* p = reinterpret_cast<char*>(pool);
     void** nextptr = reinterpret_cast<void**>(p);
@@ -178,6 +185,7 @@ static void initialize_pool(void* pool, size_t sz, size_t unit) {
     *nextptr = 0;
 }
 
+// @unsafe - allocates and stitches together raw pool buffers
 void threadinfo::refill_pool(int nl) {
     assert(!pool_[nl - 1]);
 

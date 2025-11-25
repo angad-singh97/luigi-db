@@ -65,6 +65,7 @@ void kvout_reset(kvout* kv) {
 
 // API to free a kvout.
 // does not close() the fd.
+// @unsafe - frees unmanaged buffers without borrow tracking
 void free_kvout(kvout* kv) {
     if (kv->buf)
         free(kv->buf);
@@ -72,6 +73,7 @@ void free_kvout(kvout* kv) {
     free(kv);
 }
 
+// @unsafe - writes raw buffer to fd with manual retry/backoff
 void kvflush(kvout* kv) {
     assert(kv->fd >= 0);
     size_t sent = 0;
@@ -91,6 +93,7 @@ void kvflush(kvout* kv) {
 }
 
 // API
+// @unsafe - reallocates unmanaged buffer
 void kvout::grow(unsigned want) {
     if (fd >= 0)
         kvflush(this);
@@ -102,6 +105,7 @@ void kvout::grow(unsigned want) {
     assert(buf);
 }
 
+// @unsafe - appends raw bytes into unmanaged buffer and flushes to fd
 int kvwrite(kvout* kv, const void* buf, unsigned n) {
     if (kv->n + n > kv->capacity && kv->fd >= 0)
         kvflush(kv);

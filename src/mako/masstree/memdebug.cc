@@ -18,6 +18,7 @@
 #include <assert.h>
 
 #if HAVE_MEMDEBUG
+// @unsafe - inspects raw allocator headers and assumes prior memdebug::make()
 void memdebug::landmark(char* buf, size_t bufsz) const {
     if (this->magic != magic_value && this->magic != magic_free_value)
         snprintf(buf, bufsz, "???");
@@ -32,6 +33,7 @@ void memdebug::landmark(char* buf, size_t bufsz) const {
 void
 memdebug::hard_free_checks(const memdebug *m, size_t sz, memtag tag,
                            int after_rcu, const char *op) {
+    // @unsafe - validates allocator metadata by dereferencing raw header
     char buf[256];
     m->landmark(buf, sizeof(buf));
     if (m->magic == magic_free_value)
@@ -60,6 +62,7 @@ memdebug::hard_free_checks(const memdebug *m, size_t sz, memtag tag,
 
 void
 memdebug::hard_assert_use(const void* ptr, memtag allowed) {
+    // @unsafe - casts back to memdebug header and checks raw tag/state
     const memdebug* m = reinterpret_cast<const memdebug*>(ptr) - 1;
     char buf[256];
     m->landmark(buf, sizeof(buf));

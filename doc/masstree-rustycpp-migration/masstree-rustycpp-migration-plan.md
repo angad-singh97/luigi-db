@@ -6,6 +6,14 @@
 - Reduce raw pointer usage in safe code paths; confine unavoidable cases to well-documented `@unsafe` blocks.
 - Preserve performance targets (sub-microsecond point lookups, multi-million ops/sec per core) while enforcing ownership rules.
 
+### Current Status (Jan 2025)
+- [x] Borrow checker enabled for Masstree/rrr: CMake enumerates Masstree sources via `MASSTREE_BORROW_CHECK_SOURCES` and creates per-file `borrow_check_*` targets.
+- [x] Batch 0 annotated (`rcu.h`, `prefetch.h`, `amd64.h`, `macros.h`, `ownership_checker.h`, `masstree_btree.h`).
+- [x] Batch 1 annotated (`masstree_struct.hh` shift_* helpers, `kpermuter.hh` permutation updates, cursors/scan/insert/remove/split/core headers).
+- [x] Batch 2 complete: strings/straccum/string_slice/stringbag, small_vector, value_array/value_versioned_array/value_string, value_bag, timestamp, hashcode all annotated.
+- [x] Batch 3 complete: persistence/logging/tooling (msgpack, kvio/kvthread, perfstat/misc/memdebug/file/checkpoint, query clients/tests) annotated; `kvrandom`, `kvproto`, `query_masstree`, `mtcounters`, and `testrunner` reviewed with no new unsafe needed.
+- [ ] Later batches (transactional wrappers, benchmarks) still open. Keep the order below to avoid @safe→undeclared edges.
+
 ## File Catalog & Scope
 The following files make up the Masstree surface that must receive `@safe`/`@unsafe` annotations during the migration. Grouping the scope avoids surprises during later phases and mirrors the breadth of the recent RRR safety work (latest commits touched `marshal`, `pollthread`, futures, etc.).
 

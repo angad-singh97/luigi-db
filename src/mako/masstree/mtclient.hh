@@ -31,6 +31,7 @@
 #include <queue>
 #include <vector>
 
+// @unsafe - network client owns raw sockets and byte buffers without RustyCpp tracking
 class KVConn {
   public:
     using Json = lcdf::Json;

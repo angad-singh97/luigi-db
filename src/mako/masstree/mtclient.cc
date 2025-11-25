@@ -13,6 +13,7 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - client harness uses raw sockets/threads and unmanaged buffers
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,7 @@
 #include "query_masstree.hh"
 
+// @unsafe - lightweight test binary uses raw threadinfo allocation and global epochs
+
 using namespace Masstree;
 
 kvepoch_t global_log_epoch = 0;

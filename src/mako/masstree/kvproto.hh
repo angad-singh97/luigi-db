@@ -49,6 +49,7 @@ struct row_marker {
     int marker_type_;
 };
 
+// @unsafe - inspects raw timestamp bits; caller must ensure row pointer is valid
 template <typename R>
 inline bool row_is_marker(const R* row) {
     return row->timestamp() & 1;

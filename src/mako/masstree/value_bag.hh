@@ -118,6 +118,7 @@ inline lcdf::Str value_bag<O>::col(int i) const {
 }
 
 template <typename O>
+// @unsafe - returns slice into caller-managed backing storage
 inline lcdf::Str value_bag<O>::row_string() const {
     return Str(d_.s_, d_.pos_[d_.ncol_]);
 }
@@ -137,7 +138,7 @@ inline void value_bag<O>::deallocate_rcu(ALLOC& ti) {
 // prerequisite: [first, last) is an array [column, value, column, value, ...]
 // each column is unsigned; the columns are strictly increasing;
 // each value is a string
-// @unsafe - rebuilds bag via unchecked pointer math
+// @unsafe - rebuilds bag via unchecked pointer math and raw memcpy
 template <typename O> template <typename ALLOC>
 value_bag<O>* value_bag<O>::update(const Json* first, const Json* last,
                                    kvtimestamp_t ts, ALLOC& ti) const

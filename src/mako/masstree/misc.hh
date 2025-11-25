@@ -34,6 +34,7 @@ inline void xalarm(double d) {
     setitimer(ITIMER_REAL, &x, 0);
 }
 
+// @unsafe - sleeps via raw nanosleep and ignores borrow tracking
 inline void napms(int n) /* nap n milliseconds */
 {
   int ret;

@@ -16,6 +16,7 @@
 // -*- mode: c++ -*-
 // mtd: key/value server
 //
+// @unsafe - legacy test server uses raw sockets/threads, unmanaged buffers, and POSIX syscalls
 
 #include <stdio.h>
 #include <stdarg.h>

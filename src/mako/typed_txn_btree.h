@@ -168,6 +168,7 @@ struct typed_txn_btree_ {
     const value_type *v, uint64_t fields,
     const uint8_t *buf, size_t sz)
   {
+    // @unsafe - manual pointer arithmetic into serialized value buffers
     if (fields == 0) {
       // delete
       INVARIANT(!v);
@@ -216,6 +217,7 @@ struct typed_txn_btree_ {
   compute_needed_delta_standalone(
       const value_type *v, uint64_t fields)
   {
+    // @unsafe - computes sizes by walking raw field offsets
     size_t size_needed = 0;
     size_needed += sizeof(uint64_t);
     if (fields == 0) {

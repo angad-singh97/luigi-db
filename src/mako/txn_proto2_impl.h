@@ -135,12 +135,14 @@ public:
     inline logbuf_header *
     header()
     {
+      // @unsafe - casts raw log buffer into header struct
       return reinterpret_cast<logbuf_header *>(&buf_start_[0]);
     }
 
     inline const logbuf_header *
     header() const
     {
+      // @unsafe - const cast of raw buffer to header view
       return reinterpret_cast<const logbuf_header *>(&buf_start_[0]);
     }
 

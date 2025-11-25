@@ -16,6 +16,7 @@ const uint8_t nbytes[] = {
 };
 }
 
+// @unsafe - parses MsgPack by walking raw byte buffers and casting headers
 const uint8_t* streaming_parser::consume(const uint8_t* first,
                                          const uint8_t* last,
                                          const String& str) {

@@ -13,6 +13,7 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - test harness uses raw sockets/threads and unchecked casts
 // -*- mode: c++ -*-
 // mttest: key/value tester
 //

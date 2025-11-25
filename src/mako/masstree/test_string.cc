@@ -66,6 +66,7 @@ String to_utf8(const char* in, int inlen) {
 
 }  // namespace Encoding
 
+// @unsafe - exercises encoding conversions using raw C strings and unchecked buffers
 template <typename T>
 static bool
 check_straccum_utf8(StringAccum &sa, const char *in, int inlen,

@@ -108,6 +108,7 @@ inline hashcode_t hashcode(uint64_t const &x) {
 #endif
 
 template <typename T>
+// @unsafe - hashes raw pointer bits
 inline hashcode_t hashcode(T * const &x) {
     return reinterpret_cast<uintptr_t>(x) >> 3;
 }

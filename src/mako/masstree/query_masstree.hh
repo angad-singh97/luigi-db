@@ -50,6 +50,7 @@ class query_table {
 
     void findpivots(Str* pv, int npv) const;
 
+    // @unsafe - writes stats to raw FILE* without borrow tracking
     void stats(FILE* f);
     void json_stats(lcdf::Json& j, threadinfo& ti);
     inline lcdf::Json json_stats(threadinfo& ti) {
@@ -58,6 +59,7 @@ class query_table {
         return j;
     }
 
+    // @unsafe - prints directly to FILE* using C stdio
     void print(FILE* f, int indent) const;
 
     static void test(threadinfo& ti);

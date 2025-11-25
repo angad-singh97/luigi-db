@@ -5,6 +5,7 @@
 
 class testrunner_base {
   public:
+    // @unsafe - threads push onto a global intrusive list without synchronization
     testrunner_base(const lcdf::String& name)
         : name_(name), next_(0) {
         thehead ? thetail->next_ = this : thehead = this;

@@ -21,6 +21,7 @@
 testrunner_base* testrunner_base::thehead;
 testrunner_base* testrunner_base::thetail;
 
+// @unsafe - collects and prints test names using raw global registries
 void testrunner_base::print_names(FILE* stream, int ncol) {
     masstree_precondition(ncol >= 1);
 

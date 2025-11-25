@@ -36,6 +36,7 @@ struct kvstats {
   operator unspecified_bool_type() const {
     return count ? &kvstats::add : 0;
   }
+  // @unsafe - uses libc sqrt and printf on raw accumulated totals
   void print_report(const char *name) const {
     if (count)
       printf("%s: n %ld, total %.0f, average %.0f, min %.0f, max %.0f, stddev %.0f\n",

@@ -993,6 +993,7 @@ public:
   static inline dbtuple *
   alloc_first(size_type sz, bool acquire_lock)
   {
+    // @unsafe - allocates raw dbtuple storage via rcu allocator and placement new
     INVARIANT(sz <= std::numeric_limits<node_size_type>::max());
     const size_t max_alloc_sz =
       std::numeric_limits<node_size_type>::max() + sizeof(dbtuple);
@@ -1010,6 +1011,7 @@ public:
   static inline dbtuple *
   alloc(tid_t version, struct dbtuple *base, bool set_latest)
   {
+    // @unsafe - allocates and constructs dbtuple directly from RCU pool
     const size_t max_alloc_sz =
       std::numeric_limits<node_size_type>::max() + sizeof(dbtuple);
     const size_t alloc_sz =
@@ -1027,6 +1029,7 @@ public:
               size_type newsz, struct dbtuple *next, bool set_latest,
               bool copy_old_value)
   {
+    // @unsafe - uses raw allocations and placement new to build spill tuple
     INVARIANT(oldsz <= std::numeric_limits<node_size_type>::max());
     INVARIANT(newsz <= std::numeric_limits<node_size_type>::max());
 

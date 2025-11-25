@@ -102,12 +102,14 @@ class stringbag {
 
     /** @brief Return the string at position @a p.
         @pre @a p >= 0 && @a p < bag width */
+    // @unsafe - returns slice into caller-managed backing store
     lcdf::Str operator[](int p) const {
         info_type info = info_[p];
         return lcdf::Str(s_ + info.pos, info.len);
     }
     /** @brief Return the string at position @a p.
         @pre @a p >= 0 && @a p < bag width */
+    // @unsafe - returns slice into caller-managed backing store
     lcdf::Str get(int p) const {
         info_type info = info_[p];
         return lcdf::Str(s_ + info.pos, info.len);

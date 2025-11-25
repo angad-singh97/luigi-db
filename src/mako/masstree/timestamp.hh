@@ -48,12 +48,14 @@ inline kvtimestamp_t timestamp_sub(kvtimestamp_t a, kvtimestamp_t b) {
 
 extern kvtimestamp_t initial_timestamp;
 
+// @unsafe - reads wall clock without safety guarantees
 inline double now() {
     struct timeval tv;
     gettimeofday(&tv, 0);
     return tv.tv_sec + tv.tv_usec / 1000000.0;
 }
 
+// @unsafe - converts double seconds into raw timespec fields
 inline struct timespec &set_timespec(struct timespec &x, double y) {
     double ipart = floor(y);
     x.tv_sec = (long) ipart;

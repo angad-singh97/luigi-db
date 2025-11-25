@@ -1,6 +1,7 @@
 #include "msgpack.hh"
 using namespace lcdf;
 
+// @unsafe - test harness feeds raw msgpack buffers directly into parser without extra guards
 enum { status_ok, status_error, status_incomplete };
 
 __attribute__((noreturn))

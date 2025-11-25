@@ -59,15 +59,17 @@ class kvrandom_psdes_nr { public:
     typedef uint32_t value_type;
     typedef uint32_t seed_type;
     kvrandom_psdes_nr() {
-	reset(1);
+        reset(1);
     }
     explicit kvrandom_psdes_nr(seed_type seed) {
-	reset(seed);
+        reset(seed);
     }
+    // @unsafe - mutates internal seed with deterministic PRNG math; no locking
     void reset(seed_type seed) {
 	seed_ = seed;
 	next_ = 1;
     }
+    // @unsafe - uses raw internal state without synchronization
     value_type next() {
 	uint32_t value = psdes(seed_, next_);
 	++next_;

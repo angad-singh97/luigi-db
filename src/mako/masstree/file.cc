@@ -41,6 +41,7 @@ lcdf::String read_file_contents(int fd) {
     return sa.take_string();
 }
 
+// @unsafe - opens raw filename and delegates to unsafe fd reader
 lcdf::String read_file_contents(const char *filename) {
     int fd = open(filename, O_RDONLY);
     if (fd == -1)
@@ -57,6 +58,7 @@ lcdf::String read_file_contents(const char *filename) {
     return text;
 }
 
+// @unsafe - writes directly to POSIX fd and fsyncs without borrow tracking
 int sync_write_file_contents(const char *filename, const lcdf::String &contents,
                              mode_t mode)
 {
@@ -79,6 +81,7 @@ int sync_write_file_contents(const char *filename, const lcdf::String &contents,
     return close(fd);
 }
 
+// @unsafe - performs temp-file rename using raw filesystem operations
 int atomic_write_file_contents(const char *filename, const lcdf::String &contents,
                                mode_t mode)
 {

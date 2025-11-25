@@ -58,6 +58,7 @@ inline bool is_fixmap(uint8_t x) {
     return in_range(x, ffixmap, nfixmap);
 }
 
+// @unsafe - encodes into caller-managed buffers; capacity must be provided by caller
 inline char* write_null(char* s) {
     *s++ = fnull;
     return s;
@@ -154,6 +155,7 @@ inline char* write_double(char* s, double x) {
     *s++ = ffloat64;
     return write_in_net_order<double>(s, x);
 }
+// @unsafe - performs unchecked memcpy into raw buffer
 inline char* write_string(char* s, const char *data, int len) {
     if (len < nfixstr)
         *s++ = 0xA0 + len;
@@ -225,6 +227,7 @@ inline object_t object(uint32_t size) {
     return object_t(size);
 }
 
+// @unsafe - writes msgpack bytes directly to the provided output buffer without extra checks
 template <typename T>
 class unparser {
   public:
@@ -336,6 +339,7 @@ class unparser {
     T& base_;
 };
 
+// @unsafe - consumes raw byte streams and advances internal pointer manually
 class streaming_parser {
   public:
     inline streaming_parser();
@@ -372,6 +376,7 @@ class streaming_parser {
     Json jokey_;
 };
 
+// @unsafe - parses directly from raw msgpack buffers using unchecked pointer arithmetic
 class parser {
   public:
     explicit inline parser(const char* s)
