@@ -295,29 +295,15 @@ file(GLOB_RECURSE MASSTREE_BORROW_CHECK_SOURCES
     src/mako/masstree/*.cc
 )
 
-# Files with remaining issues:
-# CHECKER LIMITATION: lifetime_checker.rs and scope_lifetime.rs don't respect function-level
-# @unsafe annotations. They only check if functions exist in headers, not their safety mode.
-# Pattern: void* p = malloc(...); return p; triggers "Returning reference to local variable"
-# even though it's returning a pointer by value (owned memory), not a reference.
-# 
-# RRR passes because it uses rusty::Box/Arc instead of raw malloc/return patterns.
-# These files have @unsafe annotations and @external annotations ready for when the checker
-# is fixed to respect function-level @unsafe in lifetime checking.
+# Checker fixed for void* returns (commit a3de79c)
+# CHECKER LIMITATION: @external_unsafe wildcard matching incomplete
+# The checker doesn't properly match "Masstree::*" to cover template member functions
+# like "Masstree::key::unparse" or properly resolve "unknown" template instantiations.
+# Also: Taking address of member function pointer (&Class::method) incorrectly flagged as unsafe.
 set(_MASSTREE_EXCLUDE_FROM_BC
-    src/mako/masstree/kvthread.cc       # threadinfo::allocate() returns void* - checker limitation
-    src/mako/masstree/checkpoint.cc     # uses kvthread allocator
-    src/mako/masstree/misc.cc           # uses kvthread allocator
-    src/mako/masstree/perfstat.cc       # uses kvthread allocator
-    src/mako/masstree/scantest.cc       # test harness - uses allocator
-    src/mako/masstree/mttest.cc         # test harness - uses allocator
-    src/mako/masstree/mtd.cc            # test server - uses allocator
-    src/mako/masstree/query_masstree.cc # uses complex templates + allocator
-    src/mako/masstree/mtclient.cc       # client harness
-    src/mako/masstree/test_atomics.cc   # test utilities
-    src/mako/masstree/value_array.cc    # uses kvthread allocator
-    src/mako/masstree/value_string.cc   # uses kvthread allocator
-    src/mako/masstree/value_versioned_array.cc # uses kvthread allocator
+    src/mako/masstree/mtd.cc            # 10 violations: undeclared template functions
+    src/mako/masstree/mttest.cc         # 12 violations: undeclared template functions  
+    src/mako/masstree/query_masstree.cc # 1 violation: &leafvalue::empty address-of
 )
 list(REMOVE_ITEM MASSTREE_BORROW_CHECK_SOURCES ${_MASSTREE_EXCLUDE_FROM_BC})
 

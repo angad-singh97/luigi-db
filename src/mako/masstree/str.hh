@@ -116,12 +116,15 @@ struct Str : public String_base<Str> {
         assert(ubegin() <= first && first <= last && last <= uend());
         return Str(first, last);
     }
+    // @unsafe - pointer arithmetic on string data
     Str ltrim() const {
         return String_generic::ltrim(*this);
     }
+    // @unsafe - pointer arithmetic on string data
     Str rtrim() const {
         return String_generic::rtrim(*this);
     }
+    // @unsafe - pointer arithmetic on string data
     Str trim() const {
         return String_generic::trim(*this);
     }

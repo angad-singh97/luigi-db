@@ -242,7 +242,7 @@ class leafvalue {
     }
 
     typedef bool (leafvalue<P>::*unspecified_bool_type)() const;
-    // @safe - bool conversion
+    // @unsafe - takes address of member function
     operator unspecified_bool_type() const {
         return u_.x ? &leafvalue<P>::empty : 0;
     }

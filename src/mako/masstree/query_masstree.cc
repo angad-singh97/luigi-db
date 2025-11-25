@@ -24,10 +24,12 @@
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::String_generic::*
 // @external_unsafe: lcdf::Json::*
+// @external_unsafe: Masstree::leafvalue::*
 // @external_unsafe: Masstree::*
 // @external_unsafe: query::*
 // @external_unsafe: threadinfo::*
 // @external_unsafe: kpermuter::*
+// @external_unsafe: lcdf::Str::*
 
 #include "masstree.hh"
 #include "masstree_key.hh"

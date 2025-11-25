@@ -495,6 +495,7 @@ inline size_t hash_value(const String_base<T>& x) {
     return String_generic::hashcode(x.data(), x.length());
 }
 
+// @unsafe - pointer arithmetic on string data
 template <typename T>
 inline typename T::substring_type String_generic::ltrim(const T &str) {
     const char *b = str.begin(), *e = str.end();
@@ -503,6 +504,7 @@ inline typename T::substring_type String_generic::ltrim(const T &str) {
     return str.fast_substring(b, e);
 }
 
+// @unsafe - pointer arithmetic on string data
 template <typename T>
 inline typename T::substring_type String_generic::rtrim(const T &str) {
     const char *b = str.begin(), *e = str.end();
@@ -511,6 +513,7 @@ inline typename T::substring_type String_generic::rtrim(const T &str) {
     return str.fast_substring(b, e);
 }
 
+// @unsafe - pointer arithmetic on string data
 template <typename T>
 inline typename T::substring_type String_generic::trim(const T &str) {
     const char *b = str.begin(), *e = str.end();

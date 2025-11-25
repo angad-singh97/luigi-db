@@ -19,12 +19,19 @@
 // EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
 //
 // External safety annotations for circular_int, string, and Masstree operations
+// @external: {
+//   lcdf::Str::Str: [unsafe]
+//   min: [unsafe]
+//   __builtin_expect: [unsafe]
+// }
 // @external_unsafe: circular_int::*
 // @external_unsafe: lcdf::String_base::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::String_generic::*
 // @external_unsafe: lcdf::StringAccum::*
 // @external_unsafe: lcdf::Json::*
+// @external_unsafe: Masstree::leafvalue::*
+// @external_unsafe: Masstree::key::*
 // @external_unsafe: Masstree::*
 // @external_unsafe: query::*
 // @external_unsafe: threadinfo::*
