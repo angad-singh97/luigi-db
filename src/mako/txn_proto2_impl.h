@@ -272,6 +272,7 @@ private:
   };
 
   static inline persist_ctx &
+  // @unsafe - performs manual arena allocation and placement-new for log buffers
   persist_ctx_for(uint64_t core_id, InitMode imode)
   {
     INVARIANT(core_id < g_persist_ctxs.size());
@@ -779,6 +780,7 @@ public:
   }
 
   inline void
+  // @unsafe - serializes write set records directly into shared log buffers
   on_tid_finish(tid_t commit_tid)
   {
     if (!txn_logger::IsPersistenceEnabled() ||
@@ -893,6 +895,7 @@ private:
 
   // assumes enough space in px to hold this txn
   inline uint64_t
+  // @unsafe - writes encoded transaction contents into raw pbuffer memory
   write_current_txn_into_buffer(
       txn_logger::pbuffer *px,
       uint64_t commit_tid,
@@ -1044,6 +1047,7 @@ public:
   }
 
   inline ALWAYS_INLINE void
+  // @unsafe - enqueues obsolete tuple versions using raw pointers and manual epoch math
   on_dbtuple_spill(dbtuple *tuple_ahead, dbtuple *tuple)
   {
 #ifdef PROTO2_CAN_DISABLE_GC
@@ -1084,6 +1088,7 @@ public:
   }
 
   inline ALWAYS_INLINE void
+  // @unsafe - copies delete keys into tuple storage and schedules GC with raw pointers
   on_logical_delete(dbtuple *tuple, const std::string &key, concurrent_btree *btr)
   {
 #ifdef PROTO2_CAN_DISABLE_GC
