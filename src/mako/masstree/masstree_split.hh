@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Node split operations for Masstree overflow handling
+// Allocates new sibling nodes and redistributes keys during splits
+// SAFETY: Allocates nodes, holds write locks, modifies parent pointers
+
 #ifndef MASSTREE_SPLIT_HH
 #define MASSTREE_SPLIT_HH 1
 #include "masstree_tcursor.hh"

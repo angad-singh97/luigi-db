@@ -1,3 +1,7 @@
+// @unsafe - Small buffer optimized vector container
+// Stores up to N elements inline, spills to heap for larger sizes
+// SAFETY: Manual small-buffer management, placement new/delete
+
 #ifndef GSTORE_SMALL_VECTOR_HH
 #define GSTORE_SMALL_VECTOR_HH 1
 #include "compiler.hh"

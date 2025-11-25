@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Protocol constants and message type definitions
+// Defines command codes and flags for key-value wire protocol
+// SAFETY: Pure constants and type definitions (no unsafe operations)
+
 #ifndef KVPROTO_HH
 #define KVPROTO_HH
 #include "compiler.hh"

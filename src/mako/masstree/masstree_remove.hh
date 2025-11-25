@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Key removal and node merge operations for Masstree
+// Handles underflow with sibling merge and parent key propagation
+// SAFETY: Modifies node structure under locks, may free nodes via RCU
+
 #ifndef MASSTREE_REMOVE_HH
 #define MASSTREE_REMOVE_HH
 #include "masstree_get.hh"

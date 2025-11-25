@@ -13,6 +13,16 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Memory debugging and validation utilities
+// Provides allocator header inspection and double-free detection
+// SAFETY: All functions operate on raw allocator metadata
+//
+// External safety annotations
+// @external: {
+//   memdebug::make: [unsafe, (void*, size_t, memtag) -> void*]
+//   memdebug::check_free: [unsafe, (void*, size_t, memtag) -> void*]
+// }
+
 #include "memdebug.hh"
 #include <stdio.h>
 #include <assert.h>

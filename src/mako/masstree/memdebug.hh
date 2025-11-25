@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Memory debugging with allocation header tracking
+// Prepends metadata to allocations for double-free and corruption detection
+// SAFETY: Raw pointer arithmetic, inline header manipulation
+
 #ifndef MEMDEBUG_HH
 #define MEMDEBUG_HH 1
 #include "mtcounters.hh"
@@ -70,6 +74,8 @@ enum {
 #endif
 };
 
+// @unsafe
+// @lifetime: (&'a, size_t, memtag) -> &'a
 inline void* memdebug::make(void* ptr, size_t sz, memtag tag) {
 #if HAVE_MEMDEBUG
     if (ptr) {
@@ -101,6 +107,8 @@ inline void memdebug::set_landmark(void* ptr, const char* file, int line) {
 #endif
 }
 
+// @unsafe
+// @lifetime: (&'a, size_t, memtag) -> &'a
 inline void* memdebug::check_free(void* ptr, size_t sz, memtag tag) {
 #if HAVE_MEMDEBUG
     memdebug* m = reinterpret_cast<memdebug*>(ptr) - 1;
@@ -123,6 +131,8 @@ inline void memdebug::check_rcu(void* ptr, size_t sz, memtag tag) {
 #endif
 }
 
+// @unsafe
+// @lifetime: (&'a, memtag) -> &'a
 inline void* memdebug::check_free_after_rcu(void* ptr, memtag tag) {
 #if HAVE_MEMDEBUG
     memdebug* m = reinterpret_cast<memdebug*>(ptr) - 1;

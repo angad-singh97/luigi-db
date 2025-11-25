@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Checkpoint state and visitor pattern for tree serialization
+// Defines ckstate for collecting key-value pairs during checkpoint
+// SAFETY: Uses kvout buffers and msgpack serialization
+
 #ifndef MASSTREE_CHECKPOINT_HH
 #define MASSTREE_CHECKPOINT_HH
 #include "kvrow.hh"

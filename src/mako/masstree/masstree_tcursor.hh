@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Tree cursor for Masstree traversal with lock management
+// Maintains path from root to leaf with version tracking for retry
+// SAFETY: Tracks traversal state, acquires/releases locks on nodes
+
 #ifndef MASSTREE_TCURSOR_HH
 #define MASSTREE_TCURSOR_HH 1
 #include "small_vector.hh"

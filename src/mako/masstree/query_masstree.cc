@@ -13,6 +13,22 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Masstree query interface and template instantiations
+// Explicit template instantiation for common Masstree query operations
+// SAFETY: Uses complex template metaprogramming and raw node traversal
+// EXCLUDED FROM BORROW CHECK: Uses complex template patterns with kvthread allocator
+//
+// External safety annotations for circular_int, string, and Masstree operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: lcdf::Json::*
+// @external_unsafe: Masstree::*
+// @external_unsafe: query::*
+// @external_unsafe: threadinfo::*
+// @external_unsafe: kpermuter::*
+
 #include "masstree.hh"
 #include "masstree_key.hh"
 #include "masstree_struct.hh"

@@ -13,6 +13,18 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Versioned columnar array value type for Masstree rows
+// Provides MVCC-compatible columnar storage with row versioning for snapshots
+// SAFETY: Uses threadinfo::allocate for raw storage, supports copy-on-write
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for circular_int and string operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::Json::*
+// @external_unsafe: threadinfo::*
+
 #include "kvrow.hh"
 #include "value_versioned_array.hh"
 #include <string.h>

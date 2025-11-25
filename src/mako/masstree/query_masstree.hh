@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - High-level query interface for Masstree operations
+// Provides default_table typedef and query struct for client usage
+// SAFETY: Wraps tree operations with threadinfo-based memory management
+
 #ifndef QUERY_MASSTREE_HH
 #define QUERY_MASSTREE_HH 1
 #include "masstree.hh"

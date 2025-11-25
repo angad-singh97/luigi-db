@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Buffered I/O structures for network communication
+// Provides kvout buffer management for serialized key-value protocol
+// SAFETY: Raw buffer allocation, file descriptor management
+
 #ifndef KVIO_H
 #define KVIO_H
 #include <string>

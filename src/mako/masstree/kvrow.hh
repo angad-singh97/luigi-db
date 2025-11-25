@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Row type management for Masstree values
+// Provides row allocation, change detection, and log replay interfaces
+// SAFETY: Uses threadinfo allocator, log callbacks, row marker sentinels
+
 #ifndef KVROW_HH
 #define KVROW_HH 1
 #include "kvthread.hh"

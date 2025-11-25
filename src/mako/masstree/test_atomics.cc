@@ -13,6 +13,22 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Atomic operations and lock-free data structure tests
+// Tests compare-and-swap, memory fences, and concurrent data structures
+// SAFETY: Uses pthread, atomic intrinsics, and validates lock-free algorithms
+// EXCLUDED FROM BORROW CHECK: Test utilities with complex atomic patterns
+//
+// External safety annotations for circular_int, string, and JSON operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: lcdf::Json::*
+// @external_unsafe: value_bag::*
+// @external_unsafe: value_string::*
+// @external_unsafe: kpermuter::*
+// @external_unsafe: threadinfo::*
+
 #define FORCE_ENABLE_ASSERTIONS 1
 #undef NDEBUG
 #include "compiler.hh"

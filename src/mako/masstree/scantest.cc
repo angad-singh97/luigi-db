@@ -1,6 +1,17 @@
-#include "query_masstree.hh"
+// @unsafe - Lightweight Masstree scan test binary
+// Tests tree traversal and iteration functionality
+// SAFETY: Uses global epoch counters and raw threadinfo allocation
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for circular_int and string operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: Masstree::*
+// @external_unsafe: threadinfo::*
 
-// @unsafe - lightweight test binary uses raw threadinfo allocation and global epochs
+#include "query_masstree.hh"
 
 using namespace Masstree;
 

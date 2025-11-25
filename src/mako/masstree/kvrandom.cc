@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Pure random number generation using PSDES algorithm
+// Contains only constant tables and pure arithmetic functions
+// No memory allocation or I/O operations
+
 #include "kvrandom.hh"
 #include "compiler.hh"
 #include <stdio.h>

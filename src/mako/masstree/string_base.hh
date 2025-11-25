@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Base class for string types (CRTP pattern)
+// Provides common string operations using raw data()/length() accessors
+// SAFETY: Unchecked array indexing, raw pointer element access
+
 #ifndef STRING_BASE_HH
 #define STRING_BASE_HH
 #include "compiler.hh"
@@ -154,6 +158,7 @@ class String_base {
 
         Does not check bounds. @sa at() */
     // @unsafe - unchecked access into underlying buffer
+    // @lifetime: (&'a, int) -> &'a
     const char& operator[](int i) const {
         return data()[i];
     }
@@ -161,6 +166,8 @@ class String_base {
 
         Checks bounds: an assertion will fail if @a i is less than 0 or not
         less than length(). @sa operator[] */
+    // @unsafe - returns reference into internal buffer
+    // @lifetime: (&'a, int) -> &'a
     const char& at(int i) const {
         assert(unsigned(i) < unsigned(length()));
         return data()[i];
@@ -169,6 +176,7 @@ class String_base {
 
         Does not check bounds. Same as (*this)[0]. */
     // @unsafe - caller must ensure string is nonempty
+    // @lifetime: (&'a) -> &'a
     const char& front() const {
         return data()[0];
     }
@@ -176,6 +184,7 @@ class String_base {
 
         Does not check bounds. Same as (*this)[length() - 1]. */
     // @unsafe - caller must ensure string is nonempty
+    // @lifetime: (&'a) -> &'a
     const char& back() const {
         return data()[length() - 1];
     }

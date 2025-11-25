@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Assertion and invariant failure handlers
+// All functions abort the process on failure (side effects)
+// SAFETY: These functions terminate the program and never return
+
 #include "compiler.hh"
 #include <stdio.h>
 #include <stdlib.h>

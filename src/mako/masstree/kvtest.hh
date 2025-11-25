@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Test harness framework for Masstree benchmarking
+// Provides workload generators, statistics collection, and result reporting
+// SAFETY: Uses global state, random generators, and test client interfaces
+
 #ifndef KVTEST_HH
 #define KVTEST_HH
 #include "json.hh"

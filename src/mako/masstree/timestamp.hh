@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Timestamp utilities using RDTSC and gettimeofday
+// Provides high-resolution timing for performance measurement
+// SAFETY: Uses inline assembly (rdtsc), system calls
+
 #ifndef TIMESTAMP_HH
 #define TIMESTAMP_HH
 #include "compiler.hh"
@@ -39,6 +43,7 @@ inline kvtimestamp_t timestamp() {
     return ((kvtimestamp_t) tv.tv_sec << 32) | (unsigned int)tv.tv_usec;
 }
 
+// @safe - pure arithmetic on value types
 inline kvtimestamp_t timestamp_sub(kvtimestamp_t a, kvtimestamp_t b) {
     a -= b;
     if (KVTS_LOWPART(a) > 999999)

@@ -30,6 +30,12 @@
  * notice is a summary of the Click LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - String accumulator for efficient string building
+// Provides operator<< style interface for concatenating string pieces
+// Memory management uses lcdf::String's reference-counted buffers
+//
+// External safety annotations
+// @external_unsafe: lcdf::String::*
 
 #include "straccum.hh"
 #include <stdarg.h>

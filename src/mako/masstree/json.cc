@@ -14,6 +14,14 @@
  * is legally binding.
  */
 // -*- c-basic-offset: 4 -*-
+// @unsafe - JSON parsing and serialization implementation
+// Provides hierarchical data structure with parse/unparse capabilities
+// Uses lcdf::String for efficient string handling
+//
+// External safety annotations
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::StringAccum::*
+
 #include "json.hh"
 #include "compiler.hh"
 #include <ctype.h>

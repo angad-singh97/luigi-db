@@ -13,6 +13,19 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Checkpoint serialization for Masstree data persistence
+// Traverses tree nodes and serializes key-value pairs to binary msgpack format
+// SAFETY: Uses raw row pointers and binary serialization without bounds checking
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for circular_int and string operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: msgpack::*
+// @external_unsafe: threadinfo::*
+
 #include "checkpoint.hh"
 
 // add one key/value to a checkpoint.

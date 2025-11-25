@@ -13,7 +13,23 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - test harness uses raw sockets/threads and unchecked casts
+// @unsafe - Masstree comprehensive test harness and benchmarking tool
+// Performs multi-threaded insert/lookup/scan tests with configurable workloads
+// SAFETY: Uses raw sockets, POSIX threads, global state, and unchecked casts
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for circular_int, string, and Masstree operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: lcdf::StringAccum::*
+// @external_unsafe: lcdf::Json::*
+// @external_unsafe: Masstree::*
+// @external_unsafe: query::*
+// @external_unsafe: threadinfo::*
+// @external_unsafe: kvtest_client::*
+// @external_unsafe: nodeversion::*
 // -*- mode: c++ -*-
 // mttest: key/value tester
 //

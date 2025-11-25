@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - String-to-integer slice conversion for key comparison
+// Extracts 64-bit chunks from strings with endianness handling
+// SAFETY: Uses memcpy, big-endian byte swap for comparison
+
 #ifndef STRING_SLICE_HH
 #define STRING_SLICE_HH 1
 #include "str.hh"

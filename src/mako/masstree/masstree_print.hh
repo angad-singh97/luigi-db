@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Debug printing utilities for Masstree nodes
+// Provides formatted output of tree structure and node contents
+// SAFETY: Uses fprintf/sprintf for debug output, raw node traversal
+
 #ifndef MASSTREE_PRINT_HH
 #define MASSTREE_PRINT_HH
 #include "masstree_struct.hh"

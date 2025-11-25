@@ -13,10 +13,25 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// -*- mode: c++ -*-
-// mtd: key/value server
+// @unsafe - Masstree key/value server daemon
+// Provides network-accessible Masstree with logging and checkpointing
+// SAFETY: Uses raw sockets, POSIX threads, mmap, signal handlers, and unmanaged buffers
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
 //
-// @unsafe - legacy test server uses raw sockets/threads, unmanaged buffers, and POSIX syscalls
+// External safety annotations for circular_int, string, and Masstree operations
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::String_generic::*
+// @external_unsafe: lcdf::StringAccum::*
+// @external_unsafe: lcdf::Json::*
+// @external_unsafe: Masstree::*
+// @external_unsafe: query::*
+// @external_unsafe: threadinfo::*
+// @external_unsafe: kvtest_client::*
+// @external_unsafe: nodeversion::*
+// @external_unsafe: logset::*
+// @external_unsafe: msgpack::*
 
 #include <stdio.h>
 #include <stdarg.h>

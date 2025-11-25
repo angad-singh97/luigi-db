@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Thread-local state and memory allocation for Masstree
+// Provides per-thread memory pools, epoch tracking, and RCU-style reclamation
+// SAFETY: Uses malloc/mmap, pthread TLS, and epoch-based memory management
+
 #ifndef KVTHREAD_HH
 #define KVTHREAD_HH 1
 #include "mtcounters.hh"
@@ -181,13 +185,16 @@ class threadinfo {
     }
 
     // memory allocation
-    // @unsafe - hands out raw heap memory tagged for memdebug
+    // @unsafe
+    // @lifetime: owned
     void* allocate(size_t sz, memtag tag) {
+        // @unsafe {
         void* p = malloc(sz + memdebug_size);
         p = memdebug::make(p, sz, tag);
         if (p)
             mark(threadcounter(tc_alloc + (tag > memtag_value)), sz);
         return p;
+        // }
     }
     // @unsafe - frees raw heap memory using memdebug headers
     void deallocate(void* p, size_t sz, memtag tag) {
@@ -205,8 +212,10 @@ class threadinfo {
         mark(threadcounter(tc_alloc + (tag > memtag_value)), -sz);
     }
 
-    // @unsafe - pulls objects from per-thread freelist without lifetime tracking
+    // @unsafe
+    // @lifetime: owned
     void* pool_allocate(size_t sz, memtag tag) {
+        // @unsafe {
         int nl = (sz + memdebug_size + CACHE_LINE_SIZE - 1) / CACHE_LINE_SIZE;
         assert(nl <= pool_max_nlines);
         if (unlikely(!pool_[nl - 1]))
@@ -219,6 +228,7 @@ class threadinfo {
                  nl * CACHE_LINE_SIZE);
         }
         return p;
+        // }
     }
     // @unsafe - returns raw memory to freelist; assumes caller-provided size/tag
     void pool_deallocate(void* p, size_t sz, memtag tag) {

@@ -13,6 +13,19 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - File I/O utilities using raw file descriptors
+// Reads entire file contents into lcdf::String buffers
+// SAFETY: Uses POSIX file descriptors and system calls
+//
+// External safety annotations
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::StringAccum::*
+// @external: {
+//   open: [unsafe]
+//   read: [unsafe]
+//   close: [unsafe]
+// }
+
 #include "file.hh"
 #include "straccum.hh"
 #include <fcntl.h>

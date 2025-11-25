@@ -1,3 +1,11 @@
+// @unsafe - MsgPack binary serialization format parser
+// Walks raw byte buffers and casts headers to interpret MsgPack format
+// SAFETY: Parser handles untrusted input but validates structure
+//
+// External safety annotations
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: lcdf::Json::*
+
 #include "msgpack.hh"
 namespace msgpack {
 

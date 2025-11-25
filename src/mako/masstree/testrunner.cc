@@ -13,6 +13,13 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Test runner framework using global registry
+// Manages test discovery and execution via linked list of test cases
+// SAFETY: Uses global mutable state for test registration
+//
+// External safety annotations
+// @external_unsafe: lcdf::String::*
+
 #include "testrunner.hh"
 #include <algorithm>
 #include <numeric>

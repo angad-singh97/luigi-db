@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Core Masstree concurrent B+-tree interface
+// Provides lock-free read and optimistic write operations for key-value storage
+// SAFETY: Uses atomic operations, optimistic locking, and raw node pointers
+
 #ifndef MASSTREE_HH
 #define MASSTREE_HH
 #include "compiler.hh"

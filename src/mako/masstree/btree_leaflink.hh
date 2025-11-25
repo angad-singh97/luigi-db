@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Doubly-linked list management for B+tree leaf nodes
+// Provides lock-free prev/next traversal with version checking
+// SAFETY: Uses atomic pointer stores and acquire/release fences
+
 #ifndef BTREE_LEAFLINK_HH
 #define BTREE_LEAFLINK_HH 1
 #include "compiler.hh"

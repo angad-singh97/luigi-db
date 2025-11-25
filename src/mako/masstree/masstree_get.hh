@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Lock-free point lookup implementation for Masstree
+// Performs optimistic traversal with version validation and retry
+// SAFETY: Raw pointer traversal, optimistic read with memory fences
+
 #ifndef MASSTREE_GET_HH
 #define MASSTREE_GET_HH 1
 #include "masstree_tcursor.hh"

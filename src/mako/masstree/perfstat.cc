@@ -13,6 +13,16 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Performance statistics collection and NUMA topology detection
+// Collects per-core and per-NUMA-node statistics for performance analysis
+// SAFETY: Uses NUMA library, raw arrays, and hardware performance counters
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for string operations
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: threadinfo::*
+
 #include "perfstat.hh"
 #include "compiler.hh"
 #include "kvstats.hh"

@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - File utility functions for reading file contents
+// Provides read_file_contents for loading files into lcdf::String
+// SAFETY: Uses POSIX file descriptors and system calls
+
 #ifndef KVDB_FILE_HH
 #define KVDB_FILE_HH 1
 #include <unistd.h>

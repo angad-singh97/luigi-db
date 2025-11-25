@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Fixed-schema columnar value type for Masstree rows
+// Stores array of Str columns with inline timestamp for versioning
+// SAFETY: Uses threadinfo allocator, flexible array member
+
 #ifndef VALUE_ARRAY_HH
 #define VALUE_ARRAY_HH
 #include "compiler.hh"

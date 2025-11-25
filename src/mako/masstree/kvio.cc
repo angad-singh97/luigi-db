@@ -13,12 +13,17 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// buffered read and write for kvc/kvd.
-// stdio is good but not quite what I want.
-// need to be able to check if any input
-// available, and do non-blocking check.
-// also, fwrite just isn't very fast, at
-// least on the Mac.
+// @unsafe - Buffered I/O implementation using raw malloc and file descriptors
+// Provides custom buffering for kvc/kvd key-value operations
+// SAFETY: All functions in this file handle raw buffers and file descriptors
+//
+// External safety annotations
+// @external: {
+//   malloc: [unsafe, (size_t) -> owned void*]
+//   free: [unsafe, (void*) -> void]
+//   read: [unsafe]
+//   write: [unsafe]
+// }
 
 #include <stdlib.h>
 #include <unistd.h>

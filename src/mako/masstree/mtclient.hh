@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Network client for Masstree key-value server
+// Provides KVConn for socket-based communication with mtd server
+// SAFETY: Uses raw sockets, network buffer management
+
 #ifndef KVC_HH
 #define KVC_HH 1
 #include "kvproto.hh"

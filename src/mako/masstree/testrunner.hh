@@ -1,3 +1,7 @@
+// @unsafe - Test runner framework with global registration
+// Provides intrusive linked list of test cases for discovery
+// SAFETY: Uses global mutable state for test registration
+
 #ifndef MASSTREE_TESTRUNNER_HH
 #define MASSTREE_TESTRUNNER_HH
 #include "string.hh"

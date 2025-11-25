@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Static string slice data
+// Contains only the maxkey constant used for key comparisons
+// No memory allocation or dynamic operations
+
 #include "str.hh"
 namespace lcdf {
 

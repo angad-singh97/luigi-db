@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Memory tag enums and thread counter definitions
+// Provides memtag and threadcounter enums for allocation tracking
+// SAFETY: Pure enum definitions (no unsafe operations)
+
 #ifndef MTCOUNTERS_HH
 #define MTCOUNTERS_HH 1
 

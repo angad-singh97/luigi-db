@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Non-owning string slice (pointer + length)
+// Lightweight view into string data without memory management
+// SAFETY: Does not own data - caller must ensure lifetime validity
+
 #ifndef STR_HH
 #define STR_HH
 #include "string_base.hh"

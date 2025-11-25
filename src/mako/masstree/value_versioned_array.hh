@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - MVCC columnar value type with row versioning
+// Supports snapshot isolation with version chaining for concurrent reads
+// SAFETY: Uses threadinfo allocator, version tracking, copy-on-write
+
 #ifndef VALUE_VERSIONED_ARRAY_HH
 #define VALUE_VERSIONED_ARRAY_HH
 #include "compiler.hh"

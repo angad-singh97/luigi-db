@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Statistics accumulator for performance measurement
+// Computes running statistics with online algorithms
+// SAFETY: Uses realloc for sample storage in some modes
+
 #ifndef KVSTATS_HH
 #define KVSTATS_HH 1
 #include <stdlib.h>

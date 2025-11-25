@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Schemaless value storage with JSON field access
+// Stores arbitrary key-value pairs with dynamic field modification
+// SAFETY: Uses threadinfo allocator, JSON parsing, and dynamic sizing
+
 #ifndef VALUE_BAG_HH
 #define VALUE_BAG_HH
 #include "kvthread.hh"

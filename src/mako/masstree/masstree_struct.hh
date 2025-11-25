@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Masstree node structure definitions (leaf and internode)
+// Defines memory layout for tree nodes with versioned keys and permutation arrays
+// SAFETY: Uses placement new, raw pointer arithmetic, and atomic fence operations
+
 #ifndef MASSTREE_STRUCT_HH
 #define MASSTREE_STRUCT_HH
 #include "masstree.hh"
@@ -52,10 +56,12 @@ class node_base : public make_nodeversion<P>::type {
     typedef typename make_nodeversion<P>::type nodeversion_type;
     typedef typename P::threadinfo_type threadinfo;
 
+    // @safe - initializes base with isleaf flag
     node_base(bool isleaf)
         : nodeversion_type(isleaf) {
     }
 
+    // @safe - returns parent pointer
     inline base_type* parent() const {
         // almost always an internode
         if (this->isleaf())
@@ -63,24 +69,29 @@ class node_base : public make_nodeversion<P>::type {
         else
             return static_cast<const internode_type*>(this)->parent_;
     }
+    // @safe - null check
     inline bool parent_exists(base_type* p) const {
         return p != 0;
     }
+    // @safe - delegates to parent() and parent_exists()
     inline bool has_parent() const {
         return parent_exists(parent());
     }
     // @unsafe - manipulates parent pointers under locks
     inline internode_type* locked_parent(threadinfo& ti) const;
+    // @safe - sets parent pointer
     inline void set_parent(base_type* p) {
         if (this->isleaf())
             static_cast<leaf_type*>(this)->parent_ = p;
         else
             static_cast<internode_type*>(this)->parent_ = p;
     }
+    // @safe - initializes as root
     inline void make_layer_root() {
         set_parent(nullptr);
         this->mark_root();
     }
+    // @safe - returns parent or self
     inline base_type* maybe_parent() const {
         base_type* x = parent();
         return parent_exists(x) ? x : const_cast<base_type*>(this);
@@ -90,6 +101,7 @@ class node_base : public make_nodeversion<P>::type {
     inline leaf_type* reach_leaf(const key_type& k, nodeversion_type& version,
                                  threadinfo& ti) const;
 
+    // @safe - prefetch hint for CPU cache
     void prefetch_full() const {
         for (int i = 0; i < std::min(16 * std::min(P::leaf_width, P::internode_width) + 1, 4 * 64); i += 64)
             ::prefetch((const char *) this + i);
@@ -114,10 +126,12 @@ class internode : public node_base<P> {
     node_base<P>* parent_;
     kvtimestamp_t created_at_[P::debug_level > 0];
 
+    // @safe - default initialization
     internode()
         : node_base<P>(false), nkeys_(0), parent_() {
     }
 
+    // @unsafe - allocates via raw memory pool
     static internode<P>* make(threadinfo& ti) {
         void* ptr = ti.pool_allocate(sizeof(internode<P>),
                                      memtag_masstree_internode);
@@ -128,25 +142,31 @@ class internode : public node_base<P> {
         return n;
     }
 
+    // @safe - returns stored value
     int size() const {
         return nkeys_;
     }
 
+    // @safe - returns key from array
     key_type get_key(int p) const {
         return key_type(ikey0_[p]);
     }
+    // @safe - returns ikey from array
     ikey_type ikey(int p) const {
         return ikey0_[p];
     }
+    // @safe - pure comparison
     int compare_key(ikey_type a, int bp) const {
         return ::compare(a, ikey(bp));
     }
+    // @safe - pure comparison
     int compare_key(const key_type& a, int bp) const {
         return ::compare(a.ikey(), ikey(bp));
     }
     inline int stable_last_key_compare(const key_type& k, nodeversion_type v,
                                        threadinfo& ti) const;
 
+    // @safe - prefetch hint
     void prefetch() const {
         for (int i = 64; i < std::min(16 * width + 1, 4 * 64); i += 64)
             ::prefetch((const char *) this + i);
@@ -164,6 +184,7 @@ class internode : public node_base<P> {
     }
 
   private:
+    // @safe - assigns key and child at position
     void assign(int p, ikey_type ikey, node_base<P>* child) {
         child->set_parent(this);
         child_[p + 1] = child;
@@ -203,38 +224,48 @@ class leafvalue {
     typedef typename P::value_type value_type;
     typedef typename make_prefetcher<P>::type prefetcher_type;
 
+    // @safe - default initialization
     leafvalue() {
     }
+    // @safe - value initialization
     leafvalue(value_type v) {
         u_.v = v;
     }
+    // @safe - pointer initialization
     leafvalue(node_base<P>* n) {
         u_.x = reinterpret_cast<uintptr_t>(n);
     }
 
+    // @safe - creates empty leafvalue
     static leafvalue<P> make_empty() {
         return leafvalue<P>(value_type());
     }
 
     typedef bool (leafvalue<P>::*unspecified_bool_type)() const;
+    // @safe - bool conversion
     operator unspecified_bool_type() const {
         return u_.x ? &leafvalue<P>::empty : 0;
     }
+    // @safe - null check
     bool empty() const {
         return !u_.x;
     }
 
+    // @safe - returns stored value
     value_type value() const {
         return u_.v;
     }
+    // @unsafe - returns reference without lifetime tracking
     value_type& value() {
         return u_.v;
     }
 
+    // @safe - returns layer pointer
     node_base<P>* layer() const {
         return reinterpret_cast<node_base<P>*>(u_.x);
     }
 
+    // @safe - prefetch hint
     void prefetch(int keylenx) const {
         if (!leaf<P>::keylenx_is_layer(keylenx))
             prefetcher_type()(u_.v);
@@ -318,27 +349,34 @@ class leaf : public node_base<P> {
         return n;
     }
 
+    // @safe - returns compile-time constant
     static size_t min_allocated_size() {
         return (sizeof(leaf<P>) + 63) & ~size_t(63);
     }
+    // @safe - pure arithmetic
     size_t allocated_size() const {
         int es = (extrasize64_ >= 0 ? extrasize64_ : -extrasize64_ - 1);
         return (sizeof(*this) + es * 64 + 63) & ~size_t(63);
     }
+    // @safe - returns stored value
     phantom_epoch_type phantom_epoch() const {
         return P::need_phantom_epoch ? phantom_epoch_[0] : phantom_epoch_type();
     }
 
+    // @safe - delegates to permuter_type::size
     int size() const {
         return permuter_type::size(permutation_);
     }
+    // @safe - returns permuter copy
     permuter_type permutation() const {
         return permuter_type(permutation_);
     }
+    // @safe - pure arithmetic
     typename nodeversion_type::value_type full_version_value() const {
         static_assert(int(nodeversion_type::traits_type::top_stable_bits) >= int(permuter_type::size_bits), "not enough bits to add size to version");
         return (this->version_value() << permuter_type::size_bits) + size();
     }
+    // @unsafe - calls v.unlock() which manipulates version bits
     typename nodeversion_type::value_type full_unlocked_version_value() const {
         static_assert(int(nodeversion_type::traits_type::top_stable_bits) >= int(permuter_type::size_bits), "not enough bits to add size to version");
         typename node_base<P>::nodeversion_type v(*this);
@@ -350,11 +388,13 @@ class leaf : public node_base<P> {
     }
 
     using node_base<P>::has_changed;
+    // @unsafe - calls base has_changed which uses fence()
     bool has_changed(nodeversion_type oldv,
                      typename permuter_type::storage_type oldperm) const {
         return this->has_changed(oldv) || oldperm != permutation_;
     }
 
+    // @safe - returns key from stored data
     key_type get_key(int p) const {
         int keylenx = keylenx_[p];
         if (!keylenx_has_ksuf(keylenx))
@@ -362,12 +402,15 @@ class leaf : public node_base<P> {
         else
             return key_type(ikey0_[p], ksuf(p));
     }
+    // @safe - array access
     ikey_type ikey(int p) const {
         return ikey0_[p];
     }
+    // @safe - array access
     ikey_type ikey_bound() const {
         return ikey0_[0];
     }
+    // @safe - pure comparison
     int compare_key(const key_type& a, int bp) const {
         return a.compare(ikey(bp), keylenx_[bp]);
     }
@@ -377,30 +420,38 @@ class leaf : public node_base<P> {
     inline leaf<P>* advance_to_key(const key_type& k, nodeversion_type& version,
                                    threadinfo& ti) const;
 
+    // @safe - pure comparison
     static bool keylenx_is_layer(int keylenx) {
         return keylenx > 127;
     }
+    // @safe - pure comparison
     static bool keylenx_has_ksuf(int keylenx) {
         return keylenx == ksuf_keylenx;
     }
 
+    // @safe - delegates to keylenx_is_layer
     bool is_layer(int p) const {
         return keylenx_is_layer(keylenx_[p]);
     }
+    // @safe - delegates to keylenx_has_ksuf
     bool has_ksuf(int p) const {
         return keylenx_has_ksuf(keylenx_[p]);
     }
+    // @safe - returns suffix string view
     Str ksuf(int p, int keylenx) const {
         (void) keylenx;
         masstree_precondition(keylenx_has_ksuf(keylenx));
         return ksuf_ ? ksuf_->get(p) : iksuf_[0].get(p);
     }
+    // @safe - returns suffix string view
     Str ksuf(int p) const {
         return ksuf(p, keylenx_[p]);
     }
+    // @safe - suffix comparison
     bool ksuf_equals(int p, const key_type& ka) const {
         return ksuf_equals(p, ka, keylenx_[p]);
     }
+    // @safe - suffix comparison
     bool ksuf_equals(int p, const key_type& ka, int keylenx) const {
         if (!keylenx_has_ksuf(keylenx))
             return true;
@@ -408,6 +459,7 @@ class leaf : public node_base<P> {
         return s.len == ka.suffix().len
             && string_slice<uintptr_t>::equals_sloppy(s.s, ka.suffix().s, s.len);
     }
+    // @safe - suffix matching
     // Returns 1 if match & not layer, 0 if no match, <0 if match and layer
     int ksuf_matches(int p, const key_type& ka) const {
         int keylenx = keylenx_[p];
@@ -419,6 +471,7 @@ class leaf : public node_base<P> {
         return s.len == ka.suffix().len
             && string_slice<uintptr_t>::equals_sloppy(s.s, ka.suffix().s, s.len);
     }
+    // @safe - suffix comparison
     int ksuf_compare(int p, const key_type& ka) const {
         int keylenx = keylenx_[p];
         if (!keylenx_has_ksuf(keylenx))
@@ -426,6 +479,7 @@ class leaf : public node_base<P> {
         return ksuf(p, keylenx).compare(ka.suffix());
     }
 
+    // @safe - returns capacity
     size_t ksuf_used_capacity() const {
         if (ksuf_)
             return ksuf_->used_capacity();
@@ -434,6 +488,7 @@ class leaf : public node_base<P> {
         else
             return 0;
     }
+    // @safe - returns capacity
     size_t ksuf_capacity() const {
         if (ksuf_)
             return ksuf_->capacity();
@@ -442,9 +497,11 @@ class leaf : public node_base<P> {
         else
             return 0;
     }
+    // @safe - null check
     bool ksuf_external() const {
         return ksuf_;
     }
+    // @safe - returns string view
     Str ksuf_storage(int p) const {
         if (ksuf_)
             return ksuf_->get(p);
@@ -454,10 +511,12 @@ class leaf : public node_base<P> {
             return Str();
     }
 
+    // @safe - value comparison
     bool deleted_layer() const {
         return modstate_ == modstate_deleted_layer;
     }
 
+    // @safe - prefetch hint
     void prefetch() const {
         for (int i = 64; i < std::min(16 * width + 1, 4 * 64); i += 64)
             ::prefetch((const char *) this + i);
@@ -471,10 +530,12 @@ class leaf : public node_base<P> {
 
     void print(FILE* f, const char* prefix, int indent, int kdepth);
 
+    // @safe - pointer masking
     leaf<P>* safe_next() const {
         return reinterpret_cast<leaf<P>*>(next_.x & ~(uintptr_t) 1);
     }
 
+    // @unsafe - frees leaf memory and ksuf storage manually
     void deallocate(threadinfo& ti) {
         if (ksuf_)
             ti.deallocate(ksuf_, ksuf_->capacity(),
@@ -483,6 +544,7 @@ class leaf : public node_base<P> {
             iksuf_[0].~stringbag();
         ti.pool_deallocate(this, allocated_size(), memtag_masstree_leaf);
     }
+    // @unsafe - schedules RCU free for leaf and ksuf storage
     void deallocate_rcu(threadinfo& ti) {
         if (ksuf_)
             ti.deallocate_rcu(ksuf_, ksuf_->capacity(),
@@ -491,6 +553,7 @@ class leaf : public node_base<P> {
     }
 
   private:
+    // @safe - sets modstate flag
     inline void mark_deleted_layer() {
         modstate_ = modstate_deleted_layer;
     }
@@ -524,6 +587,7 @@ class leaf : public node_base<P> {
         if (x->has_ksuf(xp))
             assign_ksuf(p, x->ksuf(xp), true, ti);
     }
+    // @safe - initializes key slot for layer
     inline void assign_initialize_for_layer(int p, const key_type& ka) {
         assert(ka.has_suffix());
         ikey0_[p] = ka.ikey();
@@ -750,16 +814,19 @@ void leaf<P>::assign_ksuf(int p, Str s, bool initializing, threadinfo& ti) {
                           memtag_masstree_ksuffixes);
 }
 
+// @safe - default construction
 template <typename P>
 inline basic_table<P>::basic_table()
     : root_(0) {
 }
 
+// @safe - returns root pointer
 template <typename P>
 inline node_base<P>* basic_table<P>::root() const {
     return root_;
 }
 
+// @unsafe - atomic CAS to update root pointer
 template <typename P>
 inline node_base<P>* basic_table<P>::fix_root() {
     node_base<P>* root = root_;

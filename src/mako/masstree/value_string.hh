@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Single-string value type for Masstree rows
+// Stores inline variable-length string data with timestamp
+// SAFETY: Uses threadinfo allocator, inline data buffer
+
 #ifndef VALUE_STRING_HH
 #define VALUE_STRING_HH
 #include "compiler.hh"

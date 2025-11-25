@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Compiler intrinsics, memory fences, and type traits
+// Provides portable wrappers for atomic operations and compiler hints
+// SAFETY: Contains memory barriers, likely/unlikely macros, type manipulation
+
 #ifndef MASSTREE_COMPILER_HH
 #define MASSTREE_COMPILER_HH 1
 #include "config.h"

@@ -13,6 +13,24 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Thread-local memory allocator and pool management
+// Provides per-thread memory pools with epoch-based reclamation for lock-free operations
+// SAFETY: Uses raw malloc/free, thread-local storage, and epoch counters
+// EXCLUDED FROM BORROW CHECK: Checker limitation with void* returns from allocate()
+//
+// External annotations for functions that return owned memory
+// @external: {
+//   threadinfo::allocate: [unsafe, (size_t, memtag) -> owned void*]
+//   threadinfo::pool_allocate: [unsafe, (size_t, memtag) -> owned void*]
+//   memdebug::make: [unsafe, (void*, size_t, memtag) -> void* where return: 'a]
+//   memdebug::check_free: [unsafe, (void*, size_t, memtag) -> void* where return: 'a]
+//   memdebug::check_free_after_rcu: [unsafe, (void*, memtag) -> void* where return: 'a]
+//   malloc: [unsafe, (size_t) -> owned void*]
+//   free: [unsafe, (void*) -> void]
+// }
+// @external_unsafe: circular_int::*
+// @external_unsafe: lcdf::String::*
+
 #include "kvthread.hh"
 #include <string.h>
 #include <stdio.h>

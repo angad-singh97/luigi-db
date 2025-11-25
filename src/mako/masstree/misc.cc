@@ -13,6 +13,16 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Miscellaneous utility functions for argument parsing
+// Provides suffix-based double parsing for command line arguments
+// SAFETY: Raw string parsing with suffix handling (k/m/g multipliers)
+// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+//
+// External safety annotations for string operations
+// @external_unsafe: lcdf::String_base::*
+// @external_unsafe: lcdf::String::*
+// @external_unsafe: threadinfo::*
+
 #include "misc.hh"
 #include <unistd.h>
 #include "kvthread.hh"

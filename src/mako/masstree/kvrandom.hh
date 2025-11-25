@@ -13,6 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
+// @unsafe - Random number generators for testing and benchmarking
+// Provides PSDES, xorshift, and lcg-based generators
+// SAFETY: Pure arithmetic operations (no unsafe memory operations)
+
 #ifndef KVRANDOM_HH
 #define KVRANDOM_HH 1
 #include <inttypes.h>

@@ -1,3 +1,7 @@
+// @unsafe - MessagePack binary serialization format implementation
+// Provides streaming parser/unparser for efficient binary encoding
+// SAFETY: Raw byte manipulation, format tag parsing, buffer management
+
 #ifndef GSTORE_MSGPACK_HH
 #define GSTORE_MSGPACK_HH
 #include "json.hh"
