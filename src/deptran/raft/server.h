@@ -41,11 +41,6 @@ struct KeyValue {
 #define HEARTBEAT_INTERVAL 5000
 #endif
 
-// Phase 2: Conditional Election Suppression
-// Non-preferred replicas suppress elections if they heard from preferred leader
-// within this threshold. Set to 1.5s (longer than non-preferred timeout of 500ms-1s)
-// to allow failover when preferred is truly dead.
-#define PREFERRED_ALIVE_THRESHOLD 1500000  // 1.5 seconds in microseconds
 
 class RaftServer : public TxLogServer {
  private:
@@ -100,28 +95,13 @@ class RaftServer : public TxLogServer {
   uint64_t leadership_transfer_start_time_ = 0;             // When transfer started (for timeout)
   std::atomic<bool> leadership_monitor_stop_{false};       // Signal to stop monitoring thread
   std::thread leadership_monitor_thread_;                   // Background thread monitoring for transfer
-
-  // Election suppression during leadership transfer
-  // When a non-preferred follower receives heartbeat from old leader during transfer,
-  // it sets this flag to prevent starting elections while preferred replica takes over
-  std::atomic<bool> suppress_election_for_transfer_{false};
-  uint64_t election_suppression_start_time_ = 0;            // When suppression started (for timeout)
   uint64_t startup_timestamp_ = 0;                          // When server started (for grace period)
 
-  // Phase 2: Conditional Election Suppression
-  // Track when we last received heartbeat from preferred leader to prevent
-  // election churn when heartbeats are occasionally delayed under load
-  uint64_t last_heartbeat_from_preferred_time_ = 0;         // Last heartbeat from preferred leader
-
-  // Check if a specific site is the preferred leader
-  bool IsPreferredLeader(siteid_t site_id) const {
-    return preferred_leader_site_id_ != INVALID_SITEID &&
-           site_id == preferred_leader_site_id_;
-  }
 
   // Check if I am the preferred leader
   bool AmIPreferredLeader() const {
-    return IsPreferredLeader(site_id_);
+    return preferred_leader_site_id_ != INVALID_SITEID &&
+           site_id_ == preferred_leader_site_id_;
   }
 
   // Check if I have caught up to the current leader's commit level
@@ -161,8 +141,11 @@ class RaftServer : public TxLogServer {
       if( can_term > currentTerm)
       {
           // is_leader_ = false ;  // TODO recheck
+          // Any higher term seen means we must immediately step down.
+          setIsLeader(false);
           auto prev_term = currentTerm;
           currentTerm = can_term ;
+          vote_for_ = INVALID_SITEID;  // Reset vote when advancing to new term
           LogTermChange("vote request carried newer term", prev_term, currentTerm, can_id);
       }
 
@@ -206,9 +189,13 @@ class RaftServer : public TxLogServer {
 
   void resetTimer(const char* reason = "unspecified") {
     const char* why = reason ? reason : "unspecified";
-    // Log_info("[RAFT_TIMER] server %d reset election timer (%s)", site_id_, why);
+    auto prev_time = last_heartbeat_time_;
     last_heartbeat_time_ = Time::now();
-    // Log_info("!!!!!!! if (failover_)");
+    // Log only important timer resets (elections, votes), not routine heartbeats
+    if (strcmp(why, "granted vote") == 0 || strcmp(why, "start election timer") == 0) {
+      Log_info("[TIMER_RESET] Site %d: reset timer (%s) - prev_hb_time=%lu new_hb_time=%lu delta=%lu",
+               site_id_, why, prev_time, last_heartbeat_time_, last_heartbeat_time_ - prev_time);
+    }
     if (failover_) {
       timer_->start() ;
     }
