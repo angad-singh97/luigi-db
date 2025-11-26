@@ -29,7 +29,6 @@ echo ""
 echo "Cleaning up existing processes..."
 pkill -9 continuousTransactions 2>/dev/null
 pkill -9 dbtest 2>/dev/null
-pkill -9 simplePaxos 2>/dev/null
 pkill -9 simpleTransactionRep 2>/dev/null
 # Wait for ports to be released
 sleep 2
@@ -38,7 +37,8 @@ sleep 2
 echo "Cleaning up old files..."
 rm -f nfs_sync_*
 rm -f continuous-shard*.log
-rm -rf /tmp/mako_rocksdb_shard*
+USERNAME=${USER:-unknown}
+rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
 # Function to start a shard
 start_shard() {
@@ -67,10 +67,6 @@ for ((i=0; i<$SHARDS; i++)); do
 done
 
 # Give shards time to initialize eRPC servers
-echo ""
-echo "Waiting for shards to initialize eRPC servers (12 seconds)..."
-sleep 12
-
 echo ""
 echo "========================================="
 echo "Running continuous transactions..."

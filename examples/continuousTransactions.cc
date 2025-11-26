@@ -14,6 +14,7 @@
 #include <map>
 #include <mako.hh>
 #include "examples/common.h"
+#include "examples/statistics.h"
 #include "benchmarks/rpc_setup.h"
 #include "../src/mako/spinbarrier.h"
 #include "../src/mako/benchmarks/mbta_sharded_ordered_index.hh"
@@ -22,45 +23,6 @@ using namespace std;
 using namespace mako;
 
 const int MAX_KEYS = 100000;
-
-// Global statistics counters
-struct Statistics {
-    atomic<uint64_t> total_attempts{0};
-    atomic<uint64_t> successful_commits{0};
-    atomic<uint64_t> aborts{0};
-    atomic<uint64_t> reads{0};
-    atomic<uint64_t> writes{0};
-    atomic<uint64_t> cross_shard{0};
-    atomic<uint64_t> single_shard{0};
-
-    void reset() {
-        total_attempts = 0;
-        successful_commits = 0;
-        aborts = 0;
-        reads = 0;
-        writes = 0;
-        cross_shard = 0;
-        single_shard = 0;
-    }
-
-    void print(int seconds) {
-        uint64_t total = total_attempts.load();
-        uint64_t commits = successful_commits.load();
-        uint64_t abort_count = aborts.load();
-        uint64_t read_count = reads.load();
-        uint64_t write_count = writes.load();
-        uint64_t cross = cross_shard.load();
-        uint64_t single = single_shard.load();
-
-        double abort_rate = total > 0 ? (100.0 * abort_count / total) : 0;
-        double cross_rate = total > 0 ? (100.0 * cross / total) : 0;
-
-        printf("[%3ds] TPS: %6lu | Commits: %6lu | Aborts: %5lu (%.1f%%) | R/W: %5lu/%5lu | Cross-shard: %5lu (%.1f%%) | Single-shard: %5lu\n",
-               seconds, commits, commits, abort_count, abort_rate,
-               read_count, write_count, cross, cross_rate, single);
-        fflush(stdout);
-    }
-};
 
 static Statistics stats;
 static volatile bool keep_running = true;
@@ -73,18 +35,14 @@ void signal_handler(int sig) {
 
 class ContinuousWorker {
 public:
-    ContinuousWorker(abstract_db *db, int worker_id)
-        : db_(db), worker_id_(worker_id), gen_(worker_id),
+    ContinuousWorker(abstract_db *db, int worker_id, atomic<uint64_t>* worker_commits)
+        : db_(db), worker_id_(worker_id), worker_commits_(worker_commits), gen_(worker_id),
           read_write_dist_(0, 99) {
         txn_obj_buf_.reserve(str_arena::MinStrReserveLength);
         txn_obj_buf_.resize(db->sizeof_txn_object(0));
 
         home_shard_ = BenchmarkConfig::getInstance().getShardIndex();
         num_shards_ = BenchmarkConfig::getInstance().getNshards();
-    }
-
-    void initialize() {
-        scoped_db_thread_ctx ctx(db_, false);
     }
 
     void executeTransactions() {
@@ -139,6 +97,7 @@ public:
 
                 db_->commit_txn(txn);
                 stats.successful_commits++;
+                (*worker_commits_)++;  // Track per-worker commits
 
                 // Track cross-shard vs single-shard after successful commit
                 if (is_cross_shard) {
@@ -157,11 +116,12 @@ public:
         }
     }
 
-private:
+public:
     abstract_db *db_;
     int worker_id_;
     int home_shard_;
     int num_shards_;
+    atomic<uint64_t>* worker_commits_;
 
     str_arena arena_;
     string txn_obj_buf_;
@@ -169,55 +129,6 @@ private:
     mt19937 gen_;
     uniform_int_distribution<> read_write_dist_;
 };
-
-// Statistics printing thread
-void stats_printer_thread() {
-    int seconds = 0;
-    uint64_t last_total_attempts = 0;
-    uint64_t last_successful_commits = 0;
-    uint64_t last_aborts = 0;
-    uint64_t last_reads = 0;
-    uint64_t last_writes = 0;
-    uint64_t last_cross_shard = 0;
-    uint64_t last_single_shard = 0;
-
-    while (keep_running) {
-        this_thread::sleep_for(chrono::seconds(1));
-        seconds++;
-
-        // Calculate and print per-second statistics
-        uint64_t current_total = stats.total_attempts.load();
-        uint64_t current_commits = stats.successful_commits.load();
-        uint64_t current_aborts = stats.aborts.load();
-        uint64_t current_reads = stats.reads.load();
-        uint64_t current_writes = stats.writes.load();
-        uint64_t current_cross = stats.cross_shard.load();
-        uint64_t current_single = stats.single_shard.load();
-
-        Statistics delta;
-        delta.total_attempts = current_total - last_total_attempts;
-        delta.successful_commits = current_commits - last_successful_commits;
-        delta.aborts = current_aborts - last_aborts;
-        delta.reads = current_reads - last_reads;
-        delta.writes = current_writes - last_writes;
-        delta.cross_shard = current_cross - last_cross_shard;
-        delta.single_shard = current_single - last_single_shard;
-
-        delta.print(seconds);
-
-        last_total_attempts = current_total;
-        last_successful_commits = current_commits;
-        last_aborts = current_aborts;
-        last_reads = current_reads;
-        last_writes = current_writes;
-        last_cross_shard = current_cross;
-        last_single_shard = current_single;
-    }
-
-    printf("\n--- Final Statistics ---\n");
-    fflush(stdout);
-    stats.print(seconds);
-}
 
 int main(int argc, char **argv) {
     // Set up signal handlers
@@ -272,47 +183,32 @@ int main(int argc, char **argv) {
     if (benchConfig.getLeaderConfig()) {
         // pre-declare sharded tables
         mako::setup_erpc_server();
+        mako::setup_helper(db, {});
         mbta_sharded_ordered_index *table = db->open_sharded_index("customer_0");
-
-        map<int, abstract_ordered_index*> open_tables;
-        auto *local_table = table->shard_for_index(benchConfig.getShardIndex());
-        if (local_table) {
-            open_tables[local_table->get_table_id()] = local_table;
-        }
-        mako::setup_helper(db, ref(open_tables));
     }
 
-    // Wait for all shards to initialize their eRPC servers
-    // This is critical for multi-shard setups to avoid connection retry loops
-    printf("Waiting for all shards to initialize (10 seconds)...\n");
-    fflush(stdout);
-    this_thread::sleep_for(chrono::seconds(10));
-    printf("Starting transaction execution...\n\n");
-    fflush(stdout);
+    mako::NFSSync::mark_shard_up_and_wait();
+
+    // Create per-worker commit counters
+    vector<atomic<uint64_t>> worker_commits(nthreads);
+    for (int i = 0; i < nthreads; i++) {
+        worker_commits[i] = 0;
+    }
 
     // Start statistics printer thread
-    thread stats_thread(stats_printer_thread);
+    thread stats_thread(stats_printer_thread, ref(stats), ref(keep_running), &worker_commits);
 
     // Start worker threads
     vector<thread> worker_threads;
     vector<unique_ptr<ContinuousWorker>> workers;
 
-    spin_barrier barrier_ready(nthreads);
-    spin_barrier barrier_start(1);
-
     for (int i = 0; i < nthreads; i++) {
-        workers.emplace_back(make_unique<ContinuousWorker>(db, i));
-        worker_threads.emplace_back([&workers, &barrier_ready, &barrier_start, i]() {
-            workers[i]->initialize();
-            barrier_ready.count_down();
-            barrier_start.wait_for();
+        workers.emplace_back(make_unique<ContinuousWorker>(db, i, &worker_commits[i]));
+        worker_threads.emplace_back([&workers, i]() {
+            mako::initialize_per_thread(workers[i]->db_) ;
             workers[i]->executeTransactions();
         });
     }
-
-    // Release workers once every thread has initialized
-    barrier_ready.wait_for();
-    barrier_start.count_down();
 
     // Wait for all threads to complete
     for (auto &t : worker_threads) {

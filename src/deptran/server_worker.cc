@@ -17,11 +17,11 @@ void ServerWorker::SetupHeartbeat() {
   auto timeout = Config::GetConfig()->get_ctrl_timeout();
   scsi_ = new ServerControlServiceImpl(timeout);
   int n_io_threads = 1;
-//  svr_hb_poll_thread_worker_g = new rrr::PollThreadWorker(n_io_threads);
+//  svr_hb_poll_thread_worker_g = new rrr::PollThread(n_io_threads);
   svr_hb_poll_thread_worker_g = svr_poll_thread_worker_;
 //  hb_thread_pool_g = new rrr::ThreadPool(1);
   hb_thread_pool_g = svr_thread_pool_;
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.unwrap(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = this->site_info_->port + ServerWorker::CtrlPortDelta;
@@ -170,8 +170,8 @@ void ServerWorker::SetupService() {
   // set running mode and initialize transaction manager.
   std::string bind_addr = site_info_->GetBindAddress();
 
-  // init rrr::PollThreadWorker
-  svr_poll_thread_worker_ = PollThreadWorker::create();
+  // init rrr::PollThread
+  svr_poll_thread_worker_ = rusty::Some(PollThread::create());
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
   // init service implementation
@@ -180,7 +180,7 @@ void ServerWorker::SetupService() {
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_thread_worker_,
+                                            svr_poll_thread_worker_.unwrap(),
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
@@ -188,14 +188,14 @@ void ServerWorker::SetupService() {
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
-                                             svr_poll_thread_worker_,
+                                             svr_poll_thread_worker_.unwrap(),
                                              scsi_);
   }
 
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_thread_worker_,
+                                            svr_poll_thread_worker_.unwrap(),
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
@@ -208,7 +208,7 @@ void ServerWorker::SetupService() {
 //  thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_thread_worker_, svr_thread_pool_);
+  rpc_server_ = new rrr::Server(svr_poll_thread_worker_.unwrap(), svr_thread_pool_);
 
   // reg services
   for (auto service : services_) {
@@ -255,7 +255,7 @@ void ServerWorker::WaitForShutdown() {
 }
 
 void ServerWorker::SetupCommo() {
-  verify(svr_poll_thread_worker_);
+  verify(svr_poll_thread_worker_.is_some());
   if (tx_frame_) {
     tx_commo_ = tx_frame_->CreateCommo(svr_poll_thread_worker_);
     if (tx_commo_) {
@@ -276,15 +276,16 @@ void ServerWorker::SetupCommo() {
 
   Reactor::GetReactor()->server_id_ = site_info_->id;
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
-  std::shared_ptr<OneTimeJob> sp_j  = std::make_shared<OneTimeJob>(
-    [this]() { 
+  auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob(
+    [this]() {
       if (rep_sched_) {
         rep_sched_->Setup();
       }
     }
-  );
-  auto sp_job = std::dynamic_pointer_cast<Job>(sp_j);
-  svr_poll_thread_worker_->add(sp_j);
+  ));
+  // Cast OneTimeJob to Job base class for PollThread
+  auto arc_job_base = rusty::Arc<Job>(arc_job);
+  svr_poll_thread_worker_.unwrap()->add(arc_job_base);
 
 #ifdef RAFT_TEST_CORO
 // dead loop this thread for coroutine scheduling 
@@ -333,12 +334,12 @@ int ServerWorker::DbChecksum() {
 }
 
 ServerWorker::~ServerWorker() {
-  // Shutdown PollThreadWorkers if we own them
-  if (svr_poll_thread_worker_) {
-    svr_poll_thread_worker_->shutdown();
+  // Shutdown PollThreads if we own them
+  if (svr_poll_thread_worker_.is_some()) {
+    svr_poll_thread_worker_.unwrap()->shutdown();
   }
-  if (svr_hb_poll_thread_worker_g) {
-    svr_hb_poll_thread_worker_g->shutdown();
+  if (svr_hb_poll_thread_worker_g.is_some()) {
+    svr_hb_poll_thread_worker_g.unwrap()->shutdown();
   }
 }
 

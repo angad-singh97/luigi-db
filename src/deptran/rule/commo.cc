@@ -148,7 +148,7 @@ CommunicatorRule::BroadcastRuleSpeculativeExecute(shared_ptr<vector<shared_ptr<S
   for (auto& pair : rpc_par_proxies_[par_id]) {
     rrr::FutureAttr fuattr;
     fuattr.callback =
-        [e, this](Future* fu) {
+        [e, this](rusty::Arc<Future> fu) {
           if (fu->get_error_code() != 0) {
             Log_info("Get a error message in reply");
             return;
@@ -194,7 +194,7 @@ void CommunicatorRule::BroadcastDispatch(
 
   rrr::FutureAttr fuattr;
   fuattr.callback =
-      [coo, this, callback, par_id](Future* fu) {
+      [coo, this, callback, par_id](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;

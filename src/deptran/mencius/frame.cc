@@ -53,12 +53,12 @@ TxLogServer *MenciusFrame::CreateScheduler() {
   return sch;
 }
 
-Communicator *MenciusFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
+Communicator *MenciusFrame::CreateCommo(rusty::Option<rusty::Arc<PollThread>> poll) {
   // We only have 1 instance of MenciusFrame object that is returned from
   // GetFrame method. MenciusCommo currently seems ok to share among the
   // clients of this method.
   if (commo_ == nullptr) {
-    commo_ = new MenciusCommo(poll_thread_worker);
+    commo_ = new MenciusCommo(poll);
   }
   return commo_;
 }
@@ -66,7 +66,7 @@ Communicator *MenciusFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_t
 vector<rrr::Service *>
 MenciusFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
-                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
+                                   rusty::Arc<rrr::PollThread> poll_thread_worker,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();

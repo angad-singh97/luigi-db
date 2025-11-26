@@ -2,7 +2,7 @@
 
 namespace janus {
 
-MongodbCommo::MongodbCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
+MongodbCommo::MongodbCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) : Communicator(poll_thread_worker) {
 //  verify(poll != nullptr);
 }
 
@@ -14,7 +14,7 @@ void MongodbCommo::BroadcastCommit(const parid_t par_id,
   for (auto& p : proxies) {
     auto proxy = (MongodbProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [](Future* fu) {};
+    fuattr.callback = [](rusty::Arc<Future> fu) {};
     MarshallDeputy md(cmd);
     auto f = proxy->async_Commit(md, fuattr);
     Future::safe_release(f);

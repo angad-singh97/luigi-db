@@ -5,7 +5,6 @@
 #include "config.h"
 #include "communicator.h"
 #include "procedure.h"
-// #include "mongodb_kv_table_handler.h"  // MongoDB backend - not needed
 
 namespace janus {
 
@@ -19,7 +18,8 @@ class TxReply;
 
 class ClientWorker {
  public:
-  rusty::Arc<PollThreadWorker> poll_thread_worker_;
+  // Merged: Use mako-dev's Option<Arc<PollThread>> type for memory safety
+  rusty::Option<rusty::Arc<PollThread>> poll_thread_worker_;
   Frame* frame_{nullptr};
   Communicator* commo_{nullptr};
   cliid_t cli_id_;
@@ -28,10 +28,10 @@ class ClientWorker {
   bool batch_start;
   uint32_t id;
   uint32_t duration;
-	int outbound;
+  int outbound;  // Jetpack: track outbound requests
   ClientControlServiceImpl *ccsi{nullptr};
   int32_t n_concurrent_;
-  map<cooid_t, bool> n_pause_concurrent_{};
+  map<cooid_t, bool> n_pause_concurrent_{};  // Jetpack: pause tracking
   rrr::Mutex finish_mutex{};
   rrr::CondVar finish_cond{};
   bool forward_requests_to_leader_ = false;
@@ -41,82 +41,69 @@ class ClientWorker {
   std::mutex coordinator_mutex{};
   vector<Coordinator*> free_coordinators_{};
   vector<Coordinator*> created_coordinators_{};
-  Coordinator* fail_ctrl_coo_{nullptr};
-  //  rrr::ThreadPool* dispatch_pool_ = new rrr::ThreadPool();
+  Coordinator* fail_ctrl_coo_{nullptr};  // Jetpack: failover coordinator
   std::shared_ptr<TimeoutEvent> timeout_event;
   std::shared_ptr<NEvent> n_event;
   std::shared_ptr<AndEvent> and_event;
 
   std::atomic<uint32_t> num_txn, success, num_try;
-  int all_done_{0};
-  int64_t n_tx_issued_{0};
-  SharedIntEvent n_ceased_client_{};
-  SharedIntEvent sp_n_tx_done_{}; // TODO refactor: remove sp_
+  int all_done_{0};  // Jetpack: completion flag
+  int64_t n_tx_issued_{0};  // Jetpack: transaction counter
+  SharedIntEvent n_ceased_client_{};  // Jetpack: client shutdown tracking
+  SharedIntEvent sp_n_tx_done_{};  // Jetpack: done transaction counter
   Workload * tx_generator_{nullptr};
   Timer *timer_{nullptr};
   shared_ptr<TxnRegistry> txn_reg_{nullptr};
   Config* config_{nullptr};
   Config::SiteInfo& my_site_;
   vector<string> servers_;
+
+  // Jetpack: Failover control pointers
   bool* volatile failover_trigger_;
   volatile bool* failover_server_quit_;
   volatile locid_t* failover_server_idx_;
   volatile double* total_throughput_;
 
-  // For latency test
-  // All the following statistics only count mid 1/3 duration
-  // 2 \subseteq 1 \subseteq 0, 4 \subseteq 3, 5 = 2 \cup 4, 2 \cap 4 = \emptyset
-  // 0: all fast path attempts (even fail or slower than original path), 1 RTT
-  // 1: success fast path attempts (success only, may slower than original path), 1 RTT
-  // 2: efficient fast path attempts (only success and faster than original path), 1 RTT
-  // 3: all original path attempts (even slower than fast path), 2 RTTs
-  // 4: efficient original path attempts (only faster than fast path, or fast path failed), 2 RTTs
-  // 5: all efficient attempts (count all faster one) (should equals to category 1 merge category 3)
-
-  // All the following statistics count all duration
-  // 6: all success fast path read attempts 
-  // 7: all success fast path write attempts
-  // 8: all original path read attempts 
-  // 9: all original path write attempts
+  // Jetpack: Latency statistics
   Distribution cli2cli_[10];
   int go_to_jetpack_fastpath_cnt_ = 0;
-  vector<std::pair<double, double>> commit_time_; // <dispatch_time, duration>
+  vector<std::pair<double, double>> commit_time_;
   Frequency frequency_;
 #ifdef LATENCY_DEBUG
   Distribution client2leader_, client2test_point_, client2leader_send_;
 #endif
-  locid_t cur_leader_{0}; // init leader is 0
+
+  // Jetpack: Leader tracking for Raft
+  locid_t cur_leader_{0};
   bool failover_wait_leader_{false};
   bool failover_trigger_loc{false};
   bool failover_pause_start{false};
 
-  OneArmedBandit one_armed_bandit_; // For fast path attempt prediction
-  
+  OneArmedBandit one_armed_bandit_;  // Jetpack: fast path prediction
 
  public:
-  // Merged constructor: Jetpack failover params + mako-dev PollThreadWorker
-  // Reasoning: Raft needs failover for fault tolerance, mako-dev modernizes with PollThreadWorker
+  // Merged constructor: Jetpack failover params + mako-dev PollThread type
   ClientWorker(uint32_t id,
                Config::SiteInfo& site_info,
                Config* config,
                ClientControlServiceImpl* ccsi,
-               rusty::Arc<PollThreadWorker> poll_thread_worker,
+               rusty::Option<rusty::Arc<PollThread>> poll_thread_worker = rusty::None,
                bool* volatile failover = nullptr,
                volatile bool* failover_server_quit = nullptr,
-               volatile locid_t* failover_server_idxm = nullptr,
+               volatile locid_t* failover_server_idx = nullptr,
                volatile double* total_throughput = nullptr);
   ClientWorker() = delete;
   ~ClientWorker();
-  void retrive_statistic();
+  void retrive_statistic();  // Jetpack: statistics collection
   // This is called from a different thread.
   void Work();
   Coordinator* FindOrCreateCoordinator();
-  void FailoverPreprocess(Coordinator* coo);
-  void DispatchRequest(Coordinator *coo, bool void_request=false);
-  void SearchLeader(Coordinator* coo);
-  void Pause(locid_t locid);
-  void Resume(locid_t locid);
-  Coordinator* CreateFailCtrlCoordinator();
+  void FailoverPreprocess(Coordinator* coo);  // Jetpack: failover handling
+  void DispatchRequest(Coordinator *coo, bool void_request=false);  // Jetpack: extended signature
+  void SearchLeader(Coordinator* coo);  // Jetpack: leader discovery
+  void Pause(locid_t locid);  // Jetpack: pause server
+  void Resume(locid_t locid);  // Jetpack: resume server
+  Coordinator* CreateFailCtrlCoordinator();  // Jetpack: create failover coordinator
   void AcceptForwardedRequest(TxRequest &request, TxReply* txn_reply, rrr::DeferredReply* defer);
 
  protected:

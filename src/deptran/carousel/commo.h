@@ -8,7 +8,7 @@ namespace janus {
 class Simplecommand;
 class CarouselCommo : public Communicator {
  public:
-  CarouselCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker = rusty::Arc<rrr::PollThreadWorker>());
+  CarouselCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker = rusty::Option<rusty::Arc<PollThread>>());
   virtual ~CarouselCommo() {}
   bool using_basic_;
 

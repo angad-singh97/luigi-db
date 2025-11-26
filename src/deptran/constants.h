@@ -73,6 +73,7 @@ namespace janus {
 #define REJECT      (-10)
 #define ABSTAIN     (-10)
 #define RETRY       (-10)
+#define REPEAT      (-15)  // Jetpack: null_cmd retry indicator
 #define DELAYED     (1)
 #define WRONG_LEADER (-20)
 

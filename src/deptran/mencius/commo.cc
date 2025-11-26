@@ -12,14 +12,14 @@
 
 namespace janus {
 
-MenciusCommo::MenciusCommo(rusty::Arc<rrr::PollThreadWorker> poll) : Communicator(poll) {
+MenciusCommo::MenciusCommo(rusty::Option<rusty::Arc<PollThread>> poll) : Communicator(poll) {
 //  verify(poll != nullptr);
 }
 
 void MenciusCommo::BroadcastPrepare(parid_t par_id,
                                        slotid_t slot_id,
                                        ballot_t ballot,
-                                       const function<void(Future*)>& cb) {
+                                       const function<void(rusty::Arc<Future>)>& cb) {
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
   auto leader_id = LeaderProxyForPartition(par_id).first;
@@ -51,7 +51,7 @@ MenciusCommo::BroadcastPrepare(parid_t par_id,
     // e->add_dep(leader_id, src_coroid, follower_id, -1);
 
     FutureAttr fuattr;
-    fuattr.callback = [e, ballot, leader_id, src_coroid, follower_id](Future* fu) {
+    fuattr.callback = [e, ballot, leader_id, src_coroid, follower_id](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -82,7 +82,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
   auto src_coroid = e->GetCoroId();
   auto proxies = rpc_par_proxies_[par_id];
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
   auto start = chrono::system_clock::now();
 
   std::vector<ServerWorker>* svr_workers = static_cast<std::vector<ServerWorker>*>(svr_workers_g);
@@ -157,7 +157,7 @@ MenciusCommo::BroadcastSuggest(parid_t par_id,
     FutureAttr fuattr;
     // auto start2 = chrono::system_clock::now();
     auto start2 = 0;
-    fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id] (Future* fu) {
+    fuattr.callback = [e, start2, ballot, leader_id, src_coroid, follower_id] (rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -199,7 +199,7 @@ void MenciusCommo::BroadcastSuggest(parid_t par_id,
                                       slotid_t slot_id,
                                       ballot_t ballot,
                                       shared_ptr<Marshallable> cmd,
-                                      const function<void(Future*)>& cb) {
+                                      const function<void(rusty::Arc<Future>)>& cb) {
   verify(0); // deprecated function
   // auto proxies = rpc_par_proxies_[par_id];
   // auto leader_id = LeaderProxyForPartition(par_id).first;
@@ -227,13 +227,13 @@ void MenciusCommo::BroadcastDecide(const parid_t par_id,
   auto proxies = rpc_par_proxies_[par_id];
   int n = proxies.size();
   auto leader_id = LeaderProxyForPartition(par_id, (slot_id-1)%n).first;
-  vector<Future*> fus;
-  
+  vector<rusty::Arc<Future>> fus;
+
   WAN_WAIT
   for (auto& p : proxies) {
     auto proxy = (MenciusProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [](Future* fu) {};
+    fuattr.callback = [](rusty::Arc<Future> fu) {};
     MarshallDeputy md(cmd);
     auto f = proxy->async_Decide(slot_id, ballot, md, fuattr);
     //sp_quorum_event->add_dep(leader_id, p.first);

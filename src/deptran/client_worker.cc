@@ -18,27 +18,14 @@ ClientWorker::~ClientWorker() {
   }
 //  dispatch_pool_->release();
 
-  // Shutdown PollThreadWorker if we own it
-  if (poll_thread_worker_) {
-    poll_thread_worker_->shutdown();
+  // Shutdown PollThread if we own it (mako-dev Option pattern)
+  if (poll_thread_worker_.is_some()) {
+    poll_thread_worker_.as_ref().unwrap()->shutdown();
   }
 }
 
 void ClientWorker::retrive_statistic() {
   verify(0); // No longer need since date are recorded directly to ClientWorker instead of Coordinator
-//   for (auto c : created_coordinators_) {
-//     for (int i = 0; i < 6; i++)
-//       cli2cli_[i].merge(c->cli2cli_[i]);
-//     frequency_.merge(c->frequency_);
-//     commit_time_.merge(c->commit_time_);
-// #ifdef LATENCY_DEBUG
-//     // Log_info("%.2f %.2f %.2f", c->client2leader_.pct50(), c->client2leader_.pct90(), c->client2leader_.pct99());
-//     client2leader_.merge(c->client2leader_);
-//     client2leader_send_.merge(c->client2leader_send_);
-//     client2test_point_.merge(c->client2test_point_);
-// #endif
-//   }
-  // Log_info("Latency-50pct is %.2f ms, Latency-90pct is %.2f ms, Latency-99pct is %.2f ms ", cli2cli_.pct50(), cli2cli_.pct90(), cli2cli_.pct99());
 }
 
 void ClientWorker::ForwardRequestDone(Coordinator* coo,
@@ -58,25 +45,33 @@ void ClientWorker::ForwardRequestDone(Coordinator* coo,
   } else if (!have_more_time) {
     Log_debug("times up. stop.");
     Log_debug("n_concurrent_ = %d", n_concurrent_);
-//    finish_mutex.lock();
     n_concurrent_--;
     if (n_concurrent_ == 0) {
       Log_debug("all coordinators finished... signal done");
-//      finish_cond.signal();
     } else {
       Log_debug("waiting for %d more coordinators to finish", n_concurrent_);
     }
-//    finish_mutex.unlock();
   }
 
   defer->reply();
 }
 
-
-
 void ClientWorker::RequestDone(Coordinator* coo, TxReply& txn_reply) {
   verify(0);
   verify(coo != nullptr);
+
+  // Jetpack: Handle WRONG_LEADER response for Raft
+  if (txn_reply.res_ == WRONG_LEADER) {
+    Log_info("[CLIENT_VIEW] Received WRONG_LEADER response for tx_id: 0x%lx", txn_reply.tx_id_);
+    if (txn_reply.sp_view_data_ != nullptr) {
+      auto view_data = txn_reply.sp_view_data_;
+      Log_info("[CLIENT_VIEW] Extracted view data from response: %s",
+               view_data->ToString().c_str());
+      commo_->UpdatePartitionView(view_data->partition_id_, view_data);
+    } else {
+      Log_info("[CLIENT_VIEW] No view data in WRONG_LEADER response for tx_id: 0x%lx", txn_reply.tx_id_);
+    }
+  }
 
   if (txn_reply.res_ == SUCCESS)
     success++;
@@ -91,13 +86,12 @@ void ClientWorker::RequestDone(Coordinator* coo, TxReply& txn_reply) {
     free_coordinators_.push_back(coo);
   } else if (have_more_time && config_->client_type_ == Config::Closed) {
     Log_debug("there is still time to issue another request. continue.");
-    Coroutine::CreateRun([this,coo]() { 
-      DispatchRequest(coo); 
+    Coroutine::CreateRun([this,coo]() {
+      DispatchRequest(coo);
     });
   } else if (!have_more_time) {
     Log_debug("times up. stop.");
     Log_debug("n_concurrent_ = %d", n_concurrent_);
-//    finish_mutex.lock();
     if (coo->offset_ == 0) {
       *failover_server_quit_ = true;
     }
@@ -106,18 +100,15 @@ void ClientWorker::RequestDone(Coordinator* coo, TxReply& txn_reply) {
     verify(n_concurrent_ >= 0);
     if (n_concurrent_ == 0) {
       Log_debug("all coordinators finished... signal done");
-//      finish_cond.signal();
     } else {
       Log_debug("waiting for %d more coordinators to finish", n_concurrent_);
       Log_debug("transactions they are processing:");
-      // for debug purpose, print ongoing transaction ids.
       for (auto c : created_coordinators_) {
         if (c->ongoing_tx_id_ > 0) {
           Log_debug("\t %" PRIx64, c->ongoing_tx_id_);
         }
       }
     }
-//    finish_mutex.unlock();
   } else {
     verify(0);
   }
@@ -145,9 +136,8 @@ Coordinator* ClientWorker::FindOrCreateCoordinator() {
 }
 
 Coordinator* ClientWorker::CreateFailCtrlCoordinator() {
-
   cooid_t coo_id = cli_id_;
-  uint64_t offset_id = 1000000 ; // TODO temp value
+  uint64_t offset_id = 1000000; // TODO temp value
   coo_id = (coo_id << 16) + offset_id;
   auto coo = frame_->CreateCoordinator(coo_id,
                                        config_,
@@ -159,20 +149,17 @@ Coordinator* ClientWorker::CreateFailCtrlCoordinator() {
   coo->loc_id_ = my_site_.locale_id;
   coo->commo_ = commo_;
   coo->forward_status_ = forward_requests_to_leader_ ? FORWARD_TO_LEADER : NONE;
-  coo->offset_ = offset_id ;
+  coo->offset_ = offset_id;
   Log_debug("coordinator %d created at site %d: forward %d",
             coo->coo_id_,
             this->my_site_.id,
             coo->forward_status_);
-  return coo ;
+  return coo;
 }
 
-
 Coordinator* ClientWorker::CreateCoordinator(uint16_t offset_id) {
-
   cooid_t coo_id = cli_id_;
   coo_id = (coo_id << 16) + offset_id;
-  // Log_info("[Jetpack] coordinator %d %d -> %d have been created", cli_id_, offset_id, coo_id);
   auto coo = frame_->CreateCoordinator(coo_id,
                                        config_,
                                        benchmark,
@@ -209,9 +196,10 @@ void ClientWorker::Work() {
   }
   Log_debug("after wait for start");
 
+  // Jetpack: Failover testing job
   bool failover = Config::GetConfig()->get_failover();
   if (failover) {
-    auto p_job = (Job*)new OneTimeJob([this]() {
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this]() {
       int run_int = Config::GetConfig()->get_failover_run_interval() * pow(10, 6);
       int stop_int = Config::GetConfig()->get_failover_stop_interval() * pow(10, 6);
       int wait_int = 50 * pow(10, 3);
@@ -241,27 +229,26 @@ void ClientWorker::Work() {
         }
         Resume(idx);
         Log_info("server %d resumed for failover test", idx);
-        // set the new leader
         idx = cur_leader_;
       }
-    });
-    shared_ptr<Job> sp_job(p_job);
-    poll_thread_worker_->add(sp_job);
+    }));
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
+    poll_thread_worker_.as_ref().unwrap()->add(arc_job_base);
   }
+
+  // Jetpack: Main transaction dispatch loop
   for (uint32_t n_tx = 0; n_tx < n_concurrent_; n_tx++) {
-    auto sp_job = std::make_shared<OneTimeJob>([this, n_tx] () {
-      // this wait tries to avoid launching clients all at once, especially for open-loop clients.
-      // Reactor::CreateSpEvent<NeverEvent>()->Wait(RandomGenerator::rand(0, 1000000)); // [Ze]: I disable this for Mencius, I think it's safe
-      auto beg_time = Time::now() ;
+    auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this, n_tx] () {
+      auto beg_time = Time::now();
       auto end_time = beg_time + duration * pow(10, 6);
 #ifdef DB_CHECKSUM
       auto read_end_time = end_time + 20 * pow(10, 6);
 #endif
 #ifdef COPILOT_DEBUG
       end_time = beg_time + duration * 5 * pow(10, 2);
-#endif 
-      while (true) { // start while
-        auto cur_time = Time::now(); // optimize: this call is not scalable.
+#endif
+      while (true) {
+        auto cur_time = Time::now();
 #ifndef DB_CHECKSUM
         if (cur_time > end_time) {
 #endif
@@ -284,35 +271,34 @@ void ClientWorker::Work() {
           }
         }
         num_txn++;
-        auto coo = FindOrCreateCoordinator(); // CoordinatorNone instance
+        auto coo = FindOrCreateCoordinator();
         coo->cli_id_ = cli_id_;
         verify(!coo->sp_ev_commit_);
         verify(!coo->sp_ev_done_);
         coo->sp_ev_commit_ = Reactor::CreateSpEvent<IntEvent>();
         coo->sp_ev_done_ = Reactor::CreateSpEvent<IntEvent>();
 
-				Log_debug("Dispatching request for %d", n_tx);
-				this->outbound++;
-				
-				bool first = true;
-				while(coo->commo_->paused){
-					if(first){
-						coo->commo_->count_lock_.lock();
-						coo->commo_->total_ = this->outbound;
-						coo->commo_->qe->n_voted_yes_ = this->outbound;
-						coo->commo_->count_lock_.unlock();
-						Log_info("is it ready: %d", coo->commo_->qe->IsReady());
-						coo->commo_->qe->Test();
-						first = false;
-					}
-					Log_info("total: %d", coo->commo_->total_);
-					auto t = Reactor::CreateSpEvent<TimeoutEvent>(0.1*1000*1000);
-					t->Wait();
-				}
+        Log_debug("Dispatching request for %d", n_tx);
+        this->outbound++;
+
+        bool first = true;
+        while(coo->commo_->paused) {
+          if(first) {
+            coo->commo_->count_lock_.lock();
+            coo->commo_->total_ = this->outbound;
+            coo->commo_->qe->n_voted_yes_ = this->outbound;
+            coo->commo_->count_lock_.unlock();
+            Log_info("is it ready: %d", coo->commo_->qe->IsReady());
+            coo->commo_->qe->Test();
+            first = false;
+          }
+          Log_info("total: %d", coo->commo_->total_);
+          auto t = Reactor::CreateSpEvent<TimeoutEvent>(0.1*1000*1000);
+          t->Wait();
+        }
 #ifdef DB_CHECKSUM
-        // [Ze] This hacking is for rw workload only: once consensus finished, send empty (read) request for 10s
         if (cur_time > end_time)
-				  this->DispatchRequest(coo, true);
+          this->DispatchRequest(coo, true);
         else
 #endif
           this->DispatchRequest(coo);
@@ -335,7 +321,6 @@ void ClientWorker::Work() {
           auto ev = coo->sp_ev_done_;
           Wait_recordplace(ev, Wait());
           verify(coo->coo_id_ > 0);
-//          ev->Wait(400*1000*1000);
           verify(coo->_inuse_);
           verify(coo->coo_id_ > 0);
           verify(ev->status_ != Event::TIMEOUT);
@@ -350,26 +335,27 @@ void ClientWorker::Work() {
           coo->_inuse_ = false;
           n_pause_concurrent_[coo->coo_id_] = true;
         }, __FILE__, __LINE__);
-        // sleep(30);
-      } // end while
+      }
       n_ceased_client_.Set(n_ceased_client_.value_+1);
-    });
-    poll_thread_worker_->add(dynamic_pointer_cast<Job>(sp_job));
-  } // end for loop n_concurrent
-  poll_thread_worker_->add(dynamic_pointer_cast<Job>(std::make_shared<OneTimeJob>([this](){
+    }));
+    auto arc_job_base = rusty::Arc<Job>(arc_job);
+    poll_thread_worker_.as_ref().unwrap()->add(arc_job_base);
+  }
+
+  // Jetpack: Wait for completion job
+  auto finish_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([this](){
     Log_info("wait for all virtual clients to stop issuing new requests.");
     n_ceased_client_.WaitUntilGreaterOrEqualThan(n_concurrent_,
                                                  (duration+500)*1000000);
     Log_info("wait for all outstanding requests to finish.");
-    // TODO uncomment this, otherwise many requests are still outstanding there.
     sp_n_tx_done_.WaitUntilGreaterOrEqualThan(n_tx_issued_);
-    // for debug purpose
-//    Reactor::CreateSpEvent<NeverEvent>()->Wait(5*1000*1000);
     *failover_server_quit_ = true;
     all_done_ = 1;
-  })));
+  }));
+  auto finish_job_base = rusty::Arc<Job>(finish_job);
+  poll_thread_worker_.as_ref().unwrap()->add(finish_job_base);
 
-// force stop if there is no any move in 5 seconds
+  // Force stop if there is no progress in 5 seconds
   int prev_done = 0;
   while (all_done_ == 0) {
     auto current_time = std::chrono::steady_clock::now();
@@ -413,14 +399,12 @@ void ClientWorker::AcceptForwardedRequest(TxRequest& request,
                                           rrr::DeferredReply* defer) {
   const char* f = __FUNCTION__;
 
-  // obtain free a coordinator first
   Coordinator* coo = nullptr;
   while (coo == nullptr) {
     coo = FindOrCreateCoordinator();
   }
   coo->forward_status_ = PROCESS_FORWARD_REQUEST;
 
-  // run the task
   std::function<void()> task = [=]() {
     TxRequest req(request);
     req.callback_ = std::bind(&ClientWorker::ForwardRequestDone,
@@ -431,10 +415,9 @@ void ClientWorker::AcceptForwardedRequest(TxRequest& request,
                               std::placeholders::_1);
     Log_debug("%s: running forwarded request at site %d", f, my_site_.id);
     coo->concurrent = n_concurrent_;
-		coo->DoTxAsync(req);
+    coo->DoTxAsync(req);
   };
   task();
-//  dispatch_pool_->run_async(task); // this causes bug
 }
 
 void ClientWorker::FailoverPreprocess(Coordinator* coo) {
@@ -490,62 +473,46 @@ void ClientWorker::FailoverPreprocess(Coordinator* coo) {
 }
 
 void ClientWorker::DispatchRequest(Coordinator* coo, bool void_request) {
-//  FailoverPreprocess(coo);
   const char* f = __FUNCTION__;
   std::function<void()> task = [=]() {
     Log_debug("%s: %d", f, cli_id_);
-    // TODO don't use pointer here.
     TxRequest *req = new TxRequest;
     {
       std::lock_guard<std::mutex> lock(this->request_gen_mutex);
-      // req->input_ will have the data
       tx_generator_->GetTxRequest(req, coo->coo_id_);
-      // set unique command ID
       req->client_id_ = coo->coo_id_;
       req->cmd_id_in_client_ = coo->cmd_in_client_count++;
 #ifdef DB_CHECKSUM
-      // [Ze] This hacking is for rw workload only: once consensus finished, send empty (read) request for 10s
       if (void_request)
         req->tx_type_ = RW_BENCHMARK_R_TXN;
 #endif
     }
-//     req.callback_ = std::bind(&ClientWorker::RequestDone,
-//                               this,
-//                               coo,
-//                               std::placeholders::_1);
     req->callback_ = [coo, req, this] (TxReply& reply) {
-//      verify(coo->sp_ev_commit_->status_ != Event::WAIT);
-      
-      // Check if we received a WRONG_LEADER response
+      // Jetpack: Handle WRONG_LEADER response for Raft
       if (reply.res_ == WRONG_LEADER) {
         Log_info("[CLIENT_VIEW] Received WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
-        
         if (reply.sp_view_data_ != nullptr) {
-          // Extract view data and update our view
           auto view_data = reply.sp_view_data_;
-          Log_info("[CLIENT_VIEW] Extracted view data from response: %s", 
+          Log_info("[CLIENT_VIEW] Extracted view data from response: %s",
                    view_data->ToString().c_str());
           commo_->UpdatePartitionView(view_data->partition_id_, view_data);
         } else {
           Log_info("[CLIENT_VIEW] No view data in WRONG_LEADER response for tx_id: 0x%lx", reply.tx_id_);
         }
       }
-      
+
       coo->sp_ev_commit_->Set(1);
       auto& status = coo->sp_ev_done_->status_;
       verify(status == Event::WAIT || status == Event::INIT);
       coo->sp_ev_done_->Set(1);
       delete req;
     };
-    coo->DoTxAsync(*req); // coo -> CoordinatorNone
+    coo->DoTxAsync(*req);
   };
   task();
-//  dispatch_pool_->run_async(task); // this causes bug
 }
 
-
 void ClientWorker::SearchLeader(Coordinator* coo) {
-  // TODO multiple par_id yidawu
   parid_t par_id = 0;
   coo->SetNewLeader(par_id, failover_server_idx_);
   cur_leader_ = *failover_server_idx_;
@@ -553,13 +520,13 @@ void ClientWorker::SearchLeader(Coordinator* coo) {
       *failover_server_idx_);
 }
 
-// Merged: Jetpack failover params + mako-dev PollThreadWorker
+// Merged constructor: Jetpack failover params + mako-dev PollThread type
 ClientWorker::ClientWorker(
     uint32_t id,
     Config::SiteInfo& site_info,
     Config* config,
     ClientControlServiceImpl* ccsi,
-    rusty::Arc<PollThreadWorker> poll_thread_worker,
+    rusty::Option<rusty::Arc<PollThread>> poll_thread_worker,
     bool* volatile failover_trigger,
     volatile bool* failover_server_quit,
     volatile locid_t* failover_server_idx,
@@ -580,26 +547,25 @@ ClientWorker::ClientWorker(
   Log_info("[Jetpack] launch ClientWorker %d site_info is id=%d locale_id=%d name=%s proc_name=%s host=%s port=%d n_thread=%d partition_id_=%d",
            id, site_info.id, site_info.locale_id, site_info.name.c_str(), site_info.proc_name.c_str(),
            site_info.host.c_str(), site_info.port, site_info.n_thread, site_info.partition_id_);
-  // Use mako-dev's PollThreadWorker (memory-safe modernization)
-  poll_thread_worker_ = !poll_thread_worker ? PollThreadWorker::create() : poll_thread_worker;
-  // Keep Jetpack's 2-param GetFrame (needs replica_proto_ for Raft)
+  // Merged: Use mako-dev's Option<Arc<PollThread>> pattern
+  poll_thread_worker_ = poll_thread_worker.is_some() ? std::move(poll_thread_worker) : rusty::Some(PollThread::create());
+  // Jetpack: 2-param GetFrame (needs replica_proto_ for Raft)
   frame_ = Frame::GetFrame(config->tx_proto_, config->replica_proto_);
   tx_generator_ = frame_->CreateTxGenerator();
   config->get_all_site_addr(servers_);
   num_txn.store(0);
   success.store(0);
   num_try.store(0);
-  commo_ = frame_->CreateCommo(poll_thread_worker_);
+  commo_ = frame_->CreateCommo(rusty::Some(poll_thread_worker_.as_ref().unwrap().clone()));
   commo_->loc_id_ = my_site_.locale_id;
-  
-  // Set up dynamic leader callback for the communicator
+
+  // Jetpack: Set up dynamic leader callback for the communicator
   commo_->SetLeaderCallback([this](parid_t par_id) {
     locid_t leader = commo_->GetLeaderForPartition(par_id);
-    // Log_info("[CLIENT_CALLBACK] GetLeaderForPartition(%d) returned %d on communicator %p", 
-    //          par_id, leader, commo_);
     return leader;
   });
-  
+
+  // Jetpack: MODE_RAFT and MODE_FPGA_RAFT for leader forwarding
   forward_requests_to_leader_ =
       ((config->replica_proto_ == MODE_RAFT || config->replica_proto_ == MODE_FPGA_RAFT) && site_info.locale_id != 0) ? true :
                                                                                false;
@@ -609,7 +575,6 @@ ClientWorker::ClientWorker(
 }
 
 void ClientWorker::Pause(locid_t locid) {
-  // TODO modify it locid and parid
 #ifdef FAILOVER_DEBUG
   Log_info("!!!!!!!!!!!!!! ClientWorker::Pause %d", locid);
 #endif
@@ -617,10 +582,7 @@ void ClientWorker::Pause(locid_t locid) {
 }
 
 void ClientWorker::Resume(locid_t locid) {
-  // TODO modify it locid and parid
   fail_ctrl_coo_->FailoverResumeSocketOut(0, locid);
 }
 
-
 } // namespace janus
-

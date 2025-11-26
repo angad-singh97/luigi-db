@@ -17,7 +17,7 @@
 using namespace janus;
 
 static ClientControlServiceImpl *ccsi_g = nullptr;
-static rusty::Arc<rrr::PollThreadWorker> cli_poll_thread_worker_g;
+static rusty::Option<rusty::Arc<rrr::PollThread>> cli_poll_thread_worker_g = rusty::None;
 static rrr::Server *cli_hb_server_g = nullptr;
 
 static vector<ServerWorker> svr_workers_g = {};
@@ -54,10 +54,10 @@ void client_setup_heartbeat(int num_clients) {  // HERE!!!
   if (hb) {
     // setup controller rpc server
     ccsi_g = new ClientControlServiceImpl(num_clients, txn_types);
-    // Create Arc-wrapped PollThreadWorker using factory method
-    cli_poll_thread_worker_g = rrr::PollThreadWorker::create();
+    int n_io_threads = 1;
+    cli_poll_thread_worker_g = rusty::Some(rrr::PollThread::create());
     base::ThreadPool *thread_pool = new base::ThreadPool(1);
-    cli_hb_server_g = new rrr::Server(cli_poll_thread_worker_g, thread_pool);
+    cli_hb_server_g = new rrr::Server(cli_poll_thread_worker_g.unwrap(), thread_pool);
     cli_hb_server_g->reg(ccsi_g);
     auto ctrl_port = std::to_string(Config::GetConfig()->get_ctrl_port());
     std::string server_address = std::string("0.0.0.0:").append(ctrl_port);
@@ -84,7 +84,7 @@ void client_launch_workers(vector<Config::SiteInfo> &client_sites) {
                                             client_sites[client_id],
                                             Config::GetConfig(),
                                             ccsi_g,
-                                            rusty::Arc<rrr::PollThreadWorker>(),
+                                            rusty::None,
                                             &(failover_triggers[client_id]),
                                             &failover_server_quit,
                                             &failover_server_idx,

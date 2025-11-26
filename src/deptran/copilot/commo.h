@@ -88,7 +88,7 @@ friend class CopilotProxy;
 
  public:
   CopilotCommo() = delete;
-  CopilotCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker);
+  CopilotCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker);
 
   shared_ptr<CopilotPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,

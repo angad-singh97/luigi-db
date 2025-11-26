@@ -49,7 +49,7 @@ TxLogServer *CopilotFrame::CreateScheduler() {
   return sch_;
 }
 
-Communicator *CopilotFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
+Communicator *CopilotFrame::CreateCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) {
   if (commo_ == nullptr) {
     commo_ = new CopilotCommo(poll_thread_worker);
   }
@@ -60,7 +60,7 @@ Communicator *CopilotFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_t
 vector<rrr::Service *>
 CopilotFrame::CreateRpcServices(uint32_t site_id,
                                 TxLogServer *rep_sched,
-                                rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
+                                rusty::Arc<rrr::PollThread> poll_thread_worker,
                                 ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = vector<Service *>();

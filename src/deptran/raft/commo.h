@@ -56,7 +56,7 @@ friend class RaftProxy;
 #endif
 	
   RaftCommo() = delete;
-  RaftCommo(rusty::Arc<rrr::PollThreadWorker>);
+  RaftCommo(rusty::Option<rusty::Arc<PollThread>> poll = rusty::None);
 
   // @unsafe
   shared_ptr<IntEvent>

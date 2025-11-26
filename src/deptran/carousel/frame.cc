@@ -27,7 +27,7 @@ Coordinator *FrameCarousel::CreateCoordinator(cooid_t coo_id,
   return coord;
 }
 
-Communicator *FrameCarousel::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
+Communicator *FrameCarousel::CreateCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) {
   // Default: return null;
   commo_ = new CarouselCommo(poll_thread_worker);
   return commo_;
@@ -55,7 +55,7 @@ shared_ptr<Tx> FrameCarousel::CreateTx(epoch_t epoch, txnid_t tid,
 vector<rrr::Service *>
 FrameCarousel::CreateRpcServices(uint32_t site_id,
                               TxLogServer *sched,
-                              rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
+                              rusty::Arc<rrr::PollThread> poll_thread_worker,
                               ServerControlServiceImpl *scsi) {
   return Frame::CreateRpcServices(site_id, sched, poll_thread_worker, scsi);
 }

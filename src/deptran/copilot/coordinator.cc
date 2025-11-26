@@ -13,7 +13,10 @@ const char* indicator[] = {"COPILOT", "PILOT"};
 
 bool FreeDangling(Communicator* comm, vector<std::pair<uint16_t, rrr::i64> > &dangling) {
   for (auto &dang : dangling) {
-    comm->rpc_clients_[dang.first]->handle_free(dang.second);
+    auto it = comm->rpc_clients_.find(dang.first);
+    if (it != comm->rpc_clients_.end()) {
+      it->second->handle_free(dang.second);
+    }
   }
 
   return true;

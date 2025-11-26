@@ -35,7 +35,10 @@ void PaxosServer::OnPrepare(slotid_t slot_id,
     // TODO if accepted anything, return;
     verify(0);
   }
-  *coro_id = Coroutine::CurrentCoroutine()->id;
+  auto coro_opt = Coroutine::CurrentCoroutine();
+  if (coro_opt.is_some()) {
+    *coro_id = coro_opt.unwrap()->id;
+  }
   *max_ballot = instance->max_ballot_seen_;
   n_prepare_++;
   WAN_WAIT
@@ -65,7 +68,10 @@ void PaxosServer::OnAccept(const slotid_t slot_id,
     verify(0);
   }
 
-  *coro_id = Coroutine::CurrentCoroutine()->id;
+  auto coro_opt = Coroutine::CurrentCoroutine();
+  if (coro_opt.is_some()) {
+    *coro_id = coro_opt.unwrap()->id;
+  }
   *max_ballot = instance->max_ballot_seen_;
   n_accept_++;
   WAN_WAIT
@@ -659,7 +665,7 @@ void PaxosServer::OnBulkCommit(shared_ptr<Marshallable> &cmd,
 }
 
 void PaxosServer::OnForwardToLearner(const rrr::i32& par_id,
-                                    const uint64_t& slot, 
+                                    const uint64_t& slot,
                                     const ballot_t& ballot,
                                     shared_ptr<Marshallable> &cmd,
                                     const function<void()> &cb) {

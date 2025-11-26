@@ -73,13 +73,13 @@ public:
   Communicator* rep_commo_ = nullptr;
 
   // RPC infrastructure
-  rusty::Arc<rrr::PollThreadWorker> svr_poll_thread_worker_;
+  rusty::Option<rusty::Arc<PollThread>> svr_poll_thread_worker_;
   vector<rrr::Service*> services_ = {};
   rrr::Server* rpc_server_ = nullptr;
   base::ThreadPool* thread_pool_g = nullptr;
 
   // Heartbeat/control RPC
-  rusty::Arc<rrr::PollThreadWorker> svr_hb_poll_thread_worker_g;
+  rusty::Option<rusty::Arc<PollThread>> svr_hb_poll_thread_worker_g;
   ServerControlServiceImpl* scsi_ = nullptr;
   rrr::Server* hb_rpc_server_ = nullptr;
   base::ThreadPool* hb_thread_pool_g = nullptr;
@@ -146,7 +146,7 @@ public:
   int Next(int slot, shared_ptr<Marshallable> cmd);
 
   // Helper methods
-  rusty::Arc<rrr::PollThreadWorker> GetPollThreadWorker() {
+  rusty::Option<rusty::Arc<PollThread>> GetPollThreadWorker() {
     return svr_poll_thread_worker_;
   }
 

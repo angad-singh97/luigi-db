@@ -22,7 +22,7 @@
 namespace janus {
 
 ClassicServiceImpl::ClassicServiceImpl(TxLogServer* sched,
-                                       rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
+                                       rusty::Arc<rrr::PollThread> poll_thread_worker,
                                        ServerControlServiceImpl* scsi) : scsi_(
     scsi), dtxn_sched_(sched), poll_thread_worker_(poll_thread_worker) {
 
@@ -123,7 +123,10 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
     view_data->SetMarshallable(std::make_shared<ViewData>());
   }
   
-  *coro_id = Coroutine::CurrentCoroutine()->id;
+  auto coro_opt = Coroutine::CurrentCoroutine();
+  if (coro_opt.is_some()) {
+    *coro_id = coro_opt.unwrap()->id;
+  }
   defer->reply();
   // }, __FILE__, cmd_id);
   // auto func = [cmd_id, sp, output, dep_id, res, coro_id, this, defer]() {
@@ -132,7 +135,10 @@ void ClassicServiceImpl::Dispatch(const i64& cmd_id,
   //   if (!sched->Dispatch(cmd_id, dep_id, sp, *output)) {
   //     *res = REJECT;
   //   }
-  //   *coro_id = Coroutine::CurrentCoroutine()->id;
+  //   auto coro_opt = Coroutine::CurrentCoroutine();
+  //   if (coro_opt.is_some()) {
+  //     *coro_id = coro_opt.unwrap()->id;
+  //   }
   //   defer->reply();
   // };
 
@@ -245,7 +251,10 @@ void ClassicServiceImpl::Prepare(const rrr::i64& tid,
 		*slow = sched->slow_;
     *res = ret ? SUCCESS : REJECT;
 		if(null_cmd) *res = REPEAT;
-    *coro_id = Coroutine::CurrentCoroutine()->id;
+    auto coro_opt = Coroutine::CurrentCoroutine();
+    if (coro_opt.is_some()) {
+      *coro_id = coro_opt.unwrap()->id;
+    }
     if (defer != nullptr) defer->reply();
   };
 
@@ -290,8 +299,11 @@ void ClassicServiceImpl::Commit(const rrr::i64& tid,
 		//*profile = {0.0, 0.0, 0.0, 0.0};
 		//Log_info("slow2: %d", sched->slow_);
 		*slow = sched->slow_;
-    *coro_id = Coroutine::CurrentCoroutine()->id;
-    
+    auto coro_opt = Coroutine::CurrentCoroutine();
+    if (coro_opt.is_some()) {
+      *coro_id = coro_opt.unwrap()->id;
+    }
+
     if (ret == WRONG_LEADER) {
       *res = WRONG_LEADER;
       Log_info("[WRONG_LEADER] ServiceImpl::Commit returning WRONG_LEADER for tx_id: %lu", tid);
@@ -341,7 +353,10 @@ void ClassicServiceImpl::Abort(const rrr::i64& tid,
 		Log_info("slow3: %d", sched->slow_);
 		*slow = sched->slow_;
     *res = SUCCESS;
-    *coro_id = Coroutine::CurrentCoroutine()->id;
+    auto coro_opt = Coroutine::CurrentCoroutine();
+    if (coro_opt.is_some()) {
+      *coro_id = coro_opt.unwrap()->id;
+    }
     // Set view data from replication scheduler if available
     if (sched->rep_sched_ != nullptr) {
       view_data->SetMarshallable(std::make_shared<ViewData>(sched->rep_sched_->new_view_));

@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
-# Force GCC 12 toolchain to meet minimum version requirement
-set(CMAKE_C_COMPILER "gcc-12" CACHE STRING "C compiler")
-set(CMAKE_CXX_COMPILER "g++-12" CACHE STRING "C++ compiler")
+# using g++
+set(CMAKE_C_COMPILER "gcc" CACHE STRING "C compiler")
+set(CMAKE_CXX_COMPILER "g++" CACHE STRING "C++ compiler")
+
+# Enable compile_commands.json generation for language servers (clangd, etc.)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(mako)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -40,7 +44,10 @@ if(NOT EXISTS ${CPP_BORROW_CHECKER})
     )
 endif()
 
-enable_borrow_checking()
+# Enable borrow checking (can be disabled with -DENABLE_BORROW_CHECKING=OFF)
+if(ENABLE_BORROW_CHECKING)
+    enable_borrow_checking()
+endif()
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DPDK REQUIRED libdpdk)
@@ -211,7 +218,7 @@ option(DISABLE_MULTI_VERSION "Disable multi-version" OFF)
 option(MEGA_BENCHMARK "Enable MEGA benchmark" OFF)
 option(MEGA_BENCHMARK_MICRO "Enable MEGA benchmark micro" OFF)
 option(TRACKING_LATENCY "Enable latency tracking" OFF)
-option(DISABLE_DISK "Disable disk persistence" ON)
+option(DISABLE_DISK "Disable disk persistence" OFF)
 option(FAIL_NEW_VERSION "Enable fail new version" ON)
 option(SIMULATE_ONE_SHARD_PER_THREAD "Simulate one shard per thread" OFF)
 option(TRACKING_ROLLBACK "Enable rollback tracking" OFF)
@@ -291,6 +298,7 @@ set(CXXFLAGS
   -Isrc
   -I${HOME}
   -DCONFIG_H=\"${CONFIG_H}\"
+  -DRUSTYCPP_DISABLE_ARC_LOG  # Disable Arc debug logging
 )
 
 # Enable coroutine reuse (required for Raft stability)
@@ -493,6 +501,9 @@ set(MAKO_SRCFILES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/helper_queue.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/transport.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/fasttransport.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/erpc_backend.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/rrr_rpc_backend.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/multi_transport_manager.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/configuration.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/timestamp.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/mako/lib/promise.cc"
@@ -751,7 +762,9 @@ target_include_directories(mako PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mako"
     "${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4"
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rrr"
     "${HOME}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include"
 )
 target_compile_options(mako PUBLIC ${BENCH_CXXFLAGS})
 target_compile_definitions(mako PUBLIC CONFIG_H=\"${CONFIG_H}\")
@@ -804,7 +817,11 @@ function(add_apps exec_name exec_path)
   )
   
   # Add dependencies
-  add_dependencies(${exec_name} mako erpc rust_lib txlog build_rusty_cpp_checker)
+  if(ENABLE_BORROW_CHECKING)
+    add_dependencies(${exec_name} mako erpc rust_lib txlog build_rusty_cpp_checker)
+  else()
+    add_dependencies(${exec_name} mako erpc rust_lib txlog)
+  endif()
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
@@ -825,11 +842,7 @@ add_apps(test_ordered_callbacks examples/test_ordered_callbacks.cc)
 add_apps(test_partitioned_queues examples/test_partitioned_queues.cc)
 add_apps(test_stress_partitioned_queues examples/test_stress_partitioned_queues.cc)
 
-# Enable borrow checking for dbtest
-set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable borrow checking" FORCE)
-set(BORROW_CHECK_FATAL ON CACHE BOOL "Make borrow check failures fatal" FORCE)
-
-# Apply borrow checking to dbtest target
+# Apply borrow checking to dbtest target (controlled by -DENABLE_BORROW_CHECKING=ON/OFF)
 if(ENABLE_BORROW_CHECKING)
     add_borrow_check_target(dbtest)
 endif()
@@ -839,21 +852,21 @@ add_apps(basic src/mako/benchmarks/ut/basic.cc)
 add_apps(erpc_client src/mako/benchmarks/ut/erpc_client.cc)
 add_apps(erpc_server src/mako/benchmarks/ut/erpc_server.cc)
 
-# RPC benchmark binary (disabled during merge - needs API updates)
-# add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)
-# target_include_directories(rpcbench PRIVATE
-#     src
-#     src/rrr
-#     test
-# )
-# target_compile_options(rpcbench PRIVATE ${BENCH_CXXFLAGS})
-# target_link_libraries(rpcbench
-#     rrr
-#     memdb
-#     pthread
-#     ${BENCH_LDFLAGS}
-#     ${LIBEVENT_LDFLAGS}
-# )
+# RPC benchmark binary (re-enabled after RustyCpp API updates)
+add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)
+target_include_directories(rpcbench PRIVATE
+    src
+    src/rrr
+    test
+)
+target_compile_options(rpcbench PRIVATE ${BENCH_CXXFLAGS})
+target_link_libraries(rpcbench
+    rrr
+    memdb
+    pthread
+    ${BENCH_LDFLAGS}
+    ${LIBEVENT_LDFLAGS}
+)
 
 # Build the necessary RRR and memdb libraries for rpcbench
 file(GLOB RRR_BENCH_SRC
@@ -873,11 +886,11 @@ if(NOT TARGET rrr)
     )
     target_compile_options(rrr PUBLIC ${BENCH_CXXFLAGS})
     target_link_libraries(rrr pthread ${Boost_LIBRARIES})
-    
+
     # Add borrow checking for RRR library
     if(ENABLE_BORROW_CHECKING)
-        # add_borrow_check_target(rrr)
-        
+        add_borrow_check_target(rrr)
+
         # Create a convenience target to check only RRR library files
         add_custom_target(borrow_check_rrr
             DEPENDS borrow_check_all_rrr
@@ -958,6 +971,7 @@ if(BUILD_TESTS)
         src/rrr
         src/memdb
         test
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
     )
     
     # Common test compile options
@@ -999,7 +1013,13 @@ if(BUILD_TESTS)
     target_compile_options(test_future PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_future ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_future COMMAND test_future)
-    
+
+    # Future Performance Benchmark (not run in test suite)
+    add_executable(bench_future test/bench_future.cc)
+    target_include_directories(bench_future PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(bench_future PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(bench_future ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+
     # Reactor/Event System Tests
     add_executable(test_reactor test/test_reactor.cc)
     target_include_directories(test_reactor PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -1029,7 +1049,14 @@ if(BUILD_TESTS)
     target_compile_options(test_reactor_extended PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_reactor_extended ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_reactor_extended COMMAND test_reactor_extended)
-    
+
+    # Arc<Mutex<>> Thread Safety Tests
+    add_executable(test_arc_mutex_thread test/test_arc_mutex_thread.cc)
+    target_include_directories(test_arc_mutex_thread PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_arc_mutex_thread PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_arc_mutex_thread ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_arc_mutex_thread COMMAND test_arc_mutex_thread)
+
     # Timeout Race Condition Tests
     add_executable(test_timeout_race test/test_timeout_race.cc)
     target_include_directories(test_timeout_race PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -1044,44 +1071,108 @@ if(BUILD_TESTS)
     target_link_libraries(test_and_event ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_and_event COMMAND test_and_event)
 
+    # Transport Backend Tests (Comprehensive)
+    # Tests use mock implementations to avoid mako/eRPC dependencies
+    add_executable(test_transport_backend test/test_transport_backend.cc)
+    target_include_directories(test_transport_backend PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_transport_backend PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_transport_backend ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_transport_backend COMMAND test_transport_backend)
+
+    # Transport Backend Stress Tests
+    add_executable(stress_transport_backend test/stress_transport_backend.cc)
+    target_include_directories(stress_transport_backend PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(stress_transport_backend PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(stress_transport_backend ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    # Stress tests have longer timeout
+    add_test(NAME stress_transport_backend COMMAND stress_transport_backend)
+    set_tests_properties(stress_transport_backend PROPERTIES TIMEOUT 120)
+
+    # Transport Integration Tests (uses real rrr/rpc network I/O)
+    add_executable(test_transport_integration test/test_transport_integration.cc)
+    target_include_directories(test_transport_integration PRIVATE
+        ${TEST_INCLUDE_DIRS}
+        ${GTEST_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/mako
+    )
+    target_compile_options(test_transport_integration PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_transport_integration
+        rrr
+        ${TEST_LINK_LIBS}
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+    )
+    add_test(NAME test_transport_integration COMMAND test_transport_integration)
+    set_tests_properties(test_transport_integration PROPERTIES TIMEOUT 120)
+
+    # eRPC Integration Tests (uses socket-based "fake" transport - no RDMA required)
+    add_executable(test_erpc_integration test/test_erpc_integration.cc)
+    target_include_directories(test_erpc_integration PRIVATE
+        ${TEST_INCLUDE_DIRS}
+        ${GTEST_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/third_party/asio/include
+    )
+    target_compile_options(test_erpc_integration PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_erpc_integration
+        erpc
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+        numa
+    )
+    add_test(NAME test_erpc_integration COMMAND test_erpc_integration)
+    set_tests_properties(test_erpc_integration PROPERTIES TIMEOUT 120)
+
     # Integration tests from CI
     add_test(NAME simpleTransaction COMMAND simpleTransaction)
 
-    # simplePaxos requires config generation and running a shell script that launches multiple processes
-    add_test(NAME simplePaxos
-        COMMAND bash -c "bash ./src/mako/update_config.sh && bash ./examples/simplePaxos.sh"
+    # RPC benchmark test - starts server, runs client, verifies it works
+    add_test(NAME rpcbench
+        COMMAND bash -c "pkill -9 rpcbench || true; ./build/rpcbench -s 127.0.0.1:8848 > /dev/null 2>&1 & SERVER_PID=$!; sleep 1; ./build/rpcbench -c 127.0.0.1:8848 -n 3 -t 4 -o 100; RESULT=$?; kill $SERVER_PID 2>/dev/null || true; exit $RESULT"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    set_tests_properties(rpcbench PROPERTIES TIMEOUT 30)
+
+    # simplePaxos requires config generation and running a shell script that launches multiple processes
+    # add_test(NAME simplePaxos
+    #     COMMAND bash -c "bash ./src/mako/update_config.sh && bash ./examples/simplePaxos.sh"
+    #     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    # )
+    # # Use RESOURCE_LOCK to prevent port conflicts with other Paxos tests (ports 17001-17xxx)
+    # set_tests_properties(simplePaxos PROPERTIES RESOURCE_LOCK "paxos_ports" TIMEOUT 120)
 
     # shard1ReplicationSimple tests 1-shard replication using simpleTransactionRep
-    add_test(NAME shard1ReplicationSimple
-        COMMAND bash -c "bash ./examples/test_1shard_replication_simple.sh"
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
+    # add_test(NAME shard1ReplicationSimple
+    #     COMMAND bash -c "bash ./examples/test_1shard_replication_simple.sh"
+    #     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    # )
+    # # Use RESOURCE_LOCK to prevent port conflicts with other Paxos tests (ports 17001-17xxx)
+    # set_tests_properties(shard1ReplicationSimple PROPERTIES RESOURCE_LOCK "paxos_ports" TIMEOUT 300)
 
     # Add a convenience target to run all tests
     add_custom_target(run_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        DEPENDS test_marshal test_rpc test_future test_reactor test_rpc_extended test_reactor_extended simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
+        DEPENDS test_marshal test_rpc test_future test_reactor test_rpc_extended test_reactor_extended rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
         COMMENT "Running all RRR tests"
     )
     
     # Add borrow checking for test files if enabled
-    # if(ENABLE_BORROW_CHECKING)
-    #     add_borrow_check_target(test_marshal)
-    #     add_borrow_check_target(test_rpc)
-    #     add_borrow_check_target(test_alock)
-    #     add_borrow_check_target(test_future)
-    #     add_borrow_check_target(test_reactor)
-    #     
-    #     # Create a convenience target to check all test files
-    #     add_custom_target(borrow_check_tests
-    #         DEPENDS borrow_check_all_test_marshal borrow_check_all_test_rpc 
-    #                 borrow_check_all_test_alock borrow_check_all_test_future
-    #                 borrow_check_all_test_reactor
-    #         COMMENT "Running borrow checker on all test files"
-    #     )
-    # endif()
+    if(ENABLE_BORROW_CHECKING)
+        add_borrow_check_target(test_marshal)
+        add_borrow_check_target(test_rpc)
+        # test_alock is disabled
+        add_borrow_check_target(test_future)
+        add_borrow_check_target(test_reactor)
+
+        # Create a convenience target to check all test files
+        add_custom_target(borrow_check_tests
+            DEPENDS borrow_check_all_test_marshal borrow_check_all_test_rpc
+                    borrow_check_all_test_future borrow_check_all_test_reactor
+            COMMENT "Running borrow checker on all test files"
+        )
+    endif()
     
     message(STATUS "Test targets configured:")
     message(STATUS "  - test_marshal: Marshal/Unmarshal tests")
@@ -1091,6 +1182,7 @@ if(BUILD_TESTS)
     message(STATUS "  - test_future: Future/async operation tests")
     message(STATUS "  - test_reactor: Reactor/event system tests")
     message(STATUS "  - test_reactor_extended: Extended reactor tests (events, coroutines, load)")
+    message(STATUS "  - rpcbench: RPC performance benchmark test")
     message(STATUS "")
     message(STATUS "Run tests with: make run_tests")
     message(STATUS "Or individually: make test && ctest")

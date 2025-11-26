@@ -12,7 +12,7 @@
 namespace janus {
 
 // @safe
-RaftCommo::RaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
+RaftCommo::RaftCommo(rusty::Option<rusty::Arc<PollThread>> poll) : Communicator(poll) {
 //  verify(poll != nullptr);
 }
 
@@ -37,7 +37,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
   // verify(par_id == 0);                          
   auto ret = Reactor::CreateSpEvent<IntEvent>();
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     if (p.first != site_id)
@@ -45,7 +45,7 @@ RaftCommo::SendAppendEntries2(siteid_t site_id,
 		auto follower_id = p.first;
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [ret,ret_status,ret_term,ret_last_log_index](Future* fu) {
+    fuattr.callback = [ret,ret_status,ret_term,ret_last_log_index](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -107,7 +107,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
   // to keep this function @safe. The 'new' operator is allowed in @safe code.
   auto res = shared_ptr<SendAppendEntriesResults>(new SendAppendEntriesResults());
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     if (p.first != site_id)
@@ -115,7 +115,7 @@ RaftCommo::SendAppendEntries(siteid_t site_id,
 		auto follower_id = p.first;
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [res, cmd](Future* fu) {
+    fuattr.callback = [res, cmd](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -186,7 +186,7 @@ RaftCommo::BroadcastVote(parid_t par_id,
     }
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -234,7 +234,7 @@ void RaftCommo::SendTimeoutNow(siteid_t site_id,
     auto proxy = (RaftProxy*) p.second;
     FutureAttr fuattr;
 
-    fuattr.callback = [callback](Future* fu) {
+    fuattr.callback = [callback](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         // RPC failed (network error, timeout, etc.)
         Log_warn("[TIMEOUT-NOW-RPC] Failed to send TimeoutNow - network error (code=%d)",

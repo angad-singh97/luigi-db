@@ -57,14 +57,14 @@ value_t RuleSpeculativeExecuteQuorumEvent::GetResult() {
 
 uint64_t Communicator::global_id = 0;
 
-// Merged: Use mako-dev's PollThreadWorker
-Communicator::Communicator(rusty::Arc<PollThreadWorker> poll_thread_worker) {
+// Use mako-dev's PollThread type (correct architecture)
+Communicator::Communicator(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) {
   Log_info("setup paxos communicator");
   vector<string> addrs;
-  if (!poll_thread_worker)
-    rpc_poll_ = PollThreadWorker::create();
+  if (poll_thread_worker.is_none())
+    rpc_poll_ = rusty::Some(PollThread::create());
   else
-    rpc_poll_ = poll_thread_worker;
+    rpc_poll_ = rusty::Some(poll_thread_worker.as_ref().unwrap().clone());
   auto config = Config::GetConfig();
   // create more client per server
   int proxy_batch_size = 1 ;
@@ -143,9 +143,9 @@ Communicator::~Communicator() {
   }
   rpc_clients_.clear();
 
-  // Shutdown PollThreadWorker if we own it
-  if (rpc_poll_) {
-    rpc_poll_->shutdown();
+  // Shutdown PollThread if we own it
+  if (rpc_poll_.is_some()) {
+    rpc_poll_.as_ref().unwrap()->shutdown();
   }
 }
 
@@ -268,14 +268,15 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   snprintf(addr, sizeof(addr), "%s:%d", site.host.c_str(), site.port);
 
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = rrr::Client::create(rpc_poll_.as_ref().unwrap());
   double elapsed;
   int attempt = 0;
   do {
     Log_debug("connect to client site: %s (attempt %d)", addr, attempt++);
     auto connect_result = rpc_cli->connect(addr, false);
     if (connect_result == SUCCESS) {
-      ClientControlProxy* rpc_proxy = new ClientControlProxy(rpc_cli.get());
+      // Arc::get() returns const T*, but proxy doesn't mutate client
+      ClientControlProxy* rpc_proxy = new ClientControlProxy(const_cast<rrr::Client*>(rpc_cli.get()));
       rpc_clients_.insert(std::make_pair(site.id, rpc_cli));
       Log_debug("connect to client site: %s success!", addr);
       return std::make_pair(SUCCESS, rpc_proxy);
@@ -288,7 +289,7 @@ Communicator::ConnectToClientSite(Config::SiteInfo& site,
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to client %s", addr);
   rpc_cli->close();
-  // shared_ptr handles cleanup automatically
+  // Arc handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 
@@ -297,24 +298,25 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
                             std::chrono::milliseconds timeout) {
   string addr = site.GetHostAddr();
   auto start = std::chrono::steady_clock::now();
-  auto rpc_cli = std::make_shared<rrr::Client>(rpc_poll_);
+  auto rpc_cli = rrr::Client::create(rpc_poll_.as_ref().unwrap());
   double elapsed;
   int attempt = 0;
   do {
     Log_debug("connect to site: %s (attempt %d)", addr.c_str(), attempt++);
     auto connect_result = rpc_cli->connect(addr.c_str(), false);
     if (connect_result == SUCCESS) {
-      ClassicProxy* rpc_proxy = new ClassicProxy(rpc_cli.get());
+      // Arc::get() returns const T*, but proxy doesn't mutate client
+      ClassicProxy* rpc_proxy = new ClassicProxy(const_cast<rrr::Client*>(rpc_cli.get()));
       rpc_clients_.insert(std::make_pair(site.id, rpc_cli));
       rpc_proxies_.insert(std::make_pair(site.id, rpc_proxy));
 
 			auto it = Reactor::clients_.find(rpc_cli->host());
 			if (it == Reactor::clients_.end()) {
-				std::vector<std::shared_ptr<rrr::Pollable>> clients{};
+				std::vector<rusty::Arc<rrr::Pollable>> clients{};
 				Reactor::clients_[rpc_cli->host()] = clients;
 			}
 
-			Reactor::clients_[rpc_cli->host()].push_back(rpc_cli);
+			Reactor::clients_[rpc_cli->host()].push_back(rpc_cli.clone());
       Log_info("connect to site: %s success!", addr.c_str());
       return std::make_pair(SUCCESS, rpc_proxy);
     } else {
@@ -326,7 +328,7 @@ Communicator::ConnectToSite(Config::SiteInfo& site,
   } while (elapsed < timeout.count());
   Log_info("timeout connecting to %s", addr.c_str());
   rpc_cli->close();
-  // shared_ptr handles cleanup automatically
+  // Arc handles cleanup automatically
   return std::make_pair(FAILURE, nullptr);
 }
 
@@ -365,15 +367,15 @@ std::shared_ptr<QuorumEvent> Communicator::SendReelect(){
 		rrr::FutureAttr fuattr;
 		int id = pair.first;
 		if(id != 1) continue;
-		fuattr.callback = 
-			[e, this, id] (Future* fu) {
+		fuattr.callback =
+			[e, this, id] (rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
         }
 				bool_t success = false;
 				fu->get_reply() >> success;
-				
+
 				if(success){
 					e->VoteYes();
 					this->SetNewLeaderProxy(0, id);
@@ -398,7 +400,7 @@ void Communicator::BroadcastDispatch(
   
   rrr::FutureAttr fuattr;
   fuattr.callback =
-      [coo, this, callback, par_id](Future* fu) {
+      [coo, this, callback, par_id](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -445,11 +447,11 @@ void Communicator::BroadcastDispatch(
   // Record Time
   sp_vpd->time_sent_from_client_ = SimpleRWCommand::GetCurrentMsTime();
 
-  MarshallDeputy md(sp_vpd); // ????
+  MarshallDeputy md(sp_vpd);
 
-	DepId di;
-	di.str = "dep";
-	di.id = Communicator::global_id++;
+  DepId di;
+  di.str = "dep";
+  di.id = Communicator::global_id++;
 
 #ifdef COPILOT_TIME_DEBUG
   struct timeval tp;
@@ -464,7 +466,7 @@ void Communicator::BroadcastDispatch(
 #ifdef LATENCY_LOG_DEBUG
   Log_info("!!!!!!!! Before proxy->async_Dispatch(cmd_id, di, md, fuattr);");
 #endif
-	auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
+  auto future = proxy->async_Dispatch(cmd_id, di, md, fuattr);
   Future::safe_release(future);
 }
 
@@ -477,7 +479,7 @@ void Communicator::SyncBroadcastDispatch(
   cmdid_t cmd_id = sp_vec_piece->at(0)->root_id_;
   verify(!sp_vec_piece->empty());
   auto par_id = sp_vec_piece->at(0)->PartitionId();
-  
+
   std::pair<siteid_t, ClassicProxy*> pair_leader_proxy;
   if (Config::GetConfig()->replica_proto_==MODE_MENCIUS) {
     // The logic here is: Mencius have multiple proposor, if the client is co-locate with a proposer, it give all commands to this proposor.
@@ -573,7 +575,7 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
     phase_t phase = coo->phase_;
     rrr::FutureAttr fuattr;
     fuattr.callback =
-        [e, coo, this, phase, txn, src_coroid, leader_id, par_id](Future* fu) {
+        [e, coo, this, phase, txn, src_coroid, leader_id, par_id](rusty::Arc<Future> fu) {
           if (fu->get_error_code() != 0) {
             Log_info("Get a error message in reply");
             return;
@@ -658,7 +660,7 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
           auto follower_id = pair.first;
           rrr::FutureAttr fuattr;
           fuattr.callback =
-              [e, coo, this, src_coroid, follower_id](Future* fu) {
+              [e, coo, this, src_coroid, follower_id](rusty::Arc<Future> fu) {
                 if (fu->get_error_code() != 0) {
                   Log_info("Get a error message in reply");
                   return;
@@ -688,7 +690,7 @@ std::shared_ptr<IntEvent> Communicator::BroadcastDispatch(
 
 void Communicator::SendStart(SimpleCommand& cmd,
                              int32_t output_size,
-                             std::function<void(Future* fu)>& callback) {
+                             std::function<void(rusty::Arc<Future> fu)>& callback) {
   verify(0);
 }
 
@@ -715,7 +717,7 @@ Communicator::SendPrepare(Coordinator* coo,
     qe->id_ = Communicator::global_id;
     qe->par_id_ = quorum_id++;
     FutureAttr fuattr;
-    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](Future* fu) {
+    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -724,10 +726,10 @@ Communicator::SendPrepare(Coordinator* coo,
 			bool_t slow;
       uint64_t coro_id = 0;
       fu->get_reply() >> res >> slow >>coro_id;
-			
+
 			this->slow = slow;
-      // qe->add_dep(coo->cli_id_, src_coroid, site_id, coro_id); 
-      
+      // qe->add_dep(coo->cli_id_, src_coroid, site_id, coro_id);
+
       if(phase != coo->phase_){
         return;
       }
@@ -774,8 +776,8 @@ Communicator::SendPrepare(Coordinator* coo,
                                std::vector<int32_t>& sids,
                                const function<void(int)>& callback) {
   FutureAttr fuattr;
-  std::function<void(Future*)> cb =
-      [this, callback](Future* fu) {
+  std::function<void(rusty::Arc<Future>)> cb =
+      [this, callback](rusty::Arc<Future> fu) {
         int res;
         fu->get_reply() >> res;
         callback(res);
@@ -828,7 +830,7 @@ Communicator::SendCommit(Coordinator* coo,
     coo->n_finish_req_++;
     FutureAttr fuattr;
     auto phase = coo->phase_;
-    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](Future* fu) {
+    fuattr.callback = [this, e, qe, src_coroid, site_id, coo, phase, cmd, tid](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -925,20 +927,21 @@ Communicator::SendCommit(Coordinator* coo,
   ___LogSent(pid, tid);
 #endif
   FutureAttr fuattr;
-  fuattr.callback = [callback](Future*) { callback(); };
+  fuattr.callback = [callback](rusty::Arc<Future>) { callback(); };
   auto proxy_pair = LeaderProxyForPartition(pid);
   ClassicProxy* proxy = proxy_pair.second;
-  SetLeaderCache(pid, proxy_pair) ;
+  SetLeaderCache(pid, proxy_pair);
   Log_debug("SendCommit to %ld tid:%ld\n", pid, tid);
   Future::safe_release(proxy->async_Commit(tid, 0, fuattr));
 }*/
+
 shared_ptr<AndEvent>
 Communicator::SendAbort(Coordinator* coo,
                               txnid_t tid) {
 #ifdef LOG_LEVEL_AS_DEBUG
 //  ___LogSent(pid, tid);
 #endif
-	TxData* cmd = (TxData*) coo->cmd_;
+  TxData* cmd = (TxData*) coo->cmd_;
   int n_total = 1;
   auto n = cmd->GetPartitionIds().size();
   auto e = Reactor::CreateSpEvent<AndEvent>();
@@ -956,75 +959,75 @@ Communicator::SendAbort(Coordinator* coo,
     coo->n_finish_req_++;
     FutureAttr fuattr;
     auto phase = coo->phase_;
-    fuattr.callback = [this, e, qe, coo, src_coroid, site_id, phase, cmd, tid](Future* fu) {
+    fuattr.callback = [this, e, qe, coo, src_coroid, site_id, phase, cmd, tid](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
       }
       int32_t res;
-			bool_t slow;
+      bool_t slow;
       uint64_t coro_id = 0;
-			Profiling profile;
+      Profiling profile;
       MarshallDeputy view_md;
       fu->get_reply() >> res >> slow >> coro_id >> profile >> view_md;
-			this->slow = slow;
-      
+      this->slow = slow;
+
       // Propagate the result status (including WRONG_LEADER) back to the coordinator
       cmd->reply_.res_ = res;
-      
+
       // Extract and attach view data if present
       if (view_md.sp_data_ != nullptr) {
         auto sp_view_data = dynamic_pointer_cast<ViewData>(view_md.sp_data_);
         if (sp_view_data) {
           cmd->reply_.sp_view_data_ = sp_view_data;
-          Log_info("[VIEW_PROPAGATE] Received view data in Abort response for tx_id=%lu: %s", 
+          Log_info("[VIEW_PROPAGATE] Received view data in Abort response for tx_id=%lu: %s",
                    tid, sp_view_data->ToString().c_str());
         }
       }
 
-	  	if(profile.cpu_util != -1.0){
-				Log_info("cpu: %f and network: %f", profile.cpu_util, profile.tx_util);
-				this->cpu = profile.cpu_util;
-				this->tx = profile.tx_util;
-			}
+      if(profile.cpu_util != -1.0){
+        Log_info("cpu: %f and network: %f", profile.cpu_util, profile.tx_util);
+        this->cpu = profile.cpu_util;
+        this->tx = profile.tx_util;
+      }
 
       struct timespec end_;
-	  	clock_gettime(CLOCK_REALTIME,&end_);
+      clock_gettime(CLOCK_REALTIME,&end_);
 
-	  	rrr::i64 start_sec = this->outbound_[src_coroid].first;
-	  	rrr::i64 start_nsec = this->outbound_[src_coroid].second;
+      rrr::i64 start_sec = this->outbound_[src_coroid].first;
+      rrr::i64 start_nsec = this->outbound_[src_coroid].second;
 
-	  	rrr::i64 curr = ((rrr::i64)end_.tv_sec - start_sec)*1000000000 + ((rrr::i64)end_.tv_nsec - start_nsec);
-	  	curr /= 1000;
-	  	this->total_time += curr;
-	  	this->total++;
+      rrr::i64 curr = ((rrr::i64)end_.tv_sec - start_sec)*1000000000 + ((rrr::i64)end_.tv_nsec - start_nsec);
+      curr /= 1000;
+      this->total_time += curr;
+      this->total++;
       if(this->index < 100){
-	    	this->window[this->index];
-	    	this->index++;
-	    	this->window_time = this->total_time;
-	  	}
+        this->window[this->index];
+        this->index++;
+        this->window_time = this->total_time;
+      }
       else{
-	    	this->window_time = 0;
-	    	for(int i = 0; i < 99; i++){
-	      	this->window[i] = this->window[i+1];
-	      	this->window_time += this->window[i];
-	    	}
-	    	this->window[99] = curr;
-	    	this->window_time += curr;
-	  	}
-	  	//Log_info("average time of RPC is: %d", this->total_time/this->total);
-	 		//Log_info("window time of RPC is: %d", this->window_time/this->index);
+        this->window_time = 0;
+        for(int i = 0; i < 99; i++){
+          this->window[i] = this->window[i+1];
+          this->window_time += this->window[i];
+        }
+        this->window[99] = curr;
+        this->window_time += curr;
+      }
+      //Log_info("average time of RPC is: %d", this->total_time/this->total);
+      //Log_info("window time of RPC is: %d", this->window_time/this->index);
 
-      // qe->add_dep(coo->cli_id_, src_coroid, site_id, coro_id); 
+      // qe->add_dep(coo->cli_id_, src_coroid, site_id, coro_id);
 
       if(coo->phase_ != phase) return;
       qe->n_voted_yes_++;
       e->Test();
     };
 
-		DepId di;
-		di.str = "dep";
-		di.id = Communicator::global_id++;
+    DepId di;
+    di.str = "dep";
+    di.id = Communicator::global_id++;
     ClassicProxy* proxy = LeaderProxyForPartition(rp).second;
     Log_debug("SendAbort to %ld tid:%ld\n", rp, tid);
     Future::safe_release(proxy->async_Abort(tid, di, fuattr));
@@ -1032,13 +1035,13 @@ Communicator::SendAbort(Coordinator* coo,
     if(follower_forwarding){
       for(auto& pair : rpc_par_proxies_[rp]){
         if(pair.first != leader_id){
-					DepId di2;
-					di2.str = "dep";
-					di2.id = Communicator::global_id++;
-          
-					site_id = pair.first;
+          DepId di2;
+          di2.str = "dep";
+          di2.id = Communicator::global_id++;
+
+          site_id = pair.first;
           proxy = pair.second;
-          Future::safe_release(proxy->async_Abort(tid, di2, fuattr));  
+          Future::safe_release(proxy->async_Abort(tid, di2, fuattr));
         }
       }
 
@@ -1054,7 +1057,7 @@ void Communicator::SendEarlyAbort(parid_t pid,
   ___LogSent(pid, tid);
 #endif
   FutureAttr fuattr;
-  fuattr.callback = [](Future*) {};
+  fuattr.callback = [](rusty::Arc<Future>) {};
   ClassicProxy* proxy = LeaderProxyForPartition(pid).second;
   Log_debug("SendAbort to %ld tid:%ld\n", pid, tid);
   Future::safe_release(proxy->async_EarlyAbort(tid, fuattr));
@@ -1066,7 +1069,7 @@ void Communicator::SendEarlyAbort(parid_t pid,
   ___LogSent(pid, tid);
 #endif
   FutureAttr fuattr;
-  fuattr.callback = [callback](Future*) { callback(); };
+  fuattr.callback = [callback](rusty::Arc<Future>) { callback(); };
   // ClassicProxy* proxy = LeaderProxyForPartition(pid).second;
   auto pair_proxies = PilotProxyForPartition(pid);
   Log_debug("SendAbort to %ld tid:%ld\n", pid, tid);
@@ -1084,7 +1087,7 @@ void Communicator::SendUpgradeEpoch(epoch_t curr_epoch,
     for (auto& pair: proxies) {
       FutureAttr fuattr;
       auto& site_id = pair.first;
-      function<void(Future*)> cb = [callback, par_id, site_id](Future* fu) {
+      function<void(rusty::Arc<Future>)> cb = [callback, par_id, site_id](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -1095,7 +1098,8 @@ void Communicator::SendUpgradeEpoch(epoch_t curr_epoch,
       };
       fuattr.callback = cb;
       auto proxy = (ClassicProxy*) pair.second;
-      Future::safe_release(proxy->async_UpgradeEpoch(curr_epoch, fuattr));
+      auto fu_result = proxy->async_UpgradeEpoch(curr_epoch, fuattr);
+      // Arc auto-released (fire-and-forget pattern)
     }
   }
 }
@@ -1106,9 +1110,10 @@ void Communicator::SendTruncateEpoch(epoch_t old_epoch) {
     auto& proxies = pair.second;
     for (auto& pair: proxies) {
       FutureAttr fuattr;
-      fuattr.callback = [](Future*) {};
+      fuattr.callback = [](rusty::Arc<Future>) {};
       auto proxy = (ClassicProxy*) pair.second;
-      Future::safe_release(proxy->async_TruncateEpoch(old_epoch));
+      auto fu_result = proxy->async_TruncateEpoch(old_epoch);
+      // Arc auto-released (fire-and-forget pattern)
     }
   }
 }
@@ -1132,7 +1137,7 @@ void Communicator::SendForwardTxnRequest(
   dispatch_request.tx_type = req.tx_type_;
 
   FutureAttr future;
-  future.callback = [callback](Future* fu) {
+  future.callback = [callback](rusty::Arc<Future> fu) {
     if (fu->get_error_code() != 0) {
       Log_info("Get a error message in reply");
       return;
@@ -1141,8 +1146,8 @@ void Communicator::SendForwardTxnRequest(
     fu->get_reply() >> reply;
     callback(reply);
   };
-  Future::safe_release(leader_proxy->async_DispatchTxn(dispatch_request,
-                                                       future));
+  auto fu_result = leader_proxy->async_DispatchTxn(dispatch_request, future);
+  // Arc auto-released (fire-and-forget pattern)
 }
 
 vector<shared_ptr<MessageEvent>>
@@ -1160,7 +1165,7 @@ Communicator::BroadcastMessage(shardid_t shard_id,
     FutureAttr fuattr;
     auto msg_ev = std::make_shared<MessageEvent>(shard_id, site_id);
     events.push_back(msg_ev);
-    fuattr.callback = [msg_ev] (Future* fu) {
+    fuattr.callback = [msg_ev] (rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1169,10 +1174,9 @@ Communicator::BroadcastMessage(shardid_t shard_id,
       marshal >> msg_ev->msg_;
       msg_ev->Set(1);
     };
-    Future* f = nullptr;
-    Future::safe_release(f);
-    return events;
+    // TODO: Actually send the RPC (currently this function is not implemented)
   }
+  return events;
 }
 
 shared_ptr<MessageEvent>
@@ -1200,7 +1204,7 @@ shared_ptr<GetLeaderQuorumEvent> Communicator::BroadcastGetLeader(
     if (p.first == cur_pause) continue;
     auto proxy = p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e, p](Future* fu) {
+    fuattr.callback = [e, p](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1231,7 +1235,7 @@ shared_ptr<QuorumEvent> Communicator::FailoverPauseSocketOut(
     if (p.first != loc_id) continue;
     auto proxy = p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1268,7 +1272,7 @@ shared_ptr<QuorumEvent> Communicator::FailoverResumeSocketOut(
     if (p.first != loc_id) continue;
     auto proxy = p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1321,7 +1325,7 @@ void Communicator::SetNewLeaderProxy(parid_t par_id, locid_t loc_id) {
 void Communicator::SendSimpleCmd(groupid_t gid, SimpleCommand& cmd,
     std::vector<int32_t>& sids, const function<void(int)>& callback) {
   FutureAttr fuattr;
-  std::function<void(Future*)> cb = [this, callback](Future* fu) {
+  std::function<void(rusty::Arc<Future>)> cb = [this, callback](rusty::Arc<Future> fu) {
     if (fu->get_error_code() != 0) {
       Log_info("Get a error message in reply");
       return;
@@ -1344,9 +1348,9 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastBeginRecovery(parid_t par_
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
-  
+
   MarshallDeputy old_view_deputy, new_view_deputy;
   old_view_deputy.SetMarshallable(std::make_shared<ViewData>(old_view));
   new_view_deputy.SetMarshallable(std::make_shared<ViewData>(new_view));
@@ -1359,15 +1363,17 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastBeginRecovery(parid_t par_
     // }
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
       }
       e->VoteYes();
     };
-    auto fu = proxy->async_JetpackBeginRecovery(old_view_deputy, new_view_deputy, new_view_id, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackBeginRecovery(old_view_deputy, new_view_deputy, new_view_id, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1377,7 +1383,7 @@ shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<JetpackPullIdSetQuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     // TODO: Local call optimization temporarily commented out
@@ -1396,7 +1402,7 @@ shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(
     // }
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1407,8 +1413,10 @@ shared_ptr<JetpackPullIdSetQuorumEvent> Communicator::JetpackBroadcastPullIdSet(
       fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view >> id_set;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, id_set);
     };
-    auto fu = proxy->async_JetpackPullIdSet(jepoch, oepoch, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackPullIdSet(jepoch, oepoch, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1431,8 +1439,8 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
   
   auto proxies = rpc_par_proxies_[par_id];
   // Log_info("[JETPACK-DEBUG] Found %zu proxies for partition %d", proxies.size(), par_id);
-  
-  vector<Future*> fus;
+
+  vector<rusty::Arc<Future>> fus;
   auto key_batch = std::make_shared<VecRecData>();
   key_batch->key_data_ = std::make_shared<vector<key_t>>(keys.begin(), keys.end());
   MarshallDeputy key_batch_md;
@@ -1460,7 +1468,7 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
     // Log_info("[JETPACK-DEBUG] Sending JetpackPullCmd to site %d", p.first);
     
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1471,14 +1479,16 @@ shared_ptr<JetpackPullCmdQuorumEvent> Communicator::JetpackBroadcastPullCmd(pari
       fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view >> cmd;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd);
     };
-    
+
     // Log_info("[JETPACK-DEBUG] About to call async_JetpackPullCmd");
-    auto fu = proxy->async_JetpackPullCmd(jepoch, oepoch, key_batch_md, fuattr);
+    auto fu_result = proxy->async_JetpackPullCmd(jepoch, oepoch, key_batch_md, fuattr);
     // if (!fu) {
     //   Log_info("[JETPACK-DEBUG] ERROR: async_JetpackPullCmd returned NULL Future!");
     // }
     // Log_info("[JETPACK-DEBUG] async_JetpackPullCmd returned Future, adding to list");
-    fus.push_back(fu);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   // Log_info("[JETPACK-DEBUG] JetpackBroadcastPullCmd returning event with %zu futures", fus.size());
   return e;
@@ -1494,9 +1504,9 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
-  
+
   auto batch_data = std::make_shared<KeyCmdBatchData>();
   for (const auto& entry : cmds) {
     batch_data->AddEntry(entry.first, entry.second);
@@ -1516,9 +1526,9 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
     // }
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e, p](Future* fu) {
+    fuattr.callback = [e, p](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
-        // Log_info("[JETPACK-DEBUG] RecordCmd error from site %d: error_code=%d", 
+        // Log_info("[JETPACK-DEBUG] RecordCmd error from site %d: error_code=%d",
         //          p.first, fu->get_error_code());
         e->VoteNo();  // Vote no on error to prevent hanging
         return;
@@ -1527,8 +1537,10 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastRecordCmd(parid_t par_id, 
       e->VoteYes();
     };
     // Log_info("[JETPACK-DEBUG] Sending RecordCmd to site %d", p.first);
-    auto fu = proxy->async_JetpackRecordCmd(jepoch, oepoch, sid, rid, cmd_deputy, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackRecordCmd(jepoch, oepoch, sid, rid, cmd_deputy, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1539,7 +1551,7 @@ shared_ptr<JetpackPrepareQuorumEvent> Communicator::JetpackBroadcastPrepare(pari
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<JetpackPrepareQuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     // TODO: Local call optimization temporarily commented out
@@ -1557,7 +1569,7 @@ shared_ptr<JetpackPrepareQuorumEvent> Communicator::JetpackBroadcastPrepare(pari
     // }
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1568,28 +1580,30 @@ shared_ptr<JetpackPrepareQuorumEvent> Communicator::JetpackBroadcastPrepare(pari
       ballot_t reply_max_seen_ballot;
       ballot_t accepted_ballot;
       int replied_sid, replied_set_size;
-      fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view 
+      fu->get_reply() >> ok >> reply_jepoch >> reply_oepoch >> reply_old_view >> reply_new_view
                      >> reply_max_seen_ballot >> accepted_ballot >> replied_sid >> replied_set_size;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, accepted_ballot, replied_sid, replied_set_size, reply_max_seen_ballot);
     };
-    auto fu = proxy->async_JetpackPrepare(jepoch, oepoch, max_seen_ballot, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackPrepare(jepoch, oepoch, max_seen_ballot, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
 
-shared_ptr<JetpackAcceptQuorumEvent> Communicator::JetpackBroadcastAccept(parid_t par_id, locid_t loc_id, 
+shared_ptr<JetpackAcceptQuorumEvent> Communicator::JetpackBroadcastAccept(parid_t par_id, locid_t loc_id,
                                                                           epoch_t jepoch, epoch_t oepoch, 
                                                                           ballot_t max_seen_ballot, int sid, int set_size) {
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<JetpackAcceptQuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1606,8 +1620,10 @@ shared_ptr<JetpackAcceptQuorumEvent> Communicator::JetpackBroadcastAccept(parid_
       fu->get_reply() >> reply_max_seen_ballot;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, reply_max_seen_ballot);
     };
-    auto fu = proxy->async_JetpackAccept(jepoch, oepoch, max_seen_ballot, sid, set_size, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackAccept(jepoch, oepoch, max_seen_ballot, sid, set_size, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1616,20 +1632,22 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastCommit(parid_t par_id, loc
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
       }
       e->VoteYes();
     };
-    auto fu = proxy->async_JetpackCommit(jepoch, oepoch, sid, set_size, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackCommit(jepoch, oepoch, sid, set_size, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1638,12 +1656,12 @@ shared_ptr<JetpackPullRecSetInsQuorumEvent> Communicator::JetpackBroadcastPullRe
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<JetpackPullRecSetInsQuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -1659,8 +1677,10 @@ shared_ptr<JetpackPullRecSetInsQuorumEvent> Communicator::JetpackBroadcastPullRe
       fu->get_reply() >> cmd;
       e->FeedResponse(ok, reply_jepoch, reply_oepoch, cmd);
     };
-    auto fu = proxy->async_JetpackPullRecSetIns(jepoch, oepoch, sid, rid, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackPullRecSetIns(jepoch, oepoch, sid, rid, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }
@@ -1669,20 +1689,22 @@ shared_ptr<QuorumEvent> Communicator::JetpackBroadcastFinishRecovery(parid_t par
   int n = Config::GetConfig()->GetPartitionSize(par_id);
   auto e = Reactor::CreateSpEvent<QuorumEvent>(n, n/2+1);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     auto proxy = (ClassicProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
       }
       e->VoteYes();
     };
-    auto fu = proxy->async_JetpackFinishRecovery(oepoch, fuattr);
-    fus.push_back(fu);
+    auto fu_result = proxy->async_JetpackFinishRecovery(oepoch, fuattr);
+    if (fu_result.is_ok()) {
+      fus.push_back(fu_result.unwrap());
+    }
   }
   return e;
 }

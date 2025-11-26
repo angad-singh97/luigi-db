@@ -292,7 +292,7 @@ uint64_t RaftTestConfig::DoAgreement(int cmd, int n, bool retry) {
 shared_ptr<CommitIndex> RaftTestConfig::StartAgreement(siteid_t svr, int cmd) {
   verify(0); // this function has been replaced by Start()
   auto cmt_idx_p = std::make_shared<CommitIndex>(0);
-  std::shared_ptr<OneTimeJob> sp_otj = std::make_shared<OneTimeJob>(
+  auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob(
     [this, cmd, svr, cmt_idx_p]() {
       auto cmdptr = std::make_shared<TpcCommitCommand>();
       auto vpd_p = std::make_shared<VecPieceData>();
@@ -308,11 +308,10 @@ shared_ptr<CommitIndex> RaftTestConfig::StartAgreement(siteid_t svr, int cmd) {
         });
       }
     }
-  );
-  auto sp_job = std::dynamic_pointer_cast<Job>(sp_otj);
+  ));
   auto it = replicas.find(svr);
   if (it != replicas.end()) {
-    it->second->commo_->rpc_poll_->add(sp_job);
+    it->second->commo_->rpc_poll_->add(rusty::Arc<Job>(arc_job));
   }
   Log_debug("Started agreement for cmd id %d", cmd);
   return cmt_idx_p;

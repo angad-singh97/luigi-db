@@ -121,12 +121,13 @@ TxLogServer *RaftFrame::CreateScheduler() {
 }
 
 // @safe
-Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) {
+Communicator *RaftFrame::CreateCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) {
   // We only have 1 instance of RaftFrame object that is returned from
   // GetFrame method. RaftCommo currently seems ok to share among the
   // clients of this method.
   Log_info("CreateCommo: Thread ID = %lu", std::this_thread::get_id());
-  Log_info("CreateCommo: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
+  auto coro_opt = Reactor::sp_running_coro_th_;
+  Log_info("CreateCommo: sp_running_coro_th_ = %p", coro_opt.is_some() ? (void*)coro_opt.unwrap().get() : nullptr);
   if (commo_ == nullptr) {
     Log_info("CreateCommo: Creating new RaftCommo");
     commo_ = std::make_unique<RaftCommo>(poll_thread_worker);
@@ -159,17 +160,21 @@ Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thre
   // Only site 0 creates and manages the test coroutine
   if (site_info_->locale_id == 0) {
     Log_info("CreateCommo: About to create test coroutine");
-    verify(raft_test_coro_.get() == nullptr);
+    verify(raft_test_coro_ == nullptr);
     Log_info("Creating Raft test coroutine");
     
     raft_test_coro_ = Coroutine::CreateRun([this] () {
       Log_info("Test coroutine: Starting execution");
       Log_info("Test coroutine: Thread ID = %lu", std::this_thread::get_id());
-      Log_info("Test coroutine: sp_running_coro_th_ = %p", Reactor::sp_running_coro_th_.get());
-      
+      auto test_coro_opt = Reactor::sp_running_coro_th_;
+      Log_info("Test coroutine: sp_running_coro_th_ = %p", test_coro_opt.is_some() ? (void*)test_coro_opt.unwrap().get() : nullptr);
+
       // Yield until all 5 communicators are initialized
       Log_info("Test coroutine: About to yield");
-      Coroutine::CurrentCoroutine()->Yield();
+      auto current_coro = Coroutine::CurrentCoroutine();
+      if (current_coro.is_some()) {
+        current_coro.unwrap()->Yield();
+      }
       Log_info("Test coroutine: Resumed after yield");
       
       // Run tests
@@ -205,7 +210,7 @@ Communicator *RaftFrame::CreateCommo(rusty::Arc<rrr::PollThreadWorker> poll_thre
 vector<rrr::Service *>
 RaftFrame::CreateRpcServices(uint32_t site_id,
                                    TxLogServer *rep_sched,
-                                   rusty::Arc<rrr::PollThreadWorker> poll_thread_worker,
+                                   rusty::Arc<rrr::PollThread> poll_thread_worker,
                                    ServerControlServiceImpl *scsi) {
   auto config = Config::GetConfig();
   auto result = std::vector<Service *>();

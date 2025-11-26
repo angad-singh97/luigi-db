@@ -13,8 +13,8 @@ void TroadCommo::SendDispatch(vector<TxPieceData>& cmd,
   rrr::FutureAttr fuattr;
   auto tid = cmd[0].root_id_;
   auto par_id = cmd[0].partition_id_;
-  std::function<void(Future*)> cb =
-      [callback, tid, par_id](Future* fu) {
+  std::function<void(rusty::Arc<Future>)> cb =
+      [callback, tid, par_id](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -58,7 +58,7 @@ void TroadCommo::SendInquire(parid_t pid,
                              txnid_t tid,
                              const function<void(RccGraph& graph)>& callback) {
   FutureAttr fuattr;
-  function<void(Future*)> cb = [callback](Future* fu) {
+  function<void(rusty::Arc<Future>)> cb = [callback](rusty::Arc<Future> fu) {
     if (fu->get_error_code() != 0) {
       Log_info("Get a error message in reply");
       return;
@@ -93,7 +93,7 @@ void TroadCommo::BroadcastPreAccept(
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [callback](Future* fu) {
+    fuattr.callback = [callback](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -106,14 +106,14 @@ void TroadCommo::BroadcastPreAccept(
       callback(res, sp);
     };
     verify(txn_id > 0);
-    Future* f = nullptr;
     if (skip_graph) {
-      f = proxy->async_JanusPreAcceptWoGraph(txn_id, rank, cmds, fuattr);
+      auto fu_result = proxy->async_JanusPreAcceptWoGraph(txn_id, rank, cmds, fuattr);
+      Future::safe_release(fu_result);
     } else {
       MarshallDeputy md(sp_graph);
-      f = proxy->async_JanusPreAccept(txn_id, rank, cmds, md, fuattr);
+      auto fu_result = proxy->async_JanusPreAccept(txn_id, rank, cmds, md, fuattr);
+      Future::safe_release(fu_result);
     }
-    Future::safe_release(f);
   }
 }
 
@@ -133,7 +133,7 @@ TroadCommo::BroadcastPreAccept(
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [ev](Future* fu) {
+    fuattr.callback = [ev](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -154,9 +154,8 @@ TroadCommo::BroadcastPreAccept(
       ev->vec_parents_.push_back(sp);
     };
     verify(txn_id > 0);
-    Future* f = nullptr;
-    f = proxy->async_RccPreAccept(txn_id, rank, cmds, fuattr);
-    Future::safe_release(f);
+    auto fu_result = proxy->async_RccPreAccept(txn_id, rank, cmds, fuattr);
+    Future::safe_release(fu_result);
   }
   return ev;
 }
@@ -179,7 +178,7 @@ TroadCommo::BroadcastPreAccept(
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [ev](Future* fu) {
+    fuattr.callback = [ev](rusty::Arc<Future> fu) {
       int32_t res;
       MarshallDeputy md;
       fu->get_reply() >> res >> md;
@@ -197,14 +196,14 @@ TroadCommo::BroadcastPreAccept(
 //      ev->graphs_.push_back(sp);
     };
     verify(txn_id > 0);
-    Future* f = nullptr;
     if (skip_graph) {
-      f = proxy->async_JanusPreAcceptWoGraph(txn_id, rank, cmds, fuattr);
+      auto fu_result = proxy->async_JanusPreAcceptWoGraph(txn_id, rank, cmds, fuattr);
+      Future::safe_release(fu_result);
     } else {
       MarshallDeputy md(sp_graph);
-      f = proxy->async_JanusPreAccept(txn_id, rank, cmds, md, fuattr);
+      auto fu_result = proxy->async_JanusPreAccept(txn_id, rank, cmds, md, fuattr);
+      Future::safe_release(fu_result);
     }
-    Future::safe_release(f);
   }
   return ev;
 }
@@ -220,7 +219,7 @@ void TroadCommo::BroadcastAccept(parid_t par_id,
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [callback](Future* fu) {
+    fuattr.callback = [callback](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -254,7 +253,7 @@ shared_ptr<QuorumEvent> TroadCommo::BroadcastAccept(parid_t par_id,
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [ev](Future* fu) {
+    fuattr.callback = [ev](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -292,7 +291,7 @@ shared_ptr<QuorumEvent> TroadCommo::BroadcastAccept(parid_t par_id,
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [ev](Future* fu) {
+    fuattr.callback = [ev](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -327,7 +326,7 @@ shared_ptr<QuorumEvent> TroadCommo::CollectValidation(txid_t txid, set<parid_t> 
   for (auto partition_id : pars) {
     auto proxy = NearestProxyForPartition(partition_id).second;
     FutureAttr fuattr;
-    fuattr.callback = [ev] (Future* fu) {
+    fuattr.callback = [ev] (rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -354,7 +353,7 @@ shared_ptr<QuorumEvent> TroadCommo::BroadcastValidation(CmdData& cmd_, int resul
     for (auto& pair : rpc_par_proxies_[partition_id]) {
       auto proxy = pair.second;
       FutureAttr fuattr;
-      fuattr.callback = [ev] (Future* fu) {
+      fuattr.callback = [ev] (rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -382,7 +381,7 @@ void TroadCommo::BroadcastCommit(
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [callback](Future* fu) {
+    fuattr.callback = [callback](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -416,7 +415,7 @@ TroadCommo::BroadcastCommit(parid_t par_id,
     auto proxy = (p.second);
     verify(proxy != nullptr);
     FutureAttr fuattr;
-    fuattr.callback = [ev](Future* fu) {
+    fuattr.callback = [ev](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;

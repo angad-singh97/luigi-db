@@ -129,7 +129,7 @@ friend class FpgaRaftProxy;
 	int index;
 	
   FpgaRaftCommo() = delete;
-  FpgaRaftCommo(rusty::Arc<rrr::PollThreadWorker>);
+  FpgaRaftCommo(rusty::Option<rusty::Arc<PollThread>>);
   shared_ptr<FpgaRaftForwardQuorumEvent>
   SendForward(parid_t par_id, parid_t self_id, shared_ptr<Marshallable> cmd);  
 	void BroadcastHeartbeat(parid_t par_id,
@@ -155,7 +155,7 @@ friend class FpgaRaftProxy;
   void BroadcastPrepare(parid_t par_id,
                         slotid_t slot_id,
                         ballot_t ballot,
-                        const function<void(Future *fu)> &callback);
+                        const function<void(rusty::Arc<Future>)> &callback);
   shared_ptr<FpgaRaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
                         slotid_t lst_log_idx,
@@ -167,7 +167,7 @@ friend class FpgaRaftProxy;
                         ballot_t lst_log_term,
                         parid_t self_id,
                         ballot_t cur_term,
-                        const function<void(Future *fu)> &callback);  
+                        const function<void(rusty::Arc<Future>)> &callback);
   shared_ptr<FpgaRaftVote2FPGAQuorumEvent>
   BroadcastVote2FPGA(parid_t par_id,
                         slotid_t lst_log_idx,
@@ -179,7 +179,7 @@ friend class FpgaRaftProxy;
                         ballot_t lst_log_term,
                         parid_t self_id,
                         ballot_t cur_term,
-                        const function<void(Future *fu)> &callback);  
+                        const function<void(rusty::Arc<Future>)> &callback);  
   shared_ptr<FpgaRaftAcceptQuorumEvent>
   BroadcastAccept(parid_t par_id,
                   slotid_t slot_id,
@@ -189,7 +189,7 @@ friend class FpgaRaftProxy;
                        slotid_t slot_id,
                        ballot_t ballot,
                        shared_ptr<Marshallable> cmd,
-                       const function<void(Future*)> &callback);
+                       const function<void(rusty::Arc<Future>)> &callback);
   shared_ptr<FpgaRaftAppendQuorumEvent>
   BroadcastAppendEntries(parid_t par_id,
                          siteid_t leader_site_id,
@@ -211,7 +211,7 @@ friend class FpgaRaftProxy;
                               uint64_t prevLogTerm,
                               uint64_t commitIndex,
                               shared_ptr<Marshallable> cmd,
-                              const function<void(Future*)> &callback);
+                              const function<void(rusty::Arc<Future>)> &callback);
   void BroadcastDecide(const parid_t par_id,
                        const slotid_t slot_id,
 											 const i64 dep_id,

@@ -9,7 +9,7 @@
 
 namespace janus {
 
-FpgaRaftCommo::FpgaRaftCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {
+FpgaRaftCommo::FpgaRaftCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) : Communicator(poll_thread_worker) {
 //  verify(poll != nullptr);
 }
 
@@ -30,7 +30,7 @@ shared_ptr<FpgaRaftForwardQuorumEvent> FpgaRaftCommo::SendForward(parid_t par_id
     WAN_WAIT;
     auto proxy = (FpgaRaftProxy*) proxies[fid].second ;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -49,7 +49,7 @@ void FpgaRaftCommo::BroadcastHeartbeat(parid_t par_id,
 																			 uint64_t logIndex) {
 	//Log_info("heartbeat for log index: %d", logIndex);
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
   for (auto& p : proxies) {
     if (p.first == this->loc_id_)
         continue;
@@ -57,7 +57,7 @@ void FpgaRaftCommo::BroadcastHeartbeat(parid_t par_id,
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
     
-		fuattr.callback = [this, follower_id, logIndex] (Future* fu) {
+		fuattr.callback = [this, follower_id, logIndex] (rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -83,7 +83,7 @@ void FpgaRaftCommo::SendHeartbeat(parid_t par_id,
 																	siteid_t site_id,
 																  uint64_t logIndex) {
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	// WAN_WAIT;
   for (auto& p : proxies) {
     if (p.first != site_id)
@@ -91,7 +91,7 @@ void FpgaRaftCommo::SendHeartbeat(parid_t par_id,
 		auto follower_id = p.first;
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [](Future* fu) {};
+    fuattr.callback = [](rusty::Arc<Future> fu) {};
     
 		DepId di;
 		di.str = "dep";
@@ -114,7 +114,7 @@ void FpgaRaftCommo::SendAppendEntriesAgain(siteid_t site_id,
 																					 uint64_t commitIndex,
 																					 shared_ptr<Marshallable> cmd) {
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
 	WAN_WAIT;
   for (auto& p : proxies) {
     if (p.first != site_id)
@@ -122,7 +122,7 @@ void FpgaRaftCommo::SendAppendEntriesAgain(siteid_t site_id,
 		auto follower_id = p.first;
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [](Future* fu) {};
+    fuattr.callback = [](rusty::Arc<Future> fu) {};
 
 		MarshallDeputy md(cmd);
 		verify(md.sp_data_ != nullptr);
@@ -165,7 +165,7 @@ FpgaRaftCommo::BroadcastAppendEntries(parid_t par_id,
   unordered_set<std::string> ip_addrs {};
   std::vector<std::shared_ptr<rrr::Client>> clients;
 
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
   WAN_WAIT;
 
   for (auto& p : proxies) {
@@ -200,7 +200,7 @@ FpgaRaftCommo::BroadcastAppendEntries(parid_t par_id,
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
-    fuattr.callback = [this, e, isLeader, currentTerm, follower_id, n, ip, begin] (Future* fu) {
+    fuattr.callback = [this, e, isLeader, currentTerm, follower_id, n, ip, begin] (rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -253,10 +253,10 @@ void FpgaRaftCommo::BroadcastAppendEntries(parid_t par_id,
                                            uint64_t prevLogTerm,
                                            uint64_t commitIndex,
                                            shared_ptr<Marshallable> cmd,
-                                           const function<void(Future*)>& cb) {
+                                           const function<void(rusty::Arc<Future>)>& cb) {
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
   for (auto& p : proxies) {
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
@@ -285,11 +285,11 @@ void FpgaRaftCommo::BroadcastDecide(const parid_t par_id,
                                       const ballot_t ballot,
                                       const shared_ptr<Marshallable> cmd) {
   auto proxies = rpc_par_proxies_[par_id];
-  vector<Future*> fus;
+  vector<rusty::Arc<Future>> fus;
   for (auto& p : proxies) {
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [](Future* fu) {};
+    fuattr.callback = [](rusty::Arc<Future> fu) {};
     MarshallDeputy md(cmd);
 		DepId di;
 		di.str = "dep";
@@ -304,7 +304,7 @@ void FpgaRaftCommo::BroadcastVote(parid_t par_id,
                                         ballot_t lst_log_term,
                                         parid_t self_id,
                                         ballot_t cur_term,
-                                       const function<void(Future*)>& cb) {
+                                       const function<void(rusty::Arc<Future>)>& cb) {
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
   for (auto& p : proxies) {
@@ -330,7 +330,7 @@ FpgaRaftCommo::BroadcastVote(parid_t par_id,
         continue;
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -352,7 +352,7 @@ void FpgaRaftCommo::BroadcastVote2FPGA(parid_t par_id,
                                         ballot_t lst_log_term,
                                         parid_t self_id,
                                         ballot_t cur_term,
-                                       const function<void(Future*)>& cb) {
+                                       const function<void(rusty::Arc<Future>)>& cb) {
   verify(0); // deprecated function
   auto proxies = rpc_par_proxies_[par_id];
   for (auto& p : proxies) {
@@ -378,7 +378,7 @@ FpgaRaftCommo::BroadcastVote2FPGA(parid_t par_id,
         continue;
     auto proxy = (FpgaRaftProxy*) p.second;
     FutureAttr fuattr;
-    fuattr.callback = [e](Future* fu) {
+    fuattr.callback = [e](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;

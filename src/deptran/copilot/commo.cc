@@ -91,7 +91,7 @@ void CopilotPrepareQuorumEvent::Show() {
 }
 
 
-CopilotCommo::CopilotCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker) : Communicator(poll_thread_worker) {}
+CopilotCommo::CopilotCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker) : Communicator(poll_thread_worker) {}
 
 shared_ptr<CopilotPrepareQuorumEvent>
 CopilotCommo::BroadcastPrepare(parid_t par_id,
@@ -109,7 +109,7 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
     auto site = p.first;
 
     FutureAttr fuattr;
-    fuattr.callback = [e, ballot, is_pilot, slot_id, site](Future *fu) {
+    fuattr.callback = [e, ballot, is_pilot, slot_id, site](rusty::Arc<Future> fu) {
       if (fu->get_error_code() != 0) {
         Log_info("Get a error message in reply");
         return;
@@ -120,7 +120,7 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
       status_t status;
       fu->get_reply() >> md >> b >> dep >> status;
       bool ok = (ballot == b);
-      
+
       if (ok) {
         e->FeedRetCmd(ballot,
                       dep,
@@ -134,9 +134,11 @@ CopilotCommo::BroadcastPrepare(parid_t par_id,
       e->RemoveXid(site);
     };
 
-    Future *f = proxy->async_Prepare(is_pilot, slot_id, ballot, di, fuattr);
-    e->AddXid(site, f->get_xid());
-    Future::safe_release(f);
+    auto fu_result = proxy->async_Prepare(is_pilot, slot_id, ballot, di, fuattr);
+    if (fu_result.is_ok()) {
+      auto f = fu_result.unwrap();
+      e->AddXid(site, f->get_xid());
+    }
   }
 
   return e;
@@ -173,7 +175,7 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
       e->FeedRetDep(dep);
     } else {
       FutureAttr fuattr;
-      fuattr.callback = [e, dep, ballot, site, cmd](Future *fu) {
+      fuattr.callback = [e, dep, ballot, site, cmd](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -202,9 +204,11 @@ CopilotCommo::BroadcastFastAccept(parid_t par_id,
   gettimeofday(&tp, NULL);
   Log_info("[1-] [tx=%d] async_FastAccept called by Submit %.3f", dynamic_pointer_cast<TpcBatchCommand>(cmd)->cmds_.at(0)->tx_id_, tp.tv_sec * 1000 + tp.tv_usec / 1000.0);
 #endif
-      Future *f = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
-      e->AddXid(site, f->get_xid());
-      Future::safe_release(f);
+      auto fu_result = proxy->async_FastAccept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
+      if (fu_result.is_ok()) {
+        auto f = fu_result.unwrap();
+        e->AddXid(site, f->get_xid());
+      }
     }
   }
 
@@ -238,7 +242,7 @@ CopilotCommo::BroadcastAccept(parid_t par_id,
       e->FeedResponse(true);
     } else {
       FutureAttr fuattr;
-      fuattr.callback = [e, ballot, site](Future *fu) {
+      fuattr.callback = [e, ballot, site](rusty::Arc<Future> fu) {
         if (fu->get_error_code() != 0) {
           Log_info("Get a error message in reply");
           return;
@@ -251,9 +255,11 @@ CopilotCommo::BroadcastAccept(parid_t par_id,
       };
 
       MarshallDeputy md(cmd);
-      Future *f = proxy->async_Accept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
-      e->AddXid(site, f->get_xid());
-      Future::safe_release(f);
+      auto fu_result = proxy->async_Accept(is_pilot, slot_id, ballot, dep, md, di, fuattr);
+      if (fu_result.is_ok()) {
+        auto f = fu_result.unwrap();
+        e->AddXid(site, f->get_xid());
+      }
     }
   }
 
@@ -279,13 +285,15 @@ CopilotCommo::BroadcastCommit(parid_t par_id,
     if (site == 1) continue;
 #endif
     FutureAttr fuattr;
-    fuattr.callback = [e, site](Future* fu) {
+    fuattr.callback = [e, site](rusty::Arc<Future> fu) {
       e->RemoveXid(site);
     };
     MarshallDeputy md(cmd);
-    Future *f = proxy->async_Commit(is_pilot, slot_id, dep, md, fuattr);
-    e->AddXid(site, f->get_xid());
-    Future::safe_release(f);
+    auto fu_result = proxy->async_Commit(is_pilot, slot_id, dep, md, fuattr);
+    if (fu_result.is_ok()) {
+      auto f = fu_result.unwrap();
+      e->AddXid(site, f->get_xid());
+    }
   }
 
   return e;

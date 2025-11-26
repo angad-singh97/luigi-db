@@ -23,11 +23,11 @@ RaftWorker::~RaftWorker() {
   StopSubmitThread();
 
   // Shutdown PollThreadWorkers if we own them
-  if (svr_poll_thread_worker_) {
-    svr_poll_thread_worker_->shutdown();
+  if (svr_poll_thread_worker_.is_some()) {
+    svr_poll_thread_worker_.unwrap()->shutdown();
   }
-  if (svr_hb_poll_thread_worker_g) {
-    svr_hb_poll_thread_worker_g->shutdown();
+  if (svr_hb_poll_thread_worker_g.is_some()) {
+    svr_hb_poll_thread_worker_g.unwrap()->shutdown();
   }
 }
 
@@ -67,13 +67,13 @@ void RaftWorker::SetupService() {
   std::string bind_addr = site_info_->GetBindAddress();
 
   // Create poll thread worker
-  svr_poll_thread_worker_ = rrr::PollThreadWorker::create();
+  svr_poll_thread_worker_ = rusty::Some(rrr::PollThread::create());
 
   // Register Raft services (returns vector)
   if (rep_frame_ != nullptr) {
     services_ = rep_frame_->CreateRpcServices(site_info_->id,
                                               rep_sched_,
-                                              svr_poll_thread_worker_,
+                                              svr_poll_thread_worker_.unwrap(),
                                               scsi_);
   }
 
@@ -82,7 +82,7 @@ void RaftWorker::SetupService() {
   thread_pool_g = new base::ThreadPool(num_threads);
 
   // Create RPC server
-  rpc_server_ = new rrr::Server(svr_poll_thread_worker_, thread_pool_g);
+  rpc_server_ = new rrr::Server(svr_poll_thread_worker_.unwrap(), thread_pool_g);
 
   // Register all services
   for (auto service : services_) {
@@ -119,9 +119,9 @@ void RaftWorker::SetupHeartbeat() {
   // Setup heartbeat/control RPC server
   // ServerControlServiceImpl constructor takes (timeout, recorder)
   scsi_ = new ServerControlServiceImpl(5, nullptr);
-  svr_hb_poll_thread_worker_g = rrr::PollThreadWorker::create();
+  svr_hb_poll_thread_worker_g = rusty::Some(rrr::PollThread::create());
   hb_thread_pool_g = new base::ThreadPool(1);
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g, hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.unwrap(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = site_info_->port + CtrlPortDelta;

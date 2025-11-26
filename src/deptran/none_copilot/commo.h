@@ -11,7 +11,7 @@ public:
     const uint32_t max_pending_rpc_ = 200 * 100; // [JetPack] * 100 for latancy case
     SharedIntEvent dispatch_quota{};
 
-    CommunicatorNoneCopilot(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker = rusty::Arc<rrr::PollThreadWorker>())
+    CommunicatorNoneCopilot(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker = rusty::Option<rusty::Arc<PollThread>>())
      :Communicator(poll_thread_worker) {
         dispatch_quota.value_ = 3 * max_pending_rpc_;
     }

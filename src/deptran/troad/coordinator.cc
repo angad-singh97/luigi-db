@@ -9,7 +9,7 @@ namespace janus {
 
 TroadCommo* CoordinatorTroad::commo() {
   if (commo_ == nullptr) {
-    commo_ = frame_->CreateCommo(rusty::Arc<rrr::PollThreadWorker>());
+    commo_ = frame_->CreateCommo(rusty::Option<rusty::Arc<PollThread>>());
     commo_->loc_id_ = loc_id_;
   }
   verify(commo_ != nullptr);

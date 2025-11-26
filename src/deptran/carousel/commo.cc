@@ -9,7 +9,7 @@
 
 namespace janus {
 
-CarouselCommo::CarouselCommo(rusty::Arc<rrr::PollThreadWorker> poll_thread_worker):
+CarouselCommo::CarouselCommo(rusty::Option<rusty::Arc<PollThread>> poll_thread_worker):
   Communicator(poll_thread_worker),
   using_basic_(Config::GetConfig()->carousel_basic_mode()) {}
 
@@ -46,7 +46,7 @@ void CarouselCommo::BroadcastReadAndPrepare(
     }
     rrr::FutureAttr fu2;
     fu2.callback =
-        [coo, this, leader, callback](Future* fu) {
+        [coo, this, leader, callback](rusty::Arc<Future> fu) {
           if (fu->get_error_code() != 0) {
             Log_info("Get a error message in reply");
             return;
@@ -68,7 +68,7 @@ void CarouselCommo::BroadcastDecide(parid_t par_id,
             pair_leader_proxy.first);
   auto proxy = pair_leader_proxy.second;
   FutureAttr fuattr;
-  fuattr.callback = [] (Future* fu) {} ;
+  fuattr.callback = [] (rusty::Arc<Future> fu) {} ;
   Future::safe_release(proxy->async_CarouselDecide(cmd_id, decision, fuattr));
 }
 

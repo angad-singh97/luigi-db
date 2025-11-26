@@ -46,7 +46,7 @@ class MenciusCommo : public Communicator {
   void *svr_workers_g{nullptr};
   
   MenciusCommo() = delete;
-  MenciusCommo(rusty::Arc<rrr::PollThreadWorker>);
+  MenciusCommo(rusty::Option<rusty::Arc<PollThread>> poll = rusty::None);
 
   shared_ptr<MenciusPrepareQuorumEvent>
   BroadcastPrepare(parid_t par_id,
@@ -55,7 +55,7 @@ class MenciusCommo : public Communicator {
   void BroadcastPrepare(parid_t par_id,
                         slotid_t slot_id,
                         ballot_t ballot,
-                        const function<void(Future *fu)> &callback);
+                        const function<void(rusty::Arc<Future>)> &callback);
   shared_ptr<MenciusSuggestQuorumEvent>
   BroadcastSuggest(parid_t par_id,
                   slotid_t slot_id,
@@ -65,7 +65,7 @@ class MenciusCommo : public Communicator {
                        slotid_t slot_id,
                        ballot_t ballot,
                        shared_ptr<Marshallable> cmd,
-                       const function<void(Future*)> &callback);
+                       const function<void(rusty::Arc<Future>)> &callback);
   void BroadcastDecide(const parid_t par_id,
                        const slotid_t slot_id,
                        const ballot_t ballot,

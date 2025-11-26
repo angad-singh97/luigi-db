@@ -7,13 +7,13 @@ using namespace janus;
 static int volatile x1 =
     MarshallDeputy::RegInitializer(MarshallDeputy::CMD_TPC_PREPARE,
                                      [] () -> Marshallable* {
-                                       return new TpcPrepareCommand;
+                                       return new TpcPrepareCommand();
                                      });
 
 static int volatile x2 =
     MarshallDeputy::RegInitializer(MarshallDeputy::CMD_TPC_COMMIT,
                                      [] () -> Marshallable* {
-                                       return new TpcCommitCommand;
+                                       return new TpcCommitCommand();
                                      });
 
 static int volatile x3 =
@@ -42,6 +42,7 @@ Marshal& TpcPrepareCommand::ToMarshal(Marshal& m) const {
 //  for (auto o : cmd_) {
 //    m << *o;
 //  }
+  // Pass shared_ptr directly to MarshallDeputy
   MarshallDeputy md(cmd_);
   m << md;
   return m;
@@ -60,11 +61,14 @@ Marshal& TpcPrepareCommand::FromMarshal(Marshal& m) {
 //  }
   MarshallDeputy md;
   m >> md;
-  verify(md.sp_data_!=NULL) ;
-  if (!cmd_)
-    cmd_ = md.sp_data_;
-  else
+  if (!cmd_) {
+    // Use the shared_ptr directly from MarshallDeputy
+    if (md.sp_data_ != nullptr) {
+      cmd_ = md.sp_data_;
+    }
+  } else {
     verify(0);
+  }
   return m;
 }
 

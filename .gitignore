@@ -64,3 +64,4 @@ prof
 /src/deptran/lab_solution_raft
 .cache/*
 cmake-build/*
+*.stamp
