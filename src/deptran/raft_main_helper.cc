@@ -140,8 +140,8 @@ void server_launch_worker(std::vector<Config::SiteInfo>& server_sites) {
     // CRITICAL: Call RaftServer::Setup() AFTER SetupCommo()
     // Setup() needs commo_ to be initialized for HeartbeatLoop
     if (auto raft_server = worker->GetRaftServer()) {
-      auto poll_worker = worker->GetPollThreadWorker();
-      if (poll_worker) {
+      auto poll_worker_opt = worker->GetPollThreadWorker();
+      if (poll_worker_opt.is_some()) {
         auto arc_job = rusty::Arc<OneTimeJob>::new_(OneTimeJob([raft_server]() {
           Log_info("[RAFTPOLL] EnsureSetup executing (site=%d par=%d)",
                    raft_server->site_id_,
@@ -149,7 +149,7 @@ void server_launch_worker(std::vector<Config::SiteInfo>& server_sites) {
           raft_server->EnsureSetup();
         }));
         Log_info("[RAFTPOLL] Queueing EnsureSetup job for worker index %zu", i);
-        poll_worker->add(rusty::Arc<Job>(arc_job));
+        poll_worker_opt.unwrap()->add(rusty::Arc<Job>(arc_job));
       } else {
         Log_info("[RAFTPOLL] No poll worker for index %zu; calling EnsureSetup inline", i);
         raft_server->EnsureSetup();

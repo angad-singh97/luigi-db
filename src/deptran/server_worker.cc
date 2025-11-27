@@ -21,7 +21,7 @@ void ServerWorker::SetupHeartbeat() {
   svr_hb_poll_thread_worker_g = svr_poll_thread_worker_;
 //  hb_thread_pool_g = new rrr::ThreadPool(1);
   hb_thread_pool_g = svr_thread_pool_;
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.unwrap(), hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.as_ref().unwrap(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = this->site_info_->port + ServerWorker::CtrlPortDelta;
@@ -174,13 +174,16 @@ void ServerWorker::SetupService() {
   svr_poll_thread_worker_ = rusty::Some(PollThread::create());
 //  svr_thread_pool_ = new rrr::ThreadPool(1);
 
+  // Use as_ref().unwrap() to borrow without consuming the Option
+  auto& poll_worker = svr_poll_thread_worker_.as_ref().unwrap();
+
   // init service implementation
 #ifdef RAFT_TEST_CORO
   // In test mode, only initialize replication services
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_thread_worker_.unwrap(),
+                                            poll_worker,
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
@@ -188,14 +191,14 @@ void ServerWorker::SetupService() {
   if (tx_frame_ != nullptr) {
     services_ = tx_frame_->CreateRpcServices(site_info_->id,
                                              tx_sched_,
-                                             svr_poll_thread_worker_.unwrap(),
+                                             poll_worker,
                                              scsi_);
   }
 
   if (rep_frame_ != nullptr) {
     auto s2 = rep_frame_->CreateRpcServices(site_info_->id,
                                             rep_sched_,
-                                            svr_poll_thread_worker_.unwrap(),
+                                            poll_worker,
                                             scsi_);
     services_.insert(services_.end(), s2.begin(), s2.end());
   }
@@ -208,7 +211,7 @@ void ServerWorker::SetupService() {
 //  thread_pool_g = new base::ThreadPool(num_threads);
 
   // init rrr::Server
-  rpc_server_ = new rrr::Server(svr_poll_thread_worker_.unwrap(), svr_thread_pool_);
+  rpc_server_ = new rrr::Server(poll_worker, svr_thread_pool_);
 
   // reg services
   for (auto service : services_) {
@@ -285,7 +288,7 @@ void ServerWorker::SetupCommo() {
   ));
   // Cast OneTimeJob to Job base class for PollThread
   auto arc_job_base = rusty::Arc<Job>(arc_job);
-  svr_poll_thread_worker_.unwrap()->add(arc_job_base);
+  svr_poll_thread_worker_.as_ref().unwrap()->add(arc_job_base);
 
 #ifdef RAFT_TEST_CORO
 // dead loop this thread for coroutine scheduling 
@@ -336,10 +339,10 @@ int ServerWorker::DbChecksum() {
 ServerWorker::~ServerWorker() {
   // Shutdown PollThreads if we own them
   if (svr_poll_thread_worker_.is_some()) {
-    svr_poll_thread_worker_.unwrap()->shutdown();
+    svr_poll_thread_worker_.as_ref().unwrap()->shutdown();
   }
   if (svr_hb_poll_thread_worker_g.is_some()) {
-    svr_hb_poll_thread_worker_g.unwrap()->shutdown();
+    svr_hb_poll_thread_worker_g.as_ref().unwrap()->shutdown();
   }
 }
 

@@ -24,10 +24,10 @@ RaftWorker::~RaftWorker() {
 
   // Shutdown PollThreadWorkers if we own them
   if (svr_poll_thread_worker_.is_some()) {
-    svr_poll_thread_worker_.unwrap()->shutdown();
+    svr_poll_thread_worker_.as_ref().unwrap()->shutdown();
   }
   if (svr_hb_poll_thread_worker_g.is_some()) {
-    svr_hb_poll_thread_worker_g.unwrap()->shutdown();
+    svr_hb_poll_thread_worker_g.as_ref().unwrap()->shutdown();
   }
 }
 
@@ -70,10 +70,12 @@ void RaftWorker::SetupService() {
   svr_poll_thread_worker_ = rusty::Some(rrr::PollThread::create());
 
   // Register Raft services (returns vector)
+  // Use as_ref().unwrap() to borrow without consuming the Option
+  auto& poll_worker = svr_poll_thread_worker_.as_ref().unwrap();
   if (rep_frame_ != nullptr) {
     services_ = rep_frame_->CreateRpcServices(site_info_->id,
                                               rep_sched_,
-                                              svr_poll_thread_worker_.unwrap(),
+                                              poll_worker,
                                               scsi_);
   }
 
@@ -82,7 +84,7 @@ void RaftWorker::SetupService() {
   thread_pool_g = new base::ThreadPool(num_threads);
 
   // Create RPC server
-  rpc_server_ = new rrr::Server(svr_poll_thread_worker_.unwrap(), thread_pool_g);
+  rpc_server_ = new rrr::Server(poll_worker, thread_pool_g);
 
   // Register all services
   for (auto service : services_) {
@@ -121,7 +123,7 @@ void RaftWorker::SetupHeartbeat() {
   scsi_ = new ServerControlServiceImpl(5, nullptr);
   svr_hb_poll_thread_worker_g = rusty::Some(rrr::PollThread::create());
   hb_thread_pool_g = new base::ThreadPool(1);
-  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.unwrap(), hb_thread_pool_g);
+  hb_rpc_server_ = new rrr::Server(svr_hb_poll_thread_worker_g.as_ref().unwrap(), hb_thread_pool_g);
   hb_rpc_server_->reg(scsi_);
 
   auto port = site_info_->port + CtrlPortDelta;
@@ -132,7 +134,20 @@ void RaftWorker::SetupHeartbeat() {
 
 // ShutDown manually deletes RPC state and the underlying scheduler.
 void RaftWorker::ShutDown() {
+  Log_info("[RAFT-WORKER-SHUTDOWN] entering");
+
+  // Signal poll threads to stop BEFORE deleting servers.
+  // This allows Reactor::Loop() to exit, which unblocks server connection cleanup.
+  Log_info("[RAFT-WORKER-SHUTDOWN] signaling poll threads to stop");
+  if (svr_poll_thread_worker_.is_some()) {
+    svr_poll_thread_worker_.as_ref().unwrap()->shutdown();
+  }
+  if (svr_hb_poll_thread_worker_g.is_some()) {
+    svr_hb_poll_thread_worker_g.as_ref().unwrap()->shutdown();
+  }
+
   if (rpc_server_) {
+    Log_info("[RAFT-WORKER-SHUTDOWN] deleting rpc_server_");
     delete rpc_server_;
     rpc_server_ = nullptr;
   }
@@ -165,6 +180,25 @@ void RaftWorker::ShutDown() {
     delete rep_sched_;
     rep_sched_ = nullptr;
   }
+
+  // IMPORTANT: Shutdown poll threads AFTER servers are destroyed.
+  // Server::~Server() enqueues remove commands to the poll thread; keeping the
+  // poll thread alive allows it to drain those commands and drop the final
+  // references so sconns_ctr_ reaches zero.
+  Log_info("[RAFT-WORKER-SHUTDOWN] shutting down poll threads");
+  if (svr_poll_thread_worker_.is_some()) {
+    auto& poll_thread = svr_poll_thread_worker_.as_ref().unwrap();
+    Log_info("[RAFT-WORKER-SHUTDOWN] calling shutdown on svr_poll_thread_worker_=%p", poll_thread.get());
+    poll_thread->shutdown();
+    Log_info("[RAFT-WORKER-SHUTDOWN] svr_poll_thread_worker_ shutdown returned");
+  }
+  if (svr_hb_poll_thread_worker_g.is_some()) {
+    auto& poll_thread = svr_hb_poll_thread_worker_g.as_ref().unwrap();
+    Log_info("[RAFT-WORKER-SHUTDOWN] calling shutdown on svr_hb_poll_thread_worker_g=%p", poll_thread.get());
+    poll_thread->shutdown();
+    Log_info("[RAFT-WORKER-SHUTDOWN] svr_hb_poll_thread_worker_g shutdown returned");
+  }
+  Log_info("[RAFT-WORKER-SHUTDOWN] poll threads shutdown complete");
 }
 
 // WaitForShutdown blocks until control RPC has acknowledged a shutdown request.
