@@ -228,10 +228,6 @@ static void register_paxos_follower_callback(TSharedThreadPoolMbta& replicated_d
       if (par_id==0){
         std::cout << "we can start a advancer" << std::endl;
         sync_util::sync_logger::start_advancer();
-
-        // FIX 1: Bootstrap watermark to allow queued entries to replay
-        sync_util::sync_logger::setSingleWatermark(1);
-        std::cout << "[WATERMARK-BOOTSTRAP] Initialized single_watermark to 1 to unblock queued entries" << std::endl;
       }
       return status;
     }

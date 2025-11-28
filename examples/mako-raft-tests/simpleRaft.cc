@@ -12,9 +12,9 @@
 using namespace std;
 using namespace mako;
 
-// 1 shard server with 1 partition (simpler than Paxos version)
-const int num_workers = 1;        // Just 1 partition for simplicity
-const int message_count = 50;     // 50 logs (less than Paxos to keep it fast)
+// 1 shard server with 3 worker threads (3 Raft streams) - matches Paxos test
+const int num_workers = 3;        // 3 partitions (same as Paxos)
+const int message_count = 100;    // 100 logs per partition (same as Paxos)
 
 int end_received = 0;
 int end_received_leader = 0;
@@ -22,7 +22,7 @@ unordered_map<int, int> counters;
 
 void db_worker(size_t par_id) {
     size_t sent = 0;
-    const int base = 300 * 1000;
+    const int base = 3 * 1000;  // 3KB base (same as Paxos)
     util::timer t;
     unsigned char *LOG = (unsigned char *)malloc(base + 200);
     int log_id = 0;
@@ -41,7 +41,7 @@ void db_worker(size_t par_id) {
 
         add_log_to_nc((char const *)LOG, size, par_id);
 
-        usleep(10 * 1000);  // 10ms between submits
+        usleep(5 * 1000);  // 5ms between submits (same as Paxos)
     }
     counters[par_id] = sent;
     free(LOG);
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 
     vector<string> raft_config{
         get_current_absolute_path() + "../config/none_raft.yml",
-        get_current_absolute_path() + "../config/1c1s3r1p_cluster_test.yml"
+        get_current_absolute_path() + "../config/1c1s3r3p_cluster_test.yml"
     };
 
     char *argv_raft[18];
