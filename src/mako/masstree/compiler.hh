@@ -981,7 +981,8 @@ inline uint64_t read_tsc(void)
 }
 
 // @unsafe
-template <typename T> inline int compare(T a, T b) {
+template <typename T>
+inline int compare(T a, T b) {
     if (a == b)
         return 0;
     else

@@ -40,7 +40,7 @@ if(NOT EXISTS ${CPP_BORROW_CHECKER})
 endif()
 
 # Enable borrow checking (can be disabled with -DENABLE_BORROW_CHECKING=OFF)
-# Force ON here so the checker actually runs unless explicitly turned off in a fresh configure.
+# Force ON here so the checker runs unless explicitly turned off
 set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable RustyCpp borrow checking" FORCE)
 if(ENABLE_BORROW_CHECKING)
     enable_borrow_checking()
@@ -132,14 +132,14 @@ set(ERPC_CFLAGS_DPDK
   -I${ERPC_PATH}/src
   -DERPC_DPDK=true
   -march=native
-  # ${DPDK_CXXFLAGS} 
+  # ${DPDK_CXXFLAGS}
   -DERPC_LOG_LEVEL=6
   -DERPC_TESTING=false
   -DGFLAGS_IS_A_DLL=0
 )
 set(ERPC_LDFLAGS_DPDK
   -Wl,--whole-archive
-  ${DPDK_LDFLAGS} 
+  ${DPDK_LDFLAGS}
   -Wl,--no-whole-archive
   -lpthread
   -lnuma
@@ -159,8 +159,8 @@ set(ERPC_CFLAGS_IB
   -DGFLAGS_IS_A_DLL=0
 )
 set(ERPC_LDFLAGS_IB
-  -Wl,--whole-archive 
-  ${DPDK_LDFLAGS} 
+  -Wl,--whole-archive
+  ${DPDK_LDFLAGS}
   -Wl,--no-whole-archive
   -lpthread
   -lnuma
@@ -180,8 +180,8 @@ set(ERPC_CFLAGS_ETH
   -DGFLAGS_IS_A_DLL=0
 )
 set(ERPC_LDFLAGS_ETH
-  -Wl,--whole-archive 
-  ${DPDK_LDFLAGS} 
+  -Wl,--whole-archive
+  ${DPDK_LDFLAGS}
   -Wl,--no-whole-archive
   -lpthread
   -lnuma
@@ -294,8 +294,6 @@ file(GLOB_RECURSE MASSTREE_BORROW_CHECK_SOURCES
     src/mako/masstree/*.c
     src/mako/masstree/*.cc
 )
-
-list(REMOVE_ITEM MASSTREE_BORROW_CHECK_SOURCES ${_MASSTREE_EXCLUDE_FROM_BC})
 
 foreach(SRC ${MASSTREE_BORROW_CHECK_SOURCES})
     add_borrow_check(${SRC})
@@ -572,7 +570,7 @@ add_custom_command(
 )
 
 # Create a target for the generated RPC files
-add_custom_target(rcc_rpc_gen DEPENDS 
+add_custom_target(rcc_rpc_gen DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
 )
@@ -723,7 +721,7 @@ set_target_properties(mako PROPERTIES OUTPUT_NAME "mako")
 function(add_apps exec_name exec_path)
   # Add executable
   add_executable(${exec_name} ${exec_path})
-  
+
   # Configure target
   target_include_directories(${exec_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/src/mako
@@ -733,9 +731,9 @@ function(add_apps exec_name exec_path)
       ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  
+
   target_compile_options(${exec_name} PRIVATE ${BENCH_CXXFLAGS}) # include all flags
-  
+
   # Link dbtest against mako library and dependencies
   target_link_libraries(${exec_name}
       mako
@@ -753,7 +751,7 @@ function(add_apps exec_name exec_path)
       ${PROTOBUF_LDFLAGS}
       ${JEMALLOC_LDFLAGS}
   )
-  
+
   # Add dependencies
   if(ENABLE_BORROW_CHECKING)
     add_dependencies(${exec_name} mako erpc rust_lib txlog build_rusty_cpp_checker)
@@ -869,7 +867,7 @@ if(NOT BUILD_TESTS)
     find_library(GTEST_LIB gtest PATHS /usr/lib /usr/local/lib)
     find_library(GTEST_MAIN_LIB gtest_main PATHS /usr/lib /usr/local/lib)
     find_path(GTEST_INCLUDE_DIR gtest/gtest.h PATHS /usr/include /usr/local/include)
-    
+
     if(GTEST_LIB AND GTEST_MAIN_LIB AND GTEST_INCLUDE_DIR)
         set(BUILD_TESTS ON)
         set(GTEST_LIBRARIES ${GTEST_LIB})
@@ -908,10 +906,10 @@ if(BUILD_TESTS)
         test
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
     )
-    
+
     # Common test compile options
     set(TEST_COMPILE_OPTIONS ${BENCH_CXXFLAGS})
-    
+
     # Common test link libraries
     set(TEST_LINK_LIBS
         rrr
@@ -920,28 +918,28 @@ if(BUILD_TESTS)
         ${BENCH_LDFLAGS}
         ${LIBEVENT_LDFLAGS}
     )
-    
+
     # Marshal/Unmarshal Tests
     add_executable(test_marshal test/test_marshal.cc)
     target_include_directories(test_marshal PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
     target_compile_options(test_marshal PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_marshal ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_marshal COMMAND test_marshal)
-    
+
     # RPC Tests
     add_executable(test_rpc test/test_rpc.cc test/benchmark_service.cc)
     target_include_directories(test_rpc PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
     target_compile_options(test_rpc PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_rpc ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_rpc COMMAND test_rpc)
-    
+
     # Atomic Lock Tests - Commented out due to crashes
     # add_executable(test_alock test/test_alock.cc)
     # target_include_directories(test_alock PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
     # target_compile_options(test_alock PRIVATE ${TEST_COMPILE_OPTIONS})
     # target_link_libraries(test_alock ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     # add_test(NAME test_alock COMMAND test_alock)
-    
+
     # Future Tests
     add_executable(test_future test/test_future.cc)
     target_include_directories(test_future PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -974,7 +972,7 @@ if(BUILD_TESTS)
     target_compile_options(test_reactor PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_reactor ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_reactor COMMAND test_reactor)
-    
+
     # Coroutine Tests (existing)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/coroutine.cc")
         add_executable(test_coroutine test/coroutine.cc)
@@ -983,14 +981,14 @@ if(BUILD_TESTS)
         target_link_libraries(test_coroutine ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
         add_test(NAME test_coroutine COMMAND test_coroutine)
     endif()
-    
+
     # Extended RPC Tests
     add_executable(test_rpc_extended test/test_rpc_extended.cc test/benchmark_service.cc)
     target_include_directories(test_rpc_extended PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
     target_compile_options(test_rpc_extended PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_rpc_extended ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_rpc_extended COMMAND test_rpc_extended)
-    
+
     # Extended Reactor Tests
     add_executable(test_reactor_extended test/test_reactor_extended.cc)
     target_include_directories(test_reactor_extended PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -1011,7 +1009,7 @@ if(BUILD_TESTS)
     target_compile_options(test_timeout_race PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_timeout_race ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_timeout_race COMMAND test_timeout_race)
-    
+
     # AndEvent Tests
     add_executable(test_and_event test/test_and_event.cc)
     target_include_directories(test_and_event PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
@@ -1105,7 +1103,7 @@ if(BUILD_TESTS)
         DEPENDS test_marshal test_rpc test_future test_masstree test_reactor test_rpc_extended test_reactor_extended rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
         COMMENT "Running all RRR tests"
     )
-    
+
     # Add borrow checking for test files if enabled
     if(ENABLE_BORROW_CHECKING)
         add_borrow_check_target(test_marshal)
@@ -1120,7 +1118,7 @@ if(BUILD_TESTS)
             COMMENT "Running borrow checker on all test files"
         )
     endif()
-    
+
     message(STATUS "Test targets configured:")
     message(STATUS "  - test_marshal: Marshal/Unmarshal tests")
     message(STATUS "  - test_rpc: RPC client/server tests")
