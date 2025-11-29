@@ -92,6 +92,7 @@ class String_base {
     typedef const_unsigned_iterator unsigned_iterator;
     typedef int (String_base<T>::*unspecified_bool_type)() const;
 
+    // @unsafe - exposes raw pointer to underlying character buffer
     const char* data() const {
         return static_cast<const T*>(this)->data();
     }
@@ -208,35 +209,42 @@ class String_base {
         less than @a cstr in lexicographic order, and positive if this
         string is greater than @a cstr. Lexicographic order treats
         characters as unsigned. */
+    // @unsafe - compares raw buffers using unmanaged pointers
     int compare(const char* cstr) const {
         return String_generic::compare(data(), length(), cstr, strlen(cstr));
     }
     /** @brief Compare this string with the first @a len characters of @a
         s. */
+    // @unsafe - compares raw buffers using unmanaged pointers
     int compare(const char* s, int len) const {
         return String_generic::compare(data(), length(), s, len);
     }
     /** @brief Compare this string with @a x. */
     template <typename TT>
+    // @unsafe - compares raw buffers using unmanaged pointers
     int compare(const String_base<TT>& x) const {
         return String_generic::compare(data(), length(), x.data(), x.length());
     }
     /** @brief Compare strings @a a and @a b. */
     template <typename TT, typename UU>
+    // @unsafe - compares raw buffers using unmanaged pointers
     static int compare(const String_base<TT>& a, const String_base<UU>& b) {
         return String_generic::compare(a.data(), a.length(), b.data(), b.length());
     }
     /** @brief Compare strings @a a and @a b. */
     template <typename UU>
+    // @unsafe - compares raw buffers using unmanaged pointers
     static int compare(const char* a, const String_base<UU> &b) {
         return String_generic::compare(a, strlen(a), b.data(), b.length());
     }
     /** @brief Compare strings @a a and @a b. */
     template <typename TT>
+    // @unsafe - compares raw buffers using unmanaged pointers
     static int compare(const String_base<TT>& a, const char* b) {
         return String_generic::compare(a.data(), a.length(), b, strlen(b));
     }
     /** @brief Compare strings @a a and @a b. */
+    // @unsafe - compares raw buffers using unmanaged pointers
     static int compare(const char* a, const char* b) {
         return String_generic::compare(a, strlen(a), b, strlen(b));
     }

@@ -13,15 +13,19 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Assertion and invariant failure handlers
-// All functions abort the process on failure (side effects)
-// SAFETY: These functions terminate the program and never return
+// Assertion and invariant failure handlers
+// All functions are @unsafe - they call abort() which terminates the process
+//
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
+// @external_unsafe: fprintf
+// @external_unsafe: abort
 
 #include "compiler.hh"
 #include <stdio.h>
 #include <stdlib.h>
 
-// @unsafe - aborts process on assertion failure
+// @unsafe - calls fprintf() for I/O and abort() which terminates the process
 void fail_always_assert(const char* file, int line,
                         const char* assertion, const char* message) {
     if (message)
@@ -33,7 +37,7 @@ void fail_always_assert(const char* file, int line,
     abort();
 }
 
-// @unsafe - aborts process on invariant failure
+// @unsafe - calls fprintf() for I/O and abort() which terminates the process
 void fail_masstree_invariant(const char* file, int line,
                              const char* assertion, const char* message) {
     if (message)
@@ -45,6 +49,7 @@ void fail_masstree_invariant(const char* file, int line,
     abort();
 }
 
+// @unsafe - calls fprintf() for I/O and abort() which terminates the process
 void fail_masstree_precondition(const char* file, int line,
                                 const char* assertion, const char* message) {
     if (message)

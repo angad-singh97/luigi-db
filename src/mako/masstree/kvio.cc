@@ -13,17 +13,16 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Buffered I/O implementation using raw malloc and file descriptors
-// Provides custom buffering for kvc/kvd key-value operations
-// SAFETY: All functions in this file handle raw buffers and file descriptors
+// Buffered I/O implementation using raw malloc and file descriptors
+// All functions are @unsafe - use malloc/free and raw I/O
 //
-// External safety annotations
-// @external: {
-//   malloc: [unsafe, (size_t) -> owned void*]
-//   free: [unsafe, (void*) -> void]
-//   read: [unsafe]
-//   write: [unsafe]
-// }
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
+// @external_unsafe: malloc
+// @external_unsafe: free
+// @external_unsafe: read
+// @external_unsafe: write
+// @external_unsafe: memcpy
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,8 +35,7 @@
 #include "kvio.hh"
 
 
-// API to allocate a new kvout.
-// @unsafe - allocates unmanaged buffer for kv output
+// @unsafe - calls malloc() to allocate untracked heap memory and returns raw pointer
 kvout* new_kvout(int fd, int buflen) {
     kvout* kv = (kvout*) malloc(sizeof(kvout));
     assert(kv);
@@ -49,7 +47,7 @@ kvout* new_kvout(int fd, int buflen) {
     return kv;
 }
 
-// API to allocate a new kvout for a buffer, no fd.
+// @unsafe - calls malloc() to allocate untracked heap memory and returns raw pointer
 kvout* new_bufkvout() {
     kvout *kv = (kvout*) malloc(sizeof(kvout));
     assert(kv);
@@ -62,15 +60,13 @@ kvout* new_bufkvout() {
     return kv;
 }
 
-// API to clear out a buf kvout.
+// @unsafe - dereferences raw kvout* pointer without ownership verification
 void kvout_reset(kvout* kv) {
     assert(kv->fd < 0);
     kv->n = 0;
 }
 
-// API to free a kvout.
-// does not close() the fd.
-// @unsafe - frees unmanaged buffers without borrow tracking
+// @unsafe - calls free() on untracked heap memory without ownership verification
 void free_kvout(kvout* kv) {
     if (kv->buf)
         free(kv->buf);
@@ -78,7 +74,7 @@ void free_kvout(kvout* kv) {
     free(kv);
 }
 
-// @unsafe - writes raw buffer to fd with manual retry/backoff
+// @unsafe - calls POSIX write() syscall with raw buffer pointer arithmetic
 void kvflush(kvout* kv) {
     assert(kv->fd >= 0);
     size_t sent = 0;
@@ -97,8 +93,7 @@ void kvflush(kvout* kv) {
     kv->n = 0;
 }
 
-// API
-// @unsafe - reallocates unmanaged buffer
+// @unsafe - calls realloc() which may invalidate existing pointers to the buffer
 void kvout::grow(unsigned want) {
     if (fd >= 0)
         kvflush(this);
@@ -110,7 +105,7 @@ void kvout::grow(unsigned want) {
     assert(buf);
 }
 
-// @unsafe - appends raw bytes into unmanaged buffer and flushes to fd
+// @unsafe - calls memcpy() with raw void* pointer and performs buffer pointer arithmetic
 int kvwrite(kvout* kv, const void* buf, unsigned n) {
     if (kv->n + n > kv->capacity && kv->fd >= 0)
         kvflush(kv);

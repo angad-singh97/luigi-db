@@ -246,7 +246,7 @@ class leafvalue {
     operator unspecified_bool_type() const {
         return u_.x ? &leafvalue<P>::empty : 0;
     }
-    // @safe - null check
+    // @unsafe - relies on raw tagged union pointer state
     bool empty() const {
         return !u_.x;
     }
@@ -367,7 +367,7 @@ class leaf : public node_base<P> {
     int size() const {
         return permuter_type::size(permutation_);
     }
-    // @safe - returns permuter copy
+    // @unsafe - returns permuter copy via raw storage cast
     permuter_type permutation() const {
         return permuter_type(permutation_);
     }

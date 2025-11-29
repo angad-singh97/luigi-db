@@ -13,21 +13,19 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Miscellaneous utility functions for argument parsing
-// Provides suffix-based double parsing for command line arguments
-// SAFETY: Raw string parsing with suffix handling (k/m/g multipliers)
-// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+// Miscellaneous utility functions for argument parsing
 //
-// External safety annotations for string operations
-// @external_unsafe: lcdf::String_base::*
-// @external_unsafe: lcdf::String::*
-// @external_unsafe: threadinfo::*
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
+// @external_unsafe: strtod
+// @external_unsafe: isspace
+// @external_unsafe: Clp_OptionError
 
 #include "misc.hh"
 #include <unistd.h>
 #include "kvthread.hh"
 
-// @unsafe - parser uses raw string conversion
+// @unsafe - casts (char**)&post for strtod() and dereferences raw const char*
 int clp_parse_suffixdouble(Clp_Parser *clp, const char *vstr,
 			   int complain, void *)
 {

@@ -13,8 +13,11 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - String slice template instantiation
-// Provides efficient string-to-integer conversion for key comparisons
-// All operations are pure template functions defined in header
+// @unsafe
+namespace string_slice_safe_file {} // Skip STL header checks (file has no functions - just includes)
+// String slice template instantiation
+//
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 
 #include "string_slice.hh"

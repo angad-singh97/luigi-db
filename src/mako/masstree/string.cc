@@ -31,17 +31,17 @@
  * notice is a summary of the Click LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Core String class implementation with shared substrings
-// Uses reference-counted memory for efficient copy-on-write semantics
-// Provides immutable string operations with automatic memory management
+// Core String class implementation with shared substrings
+// Uses malloc/free for reference-counted buffers - all functions @unsafe
 //
-// External safety annotations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::StringAccum::*
-// @external: {
-//   malloc: [unsafe, (size_t) -> owned void*]
-//   free: [unsafe, (void*) -> void]
-//   realloc: [unsafe, (void*, size_t) -> owned void*]
-// }
+// @external_unsafe: malloc
+// @external_unsafe: free
+// @external_unsafe: realloc
+// @external_unsafe: memcpy
+// @external_unsafe: memmove
 
 #include "string.hh"
 #include "straccum.hh"

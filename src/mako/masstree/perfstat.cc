@@ -13,15 +13,15 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Performance statistics collection and NUMA topology detection
-// Collects per-core and per-NUMA-node statistics for performance analysis
-// SAFETY: Uses NUMA library, raw arrays, and hardware performance counters
-// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+// Performance statistics collection and NUMA topology detection
+// All functions use NUMA library and system calls - @unsafe
 //
-// External safety annotations for string operations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String_base::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: threadinfo::*
+// @external_unsafe: numa_*
 
 #include "perfstat.hh"
 #include "compiler.hh"
@@ -43,7 +43,7 @@ static struct {
 } numa[MaxNumaNode];
 #endif
 
-// @unsafe - initializes perf accounting using raw NUMA/system calls
+// @unsafe - calls numa_available()/numa_node_size64() syscalls and always_assert()
 void
 stat::initmain(bool pinthreads) {
     (void) pinthreads;
@@ -59,7 +59,7 @@ stat::initmain(bool pinthreads) {
 #endif
 }
 
-// @unsafe - sums stats via raw pointer reinterpret_cast into struct fields
+// @unsafe - uses reinterpret_cast with offsetof() to access struct fields via raw pointer
 template <typename T>
 kvstats
 sum_all_cores(const stat **s, int n, const int offset) {
@@ -73,7 +73,7 @@ sum_all_cores(const stat **s, int n, const int offset) {
     return sum;
 }
 
-// @unsafe - aggregates stats for one chip via pointer arithmetic
+// @unsafe - uses reinterpret_cast with offsetof() to access struct fields via raw pointer
 template <typename T>
 kvstats
 sum_one_chip(const stat **s, int n, const int offset, const int chipidx) {
@@ -87,7 +87,7 @@ sum_one_chip(const stat **s, int n, const int offset, const int chipidx) {
     return sum;
 }
 
-// @unsafe - aggregates per-chip stats via pointer arithmetic
+// @unsafe - uses reinterpret_cast with offsetof() to access struct fields via raw pointer
 template <typename T>
 kvstats
 sum_all_per_chip(const stat **s, int n, const int offset) {
@@ -105,6 +105,7 @@ sum_all_per_chip(const stat **s, int n, const int offset) {
     return sum;
 }
 
+// @unsafe - dereferences raw stat** array and may call fprintf() for output
 void
 stat::print(const stat **s, int n) {
     (void)n;

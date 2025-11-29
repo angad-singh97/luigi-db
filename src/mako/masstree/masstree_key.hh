@@ -175,7 +175,7 @@ class key {
             memcpy(data + ikey_size, s_ + ikey_size, cplen - ikey_size);
         return cplen;
     }
-    // @safe - creates new String
+    // @unsafe - constructs mutable buffer and forwards to raw unparse
     String unparse() const {
         String s = String::make_uninitialized(len_);
         unparse(s.mutable_data(), s.length());

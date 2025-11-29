@@ -1,9 +1,7 @@
-// @unsafe - Lightweight Masstree scan test binary
-// Tests tree traversal and iteration functionality
-// SAFETY: Uses global epoch counters and raw threadinfo allocation
-// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+// Lightweight Masstree scan test binary
 //
-// External safety annotations for circular_int and string operations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: circular_int::*
 // @external_unsafe: lcdf::String_base::*
 // @external_unsafe: lcdf::String::*
@@ -20,6 +18,7 @@ volatile mrcu_epoch_type globalepoch = 1; // global epoch, updated by main threa
 volatile bool recovering = false; // so don't add log entries, and free old value immediately
 kvtimestamp_t initial_timestamp;
 
+// @unsafe - uses global volatile variables and unsafe threadinfo::make() allocator
 int
 main(int argc, char *argv[])
 {

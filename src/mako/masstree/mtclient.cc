@@ -13,12 +13,12 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Masstree key/value client for network testing
-// Connects to mtd server and performs key-value operations over TCP sockets
-// SAFETY: Uses raw sockets, POSIX threads, and unmanaged network buffers
-// EXCLUDED FROM BORROW CHECK: Uses kvtest client with raw buffer management
+// @unsafe
+namespace mtclient_unsafe_file {} // Network client - all functions use sockets/pthread
+// Masstree key/value client for network testing
 //
-// External safety annotations for circular_int, string, and kvtest operations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: circular_int::*
 // @external_unsafe: lcdf::String_base::*
 // @external_unsafe: lcdf::String::*

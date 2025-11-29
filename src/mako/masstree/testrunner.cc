@@ -13,12 +13,13 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Test runner framework using global registry
-// Manages test discovery and execution via linked list of test cases
-// SAFETY: Uses global mutable state for test registration
+// Test runner framework using global registry
 //
-// External safety annotations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String::*
+// @external_unsafe: fprintf
+// @external_unsafe: masstree_precondition
 
 #include "testrunner.hh"
 #include <algorithm>
@@ -28,7 +29,7 @@
 testrunner_base* testrunner_base::thehead;
 testrunner_base* testrunner_base::thetail;
 
-// @unsafe - collects and prints test names using raw global registries
+// @unsafe - iterates global linked list via raw pointers and calls fprintf() for output
 void testrunner_base::print_names(FILE* stream, int ncol) {
     masstree_precondition(ncol >= 1);
 

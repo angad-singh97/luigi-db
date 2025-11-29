@@ -13,22 +13,16 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Thread-local memory allocator and pool management
-// Provides per-thread memory pools with epoch-based reclamation for lock-free operations
-// SAFETY: Uses raw malloc/free, thread-local storage, and epoch counters
-// EXCLUDED FROM BORROW CHECK: Checker limitation with void* returns from allocate()
+// Thread-local memory allocator and pool management
+// All functions are @unsafe - use malloc/free and pthread
 //
-// External annotations for functions that return owned memory
-// @external: {
-//   threadinfo::allocate: [unsafe, (size_t, memtag) -> owned void*]
-//   threadinfo::pool_allocate: [unsafe, (size_t, memtag) -> owned void*]
-//   memdebug::make: [unsafe, (void*, size_t, memtag) -> void* where return: 'a]
-//   memdebug::check_free: [unsafe, (void*, size_t, memtag) -> void* where return: 'a]
-//   memdebug::check_free_after_rcu: [unsafe, (void*, memtag) -> void* where return: 'a]
-//   malloc: [unsafe, (size_t) -> owned void*]
-//   free: [unsafe, (void*) -> void]
-// }
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: circular_int::*
+// @external_unsafe: malloc
+// @external_unsafe: free
+// @external_unsafe: pthread_*
+// @external_unsafe: memdebug::*
 // @external_unsafe: lcdf::String::*
 
 #include "kvthread.hh"
@@ -47,7 +41,7 @@ threadinfo *threadinfo::allthreads;
 int threadinfo::no_pool_value;
 #endif
 
-// @unsafe - initializes thread-local pools and limbo lists with raw memory
+// @unsafe - uses memset() to zero raw memory and placement new for limbo_group
 inline threadinfo::threadinfo(int purpose, int index) {
     memset(this, 0, sizeof(*this));
     purpose_ = purpose;
@@ -59,7 +53,7 @@ inline threadinfo::threadinfo(int purpose, int index) {
     ts_ = 2;
 }
 
-// @unsafe - constructs threadinfo via placement new on raw malloc'd buffer
+// @unsafe - uses placement new on raw malloc(8192) buffer without RAII
 threadinfo *threadinfo::make(int purpose, int index) {
     static int threads_initialized;
 
@@ -78,7 +72,7 @@ threadinfo *threadinfo::make(int purpose, int index) {
     return ti;
 }
 
-// @unsafe - manipulates limbo queues via raw pointer arithmetic
+// @unsafe - manipulates linked list via raw limbo_group* pointers
 void threadinfo::refill_rcu() {
     if (limbo_head_ == limbo_tail_ && !limbo_tail_->next_
         && limbo_tail_->head_ == limbo_tail_->tail_)
@@ -92,7 +86,7 @@ void threadinfo::refill_rcu() {
         limbo_tail_ = limbo_tail_->next_;
 }
 
-// @unsafe - walks limbo lists and frees raw pointers outside borrow tracking
+// @unsafe - frees raw void* pointers from limbo queue without ownership tracking
 void threadinfo::hard_rcu_quiesce() {
     mrcu_epoch_type min_epoch = gc_epoch_;
     for (threadinfo *ti = allthreads; ti; ti = ti->next()) {
@@ -146,7 +140,7 @@ void threadinfo::hard_rcu_quiesce() {
     limbo_epoch_ = (lb == le ? 0 : lb->epoch_);
 }
 
-// @unsafe - inspects raw limbo slots for debugging
+// @unsafe - compares raw void* pointers and calls fprintf() for debug output
 void threadinfo::report_rcu(void *ptr) const
 {
     for (limbo_group *lg = limbo_head_; lg; lg = lg->next_) {
@@ -164,7 +158,7 @@ void threadinfo::report_rcu(void *ptr) const
     }
 }
 
-// @unsafe - iterates all threads' limbo lists via raw pointers
+// @unsafe - iterates global threadinfo* linked list without lifetime tracking
 void threadinfo::report_rcu_all(void *ptr)
 {
     for (threadinfo *ti = allthreads; ti; ti = ti->next())
@@ -192,7 +186,7 @@ static size_t read_superpage_size() {
 static size_t superpage_size = 0;
 #endif
 
-// @unsafe - builds freelist pointers inside raw pool buffer
+// @unsafe - uses reinterpret_cast to write freelist pointers into raw buffer
 static void initialize_pool(void* pool, size_t sz, size_t unit) {
     char* p = reinterpret_cast<char*>(pool);
     void** nextptr = reinterpret_cast<void**>(p);
@@ -203,7 +197,7 @@ static void initialize_pool(void* pool, size_t sz, size_t unit) {
     *nextptr = 0;
 }
 
-// @unsafe - allocates and stitches together raw pool buffers
+// @unsafe - calls posix_memalign()/mmap() for raw memory and may call abort()
 void threadinfo::refill_pool(int nl) {
     assert(!pool_[nl - 1]);
 

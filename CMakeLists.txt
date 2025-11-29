@@ -295,16 +295,6 @@ file(GLOB_RECURSE MASSTREE_BORROW_CHECK_SOURCES
     src/mako/masstree/*.cc
 )
 
-# Checker fixed for void* returns (commit a3de79c)
-# CHECKER LIMITATION: @external_unsafe wildcard matching incomplete
-# The checker doesn't properly match "Masstree::*" to cover template member functions
-# like "Masstree::key::unparse" or properly resolve "unknown" template instantiations.
-# Also: Taking address of member function pointer (&Class::method) incorrectly flagged as unsafe.
-set(_MASSTREE_EXCLUDE_FROM_BC
-    src/mako/masstree/mtd.cc            # 10 violations: undeclared template functions
-    src/mako/masstree/mttest.cc         # 12 violations: undeclared template functions  
-    src/mako/masstree/query_masstree.cc # 1 violation: &leafvalue::empty address-of
-)
 list(REMOVE_ITEM MASSTREE_BORROW_CHECK_SOURCES ${_MASSTREE_EXCLUDE_FROM_BC})
 
 foreach(SRC ${MASSTREE_BORROW_CHECK_SOURCES})
@@ -784,8 +774,10 @@ add_apps(test_ordered_callbacks examples/test_ordered_callbacks.cc)
 add_apps(test_partitioned_queues examples/test_partitioned_queues.cc)
 add_apps(test_stress_partitioned_queues examples/test_stress_partitioned_queues.cc)
 
-# Apply borrow checking to dbtest target (controlled by -DENABLE_BORROW_CHECKING=ON/OFF)
-# TEMPORARILY DISABLED - borrow checking still enabled for masstree files
+# Borrow checking for dbtest DISABLED - uses STO (Software Transactional Objects)
+# headers which have reference-returning functions (back(), key()) that would
+# require extensive modifications to be borrow-safe. The core masstree files
+# are still borrow-checked via file(GLOB_RECURSE MASSTREE_BORROW_CHECK_SOURCES)
 # if(ENABLE_BORROW_CHECKING)
 #     add_borrow_check_target(dbtest)
 # endif()

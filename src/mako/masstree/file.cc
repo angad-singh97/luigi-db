@@ -13,25 +13,26 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - File I/O utilities using raw file descriptors
-// Reads entire file contents into lcdf::String buffers
-// SAFETY: Uses POSIX file descriptors and system calls
+// File I/O utilities using raw file descriptors
+// All functions are @unsafe - use POSIX file operations
 //
-// External safety annotations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::StringAccum::*
-// @external: {
-//   open: [unsafe]
-//   read: [unsafe]
-//   close: [unsafe]
-// }
+// @external_unsafe: open
+// @external_unsafe: read
+// @external_unsafe: close
+// @external_unsafe: fsync
+// @external_unsafe: rename
+// @external_unsafe: safe_write
 
 #include "file.hh"
 #include "straccum.hh"
 #include <fcntl.h>
 #include <stdio.h>
 
-// @unsafe - reads raw file descriptor without borrow checking
+// @unsafe - calls POSIX read() syscall and manipulates raw char* buffer from StringAccum
 lcdf::String read_file_contents(int fd) {
     lcdf::StringAccum sa;
     while (1) {
@@ -54,7 +55,7 @@ lcdf::String read_file_contents(int fd) {
     return sa.take_string();
 }
 
-// @unsafe - opens raw filename and delegates to unsafe fd reader
+// @unsafe - calls POSIX open()/close() syscalls with raw C string filename
 lcdf::String read_file_contents(const char *filename) {
     int fd = open(filename, O_RDONLY);
     if (fd == -1)
@@ -71,7 +72,7 @@ lcdf::String read_file_contents(const char *filename) {
     return text;
 }
 
-// @unsafe - writes directly to POSIX fd and fsyncs without borrow tracking
+// @unsafe - calls POSIX open()/write()/fsync()/close() syscalls with raw pointers
 int sync_write_file_contents(const char *filename, const lcdf::String &contents,
                              mode_t mode)
 {
@@ -94,7 +95,7 @@ int sync_write_file_contents(const char *filename, const lcdf::String &contents,
     return close(fd);
 }
 
-// @unsafe - performs temp-file rename using raw filesystem operations
+// @unsafe - calls POSIX rename() syscall and c_str() which returns raw pointer
 int atomic_write_file_contents(const char *filename, const lcdf::String &contents,
                                mode_t mode)
 {

@@ -13,7 +13,9 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Masstree query interface and template instantiations
+// @unsafe
+namespace query_masstree_unsafe_file {} // Sets file_default to Unsafe for borrow checker
+// Masstree query interface and template instantiations
 // Explicit template instantiation for common Masstree query operations
 // SAFETY: Uses complex template metaprogramming and raw node traversal
 // EXCLUDED FROM BORROW CHECK: Uses complex template patterns with kvthread allocator
@@ -24,12 +26,23 @@
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::String_generic::*
 // @external_unsafe: lcdf::Json::*
+// @external_unsafe: lcdf::Str::*
 // @external_unsafe: Masstree::leafvalue::*
+// @external_unsafe: Masstree::leafvalue<*
+// @external_unsafe: Masstree::key::*
+// @external_unsafe: Masstree::key<*
+// @external_unsafe: Masstree::leaf::*
+// @external_unsafe: Masstree::leaf<*
 // @external_unsafe: Masstree::*
 // @external_unsafe: query::*
 // @external_unsafe: threadinfo::*
 // @external_unsafe: kpermuter::*
-// @external_unsafe: lcdf::Str::*
+// @external_unsafe: kpermuter<*
+// @external_unsafe: string_slice::*
+// @external_unsafe: string_slice<*
+// @external_unsafe: compare
+// @external_unsafe: permutation
+// @external_unsafe: data
 
 #include "masstree.hh"
 #include "masstree_key.hh"

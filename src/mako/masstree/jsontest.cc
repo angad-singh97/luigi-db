@@ -15,10 +15,10 @@
  * notice is a summary of the Click LICENSE file; the license in that file is
  * legally binding.
  */
-// @unsafe - Test harness for JSON parsing and serialization
-// Uses standard library containers and lcdf::Json safely
+// Test harness for JSON parsing and serialization
 //
-// External safety annotations for lcdf types
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::Json::*
 

@@ -587,17 +587,20 @@ unparser<T>& unparser<T>::operator<<(const Json& j) {
     return *this;
 }
 
+// @unsafe - transfers ownership of StringAccum buffer via take_string()
 inline String unparse(const Json& j) {
     StringAccum sa;
     unparser<StringAccum>(sa, j);
     return sa.take_string();
 }
 template <typename T, typename X>
+// @lifetime: (&'a mut, const X&) -> &'a mut
 inline T& unparse(T& s, const X& x) {
     unparser<T>(s) << x;
     return s;
 }
 template <typename T, typename X>
+// @lifetime: (&'a mut, const X&) -> &'a mut
 inline T& unparse_wide(T& s, const X& x) {
     unparser<T>(s).write_wide(x);
     return s;

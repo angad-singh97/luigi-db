@@ -13,7 +13,7 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Compiler intrinsics, memory fences, and type traits
+// Compiler intrinsics, memory fences, and type traits
 // Provides portable wrappers for atomic operations and compiler hints
 // SAFETY: Contains memory barriers, likely/unlikely macros, type manipulation
 
@@ -980,8 +980,8 @@ inline uint64_t read_tsc(void)
     return ((uint64_t)low) | (((uint64_t)high) << 32);
 }
 
-template <typename T>
-inline int compare(T a, T b) {
+// @unsafe
+template <typename T> inline int compare(T a, T b) {
     if (a == b)
         return 0;
     else

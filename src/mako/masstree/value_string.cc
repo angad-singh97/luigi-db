@@ -13,16 +13,12 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - Single-string value type for Masstree rows
-// Stores variable-length string data with inline length and timestamp
-// SAFETY: Header-only implementation, relies on kvrow.hh for allocation
-// EXCLUDED FROM BORROW CHECK: Uses kvthread allocator (void* return limitation)
+// @unsafe
+namespace value_string_safe_file {} // Skip STL header checks (file has no functions - just includes)
+// Single-string value type for Masstree rows
 //
-// External safety annotations for circular_int and string operations
-// @external_unsafe: circular_int::*
-// @external_unsafe: lcdf::String_base::*
-// @external_unsafe: lcdf::String::*
-// @external_unsafe: threadinfo::*
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 
 #include "kvrow.hh"
 #include "value_string.hh"

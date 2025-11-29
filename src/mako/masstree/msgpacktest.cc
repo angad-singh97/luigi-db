@@ -1,8 +1,7 @@
-// @unsafe - MsgPack test harness
-// Feeds raw msgpack buffers directly into parser for validation
-// SAFETY: Test code only, not for production use
+// MsgPack test harness
 //
-// External safety annotations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: msgpack::streaming_parser::*
 

@@ -13,11 +13,10 @@
  * notice is a summary of the Masstree LICENSE file; the license in that file
  * is legally binding.
  */
-// @unsafe - String encoding conversion tests
-// Provides UTF-8 and Windows-1252 encoding converters
-// Uses standard library and lcdf::String safely
+// String encoding conversion tests
 //
-// External safety annotations
+// @external_unsafe_type: std::*
+// @external_unsafe: std::*
 // @external_unsafe: lcdf::String::*
 // @external_unsafe: lcdf::StringAccum::*
 
