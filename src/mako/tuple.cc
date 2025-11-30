@@ -42,6 +42,7 @@ dbtuple::~dbtuple()
 }
 
 void
+// @unsafe - enqueues tuple for RCU reclamation assuming caller holds proper locks
 dbtuple::gc_this()
 {
   INVARIANT(rcu::s_instance.in_rcu_region());
