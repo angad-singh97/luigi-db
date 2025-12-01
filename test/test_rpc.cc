@@ -77,16 +77,31 @@ protected:
     rusty::Option<rusty::Arc<Client>> client;
     static constexpr int test_port = 8848;
 
+    RPCTest() {
+        fprintf(stderr, "D [test_rpc] | [TEST] Constructor: Starting...\n");
+        fflush(stderr);
+        fprintf(stderr, "D [test_rpc] | [TEST] Constructor: Complete!\n");
+        fflush(stderr);
+    }
+
+    ~RPCTest() {
+        Log_debug("[TEST] Destructor: Starting...");
+        Log_debug("[TEST] Destructor: Complete!");
+    }
+
     void SetUp() override {
         // Create PollThread Arc
-        poll_thread_worker_ = rusty::Some(PollThread::create());
+        auto poll_arc = PollThread::create();
+        poll_thread_worker_ = rusty::Some(std::move(poll_arc));
 
         // Server now takes Option<Arc<PollThread>> - use as_ref() to borrow and clone
-        server = new Server(rusty::Some(poll_thread_worker_.as_ref().unwrap().clone()));
+        auto& poll_ref = poll_thread_worker_.as_ref().unwrap();
+        auto poll_clone = poll_ref.clone();
+        auto server_poll = rusty::Some(std::move(poll_clone));
+        server = new Server(std::move(server_poll));
         service = new TestService();
 
         server->reg(service);
-
         ASSERT_EQ(server->start(("0.0.0.0:" + std::to_string(test_port)).c_str()), 0);
 
         // Client must be created with factory method to initialize weak_self_
@@ -98,11 +113,8 @@ protected:
 
     void TearDown() override {
         client.as_ref().unwrap()->close();
-
         delete service;
         delete server;  // Server destructor waits for connections to close
-
-        // Shutdown PollThread (const method, no lock needed)
         poll_thread_worker_.as_ref().unwrap()->shutdown();
     }
 };
