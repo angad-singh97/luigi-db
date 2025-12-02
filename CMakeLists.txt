@@ -281,13 +281,8 @@ set(BORROW_CHECKER_INCLUDE_PATHS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/mako
     ${CMAKE_CURRENT_SOURCE_DIR}/src/mako/masstree
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr/mq
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/erpc/third_party/masstree-beta
-    /usr/include/tirpc
-    /usr/include/apr-1.0
-    /usr/include/apr-1
 )
 
 # Make config paths visible to the borrow checker (will be turned into -include)
@@ -1152,8 +1147,11 @@ if(BUILD_TESTS)
     # Add a convenience target to run all tests
     add_custom_target(run_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        DEPENDS test_marshal test_rpc test_future test_masstree test_reactor test_rpc_extended test_reactor_extended rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
-        COMMENT "Running all RRR tests"
+        DEPENDS test_marshal test_rpc test_future test_masstree test_reactor test_rpc_extended test_reactor_extended 
+                test_silo_varint test_silo_rcu_thread test_silo_allocator_tuple 
+                test_sto_transaction test_sto_transaction_real
+                rpcbench simpleTransaction simplePaxos shard1ReplicationSimple  # test_alock removed
+        COMMENT "Running all tests (RRR + Silo/STO)"
     )
 
     # Add borrow checking for test files if enabled
@@ -1171,22 +1169,115 @@ if(BUILD_TESTS)
         )
     endif()
 
-    # Add the comprehensive Silo/STO test suite
-    add_subdirectory(tests)
+    # ============================================================================
+    # SILO/STO TESTS (merged from tests/ directory)
+    # ============================================================================
+
+    # Test: Silo Varint (Utility)
+    add_executable(test_silo_varint test/test_silo_varint.cc)
+    target_link_libraries(test_silo_varint
+        mako
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+    )
+    target_include_directories(test_silo_varint PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/mako
+        ${GTEST_INCLUDE_DIRS}
+    )
+    add_test(NAME SiloVarintTests COMMAND test_silo_varint)
+
+    # Test: Silo RCU + Thread
+    add_executable(test_silo_rcu_thread test/test_silo_rcu_thread.cc)
+    target_link_libraries(test_silo_rcu_thread
+        mako
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+        numa
+    )
+    target_include_directories(test_silo_rcu_thread PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/mako
+        ${GTEST_INCLUDE_DIRS}
+    )
+    add_test(NAME SiloRCUThreadTests COMMAND test_silo_rcu_thread)
+
+    # Test: Silo Allocator + Tuple Integration (Real System)
+    add_executable(test_silo_allocator_tuple test/test_silo_allocator_tuple.cc)
+    target_link_libraries(test_silo_allocator_tuple
+        mako
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+        numa
+    )
+    target_include_directories(test_silo_allocator_tuple PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/mako
+        ${GTEST_INCLUDE_DIRS}
+    )
+    add_test(NAME SiloAllocatorTupleTests COMMAND test_silo_allocator_tuple)
+
+    # Test: STO Transaction (TRcu)
+    add_executable(test_sto_transaction test/test_sto_transaction.cc)
+    target_link_libraries(test_sto_transaction
+        mako
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+    )
+    target_include_directories(test_sto_transaction PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/mako
+        ${GTEST_INCLUDE_DIRS}
+    )
+    add_test(NAME STOTransactionTests COMMAND test_sto_transaction)
+
+    # Test: STO Transaction Real (Integration)
+    add_executable(test_sto_transaction_real test/test_sto_transaction_real.cc)
+    target_link_libraries(test_sto_transaction_real
+        mako
+        ${GTEST_LIBRARIES}
+        ${GTEST_MAIN_LIBRARIES}
+        pthread
+    )
+    target_include_directories(test_sto_transaction_real PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/mako
+        ${GTEST_INCLUDE_DIRS}
+    )
+    add_test(NAME STOTransactionRealTests COMMAND test_sto_transaction_real)
+
+    # Custom target to run all SILO/STO tests
+    add_custom_target(run_silo_sto_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R "Silo|STO"
+        DEPENDS test_silo_varint test_silo_rcu_thread test_silo_allocator_tuple 
+                test_sto_transaction test_sto_transaction_real
+        COMMENT "Running all Silo/STO tests"
+    )
 
     message(STATUS "Test targets configured:")
-    message(STATUS "  - test_marshal: Marshal/Unmarshal tests")
-    message(STATUS "  - test_rpc: RPC client/server tests")
-    message(STATUS "  - test_rpc_extended: Extended RPC tests (timeouts, reconnection, load)")
-    # message(STATUS "  - test_alock: Atomic lock tests")  # Commented out due to crashes
-    message(STATUS "  - test_future: Future/async operation tests")
-    message(STATUS "  - test_masstree: Core Masstree b-tree regression tests")
-    message(STATUS "  - test_reactor: Reactor/event system tests")
-    message(STATUS "  - test_reactor_extended: Extended reactor tests (events, coroutines, load)")
-    message(STATUS "  - rpcbench: RPC performance benchmark test")
+    message(STATUS "  RRR Framework Tests:")
+    message(STATUS "    - test_marshal: Marshal/Unmarshal tests")
+    message(STATUS "    - test_rpc: RPC client/server tests")
+    message(STATUS "    - test_rpc_extended: Extended RPC tests (timeouts, reconnection, load)")
+    message(STATUS "    - test_future: Future/async operation tests")
+    message(STATUS "    - test_masstree: Core Masstree b-tree regression tests")
+    message(STATUS "    - test_reactor: Reactor/event system tests")
+    message(STATUS "    - test_reactor_extended: Extended reactor tests (events, coroutines, load)")
+    message(STATUS "    - rpcbench: RPC performance benchmark test")
+    message(STATUS "  Silo/STO Tests:")
+    message(STATUS "    - test_silo_varint: Varint encoding/decoding (22 tests)")
+    message(STATUS "    - test_silo_rcu_thread: RCU memory management (9 tests)")
+    message(STATUS "    - test_silo_allocator_tuple: Allocator + Tuple integration (18 tests)")
+    message(STATUS "    - test_sto_transaction: STO Transaction RCU (13 tests)")
+    message(STATUS "    - test_sto_transaction_real: STO Transaction integration tests")
     message(STATUS "Additional perf binaries:")
     message(STATUS "  - masstree_perf: On-demand Masstree throughput benchmark (JSON output)")
     message(STATUS "")
-    message(STATUS "Run tests with: make run_tests")
+    message(STATUS "Run all tests with: make run_tests")
+    message(STATUS "Run Silo/STO tests: make run_silo_sto_tests")
     message(STATUS "Or individually: make test && ctest")
 endif()
