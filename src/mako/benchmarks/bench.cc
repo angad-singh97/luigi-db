@@ -231,8 +231,11 @@ bench_worker::run()
   // Bind this worker thread to the appropriate SiloRuntime
   // In multi-shard mode, use the shard's runtime; otherwise use global default
   if (benchConfig.getConfig() && benchConfig.getConfig()->multi_shard_mode) {
-    // Get the first local shard's runtime (workers are currently per-shard)
-    int shard_idx = benchConfig.getConfig()->local_shard_indices[0];
+    // Use this worker's shard index, or fall back to first local shard
+    int shard_idx = shard_index_;
+    if (shard_idx < 0 && !benchConfig.getConfig()->local_shard_indices.empty()) {
+      shard_idx = benchConfig.getConfig()->local_shard_indices[0];
+    }
     ShardContext* shard_ctx = benchConfig.getShardContext(shard_idx);
     if (shard_ctx && shard_ctx->runtime) {
       shard_ctx->runtime.get_mut()->BindToCurrentThread();

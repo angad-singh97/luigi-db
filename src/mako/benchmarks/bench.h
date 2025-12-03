@@ -22,6 +22,7 @@ class bench_runner;
 
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern bench_runner* tpcc_do_test(abstract_db *db, int argc, char **argv, int, bench_runner *);
+extern bench_runner* tpcc_do_test(abstract_db *db, int argc, char **argv, int, bench_runner *, int shard_index);
 extern void tpcc_simple_do_test(abstract_db *db, int argc, char **argv);
 extern void queue_do_test(abstract_db *db, int argc, char **argv);
 extern void encstress_do_test(abstract_db *db, int argc, char **argv);
@@ -94,10 +95,12 @@ public:
                bool set_core_id,
                unsigned long seed, abstract_db *db,
                const std::map<std::string, abstract_ordered_index *> &open_tables,
-               spin_barrier *barrier_a, spin_barrier *barrier_b)
+               spin_barrier *barrier_a, spin_barrier *barrier_b,
+               int shard_index = -1)  // -1 means use default from BenchmarkConfig
     : worker_id(worker_id), set_core_id(set_core_id),
       r(seed), db(db), open_tables(open_tables),
       barrier_a(barrier_a), barrier_b(barrier_b),
+      shard_index_(shard_index),
       // the ntxn_* numbers are per worker
       ntxn_commits(0), ntxn_aborts(0),
       latency_numer_us(0),
@@ -109,6 +112,9 @@ public:
     txn_obj_buf.resize(db->sizeof_txn_object(BenchmarkConfig::getInstance().getTxnFlags()));
     r = util::fast_random(worker_id);
   }
+
+  // Get the shard index for this worker
+  int get_shard_index() const { return shard_index_; }
 
   virtual ~bench_worker() {}
 
@@ -175,6 +181,7 @@ protected:
   std::map<std::string, abstract_ordered_index *> open_tables;
   spin_barrier *const barrier_a;
   spin_barrier *const barrier_b;
+  int shard_index_;  // Shard index for multi-shard mode (-1 = use default)
 
 private:
   size_t ntxn_commits;
@@ -208,11 +215,20 @@ public:
   bench_runner &operator=(const bench_runner &) = delete;
 
   bench_runner(abstract_db *db)
-    : db(db), barrier_a(BenchmarkConfig::getInstance().getNthreads()), barrier_b(1) {}
+    : db(db), shard_index_(-1), barrier_a(BenchmarkConfig::getInstance().getNthreads()), barrier_b(1) {}
+
+  // Constructor with shard index for multi-shard mode
+  bench_runner(abstract_db *db, int shard_index)
+    : db(db), shard_index_(shard_index), barrier_a(BenchmarkConfig::getInstance().getNthreads()), barrier_b(1) {}
+
   virtual ~bench_runner() {}
   void run();
   void stop();
   int f_mode;  // failure mode: default 0, 1 => without load phase(failover)
+
+  // Get shard index for this runner
+  int get_shard_index() const { return shard_index_; }
+
 protected:
   // only called once
   virtual std::vector<bench_loader*> make_loaders() = 0;
@@ -222,6 +238,7 @@ protected:
 
   std::map<std::string, abstract_ordered_index *> get_open_tables();
   abstract_db *const db;
+  int shard_index_;  // Shard index for multi-shard mode (-1 = use default)
   std::map<std::string, abstract_ordered_index *> open_tables;
 
   // barriers for actual benchmark execution
