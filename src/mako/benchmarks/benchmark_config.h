@@ -11,6 +11,7 @@
 #include "lib/common.h"
 #include "lib/helper_queue.h"
 #include "lib/fasttransport.h"
+#include "silo_runtime.h"
 
 enum {
   RUNMODE_TIME = 0,
@@ -25,6 +26,7 @@ class abstract_ordered_index;
 struct ShardContext {
     int shard_index;                                              // Shard index (0, 1, 2, ...)
     std::string cluster_role;                                     // Cluster role (localhost, p1, p2, learner)
+    rusty::Arc<SiloRuntime> runtime;                              // Per-shard Silo runtime (epoch, threads, core IDs)
     abstract_db* db;                                              // Per-shard database instance
     FastTransport* transport;                                     // Per-shard transport
     std::vector<FastTransport*> server_transports;                // Per-shard server transports
@@ -32,7 +34,7 @@ struct ShardContext {
     std::unordered_map<uint16_t, mako::HelperQueue*> queue_holders_response; // Response queues
     std::map<int, abstract_ordered_index*> open_tables;           // Per-shard tables
 
-    ShardContext() : shard_index(-1), db(nullptr), transport(nullptr) {}
+    ShardContext() : shard_index(-1), runtime(nullptr), db(nullptr), transport(nullptr) {}
 };
 
 class BenchmarkConfig {

@@ -193,6 +193,10 @@ main(int argc, char **argv)
       ctx.shard_index = shard_idx;
       ctx.cluster_role = benchConfig.getCluster();
 
+      // Create per-shard SiloRuntime for isolated epoch/threads/core IDs
+      ctx.runtime = SiloRuntime::Create();
+      Notice("Created SiloRuntime %d for shard %d", ctx.runtime->id(), shard_idx);
+
       // Initialize database for this shard
       bool is_leader = benchConfig.getLeaderConfig();
       ctx.db = initShardDB(shard_idx, is_leader, ctx.cluster_role);

@@ -227,6 +227,21 @@ bench_worker::run()
   // fix some of this stuff one day
   if (set_core_id)
     coreid::set_core_id(worker_id); // cringe
+
+  // Bind this worker thread to the appropriate SiloRuntime
+  // In multi-shard mode, use the shard's runtime; otherwise use global default
+  if (benchConfig.getConfig() && benchConfig.getConfig()->multi_shard_mode) {
+    // Get the first local shard's runtime (workers are currently per-shard)
+    int shard_idx = benchConfig.getConfig()->local_shard_indices[0];
+    ShardContext* shard_ctx = benchConfig.getShardContext(shard_idx);
+    if (shard_ctx && shard_ctx->runtime) {
+      shard_ctx->runtime.get_mut()->BindToCurrentThread();
+    }
+  } else {
+    // Single-shard mode: use global default runtime
+    SiloRuntime::Current()->BindToCurrentThread();
+  }
+
   {
     scoped_rcu_region r; // register this thread in rcu region
   }
