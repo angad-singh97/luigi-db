@@ -36,7 +36,7 @@
 #include <dirent.h>
 #endif
 
-threadinfo *threadinfo::allthreads;
+// threadinfo::allthreads is now per-context in MasstreeContext
 #if ENABLE_ASSERTIONS
 int threadinfo::no_pool_value;
 #endif
@@ -57,9 +57,13 @@ inline threadinfo::threadinfo(int purpose, int index) {
 threadinfo *threadinfo::make(int purpose, int index) {
     static int threads_initialized;
 
+    MasstreeContext* ctx = MasstreeContext::Current();
     threadinfo* ti = new(malloc(8192)) threadinfo(purpose, index);
-    ti->next_ = allthreads;
-    allthreads = ti;
+    ti->context_ = ctx;
+
+    // Prepend to context's thread list
+    ti->next_ = ctx->get_allthreads();
+    ctx->register_threadinfo(ti);
 
     if (!threads_initialized) {
 #if ENABLE_ASSERTIONS
@@ -89,7 +93,7 @@ void threadinfo::refill_rcu() {
 // @unsafe - frees raw void* pointers from limbo queue without ownership tracking
 void threadinfo::hard_rcu_quiesce() {
     mrcu_epoch_type min_epoch = gc_epoch_;
-    for (threadinfo *ti = allthreads; ti; ti = ti->next()) {
+    for (threadinfo *ti = context_->get_allthreads(); ti; ti = ti->next()) {
         prefetch((const void *) ti->next());
         mrcu_epoch_type epoch = ti->gc_epoch_;
         if (epoch && mrcu_signed_epoch_type(epoch - min_epoch) < 0)
@@ -158,10 +162,12 @@ void threadinfo::report_rcu(void *ptr) const
     }
 }
 
-// @unsafe - iterates global threadinfo* linked list without lifetime tracking
+// @unsafe - iterates context threadinfo* linked list without lifetime tracking
 void threadinfo::report_rcu_all(void *ptr)
 {
-    for (threadinfo *ti = allthreads; ti; ti = ti->next())
+    // Note: This now only reports for the current context
+    MasstreeContext* ctx = MasstreeContext::Current();
+    for (threadinfo *ti = ctx->get_allthreads(); ti; ti = ti->next())
         ti->report_rcu(ptr);
 }
 

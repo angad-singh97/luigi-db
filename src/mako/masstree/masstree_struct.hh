@@ -155,11 +155,11 @@ class internode : public node_base<P> {
     ikey_type ikey(int p) const {
         return ikey0_[p];
     }
-    // @safe - pure comparison
+    // @unsafe - calls ::compare() which is @unsafe
     int compare_key(ikey_type a, int bp) const {
         return ::compare(a, ikey(bp));
     }
-    // @safe - pure comparison
+    // @unsafe - calls ::compare() which is @unsafe
     int compare_key(const key_type& a, int bp) const {
         return ::compare(a.ikey(), ikey(bp));
     }
@@ -410,7 +410,7 @@ class leaf : public node_base<P> {
     ikey_type ikey_bound() const {
         return ikey0_[0];
     }
-    // @safe - pure comparison
+    // @unsafe - calls key::compare() which is @unsafe
     int compare_key(const key_type& a, int bp) const {
         return a.compare(ikey(bp), keylenx_[bp]);
     }

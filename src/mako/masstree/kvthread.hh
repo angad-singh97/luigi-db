@@ -19,6 +19,7 @@
 
 #ifndef KVTHREAD_HH
 #define KVTHREAD_HH 1
+#include "masstree_context.h"
 #include "mtcounters.hh"
 #include "compiler.hh"
 #include "circular_int.hh"
@@ -35,7 +36,10 @@ class loginfo;
 typedef uint64_t mrcu_epoch_type;
 typedef int64_t mrcu_signed_epoch_type;
 
-extern volatile mrcu_epoch_type globalepoch;  // global epoch, updated regularly
+// globalepoch is now per-context in MasstreeContext for our code.
+// We still declare the extern for backward compatibility with external code
+// (like STO benchmarks) that defines and uses their own globalepoch.
+extern volatile mrcu_epoch_type globalepoch;
 
 struct limbo_element {
     void* ptr_;
@@ -84,7 +88,7 @@ class threadinfo {
         TI_MAIN, TI_PROCESS, TI_LOG, TI_CHECKPOINT
     };
 
-    static threadinfo* allthreads;
+    // allthreads is now per-context in MasstreeContext
 
     threadinfo* next() const {
         return next_;
@@ -99,6 +103,9 @@ class threadinfo {
     }
     int index() const {
         return index_;
+    }
+    MasstreeContext* context() const {
+        return context_;
     }
     loginfo* logger() const {
         return logger_;
@@ -255,8 +262,9 @@ class threadinfo {
 
     // RCU
     void rcu_start() {
-        if (gc_epoch_ != globalepoch)
-            gc_epoch_ = globalepoch;
+        mrcu_epoch_type current = context_->get_epoch();
+        if (gc_epoch_ != current)
+            gc_epoch_ = current;
     }
     void rcu_stop() {
         if (limbo_epoch_ && (gc_epoch_ - limbo_epoch_) > 1)
@@ -297,6 +305,7 @@ class threadinfo {
                                 // checkpoint or recover thread
 
             pthread_t pthreadid_;
+            MasstreeContext* context_;  // The context this threadinfo belongs to
         };
         char padding1[CACHE_LINE_SIZE];
     };
@@ -334,7 +343,7 @@ class threadinfo {
     void record_rcu(void* ptr, memtag tag) {
         if (limbo_tail_->tail_ == limbo_tail_->capacity)
             refill_rcu();
-        uint64_t epoch = globalepoch;
+        uint64_t epoch = context_->get_epoch();
         limbo_tail_->push_back(ptr, tag, epoch);
         if (!limbo_epoch_)
             limbo_epoch_ = epoch;
