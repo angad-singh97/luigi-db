@@ -14,6 +14,8 @@
 #include <memory>
 
 #include "silo_runtime.h"
+#include "core.h"
+#include "macros.h"
 #include "masstree/masstree_context.h"
 #include "masstree/kvthread.hh"
 #include "mako/masstree_btree.h"
@@ -303,4 +305,76 @@ TEST_F(SiloRuntimeTest, BindToCurrentThreadConvenience) {
 
     EXPECT_EQ(SiloRuntime::Current(), site2());
     EXPECT_EQ(MasstreeContext::Current(), site2()->masstree_context());
+}
+
+// Test 7: Per-runtime core ID allocation
+
+TEST_F(SiloRuntimeTest, PerRuntimeCoreIdAllocation) {
+    // Each runtime should have its own core ID counter starting at 0
+    EXPECT_EQ(site1()->core_count(), 0u);
+    EXPECT_EQ(site2()->core_count(), 0u);
+
+    // Allocate core IDs from site1
+    site1()->BindToCurrentThread();
+    unsigned core1a = coreid::core_id();
+    EXPECT_EQ(core1a, 0u);  // First core ID for site1
+    EXPECT_EQ(site1()->core_count(), 1u);
+
+    // Allocating again from same thread should return cached value
+    unsigned core1b = coreid::core_id();
+    EXPECT_EQ(core1b, core1a);
+    EXPECT_EQ(site1()->core_count(), 1u);  // No new allocation
+
+    // Switch to site2 - should get a NEW core ID from site2's space
+    site2()->BindToCurrentThread();
+    coreid::reset_core_id();  // Force re-allocation
+    unsigned core2a = coreid::core_id();
+    EXPECT_EQ(core2a, 0u);  // First core ID for site2 (starts at 0)
+    EXPECT_EQ(site2()->core_count(), 1u);
+
+    // site1 should still have count 1, site2 now has count 1
+    EXPECT_EQ(site1()->core_count(), 1u);
+    EXPECT_EQ(site2()->core_count(), 1u);
+}
+
+// Test 8: Core ID isolation across threads
+
+TEST_F(SiloRuntimeTest, CoreIdIsolationAcrossThreads) {
+    const int NUM_THREADS = 4;
+    std::atomic<int> site1_count{0};
+    std::atomic<int> site2_count{0};
+
+    SiloRuntime* site1_ptr = site1();
+    SiloRuntime* site2_ptr = site2();
+
+    std::vector<std::thread> threads;
+
+    // Spawn threads for site1
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        threads.emplace_back([site1_ptr, &site1_count]() {
+            site1_ptr->BindToCurrentThread();
+            unsigned cid = coreid::core_id();
+            EXPECT_LT(cid, NMAXCORES);
+            site1_count++;
+        });
+    }
+
+    // Spawn threads for site2
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        threads.emplace_back([site2_ptr, &site2_count]() {
+            site2_ptr->BindToCurrentThread();
+            unsigned cid = coreid::core_id();
+            EXPECT_LT(cid, NMAXCORES);
+            site2_count++;
+        });
+    }
+
+    for (auto& t : threads) t.join();
+
+    EXPECT_EQ(site1_count.load(), NUM_THREADS);
+    EXPECT_EQ(site2_count.load(), NUM_THREADS);
+
+    // Each runtime should have allocated NUM_THREADS core IDs
+    EXPECT_EQ(site1()->core_count(), NUM_THREADS);
+    EXPECT_EQ(site2()->core_count(), NUM_THREADS);
 }

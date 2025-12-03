@@ -20,6 +20,11 @@ namespace query_masstree_unsafe_file {} // Sets file_default to Unsafe for borro
 // SAFETY: Uses complex template metaprogramming and raw node traversal
 // EXCLUDED FROM BORROW CHECK: Uses complex template patterns with kvthread allocator
 //
+// External type annotations for Masstree internal types
+// @external: {
+//   Masstree::leafvalue: [unsafe_type]
+// }
+//
 // External safety annotations for circular_int, string, and Masstree operations
 // @external_unsafe: circular_int::*
 // @external_unsafe: lcdf::String_base::*

@@ -219,24 +219,25 @@ class internode : public node_base<P> {
 };
 
 template <typename P>
+// @unsafe - low-level Masstree type with tagged union, skip borrow checking
 class leafvalue {
   public:
     typedef typename P::value_type value_type;
     typedef typename make_prefetcher<P>::type prefetcher_type;
 
-    // @safe - default initialization
+    // @unsafe - default initialization
     leafvalue() {
     }
-    // @safe - value initialization
+    // @unsafe - value initialization
     leafvalue(value_type v) {
         u_.v = v;
     }
-    // @safe - pointer initialization
+    // @unsafe - pointer initialization
     leafvalue(node_base<P>* n) {
         u_.x = reinterpret_cast<uintptr_t>(n);
     }
 
-    // @safe - creates empty leafvalue
+    // @unsafe - creates empty leafvalue
     static leafvalue<P> make_empty() {
         return leafvalue<P>(value_type());
     }
@@ -251,7 +252,7 @@ class leafvalue {
         return !u_.x;
     }
 
-    // @safe - returns stored value
+    // @unsafe - returns stored value
     value_type value() const {
         return u_.v;
     }
@@ -260,12 +261,12 @@ class leafvalue {
         return u_.v;
     }
 
-    // @safe - returns layer pointer
+    // @unsafe - returns layer pointer
     node_base<P>* layer() const {
         return reinterpret_cast<node_base<P>*>(u_.x);
     }
 
-    // @safe - prefetch hint
+    // @unsafe - prefetch hint
     void prefetch(int keylenx) const {
         if (!leaf<P>::keylenx_is_layer(keylenx))
             prefetcher_type()(u_.v);

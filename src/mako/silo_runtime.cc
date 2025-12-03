@@ -6,6 +6,8 @@
  */
 
 #include "silo_runtime.h"
+#include "amd64.h"  // For nop_pause()
+#include "util.h"   // For slow_round_up()
 
 // Thread-local runtime pointer
 // @unsafe - Thread-local storage with raw pointer for performance
@@ -75,4 +77,31 @@ SiloRuntime* SiloRuntime::GlobalDefault() {
     }
 
     return s_global_default_.get_mut();
+}
+
+// =========================================================================
+// Core ID Management
+// =========================================================================
+
+// @safe
+unsigned SiloRuntime::allocate_core_id() {
+    unsigned id = core_count_.fetch_add(1, std::memory_order_acq_rel);
+    ALWAYS_ASSERT(id < NMaxCores);
+    return id;
+}
+
+// @safe
+int SiloRuntime::allocate_contiguous_aligned_block(unsigned n, unsigned alignment) {
+    using namespace util;
+retry:
+    unsigned current = core_count_.load(std::memory_order_acquire);
+    const unsigned rounded = slow_round_up(current, alignment);
+    const unsigned replace = rounded + n;
+    if (unlikely(replace > NMaxCores))
+        return -1;
+    if (!core_count_.compare_exchange_strong(current, replace, std::memory_order_acq_rel)) {
+        nop_pause();
+        goto retry;
+    }
+    return rounded;
 }
