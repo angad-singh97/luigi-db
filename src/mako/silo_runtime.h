@@ -4,21 +4,15 @@
  * Per-site runtime context for Silo/Mako.
  * Allows multiple independent sites to run in a single process.
  *
- * Each SiloRuntime provides:
+ * Each SiloRuntime provides COMPLETE ISOLATION:
  * - An isolated MasstreeContext for the site's Masstree instances
  *   (independent epoch, thread registry, and B-tree state)
  * - Per-site core ID allocation (each site has its own core ID space)
+ * - Per-site memory allocator (each site has its own mmap'd region)
+ * - Per-site ticker (epoch advancement thread)
+ * - Per-site RCU system (deferred reclamation)
  *
- * The following remain global (shared by all sites) by design:
- * - allocator: Shared memory pool using huge pages. Sharing is efficient
- *   and safe - allocator just manages memory regions, not site state.
- * - ticker: Global epoch ticker. Sites use MasstreeContext's epoch for
- *   their own Masstree instances, not the global ticker.
- * - rcu: Global RCU system. Safe to share since each threadinfo is
- *   associated with a specific MasstreeContext.
- *
- * This design provides site isolation where it matters (data structures,
- * core IDs) while efficiently sharing system resources (memory, threads).
+ * This design provides complete memory isolation between shards.
  */
 // @safe
 // Uses RustyCpp smart pointers for memory safety
@@ -28,9 +22,18 @@
 
 #include <atomic>
 #include <mutex>
+#include <vector>
+#include <thread>
+#include <memory>
 #include <rusty/rusty.hpp>
 #include "masstree/masstree_context.h"
 #include "macros.h"  // For NMAXCORES
+#include "spinlock.h"
+#include "util.h"
+
+// Forward declarations
+class ticker;
+class rcu;
 
 /**
  * SiloRuntime - Per-site runtime context
@@ -51,6 +54,43 @@
 // @safe
 class SiloRuntime {
 public:
+    // =========================================================================
+    // Allocator State (per-runtime memory region)
+    // =========================================================================
+    static const size_t MAX_ARENAS = 32;
+    static const size_t LgAllocAlignment = 4;  // 2^4 = 16 byte alignment
+    static const size_t AllocAlignment = 1 << LgAllocAlignment;
+
+    struct regionctx {
+        regionctx()
+            : region_begin(nullptr),
+              region_end(nullptr),
+              region_faulted(false) {
+            NDB_MEMSET(arenas, 0, sizeof(arenas));
+        }
+        regionctx(const regionctx &) = delete;
+        regionctx(regionctx &&) = delete;
+        regionctx &operator=(const regionctx &) = delete;
+
+        void *region_begin;
+        void *region_end;
+        bool region_faulted;
+        spinlock lock;
+        std::mutex fault_lock;
+        void *arenas[MAX_ARENAS];
+    };
+
+    struct AllocatorState {
+        void* memstart = nullptr;
+        void* memend = nullptr;
+        size_t ncpus = 0;
+        size_t maxpercore = 0;
+        bool initialized = false;
+        spinlock init_lock;
+        // Using unique_ptr since regionctx is non-copyable/non-movable
+        std::vector<std::unique_ptr<regionctx>> regions;
+    };
+
     // @safe
     // @lifetime: owned
     // Factory - create a new runtime for a site
@@ -112,6 +152,48 @@ public:
     // Returns the starting core ID, or -1 if allocation would exceed max
     int allocate_contiguous_aligned_block(unsigned n, unsigned alignment);
 
+    // =========================================================================
+    // Allocator Management (per-runtime memory)
+    // =========================================================================
+
+    // Initialize the allocator for this runtime
+    // ncpus: number of per-cpu regions to create
+    // maxpercore: max bytes per cpu region
+    void InitializeAllocator(size_t ncpus, size_t maxpercore);
+
+    // Get allocator state
+    AllocatorState& allocator_state() { return alloc_; }
+    const AllocatorState& allocator_state() const { return alloc_; }
+
+    // Allocate from this runtime's memory pool
+    void* AllocateArenas(size_t cpu, size_t arena);
+    void* AllocateUnmanaged(size_t cpu, size_t nhugepgs);
+    void ReleaseArenas(void **arenas);
+    void FaultRegion(size_t cpu);
+    void DumpStats();
+
+    // Check if pointer is managed by this runtime's allocator
+    bool ManagesPointer(const void *p) const {
+        return p >= alloc_.memstart && p < alloc_.memend;
+    }
+
+    // Get CPU index for a pointer (assumes ManagesPointer is true)
+    size_t PointerToCpu(const void *p) const;
+
+    // =========================================================================
+    // Ticker Management (per-runtime epoch advancement)
+    // =========================================================================
+
+    // Get the ticker for this runtime (lazily created)
+    ticker& get_ticker();
+
+    // =========================================================================
+    // RCU Management (per-runtime deferred reclamation)
+    // =========================================================================
+
+    // Get the RCU instance for this runtime (lazily created)
+    rcu& get_rcu();
+
     // @unsafe
     // Convenience: bind this runtime to current thread and also bind its MasstreeContext
     // @unsafe because MasstreeContext::BindCurrentThread is not annotated
@@ -127,13 +209,15 @@ public:
     SiloRuntime& operator=(SiloRuntime&&) = delete;
 
     // @safe
-    ~SiloRuntime() = default;
+    ~SiloRuntime();
 
     // Constructor - prefer Create() factory for Arc-wrapped instances
     // @safe
     SiloRuntime();
 
 private:
+    // Helper for allocator
+    void* AllocateUnmanagedWithLock(regionctx &pc, size_t nhugepgs);
 
     // Instance ID for debugging/identification
     int runtime_id_;
@@ -145,6 +229,17 @@ private:
     // Per-runtime core ID counter
     // Each runtime has its own core ID space starting at 0
     std::atomic<unsigned> core_count_{0};
+
+    // Per-runtime allocator state
+    AllocatorState alloc_;
+
+    // Per-runtime ticker (lazily created)
+    std::unique_ptr<ticker> ticker_;
+    std::mutex ticker_mutex_;
+
+    // Per-runtime RCU (lazily created)
+    std::unique_ptr<rcu> rcu_;
+    std::mutex rcu_mutex_;
 
     // Static members for global state management
     // Atomic counter for generating unique runtime IDs

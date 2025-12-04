@@ -30,9 +30,9 @@ sleep 1
 nohup ./build/simpleTransactionRep 2 0 $trd p1 1  > simple-shard0-p1.log 2>&1 &
 PID_S0_P1=$!
 
-sleep 2
+sleep 5
 
-# Start shard 1 in background - capture ALL PIDs
+# Start shard 1 in background (delayed start ensures shard1 stays running while shard0 shuts down)
 echo "Starting shard 1..."
 nohup ./build/simpleTransactionRep 2 1 $trd localhost 1 > simple-shard1-localhost.log 2>&1 &
 PID_S1_LOCALHOST=$!
