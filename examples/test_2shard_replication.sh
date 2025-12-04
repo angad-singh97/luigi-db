@@ -38,9 +38,9 @@ sleep 1
 nohup bash bash/shard.sh 2 0 $trd p1 0 1 > ${log_prefix}_shard0-p1.log 2>&1 &
 SHARD0_P1_PID=$!
 
-sleep 2
+sleep 5
 
-# Start shard 1 in background
+# Start shard 1 in background (delayed start ensures shard1 stays running while shard0 shuts down)
 echo "Starting shard 1..."
 nohup bash bash/shard.sh 2 1 $trd localhost 0 1 > ${log_prefix}_shard1-localhost.log 2>&1 &
 SHARD1_LOCALHOST_PID=$!
