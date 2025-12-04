@@ -100,9 +100,21 @@ public:
 #endif
   }
 
-  // Declarations only - implementation below
-  event_counter & operator++();
-  event_counter & operator+=(uint64_t i);
+  // @unsafe: returns *this ref
+  inline ALWAYS_INLINE event_counter &
+  operator++()
+  {
+    inc();
+    return *this;
+  }
+
+  // @unsafe: returns *this ref
+  inline ALWAYS_INLINE event_counter &
+  operator+=(uint64_t i)
+  {
+    inc(i);
+    return *this;
+  }
 
   // WARNING: an expensive operation!
   static std::map<std::string, counter_data> get_all_counters();
@@ -117,24 +129,6 @@ private:
   unmanaged<private_::event_ctx> ctx_;
 #endif
 };
-
-// Implementations moved outside class to ensure checker respects @unsafe annotation
-
-// @unsafe: returns *this ref
-inline ALWAYS_INLINE event_counter &
-event_counter::operator++()
-{
-  inc();
-  return *this;
-}
-
-// @unsafe: returns *this ref
-inline ALWAYS_INLINE event_counter &
-event_counter::operator+=(uint64_t i)
-{
-  inc(i);
-  return *this;
-}
 
 class event_avg_counter {
 public:

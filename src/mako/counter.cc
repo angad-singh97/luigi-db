@@ -32,7 +32,7 @@ event_ctx::stat(counter_data &d)
     d.type_ = counter_data::TYPE_AGG;
     uint64_t m = 0;
     for (size_t i = 0; i < coreid::NMaxCores; i++) {
-      m = std::max(m, static_cast<event_ctx_avg *>(this)->highs_[i]);
+      m = max(m, static_cast<event_ctx_avg *>(this)->highs_[i]);
     }
     uint64_t s = 0;
     for (size_t i = 0; i < coreid::NMaxCores; i++)

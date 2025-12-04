@@ -869,8 +869,7 @@ void Transaction::print(std::ostream& w) const {
         it = (tidx % tset_chunk ? it + 1 : tset_[tidx / tset_chunk]);
         if (tidx)
             w << " ";
-        const TransItem& item_ref = *it;
-        it->owner()->print(w, item_ref);
+        it->owner()->print(w, *it);
     }
     w << "]\n";
 }
