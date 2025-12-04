@@ -1,4 +1,5 @@
 #include <iostream>
+#include <thread>
 #include <mako.hh>
 
 using namespace std;
@@ -140,6 +141,86 @@ static void run_workers(abstract_db* db)
   delete db;
 }
 
+static void run_workers_multi_shard(const vector<int>& shard_indices)
+{
+  auto& benchConfig = BenchmarkConfig::getInstance();
+
+  Notice("Starting multi-shard workers for %zu shards", shard_indices.size());
+
+  // Phase 1: Create and initialize bench_runners for all shards
+  vector<bench_runner*> runners;
+  for (int shard_idx : shard_indices) {
+    ShardContext* ctx = benchConfig.getShardContext(shard_idx);
+    if (!ctx) {
+      cerr << "[ERROR] ShardContext not found for shard " << shard_idx << endl;
+      continue;
+    }
+
+    Notice("Creating bench_runner for shard %d", shard_idx);
+
+    // Bind to this shard's SiloRuntime before creating the runner
+    ctx->runtime.get_mut()->BindToCurrentThread();
+
+    // Create the runner with shard_index
+    bench_runner *r = start_workers_tpcc_shard(
+        benchConfig.getLeaderConfig(),
+        ctx->db,
+        benchConfig.getNthreads(),
+        shard_idx);
+
+    runners.push_back(r);
+    Notice("Created bench_runner for shard %d", shard_idx);
+  }
+
+  // Phase 2: Run all shards in parallel using threads
+  // Each shard runs its workers independently
+  vector<thread> shard_threads;
+
+  for (size_t i = 0; i < runners.size(); i++) {
+    int shard_idx = shard_indices[i];
+    bench_runner* runner = runners[i];
+
+    shard_threads.emplace_back([shard_idx, runner, &benchConfig]() {
+      ShardContext* ctx = benchConfig.getShardContext(shard_idx);
+      if (!ctx) return;
+
+      Notice("Running workers for shard %d in thread", shard_idx);
+
+      // Bind this thread to the shard's runtime
+      ctx->runtime.get_mut()->BindToCurrentThread();
+
+      // Start the runner (this blocks until workers complete)
+      start_workers_tpcc_shard(
+          benchConfig.getLeaderConfig(),
+          ctx->db,
+          benchConfig.getNthreads(),
+          shard_idx,
+          false,
+          1,  // run=1 to actually start
+          runner);
+
+      Notice("Workers completed for shard %d", shard_idx);
+    });
+  }
+
+  // Wait for all shard threads to complete
+  for (auto& t : shard_threads) {
+    t.join();
+  }
+
+  // Cleanup
+  for (size_t i = 0; i < runners.size(); i++) {
+    int shard_idx = shard_indices[i];
+    ShardContext* ctx = benchConfig.getShardContext(shard_idx);
+    if (ctx && ctx->db) {
+      delete ctx->db;
+      ctx->db = nullptr;
+    }
+  }
+
+  Notice("Multi-shard workers completed");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -193,6 +274,10 @@ main(int argc, char **argv)
       ctx.shard_index = shard_idx;
       ctx.cluster_role = benchConfig.getCluster();
 
+      // Create per-shard SiloRuntime for isolated epoch/threads/core IDs
+      ctx.runtime = SiloRuntime::Create();
+      Notice("Created SiloRuntime %d for shard %d", ctx.runtime->id(), shard_idx);
+
       // Initialize database for this shard
       bool is_leader = benchConfig.getLeaderConfig();
       ctx.db = initShardDB(shard_idx, is_leader, ctx.cluster_role);
@@ -209,15 +294,11 @@ main(int argc, char **argv)
       return 1;
     }
 
-    // TODO: For now, we'll use the first shard's db for leader/follower operations
-    // Full multi-shard worker thread support will be added later
-    ShardContext* first_shard = benchConfig.getShardContext(
-        benchConfig.getConfig()->local_shard_indices[0]);
-
-    if (first_shard && benchConfig.getLeaderConfig()) {
-      Notice("Running workers on first shard (shard %d) - full multi-shard support pending",
-             first_shard->shard_index);
-      run_workers(first_shard->db);
+    // Run workers on all local shards
+    if (benchConfig.getLeaderConfig()) {
+      Notice("Running workers on all %zu local shards",
+             benchConfig.getConfig()->local_shard_indices.size());
+      run_workers_multi_shard(benchConfig.getConfig()->local_shard_indices);
     }
   } else {
     // Single-shard mode: keep existing behavior

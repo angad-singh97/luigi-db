@@ -479,6 +479,8 @@ set(MAKO_SRCFILES
   "${W}/masstree/straccum.cc"
   "${W}/masstree/json.cc"
   "${W}/masstree/kvthread.cc"
+  "${W}/masstree/masstree_context.cc"
+  "${W}/silo_runtime.cc"
   "${W}/benchmarks/bench.cc"
   "${W}/benchmarks/encstress.cc"
   "${W}/benchmarks/bid.cc"
@@ -950,6 +952,7 @@ if(BUILD_TESTS)
         src
         src/rrr
         src/memdb
+        src/mako
         test
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
     )
@@ -1006,6 +1009,43 @@ if(BUILD_TESTS)
     target_compile_options(test_masstree PRIVATE ${TEST_COMPILE_OPTIONS})
     target_link_libraries(test_masstree mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
     add_test(NAME test_masstree COMMAND test_masstree)
+
+    # Masstree internals tests (threadinfo, globalepoch, RCU)
+    add_executable(test_masstree_internals test/test_masstree_internals.cc)
+    target_include_directories(test_masstree_internals PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_masstree_internals PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_masstree_internals mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_masstree_internals COMMAND test_masstree_internals)
+
+    # Masstree multi-instance stress tests (MasstreeContext isolation)
+    add_executable(test_masstree_multi_instance test/test_masstree_multi_instance.cc)
+    target_include_directories(test_masstree_multi_instance PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_masstree_multi_instance PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_masstree_multi_instance mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_masstree_multi_instance COMMAND test_masstree_multi_instance)
+
+    # SiloRuntime tests (per-site runtime isolation)
+    add_executable(test_silo_runtime test/test_silo_runtime.cc)
+    target_include_directories(test_silo_runtime PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_silo_runtime PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_silo_runtime mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_silo_runtime COMMAND test_silo_runtime)
+
+    # Multi-site Silo stress tests
+    add_executable(test_silo_multi_site_stress test/test_silo_multi_site_stress.cc)
+    target_include_directories(test_silo_multi_site_stress PRIVATE ${TEST_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_compile_options(test_silo_multi_site_stress PRIVATE ${TEST_COMPILE_OPTIONS})
+    target_link_libraries(test_silo_multi_site_stress mako ${TEST_LINK_LIBS} ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+    add_test(NAME test_silo_multi_site_stress COMMAND test_silo_multi_site_stress)
+
+    # Borrow checking for Silo tests
+    # Note: compare_key and increment functions now have correct @unsafe annotations.
+    # Full borrow checking is disabled because other Masstree code (nodeversion.hh,
+    # string.hh) has violations that require broader refactoring.
+    # if(ENABLE_BORROW_CHECKING)
+    #     add_borrow_check_target(test_silo_runtime)
+    #     add_borrow_check_target(test_silo_multi_site_stress)
+    # endif()
 
     # Masstree performance benchmark (on-demand JSON output)
     add_executable(masstree_perf test/masstree_perf.cc)
@@ -1162,6 +1202,7 @@ if(BUILD_TESTS)
         add_borrow_check_target(test_future)
         add_borrow_check_target(test_reactor)
         # Create a convenience target to check all test files
+        # Note: Silo tests excluded due to pre-existing Masstree annotation issues
         add_custom_target(borrow_check_tests
             DEPENDS borrow_check_all_test_marshal borrow_check_all_test_rpc
                     borrow_check_all_test_future borrow_check_all_test_reactor

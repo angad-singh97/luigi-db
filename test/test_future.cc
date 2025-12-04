@@ -12,9 +12,12 @@
 #include "misc/marshal.hpp"
 
 // External safety annotations for std::shared_ptr atomic internals
+// and RPC server types with mutable fields
 // @external: {
-//   _Atomic_count: [unsafe]
-//   __shared_ptr: [unsafe]
+//   _Atomic_count: [unsafe_type]
+//   __shared_ptr: [unsafe_type]
+//   rrr::ServerConnection: [unsafe_type]
+//   rrr::ServerListener: [unsafe_type]
 // }
 
 using namespace rrr;
