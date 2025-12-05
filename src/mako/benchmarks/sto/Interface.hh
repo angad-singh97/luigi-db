@@ -140,8 +140,19 @@ public:
         return the_id;
     }
 
-    static int getPartitionID(){
-	    return pid;
+    // Returns absolute partition ID for Paxos routing
+    // In multi-shard mode, shard 0 uses partitions 0-(warehouses-1),
+    // shard 1 uses partitions warehouses-(2*warehouses-1), etc.
+    // Returns global partition ID across all shards (shard_index * warehouses + pid)
+    // Use this for global uniqueness (e.g., shardClientAll keys, unique order IDs)
+    static int getGlobalPartitionID(){
+        return shard_index * warehouses + pid;
+    }
+
+    // Returns local partition ID within this shard (0 to warehouses-1)
+    // Use this for Paxos workers and local storage operations (RocksDB persistence)
+    static int getLocalPartitionID(){
+        return pid;
     }
 
     static void set_id(int id) {

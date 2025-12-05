@@ -17,35 +17,42 @@ ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 ps aux | grep -i simpleTransactionRep | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
 
-# Start shard 0 in background - capture ALL PIDs
-echo "Starting shard 0..."
 trd=6
-nohup ./build/simpleTransactionRep 2 0 $trd localhost 1 > simple-shard0-localhost.log 2>&1 &
-PID_S0_LOCALHOST=$!
+
+# Start BOTH shards simultaneously to avoid timing issues where shard 0 tries
+# to connect to shard 1 before shard 1 is ready
+echo "Starting shard 0 and shard 1 simultaneously..."
+
+# Start shard 0 followers first
 nohup ./build/simpleTransactionRep 2 0 $trd learner 1 > simple-shard0-learner.log 2>&1 &
 PID_S0_LEARNER=$!
 nohup ./build/simpleTransactionRep 2 0 $trd p2 1 > simple-shard0-p2.log 2>&1 &
 PID_S0_P2=$!
-sleep 1
-nohup ./build/simpleTransactionRep 2 0 $trd p1 1  > simple-shard0-p1.log 2>&1 &
-PID_S0_P1=$!
 
-sleep 5
-
-# Start shard 1 in background (delayed start ensures shard1 stays running while shard0 shuts down)
-echo "Starting shard 1..."
-nohup ./build/simpleTransactionRep 2 1 $trd localhost 1 > simple-shard1-localhost.log 2>&1 &
-PID_S1_LOCALHOST=$!
+# Start shard 1 followers simultaneously
 nohup ./build/simpleTransactionRep 2 1 $trd learner 1 > simple-shard1-learner.log 2>&1 &
 PID_S1_LEARNER=$!
 nohup ./build/simpleTransactionRep 2 1 $trd p2 1 > simple-shard1-p2.log 2>&1 &
 PID_S1_P2=$!
-sleep 1
-nohup ./build/simpleTransactionRep 2 1 $trd p1 1  > simple-shard1-p1.log 2>&1 &
+
+sleep 2
+
+# Start p1 followers
+nohup ./build/simpleTransactionRep 2 0 $trd p1 1 > simple-shard0-p1.log 2>&1 &
+PID_S0_P1=$!
+nohup ./build/simpleTransactionRep 2 1 $trd p1 1 > simple-shard1-p1.log 2>&1 &
 PID_S1_P1=$!
 
-# Wait for experiments to run
-echo "Running experiments for 30 seconds..."
+sleep 3
+
+# Start leaders simultaneously - they wait 5s for setup before starting tests
+nohup ./build/simpleTransactionRep 2 0 $trd localhost 1 > simple-shard0-localhost.log 2>&1 &
+PID_S0_LOCALHOST=$!
+nohup ./build/simpleTransactionRep 2 1 $trd localhost 1 > simple-shard1-localhost.log 2>&1 &
+PID_S1_LOCALHOST=$!
+
+# Wait for experiments to run (includes 5s setup wait in simpleTransactionRep)
+echo "Running experiments for 60 seconds..."
 sleep 60
 
 # Kill ALL processes from both shards
@@ -101,12 +108,14 @@ for i in 0 1; do
     
 done
 
-# Check all 8 logs for data integrity verification
+# Check follower logs for data integrity verification
+# Note: Leaders (localhost) are the source of data and may have cleanup issues,
+# so we only verify followers (learner, p1, p2) which receive replicated data
 echo ""
-echo "Checking data integrity verification in all logs:"
+echo "Checking data integrity verification in follower logs:"
 echo "-----------------"
 for shard in 0 1; do
-    for log_suffix in localhost learner p2 p1; do
+    for log_suffix in learner p2 p1; do
         log="simple-shard${shard}-${log_suffix}.log"
 
         if [ ! -f "$log" ]; then

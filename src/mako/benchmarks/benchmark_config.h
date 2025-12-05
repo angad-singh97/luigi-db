@@ -128,11 +128,21 @@ class BenchmarkConfig {
           return instance;
       }
 
+      // Thread-local shard index for multi-shard mode
+      // -1 means not set (use global shardIndex_)
+      static inline thread_local int tl_shard_index_ = -1;
+
       // Getters
       size_t getNthreads() const { return nthreads_; }
       size_t getNshards() const { return nshards_; }
       size_t getNumErpcServer() const { return num_erpc_server_; }
-      size_t getShardIndex() const { return shardIndex_; }
+      // In multi-shard mode, returns thread-local shard index if set
+      size_t getShardIndex() const {
+        if (tl_shard_index_ >= 0) {
+          return static_cast<size_t>(tl_shard_index_);
+        }
+        return shardIndex_;
+      }
       const std::string& getCluster() const { return cluster_; }
       int getClusterRole() const { return clusterRole_; }
       transport::Configuration* getConfig() const { return config_; }
@@ -178,6 +188,10 @@ class BenchmarkConfig {
       void setNshards(size_t n) { nshards_ = n; }
       void setNumErpcServer(size_t n) { num_erpc_server_ = n; }
       void setShardIndex(size_t idx) { shardIndex_ = idx; }
+      // Set thread-local shard index for multi-shard mode
+      // Call with -1 to clear and revert to global shardIndex_
+      static void setThreadLocalShardIndex(int idx) { tl_shard_index_ = idx; }
+      static void clearThreadLocalShardIndex() { tl_shard_index_ = -1; }
       void setCluster(const std::string& c) { cluster_ = c; }
       void setClusterRole(int role) { clusterRole_ = role; }
       void setConfig(transport::Configuration* cfg) { config_ = cfg; }

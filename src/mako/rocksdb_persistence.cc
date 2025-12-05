@@ -270,9 +270,12 @@ std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size
         return future;
     }
 
-    // Validate partition_id early
+    // Validate partition_id is within valid range for local storage.
+    // Caller should use TThread::getLocalPartitionID() which returns local ID [0, warehouses).
+    // The shard_id parameter provides global uniqueness in the key.
     if (partition_id >= num_partitions_) {
-        fprintf(stderr, "Invalid partition_id %u (max %zu), rejecting request\n",
+        fprintf(stderr, "Invalid partition_id %u (max %zu), rejecting request. "
+                "Use TThread::getLocalPartitionID() for local partition ID.\n",
                 partition_id, num_partitions_ - 1);
         std::promise<bool> error_promise;
         auto error_future = error_promise.get_future();
@@ -298,6 +301,7 @@ std::future<bool> RocksDBPersistence::persistAsync(const char* data, size_t size
     }
 
     uint64_t seq_num = getNextSequenceNumber(partition_id);
+    // Key includes shard_id for global uniqueness across shards
     req->key = generateKey(shard_id, partition_id, epoch, seq_num);
     req->value.reserve(size);
     req->value.assign(data, size);

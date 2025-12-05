@@ -159,7 +159,21 @@ static void run_workers_multi_shard(const vector<int>& shard_indices)
     Notice("Creating bench_runner for shard %d", shard_idx);
 
     // Bind to this shard's SiloRuntime before creating the runner
-    ctx->runtime.get_mut()->BindToCurrentThread();
+    // Note: Use operator->() or get() instead of get_mut() because get_mut()
+    // returns null when there are multiple Arc references (which is expected
+    // when using a shared runtime across shards)
+    if (!ctx->runtime.get()) {
+      cerr << "[ERROR] Runtime is null for shard " << shard_idx << endl;
+      continue;
+    }
+    // Cast away const since BindToCurrentThread modifies thread-local state, not the runtime itself
+    const_cast<SiloRuntime*>(ctx->runtime.get())->BindToCurrentThread();
+
+    // IMPORTANT: Set thread-local shard index BEFORE creating the runner.
+    // This ensures getShardIndex() returns the correct value during runner
+    // initialization, especially in OpenTablesForTablespaceRemote which
+    // uses getShardIndex() to determine which tables are local vs remote.
+    BenchmarkConfig::setThreadLocalShardIndex(shard_idx);
 
     // Create the runner with shard_index
     bench_runner *r = start_workers_tpcc_shard(
@@ -168,9 +182,27 @@ static void run_workers_multi_shard(const vector<int>& shard_indices)
         benchConfig.getNthreads(),
         shard_idx);
 
+    // Clear thread-local shard index after runner creation
+    BenchmarkConfig::clearThreadLocalShardIndex();
+
     runners.push_back(r);
     Notice("Created bench_runner for shard %d", shard_idx);
   }
+
+  // Phase 1.5: Wire up cross-shard tables for local access (multi-shard mode only)
+  // Each runner needs tables from all OTHER local shards
+  Notice("Wiring up cross-shard tables for %zu runners", runners.size());
+  for (size_t i = 0; i < runners.size(); i++) {
+    // Wire up tables from all other shards
+    for (size_t j = 0; j < runners.size(); j++) {
+      if (i == j) continue;  // Skip self
+      int source_shard = shard_indices[j];
+
+      // Wire up tables from source_shard into target_runner's remote_partitions
+      wireup_cross_shard_tables_tpcc(runners[i], source_shard, runners[j]);
+    }
+  }
+  Notice("Cross-shard table wiring completed");
 
   // Phase 2: Run all shards in parallel using threads
   // Each shard runs its workers independently
@@ -186,8 +218,12 @@ static void run_workers_multi_shard(const vector<int>& shard_indices)
 
       Notice("Running workers for shard %d in thread", shard_idx);
 
+      // Set thread-local shard index for sync operations
+      BenchmarkConfig::setThreadLocalShardIndex(shard_idx);
+
       // Bind this thread to the shard's runtime
-      ctx->runtime.get_mut()->BindToCurrentThread();
+      // Note: Use get() and const_cast because get_mut() returns null with shared ownership
+      const_cast<SiloRuntime*>(ctx->runtime.get())->BindToCurrentThread();
 
       // Start the runner (this blocks until workers complete)
       start_workers_tpcc_shard(
@@ -200,6 +236,9 @@ static void run_workers_multi_shard(const vector<int>& shard_indices)
           runner);
 
       Notice("Workers completed for shard %d", shard_idx);
+
+      // Clear thread-local shard index
+      BenchmarkConfig::clearThreadLocalShardIndex();
     });
   }
 
@@ -269,18 +308,33 @@ main(int argc, char **argv)
     Notice("Initializing multi-shard mode with %zu local shards",
            benchConfig.getConfig()->local_shard_indices.size());
 
+    // IMPORTANT: In multi-shard single-process mode, all shards must share
+    // the same SiloRuntime so that cross-shard local table access works correctly.
+    // Otherwise, a transaction from shard 0's worker accessing shard 1's tables
+    // would use the wrong transaction context and fail.
+    rusty::Arc<SiloRuntime> shared_runtime = SiloRuntime::Create();
+    Notice("Created shared SiloRuntime %d for multi-shard mode", shared_runtime->id());
+
     for (int shard_idx : benchConfig.getConfig()->local_shard_indices) {
       ShardContext ctx;
       ctx.shard_index = shard_idx;
       ctx.cluster_role = benchConfig.getCluster();
 
-      // Create per-shard SiloRuntime for isolated epoch/threads/core IDs
-      ctx.runtime = SiloRuntime::Create();
-      Notice("Created SiloRuntime %d for shard %d", ctx.runtime->id(), shard_idx);
+      // Use the SHARED runtime for all shards (clone the Arc to share ownership)
+      ctx.runtime = shared_runtime.clone();
+      Notice("Assigned shared SiloRuntime %d to shard %d", ctx.runtime->id(), shard_idx);
+
+      // IMPORTANT: Set thread-local shard index BEFORE initializing database
+      // This ensures preallocate_open_index() uses the correct shard index
+      // when marking tables as local vs remote
+      BenchmarkConfig::setThreadLocalShardIndex(shard_idx);
 
       // Initialize database for this shard
       bool is_leader = benchConfig.getLeaderConfig();
       ctx.db = initShardDB(shard_idx, is_leader, ctx.cluster_role);
+
+      // Clear thread-local shard index after DB init
+      BenchmarkConfig::clearThreadLocalShardIndex();
 
       // Store shard context
       benchConfig.addShardContext(shard_idx, ctx);

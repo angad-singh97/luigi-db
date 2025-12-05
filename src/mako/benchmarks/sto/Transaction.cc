@@ -648,7 +648,7 @@ inline void Transaction::serialize_util(unsigned nwriteset, bool on_remote, int 
     unsigned short int table_id = 0; // 2 bytes
 
 #if defined(TRACKING_LATENCY)
-    if (timestamp%1000==0&&TThread::getPartitionID()==4){
+    if (timestamp%1000==0&&TThread::getGlobalPartitionID()==4){
         uint32_t cur_time = mako::getCurrentTimeMillis();
         if (cur_time - start_time>= 5*1000 && cur_time - start_time <= 15*1000){ // time duration: [5,15]
             sample_transaction_tracker[timestamp] = mako::getCurrentTimeMillis() ;
@@ -768,29 +768,31 @@ inline void Transaction::serialize_util(unsigned nwriteset, bool on_remote, int 
           instance->update_ptr(pos);
 
           /*
-          int outstanding = get_outstanding_logs(TThread::getPartitionID ()) ;
+          // Use local partition ID for Paxos workers
+          int outstanding = get_outstanding_logs(TThread::getLocalPartitionID()) ;
           if (outstanding>20){
-           usleep(10*1000); // wait 1 Paxos log time 
+           usleep(10*1000); // wait 1 Paxos log time
           }
-           
+
           while ((TThread::sclient == NULL) || !TThread::sclient->stopped) {
             if (outstanding>20) {
                 usleep(50);
             } else {
                 break;
             }
-            outstanding = get_outstanding_logs(TThread::getPartitionID ()) ;
+            outstanding = get_outstanding_logs(TThread::getLocalPartitionID()) ;
           }
-          Warning("outstanding request: %d, par_id: %d", outstanding, TThread::getPartitionID ());
-          
+          Warning("outstanding request: %d, par_id: %d", outstanding, TThread::getLocalPartitionID());
+
           // deal with logs from its corresponding threads
           if (TThread::in_loading_phase){
-            Warning("add a log to nc, par_id:%d,", TThread::getPartitionID());
+            Warning("add a log to nc, par_id:%d,", TThread::getLocalPartitionID());
             usleep(10*1000);
           }*/
 
         // FIX me: merge the logs from helper threads instead of a separate log
-        add_log_to_nc((char *)queueLog, pos, TThread::getPartitionID (), batch_size); // the partitionID for the helper thread
+        // Use local partition ID for Paxos workers (they are indexed 0 to warehouses-1 per shard)
+        add_log_to_nc((char *)queueLog, pos, TThread::getLocalPartitionID(), batch_size); // the partitionID for the helper thread
 
 #ifndef DISABLE_DISK
         // Asynchronously persist to RocksDB
@@ -803,7 +805,8 @@ inline void Transaction::serialize_util(unsigned nwriteset, bool on_remote, int 
 
         // Capture the timestamp and partition ID for the callback
         uint32_t persist_timestamp = instance->latest_commit_timestamp;
-        int partition_id = TThread::getPartitionID();
+        // Use local partition ID for RocksDB persistence (per-shard storage)
+        int partition_id = TThread::getLocalPartitionID();
 
         persistence.persistAsync((const char*)queueLog, pos, shard_id, partition_id,
             [persist_timestamp, partition_id](bool success) {

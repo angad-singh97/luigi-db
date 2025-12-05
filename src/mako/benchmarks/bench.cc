@@ -223,34 +223,42 @@ bench_worker::run()
   #ifndef JEMALLOC_NO_RENAME
   std::cout << "No JEMALLOC_NO_RENAME" << std::endl;
   #endif
-  // XXX(stephentu): so many nasty hacks here. should actually
-  // fix some of this stuff one day
-  if (set_core_id)
-    coreid::set_core_id(worker_id); // cringe
 
-  // Bind this worker thread to the appropriate SiloRuntime
-  // In multi-shard mode, use the shard's runtime; otherwise use global default
+  // Bind this worker thread to the appropriate SiloRuntime FIRST
+  // This MUST happen before set_core_id since it needs the correct runtime
   if (benchConfig.getConfig() && benchConfig.getConfig()->multi_shard_mode) {
     // Use this worker's shard index, or fall back to first local shard
     int shard_idx = shard_index_;
     if (shard_idx < 0 && !benchConfig.getConfig()->local_shard_indices.empty()) {
       shard_idx = benchConfig.getConfig()->local_shard_indices[0];
     }
+    // IMPORTANT: Set thread-local shard index BEFORE thread_init() is called
+    // This ensures TThread::set_shard_index() in thread_init() gets the correct value
+    BenchmarkConfig::setThreadLocalShardIndex(shard_idx);
+
     ShardContext* shard_ctx = benchConfig.getShardContext(shard_idx);
-    if (shard_ctx && shard_ctx->runtime) {
-      shard_ctx->runtime.get_mut()->BindToCurrentThread();
+    if (shard_ctx && shard_ctx->runtime.get()) {
+      // Use get() and const_cast because get_mut() returns null with shared ownership
+      const_cast<SiloRuntime*>(shard_ctx->runtime.get())->BindToCurrentThread();
     }
   } else {
     // Single-shard mode: use global default runtime
     SiloRuntime::Current()->BindToCurrentThread();
   }
 
+  // XXX(stephentu): so many nasty hacks here. should actually
+  // fix some of this stuff one day
+  // In multi-shard mode, use local worker ID for core assignment
+  unsigned local_worker_id = worker_id % benchConfig.getNthreads();
+  if (set_core_id)
+    coreid::set_core_id(local_worker_id);
+
   {
     scoped_rcu_region r; // register this thread in rcu region
   }
   scoped_db_thread_ctx ctx(db, false);
   on_run_setup();
-  shardClientAll[TThread::getPartitionID()]=TThread::sclient;
+  shardClientAll[TThread::getGlobalPartitionID()]=TThread::sclient;
 
   const workload_desc_vec workload = get_workload();
   //    i (0-5): local commits: A
@@ -329,7 +337,7 @@ bench_worker::run()
     }
   }
 #if defined(COCO)
-  shardTxnAll[TThread::getPartitionID()]=TThread::txn;
+  shardTxnAll[TThread::getGlobalPartitionID()]=TThread::txn;
 #endif
   std::cout<<"jump out the while loop"<<std::endl;
   // clockid_t cid;

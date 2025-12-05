@@ -136,7 +136,8 @@ class StringAllocator{
         memcpy (queueLog + pos, &st_time, sizeof(uint32_t));
         pos += sizeof(uint32_t);
         //Warning("Paxos log cleanup!max_bytes_size:%d",max_bytes_size);
-        add_log_to_nc((char *)queueLog, pos, TThread::getPartitionID (), batch_size);
+        // Use local partition ID for Paxos workers (they are indexed 0 to warehouses-1 per shard)
+        add_log_to_nc((char *)queueLog, pos, TThread::getLocalPartitionID(), batch_size);
 
 #ifndef DISABLE_DISK
         // Asynchronously persist to RocksDB
@@ -144,7 +145,7 @@ class StringAllocator{
         uint32_t shard_id = BenchmarkConfig::getInstance().getShardIndex();
         static std::atomic<uint64_t> persist_success_count{0};
         static std::atomic<uint64_t> persist_fail_count{0};
-        persistence.persistAsync((const char*)queueLog, pos, shard_id, TThread::getPartitionID(),
+        persistence.persistAsync((const char*)queueLog, pos, shard_id, TThread::getLocalPartitionID(),
             [](bool success) {
                 if (success) {
                     persist_success_count.fetch_add(1, std::memory_order_relaxed);

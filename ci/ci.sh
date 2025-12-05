@@ -264,6 +264,34 @@ run_multi_shard_single_process() {
     [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
 }
 
+run_2shard_single_process() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard2SingleProcess"
+    echo "========================================="
+    cleanup_processes
+    set +e
+    bash ./examples/test_2shard_single_process.sh
+    local test_result=$?
+    set -e
+    check_for_hanging_processes "shard2SingleProcess"
+    local hanging_check=$?
+    [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
+}
+
+run_2shard_single_process_replication() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh shard2SingleProcessReplication"
+    echo "========================================="
+    cleanup_processes
+    set +e
+    bash ./examples/test_2shard_single_process_replication.sh
+    local test_result=$?
+    set -e
+    check_for_hanging_processes "shard2SingleProcessReplication"
+    local hanging_check=$?
+    [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
+}
+
 run_rrr_unit_tests() {
     echo "========================================="
     echo "Running: ./ci/ci.sh rrrTests"
@@ -327,6 +355,12 @@ case "${1:-}" in
     multiShardSingleProcess)
         run_multi_shard_single_process
         ;;
+    shard2SingleProcess)
+        run_2shard_single_process
+        ;;
+    shard2SingleProcessReplication)
+        run_2shard_single_process_replication
+        ;;
     rrrTests)
         run_rrr_unit_tests
         ;;
@@ -344,6 +378,8 @@ case "${1:-}" in
         run_rocksdb_tests
         run_shard_fault_tolerance
         run_multi_shard_single_process
+        run_2shard_single_process
+        run_2shard_single_process_replication
         echo "All CI steps completed successfully!"
         ;;
 esac
