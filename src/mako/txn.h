@@ -418,6 +418,77 @@ class transaction : public transaction_base {
 
 public:
 
+// KeyWriter is expected to implement:
+  // [1-arg constructor]
+  //   KeyWriter(const Key *)
+  // [fully materialize]
+  //   template <typename StringAllocator>
+  //   const std::string * fully_materialize(bool, StringAllocator &)
+
+  // ValueWriter is expected to implement:
+  // [1-arg constructor]
+  //   ValueWriter(const Value *, ValueInfo)
+  // [compute new size from old value]
+  //   size_t compute_needed(const uint8_t *, size_t)
+  // [fully materialize]
+  //   template <typename StringAllocator>
+  //   const std::string * fully_materialize(bool, StringAllocator &)
+  // [perform write]
+  //   void operator()(uint8_t *, size_t)
+  //
+  // ValueWriter does not have to be move/copy constructable. The value passed
+  // into the ValueWriter constructor is guaranteed to be valid throughout the
+  // lifetime of a ValueWriter instance.
+
+  // KeyReader Interface
+  //
+  // KeyReader is a simple transformation from (const std::string &) => const Key &.
+  // The input is guaranteed to be stable, so it has a simple interface:
+  //
+  //   const Key &operator()(const std::string &)
+  //
+  // The KeyReader is expect to preserve the following property: After a call
+  // to operator(), but before the next, the returned value is guaranteed to be
+  // valid and remain stable.
+
+  // ValueReader Interface
+  //
+  // ValueReader is a more complex transformation from (const uint8_t *, size_t) => Value &.
+  // The input is not guaranteed to be stable, so it has a more complex interface:
+  //
+  //   template <typename StringAllocator>
+  //   bool operator()(const uint8_t *, size_t, StringAllocator &)
+  //
+  // This interface returns false if there was not enough buffer space to
+  // finish the read, true otherwise.  Note that this interface returning true
+  // does NOT mean that a read was stable, but it just means there were enough
+  // bytes in the buffer to perform the tentative read.
+  //
+  // Note that ValueReader also exposes a dup interface
+  //
+  //   template <typename StringAllocator>
+  //   void dup(const Value &, StringAllocator &)
+  //
+  // ValueReader also exposes a means to fetch results:
+  //
+  //   Value &results()
+  //
+  // The ValueReader is expected to preserve the following property: After a
+  // call to operator(), if it returns true, then the value returned from
+  // results() should remain valid and stable until the next call to
+  // operator().
+
+  //typedef typename P::Key key_type;
+  //typedef typename P::Value value_type;
+  //typedef typename P::ValueInfo value_info_type;
+
+  //typedef typename P::KeyWriter key_writer_type;
+  //typedef typename P::ValueWriter value_writer_type;
+
+  //typedef typename P::KeyReader key_reader_type;
+  //typedef typename P::SingleValueReader single_value_reader_type;
+  //typedef typename P::ValueReader value_reader_type;
+
   typedef Traits traits_type;
   typedef typename Traits::StringAllocator string_allocator_type;
 
@@ -535,7 +606,7 @@ protected:
         dbtuples.begin(), dbtuples.end(),
         dbtuple_write_info(tuple),
         [](const dbtuple_write_info &lhs, const dbtuple_write_info &rhs)
-          { return lhs < rhs; });
+        { return lhs.get_tuple() < rhs.get_tuple(); });
   }
 
 public:
@@ -631,6 +702,7 @@ protected:
   // NOTE: assumes key/value are stable
   // @unsafe
   std::pair< dbtuple *, bool >
+  // @unsafe - allocates and inserts raw dbtuple nodes into the concurrent btree
   try_insert_new_tuple(
       concurrent_btree &btr,
       const std::string *key,
@@ -640,11 +712,11 @@ protected:
   // reads the contents of tuple into v
   // within this transaction context
   template <typename ValueReader>
-  // @unsafe
+  // @unsafe - reads from raw dbtuple pointers without lifetime tracking
   bool
   do_tuple_read(const dbtuple *tuple, ValueReader &value_reader);
 
-  // @unsafe
+  // @unsafe - records versioned node pointers from the underlying tree
   void
   do_node_read(const typename concurrent_btree::node_opaque_t *n, uint64_t version);
 
