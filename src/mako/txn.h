@@ -175,6 +175,7 @@ protected:
     tid_t t;
   };
 
+  // @trusted
   friend std::ostream &
   operator<<(std::ostream &o, const read_record_t &r);
 
@@ -258,12 +259,14 @@ protected:
     marked_ptr<concurrent_btree> btr; // first bit for inserted, 2nd for dowrite
   };
 
+  // @trusted
   friend std::ostream &
   operator<<(std::ostream &o, const write_record_t &r);
 
   // the absent set is a mapping from (btree_node -> version_number).
   struct absent_record_t { uint64_t version; };
 
+  // @trusted
   friend std::ostream &
   operator<<(std::ostream &o, const absent_record_t &r);
 
@@ -310,6 +313,7 @@ protected:
     {
       return tuple.get_flags() & FLAGS_INSERT;
     }
+
     // @trusted: unsafe internals, safe interface for std::sort/binary_search
     inline ALWAYS_INLINE
     bool operator<(const dbtuple_write_info &o) const
@@ -674,11 +678,13 @@ protected:
   // with the lock on ln held, to simplify GC code
   //
   // Is also called within an RCU read region
+  // @unsafe
   void on_dbtuple_spill(dbtuple *tuple_ahead, dbtuple *tuple);
 
   // Called when the latest value written to ln is an empty
   // (delete) marker. The protocol can then decide how to schedule
   // the logical node for actual deletion
+  // @unsafe
   void on_logical_delete(dbtuple *tuple, const std::string &key, concurrent_btree *btr);
 
   // if gen_commit_tid() is called, then on_tid_finish() will be called
