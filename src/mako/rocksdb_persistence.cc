@@ -196,11 +196,6 @@ uint32_t RocksDBPersistence::getCurrentEpoch() const {
     return current_epoch_.load();
 }
 
-// @unsafe: uses atomic load
-size_t RocksDBPersistence::getPendingWrites() const {
-    return pending_writes_.load();
-}
-
 // @unsafe: uses file I/O
 void RocksDBPersistence::setEpoch(uint32_t epoch) {
     uint32_t old_epoch = current_epoch_.exchange(epoch);

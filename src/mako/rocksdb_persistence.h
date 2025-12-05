@@ -88,7 +88,7 @@ public:
     void setEpoch(uint32_t epoch);
 
     // @unsafe: uses atomic load
-    size_t getPendingWrites() const;
+    size_t getPendingWrites() const { return pending_writes_.load(); }
 
     bool flushAll();
 
