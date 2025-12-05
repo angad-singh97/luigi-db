@@ -5,26 +5,34 @@
 #include "silo_runtime.h"
 #include "util.h"
 
+// @safe
+extern "C" long sysconf(int name);
+
 using namespace std;
 using namespace util;
+
 
 // =========================================================================
 // Helper functions to interact with SiloRuntime
 // (Defined here to avoid circular includes)
 // =========================================================================
 
+// @safe
 SiloRuntime* coreid::get_current_runtime() {
   return SiloRuntime::Current();
 }
 
+// @unsafe: raw pointer dereference
 int coreid::get_runtime_id(SiloRuntime* runtime) {
   return runtime->id();
 }
 
+// @unsafe: raw pointer dereference
 unsigned coreid::allocate_from_runtime(SiloRuntime* runtime) {
   return runtime->allocate_core_id();
 }
 
+// @unsafe: raw pointer dereference
 unsigned coreid::get_core_count_from_runtime(SiloRuntime* runtime) {
   return runtime->core_count();
 }
@@ -33,6 +41,7 @@ unsigned coreid::get_core_count_from_runtime(SiloRuntime* runtime) {
 // Core ID allocation (now delegates to SiloRuntime)
 // =========================================================================
 
+// @unsafe: uses atomic operations and goto
 int
 coreid::allocate_contiguous_aligned_block(unsigned n, unsigned alignment)
 {
@@ -41,6 +50,7 @@ coreid::allocate_contiguous_aligned_block(unsigned n, unsigned alignment)
   return runtime->allocate_contiguous_aligned_block(n, alignment);
 }
 
+// @unsafe: raw pointer dereference of runtime
 void
 coreid::set_core_id(unsigned cid)
 {
@@ -52,6 +62,7 @@ coreid::set_core_id(unsigned cid)
   tl_runtime_id = runtime->id();
 }
 
+// @safe
 unsigned
 coreid::num_cpus_online()
 {

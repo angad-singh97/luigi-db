@@ -67,7 +67,3 @@ test-verbose: build
 test-parallel: build
 	@echo "Running tests in parallel..."
 	@cd $(BUILD_DIR) && ctest -j$(if $(filter -j%,$(MAKEFLAGS)),$(subst -j,,$(filter -j%,$(MAKEFLAGS))),4) --output-on-failure
-
-
-
-

@@ -63,7 +63,9 @@ namespace private_ {
   // (this is a purposeful memory leak)
   struct event_ctx {
 
+    // @unsafe: singleton static lifetime
     static std::map<std::string, event_ctx *> &event_counters();
+    // @unsafe: singleton static lifetime
     static spinlock &event_counters_lock();
 
     // tag to avoid making event_ctx virtual
@@ -113,6 +115,7 @@ public:
 #endif
   }
 
+  // @unsafe: returns *this ref
   inline ALWAYS_INLINE event_counter &
   operator++()
   {
@@ -120,6 +123,7 @@ public:
     return *this;
   }
 
+  // @unsafe: returns *this ref
   inline ALWAYS_INLINE event_counter &
   operator+=(uint64_t i)
   {

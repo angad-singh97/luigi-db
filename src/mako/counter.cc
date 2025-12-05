@@ -11,6 +11,7 @@ using namespace private_;
 // Helper functions for runtime-prefixed counter names
 // =========================================================================
 
+// @unsafe: dereferences raw pointer from SiloRuntime::Current()
 string private_::get_runtime_prefixed_name(const string &name) {
   SiloRuntime* runtime = SiloRuntime::Current();
   if (runtime && runtime->id() >= 0) {
@@ -21,6 +22,7 @@ string private_::get_runtime_prefixed_name(const string &name) {
   return name;
 }
 
+// @unsafe: string manipulation
 string private_::strip_runtime_prefix(const string &name) {
   // Check if name starts with "rt<digits>."
   if (name.size() >= 4 && name.substr(0, 2) == "rt") {
@@ -42,6 +44,7 @@ string private_::strip_runtime_prefix(const string &name) {
   return name;
 }
 
+// @unsafe: string manipulation
 int private_::get_runtime_id_from_name(const string &prefixed_name) {
   // Check if name starts with "rt<digits>."
   if (prefixed_name.size() >= 4 && prefixed_name.substr(0, 2) == "rt") {
@@ -64,6 +67,7 @@ int private_::get_runtime_id_from_name(const string &prefixed_name) {
   return -1;  // No prefix
 }
 
+// @unsafe
 map<string, event_ctx *> &
 event_ctx::event_counters()
 {
@@ -71,6 +75,7 @@ event_ctx::event_counters()
   return s_counters;
 }
 
+// @unsafe
 spinlock &
 event_ctx::event_counters_lock()
 {
@@ -78,6 +83,7 @@ event_ctx::event_counters_lock()
   return s_lock;
 }
 
+// @unsafe: uses std::max
 void
 event_ctx::stat(counter_data &d)
 {
@@ -97,6 +103,7 @@ event_ctx::stat(counter_data &d)
   }
 }
 
+// @unsafe: uses lock_guard
 map<string, counter_data>
 event_counter::get_all_counters()
 {
@@ -114,6 +121,7 @@ event_counter::get_all_counters()
   return ret;
 }
 
+// @unsafe
 map<string, counter_data>
 event_counter::get_counters_for_runtime(int runtime_id)
 {
@@ -142,6 +150,7 @@ event_counter::get_counters_for_runtime(int runtime_id)
   return ret;
 }
 
+// @unsafe
 void
 event_counter::reset_all_counters()
 {
@@ -158,6 +167,7 @@ event_counter::reset_all_counters()
     }
 }
 
+// @unsafe
 void
 event_counter::reset_counters_for_runtime(int runtime_id)
 {
@@ -180,6 +190,7 @@ event_counter::reset_counters_for_runtime(int runtime_id)
   }
 }
 
+// @unsafe
 bool
 event_counter::stat(const string &name, counter_data &d)
 {
@@ -189,7 +200,7 @@ event_counter::stat(const string &name, counter_data &d)
   {
     ::lock_guard<spinlock> sl(l);
     auto it = evts.find(name);
-    if (it != evts.end())
+    if (it != evts.end()) // @safe: operator!= is safe
       ctx = it->second;
   }
   if (!ctx)
@@ -199,6 +210,7 @@ event_counter::stat(const string &name, counter_data &d)
 }
 
 #ifdef ENABLE_EVENT_COUNTERS
+// @unsafe: calls unsafe get_runtime_prefixed_name
 event_counter::event_counter(const string &name)
   : ctx_(get_runtime_prefixed_name(name), false)
 {
@@ -208,6 +220,7 @@ event_counter::event_counter(const string &name)
   evts[ctx_.obj()->name_] = ctx_.obj();
 }
 
+// @unsafe: calls unsafe get_runtime_prefixed_name
 event_avg_counter::event_avg_counter(const string &name)
   : ctx_(get_runtime_prefixed_name(name))
 {
@@ -217,10 +230,12 @@ event_avg_counter::event_avg_counter(const string &name)
   evts[ctx_.obj()->name_] = ctx_.obj();
 }
 #else
+// @safe
 event_counter::event_counter(const string &name)
 {
 }
 
+// @safe
 event_avg_counter::event_avg_counter(const string &name)
 {
 }

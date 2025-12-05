@@ -29,6 +29,7 @@ size_t allocator::g_ncpus = 0;
 size_t allocator::g_maxpercore = 0;
 
 #ifdef MEMCHECK_MAGIC
+// @unsafe: uses pointer arithmetic and casts
 const allocator::pgmetadata *
 allocator::PointerToPgMetadata(const void *p)
 {
@@ -38,6 +39,7 @@ allocator::PointerToPgMetadata(const void *p)
 }
 #endif
 
+// @unsafe: uses fopen, getline, and raw pointers
 size_t
 allocator::GetHugepageSizeImpl()
 {
@@ -63,12 +65,14 @@ allocator::GetHugepageSizeImpl()
   return size;
 }
 
+// @unsafe: uses sysconf
 size_t
 allocator::GetPageSizeImpl()
 {
   return sysconf(_SC_PAGESIZE);
 }
 
+// @unsafe: uses getenv
 bool
 allocator::UseMAdvWillNeed()
 {
@@ -78,6 +82,7 @@ allocator::UseMAdvWillNeed()
   return use_madv;
 }
 
+// @unsafe: uses mmap and numa operations
 void
 allocator::Initialize(size_t ncpus, size_t maxpercore)
 {
@@ -85,6 +90,7 @@ allocator::Initialize(size_t ncpus, size_t maxpercore)
   SiloRuntime::Current()->InitializeAllocator(ncpus, maxpercore);
 }
 
+// @safe
 void
 allocator::DumpStats()
 {
@@ -92,6 +98,7 @@ allocator::DumpStats()
   SiloRuntime::Current()->DumpStats();
 }
 
+// @unsafe: calls unsafe initialize_page
 void *
 allocator::AllocateArenas(size_t cpu, size_t arena)
 {
@@ -99,6 +106,7 @@ allocator::AllocateArenas(size_t cpu, size_t arena)
   return SiloRuntime::Current()->AllocateArenas(cpu, arena);
 }
 
+// @unsafe: returns raw pointer from runtime
 void *
 allocator::AllocateUnmanaged(size_t cpu, size_t nhugepgs)
 {
@@ -106,6 +114,7 @@ allocator::AllocateUnmanaged(size_t cpu, size_t nhugepgs)
   return SiloRuntime::Current()->AllocateUnmanaged(cpu, nhugepgs);
 }
 
+// @unsafe: uses reinterpret_cast with raw pointers
 void
 allocator::ReleaseArenas(void **arenas)
 {
@@ -113,6 +122,7 @@ allocator::ReleaseArenas(void **arenas)
   SiloRuntime::Current()->ReleaseArenas(arenas);
 }
 
+// @unsafe: uses mmap and numa operations
 void
 allocator::FaultRegion(size_t cpu)
 {
@@ -120,6 +130,7 @@ allocator::FaultRegion(size_t cpu)
   SiloRuntime::Current()->FaultRegion(cpu);
 }
 
+// @unsafe: uses raw pointer check
 bool
 allocator::ManagesPointer(const void *p)
 {
@@ -127,6 +138,7 @@ allocator::ManagesPointer(const void *p)
   return SiloRuntime::Current()->ManagesPointer(p);
 }
 
+// @unsafe: uses raw pointer arithmetic
 size_t
 allocator::PointerToCpu(const void *p)
 {
