@@ -94,7 +94,7 @@ void ALWAYS_ERROR(bool aa){
   if (likely(aa)){
   }else{
     if(TThread::transget_without_throw){
-      //found the key, but invalid. 
+      //found the key, but invalid.
       //  in the previous implementation, it throw an exception.
       //  but we don't want stack unwinding, just abort transaction
 

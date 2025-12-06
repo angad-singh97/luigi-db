@@ -1071,6 +1071,28 @@ public:
                                                  BenchmarkConfig::getInstance().getCluster(),
                                                  BenchmarkConfig::getInstance().getShardIndex(),
                                                  local_pid);
+
+      // Verify remote shards are ready before proceeding (Option 4A)
+      // This ensures distributed deployment safety: all shards must be listening
+      // before any worker starts executing transactions
+      int myShardIndex = BenchmarkConfig::getInstance().getShardIndex();
+      int nshards = BenchmarkConfig::getInstance().getNshards();
+      for (int i = 0; i < nshards; i++) {
+        if (i == myShardIndex) continue;  // Skip self
+        int retries = 0;
+        const int maxRetries = 30;  // 30 seconds max wait
+        while (TThread::sclient->checkRemoteShardReady(i) != mako::ErrorCode::SUCCESS) {
+          retries++;
+          if (retries >= maxRetries) {
+            Warning("Shard %d not ready after %d retries, proceeding anyway", i, maxRetries);
+            break;
+          }
+          usleep(1000000);  // 1 second retry interval
+        }
+        if (retries < maxRetries && retries > 0) {
+          Notice("Shard %d ready after %d retries", i, retries);
+        }
+      }
       //Notice("ParID[worker-id] pid:%d,id:%d,config:%s,loader:%d, ismultiversion:%d,helper_thread?:%d",TThread::getGlobalPartitionID(),TThread::id(),BenchmarkConfig::getInstance().getConfig()->configFile.c_str(),loader,TThread::is_multiversion(),source==1);
     } else {
       TThread::set_pid(TThread::id()%BenchmarkConfig::getInstance().getConfig()->warehouses);

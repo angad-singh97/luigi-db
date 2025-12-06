@@ -26,12 +26,13 @@ static void parse_command_line_args(int argc,
       {"local-shards"               , required_argument , 0                          , 'L'} ,
       {"cpu-limit"                  , required_argument , 0                          , 'C'} ,
       {"throttle-cycle"             , required_argument , 0                          , 'Y'} ,
+      {"sync-dir"                   , required_argument , 0                          , 'S'} ,
       {"is-micro"                   , no_argument       , &is_micro                  ,   1} ,
       {"is-replicated"              , no_argument       , &is_replicated             ,   1} ,
       {0, 0, 0, 0}
     };
     int option_index = 0;
-    int c = getopt_long(argc, argv, "t:g:q:F:P:N:L:C:Y:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "t:g:q:F:P:N:L:C:Y:S:", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -93,6 +94,12 @@ static void parse_command_line_args(int argc,
       auto& config = BenchmarkConfig::getInstance();
       config.setThrottleCycleMs(strtoul(optarg, NULL, 10));
       ALWAYS_ASSERT(config.getThrottleCycleMs() > 0);
+      }
+      break;
+
+    case 'S': {
+      auto& config = BenchmarkConfig::getInstance();
+      config.setNfsSyncDir(string(optarg));
       }
       break;
 
@@ -162,6 +169,10 @@ static void run_workers_multi_shard(const vector<int>& shard_indices)
   auto& benchConfig = BenchmarkConfig::getInstance();
 
   Notice("Starting multi-shard workers for %zu shards", shard_indices.size());
+
+  // Initialize multi-shard barrier for thread synchronization
+  // This ensures all shard workers complete thread_init() before any start transactions
+  benchConfig.initMultiShardBarrier(shard_indices.size());
 
   // Phase 1: Create and initialize bench_runners for all shards
   vector<bench_runner*> runners;

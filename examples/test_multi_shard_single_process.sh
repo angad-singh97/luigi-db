@@ -83,19 +83,19 @@ else
     failed=1
 fi
 
-# Check 2: SiloRuntime creation for shard 0
-if grep -q "Created SiloRuntime.*for shard 0" "$log_file"; then
-    echo "  ✓ SiloRuntime created for shard 0"
-    grep "Created SiloRuntime.*for shard 0" "$log_file" | head -1 | sed 's/^/    /'
+# Check 2: SiloRuntime assignment for shard 0 (shared runtime in multi-shard mode)
+if grep -q "Assigned shared SiloRuntime.*to shard 0" "$log_file"; then
+    echo "  ✓ SiloRuntime assigned to shard 0"
+    grep "Assigned shared SiloRuntime.*to shard 0" "$log_file" | head -1 | sed 's/^/    /'
 else
     echo "  ✗ SiloRuntime for shard 0 not found"
     failed=1
 fi
 
-# Check 3: SiloRuntime creation for shard 1
-if grep -q "Created SiloRuntime.*for shard 1" "$log_file"; then
-    echo "  ✓ SiloRuntime created for shard 1"
-    grep "Created SiloRuntime.*for shard 1" "$log_file" | head -1 | sed 's/^/    /'
+# Check 3: SiloRuntime assignment for shard 1 (shared runtime in multi-shard mode)
+if grep -q "Assigned shared SiloRuntime.*to shard 1" "$log_file"; then
+    echo "  ✓ SiloRuntime assigned to shard 1"
+    grep "Assigned shared SiloRuntime.*to shard 1" "$log_file" | head -1 | sed 's/^/    /'
 else
     echo "  ✗ SiloRuntime for shard 1 not found"
     failed=1

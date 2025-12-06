@@ -67,6 +67,9 @@ make -j32
 
 # Multi-shard single-process mode (runs multiple shards in one process)
 ./ci/ci.sh multiShardSingleProcess
+
+# CPU throttling scaling test (verifies throughput doubles when CPU cap doubles)
+./ci/ci.sh cpuThrottlingScaling
 ```
 
 ## Code Architecture

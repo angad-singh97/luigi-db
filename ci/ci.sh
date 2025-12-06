@@ -303,6 +303,20 @@ run_rrr_unit_tests() {
     return $test_result
 }
 
+run_cpu_throttling_scaling() {
+    echo "========================================="
+    echo "Running: ./ci/ci.sh cpuThrottlingScaling"
+    echo "========================================="
+    cleanup_processes
+    set +e
+    bash ./ci/test_cpu_throttling_scaling.sh
+    local test_result=$?
+    set -e
+    check_for_hanging_processes "cpuThrottlingScaling"
+    local hanging_check=$?
+    [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
+}
+
 cleanup() {
     cleanup_processes
     make clean
@@ -363,6 +377,9 @@ case "${1:-}" in
         ;;
     rrrTests)
         run_rrr_unit_tests
+        ;;
+    cpuThrottlingScaling)
+        run_cpu_throttling_scaling
         ;;
     all)
         # Run all steps in sequence

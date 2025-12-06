@@ -239,8 +239,13 @@ void mako::stop_erpc_server()
 {
   auto &cfg = BenchmarkConfig::getInstance();
   auto &server_transports = cfg.getServerTransports();
-  std::cerr << "[STOP_SERVER] Stopping " << cfg.getNumErpcServer() << " server transports" << std::endl;
-  for (int i = 0; i < (int)cfg.getNumErpcServer(); ++i) {
+
+  // Use actual vector size to avoid out-of-bounds access
+  // In multi-shard mode, server_transports may be empty while getNumErpcServer() > 0
+  size_t actual_count = server_transports.size();
+  std::cerr << "[STOP_SERVER] Stopping " << actual_count << " server transports" << std::endl;
+
+  for (size_t i = 0; i < actual_count; ++i) {
     if (server_transports[i]) {
       std::cerr << "[STOP_SERVER] Stopping server transport " << i << std::endl;
       server_transports[i]->Stop();

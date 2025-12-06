@@ -7,6 +7,9 @@
 #include <atomic>
 #include <utility>
 #include <unordered_map>
+#include <fstream>
+#include <filesystem>
+#include <chrono>
 #include "lib/configuration.h"
 #include "lib/common.h"
 #include "lib/helper_queue.h"
@@ -122,6 +125,10 @@ class BenchmarkConfig {
       // Multi-shard support: per-shard contexts
       std::map<int, ShardContext> shard_contexts_;
 
+      // NFS-based multi-shard synchronization
+      // Works for both single-process and distributed deployments
+      std::string nfs_sync_dir_{"/tmp/mako_sync"};  // Shared directory for sync files
+      int nfs_sync_timeout_sec_{60};                 // Timeout for waiting for other shards
 
   public:
       // Delete copy/move constructors
@@ -268,6 +275,87 @@ class BenchmarkConfig {
 
       bool hasMultipleShards() const {
           return shard_contexts_.size() > 1;
+      }
+
+      // NFS sync getters and setters
+      const std::string& getNfsSyncDir() const { return nfs_sync_dir_; }
+      void setNfsSyncDir(const std::string& dir) { nfs_sync_dir_ = dir; }
+      int getNfsSyncTimeoutSec() const { return nfs_sync_timeout_sec_; }
+      void setNfsSyncTimeoutSec(int sec) { nfs_sync_timeout_sec_ = sec; }
+
+      // NFS-based multi-shard barrier methods
+      // Works for both single-process and distributed deployments
+
+      // Get the ready file path for a shard
+      std::string getShardReadyFilePath(int shard_idx) const {
+          return nfs_sync_dir_ + "/shard_" + std::to_string(shard_idx) + "_ready";
+      }
+
+      // Initialize NFS sync: create directory and clean up old files
+      void initMultiShardBarrier(int /* num_shards - unused, we use nshards_ */) {
+          // Create sync directory if it doesn't exist
+          std::filesystem::create_directories(nfs_sync_dir_);
+
+          // Clean up any old ready files for ALL shards
+          for (size_t i = 0; i < nshards_; i++) {
+              std::string ready_file = getShardReadyFilePath(i);
+              std::filesystem::remove(ready_file);
+          }
+      }
+
+      // Signal this shard is ready by creating a ready file
+      void signalShardReady(int shard_idx) {
+          std::string ready_file = getShardReadyFilePath(shard_idx);
+          std::ofstream ofs(ready_file);
+          ofs << "ready" << std::endl;
+          ofs.close();
+      }
+
+      // Wait for all shards to be ready (check for ready files)
+      void waitMultiShardBarrier() {
+          if (nshards_ <= 1) {
+              return;  // No barrier needed for single shard
+          }
+
+          // Signal that this shard is ready
+          // Uses thread-local shard index if set, otherwise global shardIndex_
+          signalShardReady(getShardIndex());
+
+          // Then wait for ALL shards to be ready
+          auto start = std::chrono::steady_clock::now();
+          while (true) {
+              bool all_ready = true;
+              for (size_t i = 0; i < nshards_; i++) {
+                  std::string ready_file = getShardReadyFilePath(i);
+                  if (!std::filesystem::exists(ready_file)) {
+                      all_ready = false;
+                      break;
+                  }
+              }
+
+              if (all_ready) {
+                  break;
+              }
+
+              // Check timeout
+              auto now = std::chrono::steady_clock::now();
+              auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+              if (elapsed >= nfs_sync_timeout_sec_) {
+                  // Timeout - proceed anyway with a warning
+                  break;
+              }
+
+              // Sleep briefly before checking again
+              std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          }
+      }
+
+      // Clean up ready files after benchmark completes
+      void resetMultiShardBarrier() {
+          for (size_t i = 0; i < nshards_; i++) {
+              std::string ready_file = getShardReadyFilePath(i);
+              std::filesystem::remove(ready_file);
+          }
       }
 };
 

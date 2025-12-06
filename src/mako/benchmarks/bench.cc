@@ -494,6 +494,11 @@ bench_runner::run()
   //TThread::in_loading_phase = false;
 
   barrier_a.wait_for(); // wait for all threads to start up
+
+  // In multi-shard single-process mode, wait for all shard threads to be ready
+  // This ensures all shards have completed thread_init() before any start transactions
+  BenchmarkConfig::getInstance().waitMultiShardBarrier();
+
   util::timer t, t_nosync;  // timing starts
   barrier_b.count_down(); // bombs away!
   std::vector<std::pair<uint64_t, uint32_t>> samplingTPUT;
