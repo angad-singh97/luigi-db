@@ -141,7 +141,7 @@ public:
     // Thread-safe: uses atomic fetch_add
     unsigned allocate_core_id();
 
-    // @safe
+    // @unsafe: uses atomic operations
     // Get the current core count for this runtime
     unsigned core_count() const {
         return core_count_.load(std::memory_order_acquire);

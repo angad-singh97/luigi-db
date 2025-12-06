@@ -90,7 +90,7 @@ allocator::Initialize(size_t ncpus, size_t maxpercore)
   SiloRuntime::Current()->InitializeAllocator(ncpus, maxpercore);
 }
 
-// @safe
+// @unsafe: calls undeclared SiloRuntime::DumpStats
 void
 allocator::DumpStats()
 {

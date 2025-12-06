@@ -23,6 +23,7 @@
 #include "deptran/s_main.h"
 #include "benchmarks/sto/sync_util.hh"
 #include "rpc_setup.h"
+#include "cpu_throttler.h"
 #include <chrono>
 #include <thread>
 
@@ -272,7 +273,20 @@ bench_worker::run()
   txn_counts.resize(40);
   barrier_a->count_down();
   barrier_b->wait_for();
+
+  // Create CPU throttler for this worker thread
+  CpuThrottler throttler(
+      benchConfig.getCpuLimitPercent(),
+      benchConfig.getThrottleCycleMs()
+  );
+  if (throttler.is_enabled()) {
+    std::cout << "Worker " << worker_id << " CPU throttling enabled: "
+              << throttler.get_cpu_percent() << "% with "
+              << throttler.get_cycle_ms() << "ms cycle" << std::endl;
+  }
+
   while (benchConfig.isRunning() && (benchConfig.getRunMode() != RUNMODE_OPS || ntxn_commits < benchConfig.getOpsPerWorker())) {
+    throttler.begin_work();  // Start work timing
     double d = r.next_uniform();
     for (size_t i = 0; i < workload.size(); i++) {
       if ((i + 1) == workload.size() || d < workload[i].frequency) {
@@ -335,6 +349,7 @@ bench_worker::run()
       }
       d -= workload[i].frequency;
     }
+    throttler.end_work();  // End work timing, may sleep if budget exhausted
   }
 #if defined(COCO)
   shardTxnAll[TThread::getGlobalPartitionID()]=TThread::txn;

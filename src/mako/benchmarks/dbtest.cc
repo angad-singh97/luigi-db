@@ -24,12 +24,14 @@ static void parse_command_line_args(int argc,
       {"paxos-proc-name"            , required_argument , 0                          , 'P'} ,
       {"site-name"                  , required_argument , 0                          , 'N'} ,
       {"local-shards"               , required_argument , 0                          , 'L'} ,
+      {"cpu-limit"                  , required_argument , 0                          , 'C'} ,
+      {"throttle-cycle"             , required_argument , 0                          , 'Y'} ,
       {"is-micro"                   , no_argument       , &is_micro                  ,   1} ,
       {"is-replicated"              , no_argument       , &is_replicated             ,   1} ,
       {0, 0, 0, 0}
     };
     int option_index = 0;
-    int c = getopt_long(argc, argv, "t:g:q:F:P:N:L:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "t:g:q:F:P:N:L:C:Y:", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -78,6 +80,20 @@ static void parse_command_line_args(int argc,
 
     case 'F':
       paxos_config_file.push_back(optarg);
+      break;
+
+    case 'C': {
+      auto& config = BenchmarkConfig::getInstance();
+      config.setCpuLimitPercent(strtod(optarg, NULL));
+      ALWAYS_ASSERT(config.getCpuLimitPercent() >= 0.0 && config.getCpuLimitPercent() <= 100.0);
+      }
+      break;
+
+    case 'Y': {
+      auto& config = BenchmarkConfig::getInstance();
+      config.setThrottleCycleMs(strtoul(optarg, NULL, 10));
+      ALWAYS_ASSERT(config.getThrottleCycleMs() > 0);
+      }
       break;
 
     case '?':

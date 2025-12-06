@@ -68,7 +68,9 @@ class BenchmarkConfig {
           is_micro_(0), // if run micro-based workload
           end_received_(0),
           end_received_leader_(0),
-          replay_batch_(0) {}
+          replay_batch_(0),
+          cpu_limit_percent_(0.0),      // 0 = no limit (default)
+          throttle_cycle_ms_(100) {}    // 100ms default cycle
       
       // Member variables from dbtest.cc
       size_t nthreads_;
@@ -103,7 +105,11 @@ class BenchmarkConfig {
       std::atomic<int> end_received_;
       std::atomic<int> end_received_leader_;
       std::atomic<int> replay_batch_;
-      
+
+      // CPU throttling configuration
+      double cpu_limit_percent_;      // 0.0-100.0, 0 = no limit
+      uint32_t throttle_cycle_ms_;    // Duty cycle period in ms
+
       // Watermark tracking for latency measurements
       std::vector<std::pair<uint32_t, uint32_t>> advanceWatermarkTracker_;
 
@@ -228,7 +234,16 @@ class BenchmarkConfig {
       int getReplayBatch() const { return replay_batch_.load(); }
       void setReplayBatch(int value) { replay_batch_.store(value); }
       void incrementReplayBatch() { replay_batch_.fetch_add(1); }
-      
+
+      // CPU throttling getters and setters
+      double getCpuLimitPercent() const { return cpu_limit_percent_; }
+      void setCpuLimitPercent(double pct) { cpu_limit_percent_ = pct; }
+      uint32_t getThrottleCycleMs() const { return throttle_cycle_ms_; }
+      void setThrottleCycleMs(uint32_t ms) { throttle_cycle_ms_ = ms; }
+      bool isCpuThrottlingEnabled() const {
+          return cpu_limit_percent_ > 0.0 && cpu_limit_percent_ < 100.0;
+      }
+
       // Getters and setters for watermark tracking
       std::vector<std::pair<uint32_t, uint32_t>>& getAdvanceWatermarkTracker() { return advanceWatermarkTracker_; }
       const std::vector<std::pair<uint32_t, uint32_t>>& getAdvanceWatermarkTracker() const { return advanceWatermarkTracker_; }
