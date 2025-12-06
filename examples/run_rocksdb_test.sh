@@ -13,17 +13,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-echo "1. Building project..."
-make -j32
-
 # Clean test directories
-echo "2. Cleaning test RocksDB directories..."
+echo "1. Cleaning test RocksDB directories..."
 # Get current username for cleanup
 USERNAME=${USER:-unknown}
 rm -rf /tmp/${USERNAME}_test_rocksdb* /tmp/${USERNAME}_mako_rocksdb* /tmp/${USERNAME}_rocksdb_ordered* /tmp/${USERNAME}_test_stress_partitioned*
 
 # Run test
-echo "3. Running RocksDB persistence tests..."
+echo "2. Running RocksDB persistence tests..."
 if ./build/test_rocksdb_persistence > /tmp/rocksdb_test_output.txt 2>&1; then
     echo "   ✓ Basic persistence tests passed"
     echo ""
@@ -40,7 +37,7 @@ fi
 
 # Run callback demo test
 echo ""
-echo "4. Running callback demonstration test..."
+echo "3. Running callback demonstration test..."
 if ./build/test_callback_demo > /tmp/callback_demo_output.txt 2>&1; then
     echo "   ✓ Callback demo passed"
     echo ""
@@ -54,7 +51,7 @@ fi
 
 # Run ordered callbacks test
 echo ""
-echo "5. Running ordered callbacks test..."
+echo "4. Running ordered callbacks test..."
 if ./build/test_ordered_callbacks > /tmp/ordered_callbacks_output.txt 2>&1; then
     echo "   ✓ Ordered callbacks test passed"
     echo ""
@@ -68,7 +65,7 @@ fi
 
 # Run partitioned queues test
 echo ""
-echo "6. Running partitioned queues test..."
+echo "5. Running partitioned queues test..."
 if ./build/test_partitioned_queues > /tmp/partitioned_queues_output.txt 2>&1; then
     echo "   ✓ Partitioned queues test passed"
     echo ""
@@ -82,7 +79,7 @@ fi
 
 # Run stress test
 echo ""
-echo "7. Running complex stress test (20 threads, 10 partitions, mixed load)..."
+echo "6. Running complex stress test (20 threads, 10 partitions, mixed load)..."
 if ./build/test_stress_partitioned_queues > /tmp/stress_test_output.txt 2>&1; then
     # Check if test actually passed by looking for FAILURE in output
     if grep -q "FAILURE" /tmp/stress_test_output.txt; then
@@ -102,7 +99,7 @@ fi
 
 # Verify RocksDB files were created
 echo ""
-echo "8. Verifying RocksDB persistence files..."
+echo "7. Verifying RocksDB persistence files..."
 USERNAME=$(whoami)
 if ls /tmp/${USERNAME}_test_rocksdb*/CURRENT > /dev/null 2>&1 || ls /tmp/${USERNAME}_rocksdb_ordered*/CURRENT > /dev/null 2>&1; then
     echo "   ✓ RocksDB database files created successfully"
