@@ -46,16 +46,29 @@ case "$ACTION" in
         
     test)
         echo -e "${YELLOW}Running build test in container...${NC}"
-        docker run --rm -v "$(pwd):/workspace" mako-build:ubuntu22 \
-            bash -c "cd /workspace && \
-                     rm -rf build && \
-                     mkdir -p build && \
-                     cd build && \
-                     cmake .. && \
-                     make -j${JOBS} mako && \
-                     echo 'SUCCESS: libmako.a built' && \
-                     ls -la libmako.a"
+        docker run --rm -v "$(pwd):/workspace" -w /workspace janus-ci:ubuntu22 \
+            bash -c "rm -rf build && make -j${JOBS} && \
+                     echo 'SUCCESS: build completed' && \
+                     ls -la build/dbtest"
         echo -e "${GREEN}Test completed successfully!${NC}"
+        ;;
+
+    ci)
+        # Run a specific CI test or all tests
+        CI_TEST=${2:-all}
+        echo -e "${YELLOW}Running CI test '${CI_TEST}' in container...${NC}"
+        docker run --rm -v "$(pwd):/workspace" -w /workspace janus-ci:ubuntu22 \
+            bash -c "rm -rf build && make -j32 && ./ci/ci.sh ${CI_TEST}"
+        echo -e "${GREEN}CI test '${CI_TEST}' completed!${NC}"
+        ;;
+
+    ci-quick)
+        # Run CI tests without rebuild (assumes build exists)
+        CI_TEST=${2:-shardNoReplication}
+        echo -e "${YELLOW}Running CI test '${CI_TEST}' (no rebuild)...${NC}"
+        docker run --rm -v "$(pwd):/workspace" -w /workspace janus-ci:ubuntu22 \
+            bash -c "./ci/ci.sh ${CI_TEST}"
+        echo -e "${GREEN}CI test '${CI_TEST}' completed!${NC}"
         ;;
         
     clean)
@@ -98,27 +111,31 @@ case "$ACTION" in
         ;;
 
     *)
-        echo "Usage: $0 {build-image|build|shell|create|enter|remove|test|clean|compose-up|compose-down} [num_jobs]"
+        echo "Usage: $0 {build-image|build|shell|create|enter|test|ci|ci-quick|clean|compose-up|compose-down} [arg]"
         echo ""
         echo "Commands:"
         echo "  build-image  - Build the Docker image"
-        echo "  build       - Build dbtest in container (default)"
-        echo "  shell       - Start temporary interactive shell (auto-removed on exit)"
-        echo "  create      - Create persistent dev container named 'mako-dev'"
-        echo "  enter       - Enter existing 'mako-dev' container (auto-starts if stopped)"
-        echo "  test        - Run quick build test (libmako.a only)"
-        echo "  clean       - Clean build artifacts"
-        echo "  compose-up  - Start persistent dev container via docker-compose"
+        echo "  build        - Build dbtest in container (default)"
+        echo "  shell        - Start temporary interactive shell (auto-removed on exit)"
+        echo "  create       - Create persistent dev container named 'mako-dev'"
+        echo "  enter        - Enter existing 'mako-dev' container (auto-starts if stopped)"
+        echo "  test         - Run quick build test"
+        echo "  ci [test]    - Build and run CI test (default: all)"
+        echo "  ci-quick [test] - Run CI test without rebuild (default: shardNoReplication)"
+        echo "  clean        - Clean build artifacts"
+        echo "  compose-up   - Start persistent dev container via docker-compose"
         echo "  compose-down - Stop persistent dev container"
         echo ""
-        echo "Options:"
-        echo "  num_jobs    - Number of parallel jobs for make"
-        echo "              Default: Auto-detected (1 on ARM Mac, 32 on x86_64)"
+        echo "CI Test Names:"
+        echo "  all, simpleTransaction, simplePaxos, shardNoReplication,"
+        echo "  shard1Replication, shard2Replication, shard1ReplicationSimple,"
+        echo "  shard2ReplicationSimple, rocksdbTests, shardFaultTolerance,"
+        echo "  multiShardSingleProcess, shard2SingleProcess, shard2SingleProcessReplication"
         echo ""
-        echo "Platform Notes:"
-        echo "  - Docker image uses native architecture by default"
-        echo "  - Mac M4: Builds native ARM64 (fast, -j1 default due to resources)"
-        echo "  - Windows/Linux x86_64: Builds native AMD64 (fast, -j32 default)"
+        echo "Examples:"
+        echo "  $0 ci                    # Build and run all CI tests"
+        echo "  $0 ci shardNoReplication # Build and run shardNoReplication test"
+        echo "  $0 ci-quick shard2Replication # Run shard2Replication without rebuild"
         exit 1
         ;;
 esac
