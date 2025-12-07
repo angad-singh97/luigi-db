@@ -13,17 +13,17 @@ let up=trd+3
 mkdir -p results
 path=$(pwd)/src/mako
 
-# Build the command with optional flags
-CMD="./build/dbtest --num-threads $trd --shard-index $shard --shard-config $path/config/local-shards$nshard-warehouses$trd.yml -F config/1leader_2followers/paxos$trd\_shardidx$shard.yml -F config/occ_paxos.yml -P $cluster"
+# Build the base command
+CMD="./build/dbtest --num-threads $trd --shard-index $shard --shard-config $path/config/local-shards$nshard-warehouses$trd.yml -P $cluster"
 
 # Add --is-micro flag if enabled (value is 1)
 if [ "$is_micro" == "1" ]; then
     CMD="$CMD --is-micro"
 fi
 
-# Add --is-replicated flag if enabled (value is 1)
+# Add paxos config and --is-replicated flag only if replication is enabled
 if [ "$is_replicated" == "1" ]; then
-    CMD="$CMD --is-replicated"
+    CMD="$CMD -F config/1leader_2followers/paxos$trd\_shardidx$shard.yml -F config/occ_paxos.yml --is-replicated"
 fi
 
 # Print configuration
