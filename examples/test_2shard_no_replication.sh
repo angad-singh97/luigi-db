@@ -12,6 +12,10 @@ echo "========================================="
 # Clean up old log files
 rm -f nfs_sync_*
 
+# Clean up RocksDB data from previous runs
+USERNAME=${USER:-$(whoami)}
+rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
+
 trd=${1:-6}
 script_name="$(basename "$0")"
 
