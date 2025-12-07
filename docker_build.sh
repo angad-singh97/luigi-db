@@ -63,8 +63,23 @@ case "$ACTION" in
         ;;
 
     ci-quick)
-        # Run CI tests without rebuild (assumes build exists)
+        # Run CI tests without rebuild (assumes build exists and was built in Docker)
         CI_TEST=${2:-shardNoReplication}
+
+        # Check if binary exists and was built for Docker (RUNPATH should be /workspace/build)
+        if [ -f "build/dbtest" ]; then
+            RUNPATH=$(readelf -d build/dbtest 2>/dev/null | grep RUNPATH | grep -o '\[.*\]' | tr -d '[]')
+            if [ "$RUNPATH" != "/workspace/build" ]; then
+                echo -e "${RED}Error: build/dbtest was built locally (RUNPATH: $RUNPATH)${NC}"
+                echo -e "${YELLOW}Cannot run locally-built binary in Docker due to library path mismatch.${NC}"
+                echo -e "${YELLOW}Use './docker_build.sh ci ${CI_TEST}' to rebuild and test in Docker.${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}Error: build/dbtest not found. Run './docker_build.sh ci' first.${NC}"
+            exit 1
+        fi
+
         echo -e "${YELLOW}Running CI test '${CI_TEST}' (no rebuild)...${NC}"
         docker run --rm -v "$(pwd):/workspace" -w /workspace janus-ci:ubuntu22 \
             bash -c "./ci/ci.sh ${CI_TEST}"

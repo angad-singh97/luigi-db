@@ -75,6 +75,15 @@ jobs:
       - name: Run tests - RocksDB persistence and partitioned queues
         run: ./ci/ci.sh rocksdbTests
 
+      - name: Run tests - multi-shard single process
+        run: ./ci/ci.sh multiShardSingleProcess
+
+      - name: Run tests - 2 shard single process (no replication)
+        run: ./ci/ci.sh shard2SingleProcess
+
+      - name: Run tests - 2 shard single process with replication
+        run: ./ci/ci.sh shard2SingleProcessReplication
+
       - name: Cleanup
         if: always()
         run: ./ci/ci.sh cleanup

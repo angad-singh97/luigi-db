@@ -1,6 +1,10 @@
 #!/bin/bash
 #sudo cgdelete -g cpuset:/cpulimit 2>/dev/null || true
 #sudo cgcreate -t $USER:$USER -a $USER:$USER -g cpuset:/cpulimit
+
+# Set LD_LIBRARY_PATH to find shared libraries (libtxlog.so, etc.)
+export LD_LIBRARY_PATH="$(pwd)/build:${LD_LIBRARY_PATH}"
+
 nshard=$1
 shard=$2
 trd=$3
