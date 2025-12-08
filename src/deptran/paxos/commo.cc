@@ -122,8 +122,8 @@ void MultiPaxosCommo::ForwardToLearner(parid_t par_id,
   int cur_batch_idx = current_proxy_batch_idx;
   current_proxy_batch_idx=(current_proxy_batch_idx+1)%proxy_batch_size;
 
-  Log_info("ForwardToLearner: par_id=%d, slot=%lu, n=%d, proxies.size=%zu, batch_idx=%d",
-           par_id, slot, n, proxies.size(), cur_batch_idx);
+  // Log_info("ForwardToLearner: par_id=%d, slot=%lu, n=%d, proxies.size=%zu, batch_idx=%d",
+  //          par_id, slot, n, proxies.size(), cur_batch_idx);
 
   //auto e = Reactor::CreateSpEvent<PaxosAcceptQuorumEvent>(1,1);
   int sent_count = 0;
@@ -148,7 +148,7 @@ void MultiPaxosCommo::ForwardToLearner(parid_t par_id,
         //e->FeedResponse(1);
       };
      MarshallDeputy md(cmd);
-     Log_info("ForwardToLearner: SENDING to learner site_id=%d, slot=%lu", p.first, slot);
+     //Log_info("ForwardToLearner: SENDING to learner site_id=%d, slot=%lu", p.first, slot);
      auto fu_result = proxy->async_ForwardToLearnerServer(par_id, slot, ballot, md, fuattr);
      sent_count++;
      // Arc auto-released
