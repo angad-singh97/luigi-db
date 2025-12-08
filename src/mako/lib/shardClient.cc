@@ -376,14 +376,19 @@ namespace mako
         uint16_t server_id = 0;  // Readiness check doesn't need specific server
 
         for (int i=0; i<(int)int_received.size(); i++) int_received[i]=0;
-        client->InvokeWarmup(++tid,
-                            0,  // req_val = 0 for readiness check
-                            centerId,
-                            set_bits,
-                            server_id,
-                            bind(&ShardClient::SendToAllIntCallBack, this, placeholders::_1),
-                            bind(&ShardClient::SendToAllGiveUpTimeout, this),
-                            1000);  // 1 second timeout for readiness check
+        try {
+            client->InvokeWarmup(++tid,
+                                0,  // req_val = 0 for readiness check
+                                centerId,
+                                set_bits,
+                                server_id,
+                                bind(&ShardClient::SendToAllIntCallBack, this, placeholders::_1),
+                                bind(&ShardClient::SendToAllGiveUpTimeout, this),
+                                1000);  // 1 second timeout for readiness check
+        } catch (int n) {
+            Warning("Timeout on InvokeWarmup with error-no:%d!", n);
+            return mako::ErrorCode::TIMEOUT;
+        }
         return is_all_response_ok();
     }
 

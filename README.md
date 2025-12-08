@@ -62,6 +62,7 @@ cd mako
 # 2. Install dependencies
 bash apt_packages.sh
 source install_rustc.sh
+bash src/mako/update_config.sh
 
 # 3. Build (use fewer cores on PC, e.g., -j4)
 make -j32

@@ -16,12 +16,9 @@ build: configure
 
 clean:
 	rm -rf $(BUILD_DIR) 2>/dev/null || true
-	# Remove all test files
-	rm -rf /tmp/test_*
-	# Remove all disk db
-	rm -rf /tmp/rocksdb_*
-	rm -rf /tmp/callback_demo_db*
-	# rm -rf /tmp/mako_rocksdb*
+	# Remove test files for current user only
+	@USERNAME=$${USER:-unknown}; \
+	rm -rf /tmp/$${USERNAME}_*;
 	# Clean out-perf.masstree
 	rm -rf ./out-perf.masstree/*
 	# Clean mako out-perf.masstree
