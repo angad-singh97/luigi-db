@@ -3,6 +3,12 @@
 #include "service.h"
 #include "server.h"
 
+// @external: {
+//   rrr::RandomGenerator::rand_double: [unsafe, (double, double) -> double]
+//   std::make_shared: [unsafe, (...) -> owned]
+//   rrr::Coroutine::CreateRun: [unsafe, (...) -> owned]
+// }
+
 namespace janus {
 
 // @safe

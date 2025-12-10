@@ -565,6 +565,7 @@ class TxLogServer {
 
   void OriginalPathUnexecutedCmdConflictPlaceHolder(const shared_ptr<Marshallable>& cmd);
 
+  // @unsafe
   void RuleWitnessGC(const shared_ptr<Marshallable>& cmd);
 
 #ifdef ZERO_OVERHEAD
@@ -604,6 +605,7 @@ class TxLogServer {
                           MarshallDeputy* reply_new_view,
                           shared_ptr<VecRecData> id_set);
   
+  // @unsafe
   virtual void OnJetpackPullCmd(const epoch_t& jepoch,
                         const epoch_t& oepoch,
                         const std::vector<key_t>& keys,

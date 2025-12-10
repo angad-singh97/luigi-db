@@ -10,35 +10,15 @@
 #include "test.h"
 // #include "../kv/server.h"
 
+// @external: {
+//   rrr::RandomGenerator::rand_double: [unsafe, (double, double) -> double]
+//   std::make_shared: [unsafe, (...) -> owned]
+//   std::unique_ptr::get: [unsafe, () -> *]
+// }
 
 namespace janus {
 
 REG_FRAME(MODE_RAFT, vector<string>({"raft"}), RaftFrame);
-
-/*
-template<typename D>
-struct automatic_register {
- private:
-  struct exec_register {
-    exec_register() {
-      D::do_it();
-    }
-  };
-  // will force instantiation of definition of static member
-  template<exec_register&> struct ref_it { };
-
-  static exec_register register_object;
-  static ref_it<register_object> referrer;
-};
-
-template<typename D> typename automatic_register<D>::exec_register
-    automatic_register<D>::register_object;
-
-struct foo : automatic_register<foo> {
-  static void do_it() {
-    REG_FRAME(MODE_FPGA_RAFT, vector<string>({"fpga_raft"}), RaftFrame);
-  }
-};*/
 
 // @safe
 RaftFrame::RaftFrame(int mode) : Frame(mode) {
@@ -67,9 +47,7 @@ Executor *RaftFrame::CreateExecutor(cmdid_t cmd_id, TxLogServer *sched) {
   return exec;
 }
 
-// @unsafe - Two reasons:
-// 1. Takes address-of member (&slot_hint_) - creates aliasing borrow checker cannot track
-// The shared mutable slot counter pattern is inherently unsafe in RustyCpp's model
+// @safe
 Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
                                                 Config *config,
                                                 int benchmark,
@@ -88,8 +66,9 @@ Coordinator *RaftFrame::CreateCoordinator(cooid_t coo_id,
   /* TODO: remove when have a class for common data */
   verify(svr_ != nullptr);
   coo->svr_ = this->svr_.get();
-  coo->slot_hint_ = &slot_hint_;
-  coo->slot_id_ = slot_hint_++;
+  coo->slot_hint_ = slot_hint_;  // Safe: Arc copy shares ownership
+  coo->slot_id_ = slot_hint_->get();
+  slot_hint_->set(slot_hint_->get() + 1);
   coo->n_replica_ = config->GetPartitionSize(site_info_->partition_id_);
   coo->loc_id_ = this->site_info_->locale_id;
   verify(coo->n_replica_ != 0); // TODO

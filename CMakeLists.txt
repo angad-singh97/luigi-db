@@ -46,7 +46,7 @@ endif()
 
 # Enable borrow checking (can be disabled with -DENABLE_BORROW_CHECKING=OFF)
 # Force ON here so the checker runs unless explicitly turned off
-set(ENABLE_BORROW_CHECKING ON CACHE BOOL "Enable RustyCpp borrow checking" FORCE)
+option(ENABLE_BORROW_CHECKING "Enable RustyCpp borrow checking" ON)
 if(ENABLE_BORROW_CHECKING)
     enable_borrow_checking()
 endif()
@@ -710,6 +710,8 @@ file(GLOB RAFT_BORROW_SRC
     "src/deptran/raft/*.cc"
     "src/deptran/raft/*.cpp"
 )
+# Add raft_main_helper.cc to the borrow check list
+list(APPEND RAFT_BORROW_SRC "src/deptran/raft_main_helper.cc")
 
 if(RAFT_BORROW_SRC)
     add_library(raft_borrow OBJECT ${RAFT_BORROW_SRC})

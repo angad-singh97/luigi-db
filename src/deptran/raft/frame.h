@@ -6,12 +6,16 @@
 #include "../constants.h"
 #include "commo.h"
 #include "server.h"
+#include <rusty/arc.hpp>
+#include <rusty/cell.hpp>
 
 namespace janus {
 
+// @safe
 class RaftFrame : public Frame {
  private:
-  slotid_t slot_hint_ = 1;
+  // Safe shared mutable counter using Arc<Cell<T>> pattern
+  rusty::Arc<rusty::Cell<slotid_t>> slot_hint_ = rusty::Arc<rusty::Cell<slotid_t>>::make(1);
 #ifdef RAFT_TEST_CORO
   static std::mutex raft_test_mutex_;
   static std::shared_ptr<Coroutine> raft_test_coro_;

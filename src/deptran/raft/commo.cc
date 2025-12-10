@@ -9,6 +9,12 @@
 #include "macros.h"
 #include <utility>
 
+// @external: {
+//   std::vector::vector: [unsafe, () -> owned]
+//   std::shared_ptr::shared_ptr: [unsafe, () -> owned]
+//   std::function::operator bool: [unsafe, () -> bool]
+// }
+
 namespace janus {
 
 // @safe
@@ -218,6 +224,7 @@ RaftCommo::BroadcastVote(parid_t par_id,
  * - RPC succeeds but target rejects → callback(false, follower_term)
  * - RPC succeeds and target starts election → callback(true, follower_term)
  */
+// @safe
 void RaftCommo::SendTimeoutNow(siteid_t site_id,
                                parid_t par_id,
                                uint64_t leader_term,

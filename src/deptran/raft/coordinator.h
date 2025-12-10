@@ -3,6 +3,8 @@
 #include "../__dep__.h"
 #include "../coordinator.h"
 #include "../frame.h"
+#include <rusty/arc.hpp>
+#include <rusty/cell.hpp>
 
 namespace janus {
 
@@ -35,7 +37,8 @@ class CoordinatorRaft : public Coordinator {
   ballot_t curr_ballot_ = 1; // TODO
   uint32_t n_replica_ = 0;   // TODO
   slotid_t slot_id_ = 0;
-  slotid_t *slot_hint_ = nullptr;
+  // Safe shared mutable counter - shares ownership with RaftFrame
+  rusty::Arc<rusty::Cell<slotid_t>> slot_hint_;
   uint64_t cmt_idx_ = 0 ;
 
   // @safe
@@ -47,11 +50,11 @@ class CoordinatorRaft : public Coordinator {
   bool IsLeader() ;
   bool IsFPGALeader() ;
 
-  // @unsafe - Uses raw pointer slot_hint_
+  // @safe - Uses Arc<Cell<T>> for safe shared mutable access
   slotid_t GetNextSlot() {
     verify(0);
-    verify(slot_hint_ != nullptr);
-    slot_id_ = (*slot_hint_)++;
+    slot_id_ = slot_hint_->get();
+    slot_hint_->set(slot_hint_->get() + 1);
     return 0;
   }
 

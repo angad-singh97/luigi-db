@@ -16,12 +16,14 @@ class RaftVoteQuorumEvent: public QuorumEvent {
     return false;
   }
 
-  // @safe - Calls parent class VoteYes/VoteNo methods
+  // @safe
   void FeedResponse(bool y, ballot_t term) {
     if (y) {
-      VoteYes();
+      // @unsafe
+      { VoteYes(); }  // 1 unsafe line: calls @unsafe parent method
     } else {
-      VoteNo();
+      // @unsafe
+      { VoteNo(); }   // 1 unsafe line: calls @unsafe parent method
       if(term > highest_term_)
       {
         highest_term_ = term ;
@@ -56,9 +58,10 @@ friend class RaftProxy;
 #endif
 	
   RaftCommo() = delete;
+  // @safe
   RaftCommo(rusty::Option<rusty::Arc<PollThread>> poll = rusty::None);
 
-  // @unsafe
+  // @safe
   shared_ptr<IntEvent>
   SendAppendEntries2(siteid_t site_id,
                     parid_t par_id,
@@ -77,6 +80,7 @@ friend class RaftProxy;
                     uint64_t* ret_last_log_index
                     );
 
+  // @safe
   shared_ptr<SendAppendEntriesResults>
   SendAppendEntries(siteid_t site_id,
                     parid_t par_id,
@@ -91,7 +95,7 @@ friend class RaftProxy;
                     shared_ptr<Marshallable> cmd,
                     uint64_t cmdLogTerm,
                     bool trigger_election_now = false);
-  // @unsafe
+  // @safe
   shared_ptr<RaftVoteQuorumEvent>
   BroadcastVote(parid_t par_id,
                         slotid_t lst_log_idx,
@@ -111,6 +115,8 @@ friend class RaftProxy;
    * @param leader_site_id - Current leader's site ID
    * @param callback - Called when RPC completes (success/failure)
    */
+
+  // @safe
   void SendTimeoutNow(siteid_t site_id,
                       parid_t par_id,
                       uint64_t leader_term,

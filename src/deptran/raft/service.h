@@ -16,6 +16,8 @@ namespace janus {
 
 class TxLogServer;
 class RaftServer;
+
+// @safe
 class RaftServiceImpl : public RaftService {
  public:
   RaftServer* svr_;

@@ -98,13 +98,13 @@ class RaftServer : public TxLogServer {
   uint64_t startup_timestamp_ = 0;                          // When server started (for grace period)
 
 
-  // Check if I am the preferred leader
+  // @safe - Check if I am the preferred leader
   bool AmIPreferredLeader() const {
     return preferred_leader_site_id_ != INVALID_SITEID &&
            site_id_ == preferred_leader_site_id_;
   }
 
-  // Check if I have caught up to the current leader's commit level
+  // @safe - Check if I have caught up to the current leader's commit level
   bool HaveCaughtUp() const {
     // We've caught up if our commitIndex >= leader's last known commitIndex
     // Note: leader_last_commit_index_ is updated from AppendEntries heartbeats
@@ -117,6 +117,8 @@ class RaftServer : public TxLogServer {
 
 	void Setup();
 	void HeartbeatLoop() ;
+
+  // @unsafe - Returns raw pointer cast
   RaftCommo* commo() {
     return (RaftCommo*) commo_;
   }
@@ -187,6 +189,7 @@ class RaftServer : public TxLogServer {
                         MarshallDeputy* reply_new_view,
                         shared_ptr<KeyCmdBatchData>& batch) override;
 
+  // @unsafe - Modifies timer state, calls timer_->start()
   void resetTimer(const char* reason = "unspecified") {
     const char* why = reason ? reason : "unspecified";
     auto prev_time = last_heartbeat_time_;
@@ -384,6 +387,7 @@ class RaftServer : public TxLogServer {
                      bool_t *vote_granted,
                      const function<void()> &cb) ;
 
+  // @unsafe
   void OnAppendEntries(const slotid_t slot_id,
                        const ballot_t ballot,
                        const uint64_t leaderCurrentTerm,
@@ -413,15 +417,18 @@ class RaftServer : public TxLogServer {
    * @param success - [OUT] true if election started, false otherwise
    * @param cb - Callback to invoke when handling complete
    */
+  
+  // @unsafe
   void OnTimeoutNow(const uint64_t leaderTerm,
                     const siteid_t leaderSiteId,
                     uint64_t *followerTerm,
                     bool_t *success,
                     const function<void()> &cb);
 
+  // @unsafe - Modifies connection state and proxy maps
   void Disconnect(const bool disconnect = true);
 
-  // @safe - Calls Disconnect (@unsafe) and resetTimer (@safe)
+  // @safe - Calls Disconnect (@unsafe) and resetTimer (@unsafe)
   void Reconnect() {
     Disconnect(false);
     resetTimer("reconnect");

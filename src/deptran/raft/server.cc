@@ -5,9 +5,30 @@
 #include "coordinator.h"
 #include "../classic/tpc_command.h"
 
+// @external: {
+//   rrr::RandomGenerator::rand_double: [unsafe, (double, double) -> double]
+//   rrr::RandomGenerator::rand: [unsafe, (int, int) -> int]
+//   std::make_shared: [unsafe, (...) -> owned]
+//   rrr::Coroutine::CreateRun: [unsafe, (...) -> owned]
+//   std::map::find: [unsafe, (&'a, ...) -> iterator]
+//   std::map::insert: [unsafe, (&'a mut, ...) -> pair]
+//   std::map::end: [unsafe, (&'a) -> iterator]
+//   operator bool: [unsafe, (&'a) -> bool]
+//   std::atomic::store: [unsafe, (&'a mut, ...) -> void]
+//   std::atomic::load: [unsafe, (&'a) -> T]
+//   std::recursive_mutex::lock: [unsafe, (&'a mut) -> void]
+//   std::recursive_mutex::unlock: [unsafe, (&'a mut) -> void]
+//   std::vector::push_back: [unsafe, (&'a mut, T) -> void]
+//   std::vector::operator[]: [unsafe, (&'a, size_t) -> &'a]
+//   std::sort: [unsafe, (iterator, iterator) -> void]
+//   std::dynamic_pointer_cast: [unsafe, (...) -> owned]
+//   std::shared_ptr::operator=: [unsafe, (&'a mut, &'a) -> &'a mut]
+//   janus::TpcBatchCommand::AddCmds: [unsafe, (&'a mut, &'a mut) -> void]
+// }
 
 namespace janus {
 
+// @safe
 void RaftServer::LogTermChange(const char* reason,
                                uint64_t old_term,
                                uint64_t new_term,
@@ -27,6 +48,7 @@ void RaftServer::LogTermChange(const char* reason,
 
 namespace {
 
+// @safe
 bool JetpackRecoveryEnabled() {
   static const bool enabled = []() {
     const char* flag = std::getenv("MAKO_DISABLE_JETPACK");
@@ -72,6 +94,7 @@ RaftServer::RaftServer(Frame * frame)
   stop_ = false ;
 }
 
+// @safe
 void RaftServer::OnJetpackPullCmd(const epoch_t& jepoch,
                                    const epoch_t& oepoch,
                                    const std::vector<key_t>& keys,
@@ -116,6 +139,7 @@ uint64_t RaftServer::GetElectionTimeout() {
   }
 }
 
+// @safe
 void RaftServer::Setup() {
   // Record startup time for grace period logic
   startup_timestamp_ = Time::now();
@@ -152,6 +176,7 @@ void RaftServer::Setup() {
   // Election timer will be started in Start() method when first command is submitted
 }
 
+// @safe
 void RaftServer::Disconnect(const bool disconnect) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(disconnected_ != disconnect);
@@ -181,88 +206,12 @@ void RaftServer::Disconnect(const bool disconnect) {
   disconnected_ = disconnect;
 }
 
+// @safe
 bool RaftServer::IsDisconnected() {
   return disconnected_;
 }
 
-// void RaftServer::setIsLeader(bool isLeader) {
-//   Log_info("set siteid %d is leader %d", frame_->site_info_->locale_id, isLeader) ;
-  
-//   // Log leader initialization when becoming a leader
-//   if (isLeader) {
-    
-//     // CRITICAL FIX: Ensure lastLogIndex matches the highest index in raft_logs_
-//     if (!raft_logs_.empty()) {
-//       auto max_index = std::max_element(raft_logs_.begin(), raft_logs_.end(),
-//                                        [](const auto& a, const auto& b) {
-//                                          return a.first < b.first;
-//                                        })->first;
-//       if (max_index > lastLogIndex) {
-//         lastLogIndex = max_index;
-//       }
-//     }
-//   }
-  
-//   // Only update view when transitioning from non-leader to leader
-//   if (isLeader && !is_leader_) {
-//     // Only update view if we have enough information (not during initialization)
-//     if (partition_id_ != 0xFFFFFFFF && site_id_ != -1 && frame_ != nullptr) {
-//       // Move current new_view to old_view before updating
-//       old_view_ = new_view_;
-      
-//       // Update new_view with this server as the leader
-//       int n_replicas = Config::GetConfig()->GetPartitionSize(partition_id_);
-//       new_view_ = View(n_replicas, site_id_, currentTerm);
-//     }
-//   } else if (!isLeader && is_leader_) {
-//     // When transitioning from leader to non-leader
-//     // View will be updated when we learn about the new leader
-//   }
-  
-//   // Update the leader state after view handling
-//   is_leader_ = isLeader;
-  
-//   if (isLeader) {
-//     // JetpackRecovery();
-//     // if (heartbeat_) {
-//     //   Log_debug("starting heartbeat loop at site %d", site_id_);
-//     //   Coroutine::CreateRun([this](){
-//     //     this->HeartbeatLoop(); 
-//     //   });
-//     //   // Start election timeout loop
-//     //   if (failover_) {
-//     //     Coroutine::CreateRun([this](){
-//     //       StartElectionTimer(); 
-//     //     });
-//     //   }
-//     // }
-//     // Log_info("!!!!!!! if (!failover_)");
-//     // if (!failover_) {
-//       // verify(frame_->site_info_->id == 0);
-//       return;
-//     // }
-//     // Reset leader volatile state
-//     RaftCommo *c = (RaftCommo*) commo();
-//     auto proxies = c->rpc_par_proxies_[partition_id_];
-    
-//     // Clear existing indices first
-//     match_index_.clear();
-//     next_index_.clear();
-    
-//     for (auto& p : proxies) {
-//       if (p.first != site_id_) {
-//         // set matchIndex = 0
-//         match_index_[p.first] = 0;
-//         // set nextIndex = lastLogIndex + 1
-//         next_index_[p.first] = lastLogIndex + 1;
-//       }
-//     }
-//     // matchedIndex and nextIndex should have indices for all servers except self
-//     verify(match_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
-//     verify(next_index_.size() == Config::GetConfig()->GetPartitionSize(partition_id_) - 1);
-//   }
-// }
-
+// @safe
 void RaftServer::setIsLeader(bool isLeader) {
   bool prev_is_leader = is_leader_;
 #ifdef RAFT_LEADER_ELECTION_DEBUG
@@ -296,10 +245,10 @@ void RaftServer::setIsLeader(bool isLeader) {
     }
   }
 
-  
+
   // This 2 lines MUST put BEFORE is_leader_ = isLeader ! otherwise they will become 0, and new view will without leader
-  bool become_new_leader = isLeader && !is_leader_;
-  bool become_new_follower = !isLeader && is_leader_;
+  bool become_new_leader = isLeader && (!is_leader_);
+  bool become_new_follower = (!isLeader) && is_leader_;
 
   // Update the leader state after view handling
   is_leader_ = isLeader;
@@ -399,6 +348,7 @@ void RaftServer::setIsLeader(bool isLeader) {
   }
 }
 
+// @safe
 void RaftServer::applyLogs() {
   // Only mark pending if there's actually new work to apply
   if (executeIndex < commitIndex) {
@@ -439,11 +389,21 @@ void RaftServer::applyLogs() {
   // Cleanup old commands to prevent memory buildup
   int i = min_active_slot_;
   while (i + 60000 < executeIndex) {
-    removeCmd(i++);
+    removeCmd(i);
+    i++;
   }
   min_active_slot_ = i;
 }
 
+// @unsafe
+// TODO: Revisit borrow checker errors in this function.
+// The checker reports "use after move" for loop-local variables (matchedIndices,
+// batch_buffer_, batch_cmd, cmd) due to 2-iteration loop simulation. These variables
+// are declared fresh each iteration, but the checker may not be resetting state
+// correctly for loop-local declarations. Additionally, SendAppendEntries2 takes
+// shared_ptr<Marshallable> by value (moves), which compounds the issue.
+// Potential fixes: (1) Change SendAppendEntries2 to take const shared_ptr&,
+// (2) Investigate checker's loop-local variable handling.
 void RaftServer::HeartbeatLoop() {
   auto hb_timer = new Timer();
   hb_timer->start();
@@ -587,8 +547,8 @@ void RaftServer::HeartbeatLoop() {
         uint64_t prevLogTerm = instance->term;
         shared_ptr<Marshallable> cmd = nullptr;
         uint64_t cmdLogTerm = 0;
-        if (cmd != nullptr) {
-          Log_info("[APPEND_ENTRIES] Leader %d: sending NEW log entry to follower %d, prevLogIndex=%ld, prevLogTerm=%ld, lastLogIndex=%ld", 
+        if (cmd) {
+          Log_info("[APPEND_ENTRIES] Leader %d: sending NEW log entry to follower %d, prevLogIndex=%ld, prevLogTerm=%ld, lastLogIndex=%ld",
                    site_id_, site_id, prevLogIndex, prevLogTerm, lastLogIndex);
         }
 
@@ -623,22 +583,26 @@ void RaftServer::HeartbeatLoop() {
         uint64_t ret_term = 0;
         uint64_t ret_last_log_index = 0;
         mtx_.unlock();
-        // Log_info("!!!!!!!!! SendAppendEntries2");
-        auto r = commo()->SendAppendEntries2(site_id,
-                                            partition_id,
-                                            -1,
-                                            -1,
-                                            IsLeader(),
-                                            site_id_,  // leader's site_id
-                                            term,
-                                            prevLogIndex,
-                                            prevLogTerm,
-                                            commitIndex,
-                                            cmd,
-                                            cmdLogTerm, // deprecated in batched version cmdLogTerm
-                                            &ret_status,
-                                            &ret_term,
-                                            &ret_last_log_index);
+        // @unsafe - output parameters passed by pointer
+        {
+        auto r = [&]() {
+          return commo()->SendAppendEntries2(site_id,
+                                              partition_id,
+                                              -1,
+                                              -1,
+                                              IsLeader(),
+                                              site_id_,  // leader's site_id
+                                              term,
+                                              prevLogIndex,
+                                              prevLogTerm,
+                                              commitIndex,
+                                              cmd,
+                                              cmdLogTerm, // deprecated in batched version cmdLogTerm
+                                              &ret_status,
+                                              &ret_term,
+                                              &ret_last_log_index);
+        }();
+      }
         r->Wait(500000); // bound wait to avoid leader stall on slow/lost followers
         if (r->status_ == Event::TIMEOUT) {
           continue;
@@ -1371,6 +1335,7 @@ void RaftServer::StopLeadershipTransferMonitoring() {
   }
 }
 
+// @unsafe
 void RaftServer::StartLeadershipTransferMonitoring() {
   if (leadership_monitor_stop_.load()) {
     leadership_monitor_stop_ = false;

@@ -457,6 +457,7 @@ void TxLogServer::OriginalPathUnexecutedCmdConflictPlaceHolder(const shared_ptr<
   }
 }
 
+
 void TxLogServer::RuleWitnessGC(const shared_ptr<Marshallable>& cmd) {
   if (Config::GetConfig()->tx_proto_ == MODE_RULE)
     witness_.remove(cmd);
