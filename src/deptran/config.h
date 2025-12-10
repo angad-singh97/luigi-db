@@ -147,7 +147,7 @@ class Config {
 
   uint32_t next_site_id_;
   vector<ReplicaGroup> replica_groups_;
-  vector<SiteInfo> sites_;
+  std::deque<SiteInfo> sites_;  // Use deque to prevent pointer invalidation on push_back
   vector<SiteInfo> par_clients_;
   map<string, string> proc_host_map_;
   map<string, string> site_proc_map_;

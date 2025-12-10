@@ -36,12 +36,9 @@ mako-raft:
 
 clean:
 	rm -rf $(BUILD_DIR) 2>/dev/null || true
-	# Remove all test files
-	rm -rf /tmp/test_*
-	# Remove all disk db
-	- rm -rf /tmp/rocksdb_*
-	rm -rf /tmp/callback_demo_db*
-	# rm -rf /tmp/mako_rocksdb*
+	# Remove test files for current user only
+	@USERNAME=$${USER:-unknown}; \
+	rm -rf /tmp/$${USERNAME}_*;
 	# Clean out-perf.masstree
 	rm -rf ./out-perf.masstree/*
 	# Clean mako out-perf.masstree
@@ -93,6 +90,7 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make              - Build production (both Paxos and Raft)"
+	@echo "  make mako-raft    - Build Mako with Raft replication layer"
 	@echo "  make raft-test    - Build with Raft testing coroutines"
 	@echo "  make clean        - Clean all build artifacts"
 	@echo "  make rebuild      - Clean and rebuild"
@@ -101,6 +99,7 @@ help:
 	@echo "  make test-parallel- Run tests in parallel"
 	@echo ""
 	@echo "Testing:"
-	@echo "  ./ci/ci.sh simplePaxos                           - Test Paxos"
+	@echo "  ./ci/ci.sh all                                   - Run all Paxos CI tests"
+	@echo "  ./ci/ci_mako_raft.sh all                         - Run all Mako-Raft CI tests"
 	@echo "  ./build/deptran_server -f config/3c1s3r3p.yml    - Run production Raft"
 	@echo "  ./build/deptran_server -f config/raft_lab_test.yml - Run Raft lab tests (requires make raft-test)"

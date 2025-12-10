@@ -19,10 +19,10 @@ rpc_test/bin
 conf
 tmp_conf*.xml
 benchmark*.log
+*log
 .idea
 *.o
 *.orig
-docs/
 deptran/mdcc/mdcc_rpc.h
 .python-version
 .ycm_extra_conf.py
@@ -45,7 +45,6 @@ GPATH
 *.so
 /.vscode
 src/mako/masstree/*
-cpu*
 profile-results/
 paxos*.yml
 experiment_*.sh

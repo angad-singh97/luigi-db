@@ -12,6 +12,10 @@ echo "========================================="
 # Clean up old log files
 rm -f nfs_sync_*
 
+# Clean up RocksDB data from previous runs
+USERNAME=${USER:-$(whoami)}
+rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
+
 trd=${1:-6}
 script_name="$(basename "$0")"
 
@@ -25,9 +29,9 @@ sleep 1
 echo "Starting shard 0..."
 nohup bash bash/shard.sh 2 0 $trd localhost > ${log_prefix}_shard0-$trd.log 2>&1 &
 SHARD0_PID=$!
-sleep 2
+sleep 5
 
-# Start shard 1 in background
+# Start shard 1 in background (delayed start ensures shard1 stays running while shard0 shuts down)
 echo "Starting shard 1..."
 nohup bash bash/shard.sh 2 1 $trd localhost > ${log_prefix}_shard1-$trd.log 2>&1 &
 SHARD1_PID=$!

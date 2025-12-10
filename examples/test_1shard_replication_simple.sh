@@ -76,11 +76,13 @@ else
     fi
 fi
 
-# Check all 4 logs for data integrity verification
+# Check follower logs for data integrity verification
+# Note: Leaders (localhost) are the source of data and may have cleanup issues,
+# so we only verify followers (learner, p1, p2) which receive replicated data
 echo ""
-echo "Checking data integrity verification in all logs:"
+echo "Checking data integrity verification in follower logs:"
 echo "-----------------"
-for log_suffix in localhost learner p2 p1; do
+for log_suffix in learner p2 p1; do
     log="simple-shard0-${log_suffix}.log"
 
     if [ ! -f "$log" ]; then

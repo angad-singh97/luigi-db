@@ -67,6 +67,9 @@ make -j32
 
 # Multi-shard single-process mode (runs multiple shards in one process)
 ./ci/ci.sh multiShardSingleProcess
+
+# CPU throttling scaling test (verifies throughput doubles when CPU cap doubles)
+./ci/ci.sh cpuThrottlingScaling
 ```
 
 ## Code Architecture
@@ -132,6 +135,8 @@ Both backends implement the same `TransportBackend` interface for transport-agno
 
 ### RustyCpp Smart Pointer Migration (In Progress)
 The RRR framework is being migrated to use RustyCpp smart pointers for enhanced memory safety.
+
+**IMPORTANT**: Always keep the `third-party/rusty-cpp` submodule on the `main` branch with the latest commit. Do not switch to other branches.
 
 #### Successfully Migrated Components
 - ✅ Event system: Cell<EventStatus> for interior mutability

@@ -584,9 +584,7 @@ void RaftServer::HeartbeatLoop() {
         uint64_t ret_last_log_index = 0;
         mtx_.unlock();
         // @unsafe - output parameters passed by pointer
-        {
-        auto r = [&]() {
-          return commo()->SendAppendEntries2(site_id,
+        auto r = commo()->SendAppendEntries2(site_id,
                                               partition_id,
                                               -1,
                                               -1,
@@ -601,8 +599,6 @@ void RaftServer::HeartbeatLoop() {
                                               &ret_status,
                                               &ret_term,
                                               &ret_last_log_index);
-        }();
-      }
         r->Wait(500000); // bound wait to avoid leader stall on slow/lost followers
         if (r->status_ == Event::TIMEOUT) {
           continue;

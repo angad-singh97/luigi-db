@@ -16,6 +16,18 @@
 #include "ticker.h"
 #include "pxqueue.h"
 
+// Forward declaration
+class SiloRuntime;
+
+/**
+ * rcu - Read-Copy-Update system for safe memory reclamation.
+ *
+ * In per-runtime mode, each SiloRuntime owns its own rcu instance.
+ * The rcu uses the owning runtime's ticker and allocator for complete
+ * isolation between shards.
+ *
+ * Use SiloRuntime::Current()->get_rcu() to get the correct rcu instance.
+ */
 class rcu {
   template <bool> friend class scoped_rcu_base;
 public:
@@ -241,7 +253,7 @@ public:
     const sync *s = syncs_.myview();
     if (unlikely(!s))
       return false;
-    const bool is_guarded = ticker::s_instance.is_locally_guarded(rcu_tick);
+    const bool is_guarded = get_ticker().is_locally_guarded(rcu_tick);
     const bool has_depth = s->depth();
     if (has_depth && !is_guarded)
       INVARIANT(false);
@@ -261,8 +273,12 @@ public:
   inline uint64_t
   cleaning_rcu_tick_exclusive() const
   {
-    return to_rcu_ticks(ticker::s_instance.global_last_tick_exclusive());
+    return to_rcu_ticks(get_ticker().global_last_tick_exclusive());
   }
+
+  // Get the ticker for this RCU instance
+  // Uses the owning runtime's ticker, or the global ticker for s_instance
+  ticker& get_ticker() const;
 
   // pin the current thread to CPU.
   //
@@ -274,13 +290,17 @@ public:
 
   void fault_region();
 
-  static rcu s_instance CACHE_ALIGNED; // system wide instance
+  static rcu s_instance CACHE_ALIGNED; // system wide instance (for backward compatibility)
 
   static void Test();
 
+  // Constructor for per-runtime RCU instance
+  // runtime: the owning SiloRuntime (or nullptr for global instance)
+  explicit rcu(SiloRuntime* runtime);
+
 private:
 
-  rcu(); // private ctor to enforce singleton
+  rcu(); // private ctor for static singleton
 
   static inline uint64_t constexpr
   to_rcu_ticks(uint64_t ticks)
@@ -289,6 +309,9 @@ private:
   }
 
   inline sync &mysync() { return syncs_.my(this); }
+
+  // Owning runtime (nullptr for global s_instance)
+  SiloRuntime* runtime_;
 
   percore_lazy<sync> syncs_;
 };
@@ -302,9 +325,21 @@ public:
   scoped_rcu_base(const scoped_rcu_base &) = delete;
   scoped_rcu_base &operator=(const scoped_rcu_base &) = delete;
 
+  // Default constructor - uses global s_instance for backward compatibility
+  // This is inline for header-only usage
   scoped_rcu_base()
-    : sync_(&rcu::s_instance.mysync()),
+    : rcu_(&rcu::s_instance),
+      sync_(&rcu::s_instance.mysync()),
       guard_(ticker::s_instance)
+  {
+    sync_->depth_++;
+  }
+
+  // Constructor with explicit rcu reference (for per-runtime mode)
+  explicit scoped_rcu_base(rcu& rcu_instance)
+    : rcu_(&rcu_instance),
+      sync_(&rcu_instance.mysync()),
+      guard_(rcu_instance.get_ticker())
   {
     sync_->depth_++;
   }
@@ -333,11 +368,16 @@ public:
   }
 
 private:
+  rcu* rcu_;  // The RCU instance we're using
   rcu::sync *sync_;
   unmanaged<ticker::guard> guard_;
 };
 
 typedef scoped_rcu_base<true> scoped_rcu_region;
+
+// Helper to create scoped_rcu_region using current runtime's rcu
+// Use this instead of default constructor for per-runtime mode
+inline scoped_rcu_region make_scoped_rcu_region();
 
 class disabled_rcu_region {};
 

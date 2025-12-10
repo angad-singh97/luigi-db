@@ -107,6 +107,7 @@ namespace mtd_unsafe_file {} // Sets file_default to Unsafe for borrow checker
 #include "masstree_insert.hh"
 #include "masstree_remove.hh"
 #include "masstree_scan.hh"
+#include "masstree_context.h"
 #include "msgpack.hh"
 #include <algorithm>
 #include <deque>
@@ -130,7 +131,7 @@ static std::vector<int> cores;
 static bool logging = true;
 static bool pinthreads = false;
 static bool recovery_only = false;
-volatile uint64_t globalepoch = 1;     // global epoch, updated by main thread regularly
+// globalepoch is now per-context in MasstreeContext
 static int port = 2117;
 static uint64_t test_limit = ~uint64_t(0);
 static int doprint = 0;
@@ -976,7 +977,7 @@ canceling(void *)
 void
 epochinc(int)
 {
-    globalepoch += 2;
+    MasstreeContext::Current()->increment_epoch(2);
 }
 
 // Return 1 if success, -1 if I/O error or protocol unmatch

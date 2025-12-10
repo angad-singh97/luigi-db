@@ -23,7 +23,8 @@ CoordinatorRaft::CoordinatorRaft(uint32_t coo_id,
                                              int32_t benchmark,
                                              ClientControlServiceImpl* ccsi,
                                              uint32_t thread_id)
-    : Coordinator(coo_id, benchmark, ccsi, thread_id) {
+    : Coordinator(coo_id, benchmark, ccsi, thread_id),
+      slot_hint_(rusty::Arc<rusty::Cell<slotid_t>>::make(0)) {
 }
 
 // @safe

@@ -352,17 +352,12 @@ void Config::LoadYML(std::string &filename) {
 
 void Config::LoadSiteYML(YAML::Node config) {
   auto servers = config["server"];
-  int partition_id = 0;
-  int site_id = 0; // start from
+  // Start from current sizes to support loading multiple config files
+  int partition_id = replica_groups_.size();
+  int site_id = sites_.size();
   int locale_id = 0;
 
-  // count the sites so that we can reserve storage up front
-  // to avoid invalidating the pointers
-  int num_sites=0;
-  for (auto partition = servers.begin(); partition != servers.end(); partition++) {
-    num_sites += partition->size();
-  }
-  sites_.reserve(num_sites);
+  // Note: Using deque for sites_ so no reserve needed - push_back doesn't invalidate pointers
 
   for (auto server_it = servers.begin(); server_it != servers.end(); server_it++) {
     auto group = *server_it;
@@ -863,13 +858,11 @@ int Config::get_site_addr(unsigned int sid, std::string& server) {
 }
 
 int Config::NumSites(SiteInfoType type) {
-  std::vector<SiteInfo>* searching;
   if (type == SERVER) {
-    searching = &sites_;
+    return sites_.size();
   } else {
-    searching = &par_clients_;
+    return par_clients_.size();
   }
-  return searching->size();
 }
 
 const Config::SiteInfo& Config::SiteById(uint32_t id) {
@@ -988,18 +981,19 @@ int32_t Config::get_num_leaders(parid_t partition_id) {
 std::vector<Config::SiteInfo>
 Config::SitesByLocaleId(uint32_t locale_id, SiteInfoType type) {
   std::vector<SiteInfo> result;
-  std::vector<SiteInfo>* searching;
-  if (type==SERVER) {
-    searching = &sites_;
+  if (type == SERVER) {
+    for (SiteInfo& site : sites_) {
+      if (site.locale_id == locale_id) {
+        result.push_back(site);
+      }
+    }
   } else {
-    searching = &par_clients_;
+    for (SiteInfo& site : par_clients_) {
+      if (site.locale_id == locale_id) {
+        result.push_back(site);
+      }
+    }
   }
-  std::for_each(searching->begin(), searching->end(),
-                [locale_id, type, &result](SiteInfo& site) mutable {
-                  if (site.locale_id==locale_id) {
-                    result.push_back(site);
-                  }
-                });
   return result;
 }
 
@@ -1007,22 +1001,24 @@ vector<Config::SiteInfo>
 Config::SitesByProcessName(string proc_name, Config::SiteInfoType type) {
   //Log_info("SitesByProcessName proc_name=%s type=%d", proc_name.c_str(), type==SERVER);
   std::vector<SiteInfo> result;
-  std::vector<SiteInfo>* searching;
-  if (type==SERVER) {
-    searching = &sites_;
-  } else {
-    searching = &par_clients_;
-  }
+  auto processFunc = [&proc_name, &result](SiteInfo& site) {
+    if (site.proc_name == "") {
+      Log_fatal("cannot find proc name for site %s", site.name.c_str());
+    }
+    if (site.proc_name == proc_name) {
+      result.push_back(site);
+    }
+  };
 
-  std::for_each(searching->begin(), searching->end(),
-                [proc_name, &result](SiteInfo& site) mutable {
-                  if (site.proc_name == "") {
-                    Log_fatal("cannot find proc name for site %s", site.name.c_str());
-                  }
-                  if (site.proc_name==proc_name) {
-                    result.push_back(site);
-                  }
-                });
+  if (type == SERVER) {
+    for (SiteInfo& site : sites_) {
+      processFunc(site);
+    }
+  } else {
+    for (SiteInfo& site : par_clients_) {
+      processFunc(site);
+    }
+  }
   return result;
 }
 

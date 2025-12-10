@@ -1,4 +1,4 @@
-# Mako + Jetpack
+# Mako
 
 <div align="center">
 
@@ -6,9 +6,9 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OSDI'25](https://img.shields.io/badge/OSDI'25-Mako-orange.svg)](#what-is-mako)
 
-**High-Performance Distributed Transactions with Paxos & Raft Replication**
+**High-Performance Distributed Transactional Key-Value Store with Geo-Replication Support**
 
-[What is Mako?](#what-is-mako) • [Why Choose Mako](#why-choose-mako) • [Quick Start](#quick-start) • [Build System](#build-system) • [Run Paxos](#running-paxos-mako) • [Run Raft](#running-raft-jetpack)
+[What is Mako?](#what-is-mako) • [Quick Start](#quick-start) • [Replication Layers](#replication-layers) • [Benchmarks](#benchmarks)
 
 </div>
 
@@ -16,212 +16,174 @@
 
 ## What is Mako?
 
-**Mako** is a high-performance distributed transactional key-value store with geo-replication support, built on state-of-the-art systems research. Its core innovation decouples transaction execution from replication through watermark-based speculative execution. Leaders execute transactions immediately, while replication happens asynchronously; followers validate via watermarks before exposing results, ensuring serializable consistency. The system powers millions of TPC-C transactions per second across continents and is detailed in our [OSDI'25 paper](https://www.usenix.org/conference/osdi25/presentation/shen-weihai).
+**Mako** is a high-performance distributed transactional key-value store system with geo-replication support, built on cutting-edge systems research.
+Mako's core design-level innovation is **decoupling transaction execution from replication** using a novel speculative 2PC protocol. Unlike traditional systems where transactions must wait for replication and persistence before committing, Mako allows distributed transactions to execute speculatively without blocking on cross-datacenter consensus. Transactions run at full speed locally while replication happens asynchronously in the background, achieving fault-tolerance without sacrificing performance. The system employs novel mechanisms to prevent unbounded cascading aborts when shards fail during replication, ensuring both high throughput (processing **3.66M TPC-C transactions per second** with 10 shards replicated across the continent) and strong consistency guarantees. More details can be found in our [OSDI'25 paper](https://www.usenix.org/conference/osdi25/presentation/shen-weihai).
 
-The repository also bundles **Jetpack**, a Raft-based consensus layer with advanced failover recovery. The unified build lets you choose Paxos (legacy Mako) or Raft/Jetpack at compile time.
+---
+
+## Replication Layers
+
+Mako supports **two replication backends** that can be selected at build time:
+
+| Replication | Build Command | Binary | Use Case |
+|-------------|---------------|--------|----------|
+| **Paxos** (default) | `make -j32` | `dbtest` | Production Mako with Paxos consensus |
+| **Raft** | `make mako-raft -j64` | `dbtest` | Mako with Raft as replication layer |
+
+Additionally, **Raft can run standalone** (without Mako) via `deptran_server`:
+
+| Mode | Build Command | Binary | Use Case |
+|------|---------------|--------|----------|
+| **Standalone Raft** | `make -j32` or `make mako-raft -j64` | `deptran_server` | Raft consensus without Mako transactions |
+| **Raft Lab Tests** | `make raft-test -j32` | `deptran_server` | Raft coroutine-based lab test suite only |
+
+> **Note**: `make raft-test` enables `RAFT_TEST` coroutines for the lab test harness. This mode is **only for running `config/raft_lab_test.yml`** - the normal concurrency configs (like `12c1s3r1p.yml`) won't work with this build.
+
+### Understanding the Difference
+
+- **Mako + Paxos**: Original Mako system using Paxos for replication (`./ci/ci.sh`)
+- **Mako + Raft**: Mako transactions with Raft as the replication layer (`./ci/ci_mako_raft.sh`)
+- **Standalone Raft**: Pure Raft consensus testing via `deptran_server` (no Mako transactions) - use regular `make` build
+- **Raft Lab Tests**: Coroutine-based Raft tests (`make raft-test`) - only for `raft_lab_test.yml`
 
 ---
 
 ## Why Choose Mako?
 
 ### Proven Research & Performance
-- Backed by peer-reviewed OSDI'25 results with **3.66M TPC-C txn/s** under geo-replication
-- Demonstrates **8.6× higher throughput** than prior state-of-the-art systems
+- Backed by peer-reviewed research published at OSDI'25, one of the top-tier systems conferences
+- **8.6× higher throughput** than state-of-the-art geo-replicated systems
+- Processing **3.66M TPC-C transactions per second** with geo-replication
 
 ### Core Capabilities
-- **Serializable distributed transactions** with strong ACID guarantees
-- **Geo-replication** with automatic sharding and configurable consistency
-- **High-performance storage** via Masstree (in-memory) and RocksDB persistence
-- **Horizontal scalability** across partitions and replicas
-- **Fault tolerance** through Paxos or Raft consensus plus Jetpack recovery
-- **RustyCpp-powered safety** for lifetime tracking in critical components
+- **Serializable Transactions**: Strongest isolation level with full ACID guarantees across distributed partitions
+- **Geo-Replication**: Multi-datacenter support with configurable consistency for disaster recovery
+- **Pluggable Replication**: Choose between Paxos or Raft consensus protocols
+- **High-Performance Storage**: Built on **Masstree** for in-memory indexing; RocksDB backend for persistence
+- **Horizontal Scalability**: Automatic sharding and data partitioning across nodes
+- **Fault Tolerance**: Crash recovery and replication for high availability
+- **Advanced Networking**: DPDK support for kernel bypass and ultra-low latency
+- **Rust-like memory safety** by using RustyCpp for borrow checking and lifetime analysis
 
-### Developer Friendly
-- Industry benchmarks: TPC-C, TPC-A, read/write, microbenchmarks
-- RocksDB-like interfaces and Redis-compatible layer
-- Comprehensive CMake + Make build support and CI harness
-- Modular design for experimenting with consensus and concurrency protocols
+### Developer-Friendly
+- **Industry-standard benchmarks**: TPC-C, TPC-A, read-write workloads, and micro-benchmarks
+- **RocksDB-like interface** for easy migration from single-node deployments
+- **Redis-compatible layer** for familiar API with enhanced consistency
+- Comprehensive test suite
+- Modular architecture for extensions
 
 ---
 
 ## Quick Start
 
+### Prerequisites
+
 Tested on **Debian 12** and **Ubuntu 22.04**.
 
+### Installation
+
 ```bash
-# 1. Clone (with submodules)
+# 1. Clone the repository with submodules
 git clone --recursive https://github.com/makodb/mako.git
 cd mako
 
 # 2. Install dependencies
 bash apt_packages.sh
 source install_rustc.sh
+bash src/mako/update_config.sh
 
-# 3. Configure & build (Raft tests off by default)
-rm -rf build && mkdir build
-cmake -B build -DRAFT_TEST=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build -j32   # use -j4 on laptops
-
-# Convenience script
-bash compile-cmake.sh
+# 3. Build (use fewer cores on PC, e.g., -j4)
+make -j32
 ```
-
-> **Important:** The `-DREUSE_CORO` flag is enabled by default (see `CMakeLists.txt`). It is **required** for Raft/Jetpack stability—verify with `grep -o "\-DREUSE_CORO" build/compile_commands.json`.
-
-After a successful build you will find the primary binaries (`dbtest`, `deptran_server`, etc.) under `build/`.
 
 ---
 
 ## Build System
 
-### Targets
-- `dbtest` – Paxos/Mako experiments, benchmarks, and most CI tests
-- `deptran_server` – Raft/Jetpack server executable (plus Raft lab harness)
-- Libraries (`libmako.a`, etc.) consumed by examples and tests
+### Build Targets
 
-### Typical Workflows
+| Target | Command | Description |
+|--------|---------|-------------|
+| **Mako + Paxos** | `make -j32` | Default build with Paxos replication (also builds `deptran_server`) |
+| **Mako + Raft** | `make mako-raft -j64` | Mako with Raft as replication layer (also builds `deptran_server`) |
+| **Raft Lab Tests** | `make raft-test -j32` | Raft coroutine lab tests only (breaks normal configs) |
+| **Clean** | `make clean` | Remove all build artifacts |
+| **Help** | `make help` | Show all available targets |
 
-```bash
-# Reconfigure after touching CMake files
-rm -rf build && mkdir build
-cmake -B build -DRAFT_TEST=OFF
-cmake --build build -j32
+### Output Binaries
 
-# Build individual targets
-cmake --build build --target dbtest -j32
-cmake --build build --target deptran_server -j32
-
-# Makefile fallback
-make -j32       # or -j4 on smaller machines
-```
+| Binary | Description |
+|--------|-------------|
+| `build/dbtest` | Main Mako binary (works with both Paxos and Raft replication) |
+| `build/deptran_server` | Standalone Raft server (for Raft-only testing without Mako) |
+| `build/simpleRaft` | Simple Raft replication test |
+| `build/simpleTransactionRepRaft` | Raft-based transaction replication test |
 
 ### CMake Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `RAFT_TEST` | `OFF` | Enable Raft coroutine-based lab suite |
+| `MAKO_USE_RAFT` | `OFF` | Enable Raft as Mako's replication layer |
+| `RAFT_TEST` | `OFF` | Enable standalone Raft testing (no Mako) |
 | `PAXOS_LIB_ENABLED` | `1` | Build Paxos components |
-| `SHARDS` | `3` | Default shard count for benchmark configs |
-| `MICRO_BENCHMARK` | `0` | Enable microbench harness |
-| `CMAKE_EXPORT_COMPILE_COMMANDS` | `OFF` | Generate `compile_commands.json` |
-
-Examples:
-
-```bash
-# Production Raft build (no lab harness)
-cmake -B build -DRAFT_TEST=OFF
-
-# Raft lab-testing build
-cmake -B build -DRAFT_TEST=ON
-
-# Custom shard topology
-cmake -B build -DSHARDS=5 -DPAXOS_LIB_ENABLED=1
-```
-
-### eRPC Socket Smoke Test
-
-```bash
-cd third-party/erpc
-rm -rf CMakeFiles cmake_install.cmake CMakeCache.txt
-cmake . -DTRANSPORT=fake -DROCE=off -DPERF=off
-make && make latency
-```
-
-Edit `scripts/autorun_process_file` with your server/client hosts, then run:
-
-```bash
-./scripts/do.sh 0 0 eth    # server host
-./scripts/do.sh 1 0 eth    # client host
-```
+| `SHARDS` | `3` | Default shard count |
 
 ---
 
 ## Running Tests
 
+### Mako + Paxos Tests
+
+Use `./ci/ci.sh` for testing Mako with **Paxos** replication:
+
 ```bash
-# Run entire CI suite
+# Run all Paxos CI tests
 ./ci/ci.sh all
 
-# Focused tests
-./ci/ci.sh simpleTransaction
-./ci/ci.sh simplePaxos
-./ci/ci.sh shard1Replication
-./ci/ci.sh shard2Replication
-
-# Python harness
-python3 test_run.py -m janus
-python3 run_all.py
+# Individual tests
+./ci/ci.sh simpleTransaction       # Simple transactions
+./ci/ci.sh simplePaxos             # Paxos replication
+./ci/ci.sh shard1Replication       # 1-shard with replication
+./ci/ci.sh shard2Replication       # 2-shards with replication
+./ci/ci.sh shard1ReplicationSimple
+./ci/ci.sh shard2ReplicationSimple
+./ci/ci.sh rocksdbTests            # RocksDB persistence
+./ci/ci.sh shardFaultTolerance     # Fault tolerance
+./ci/ci.sh multiShardSingleProcess
+./ci/ci.sh cpuThrottlingScaling
 ```
 
-Build times are substantial: expect 10–30 minutes for a clean build, 2–10 minutes incrementally. Adjust CI or local timeouts accordingly.
+### Mako + Raft Tests
 
----
-
-## Running Paxos (Mako)
-
-### 1 Leader + 2 Followers + 1 Learner (single machine, multi-process)
-
-Run each command in its own terminal:
+Use `./ci/ci_mako_raft.sh` for testing Mako with **Raft** replication:
 
 ```bash
-# Follower p1
-nohup ./build/dbtest --verbose --bench tpcc --basedir ./tmp \
-  --db-type mbta --num-threads 6 --scale-factor 6 --num-erpc-server 2 \
-  --shard-index 0 --shard-config $(pwd)/src/mako/config/local-shards1-warehouses6.yml \
-  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
-  --txn-flags 1 --runtime 30 -P p1 --bench-opts \
-  --new-order-fast-id-gen --retry-aborted-transactions --numa-memory 1G > p1.log 2>&1 &
+# Build Mako with Raft first
+make mako-raft -j64
 
-# Follower p2
-nohup ./build/dbtest --verbose --bench tpcc --basedir ./tmp \
-  --db-type mbta --num-threads 6 --scale-factor 6 --num-erpc-server 2 \
-  --shard-index 0 --shard-config $(pwd)/src/mako/config/local-shards1-warehouses6.yml \
-  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
-  --txn-flags 1 --runtime 30 -P p2 --bench-opts \
-  --new-order-fast-id-gen --retry-aborted-transactions --numa-memory 1G > p2.log 2>&1 &
+# Run all Mako-Raft CI tests
+./ci/ci_mako_raft.sh all
 
-# Leader localhost
-nohup ./build/dbtest --verbose --bench tpcc --basedir ./tmp \
-  --db-type mbta --num-threads 6 --scale-factor 6 --num-erpc-server 2 \
-  --shard-index 0 --shard-config $(pwd)/src/mako/config/local-shards1-warehouses6.yml \
-  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
-  --txn-flags 1 --runtime 30 -P localhost --bench-opts \
-  --new-order-fast-id-gen --retry-aborted-transactions --numa-memory 1G > leader.log 2>&1 &
-
-# Learner
-nohup ./build/dbtest --verbose --bench tpcc --basedir ./tmp \
-  --db-type mbta --num-threads 6 --scale-factor 6 --num-erpc-server 2 \
-  --shard-index 0 --shard-config $(pwd)/src/mako/config/local-shards1-warehouses6.yml \
-  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
-  --txn-flags 1 --runtime 30 -P learner --bench-opts \
-  --new-order-fast-id-gen --retry-aborted-transactions --numa-memory 1G > learner.log 2>&1 &
+# Individual tests
+./ci/ci_mako_raft.sh compile                    # Build with Raft
+./ci/ci_mako_raft.sh simpleRaft                 # Simple Raft replication
+./ci/ci_mako_raft.sh shard1ReplicationRaft      # 1-shard Raft
+./ci/ci_mako_raft.sh shard2ReplicationRaft      # 2-shard Raft
+./ci/ci_mako_raft.sh shard1ReplicationSimpleRaft
+./ci/ci_mako_raft.sh shard2ReplicationSimpleRaft
+./ci/ci_mako_raft.sh cleanup                    # Clean up processes
 ```
 
-Monitor and clean up:
+### Standalone Raft Tests (No Mako)
+
+Use `deptran_server` for testing **Raft consensus only** (without Mako transactions).
+
+#### Running Standalone Raft (use regular build)
 
 ```bash
-tail -f leader.log p1.log p2.log learner.log
-pkill -f dbtest
-```
+# Build (regular make, NOT raft-test)
+make -j32
 
-### Multi-site (single process)
-
-```bash
-export MAKO_MULTI_SITE=1
-./build/dbtest -t 6 -s 1 -S 1 -K 3 \
-  -N leader_s0,follower1_s0,follower2_s0 \
-  -C ./multi_site_config.yml \
-  -F ./paxos_multi_site.yml \
-  -F ../config/occ_paxos.yml
-```
-
----
-
-## Running Raft (Jetpack)
-
-Build `deptran_server`, then choose a configuration:
-
-```bash
 # Basic Raft (1 client, 1 shard, 3 replicas)
 ./build/deptran_server \
   -f config/none_raft.yml \
@@ -231,7 +193,7 @@ Build `deptran_server`, then choose a configuration:
   -f config/concurrent_1.yml \
   -d 30 -m 100 -P localhost
 
-# Higher concurrency (12x12 clients, ~25k TPS)
+# Higher concurrency (12 clients, ~25k TPS)
 ./build/deptran_server \
   -f config/none_raft.yml \
   -f config/12c1s3r1p.yml \
@@ -239,27 +201,143 @@ Build `deptran_server`, then choose a configuration:
   -f config/client_closed.yml \
   -f config/concurrent_12.yml \
   -d 30 -m 100 -P localhost
-
-# Raft + Jetpack failover scenario
-./build/deptran_server \
-  -f config/rule_raft.yml \
-  -f config/1c1s3r1p.yml \
-  -f config/rw.yml \
-  -f config/client_closed.yml \
-  -f config/concurrent_1.yml \
-  -f config/failover.yml \
-  -d 30 -m 100 -P localhost
 ```
 
-### Raft Lab Harness
+#### Raft Lab Tests (use raft-test build)
 
 ```bash
-cmake -B build -DRAFT_TEST=ON
-cmake --build build -j32
+# Build with RAFT_TEST coroutines (only for lab tests)
+make raft-test -j32
+
+# Run Raft lab test suite
 ./build/deptran_server -f config/raft_lab_test.yml
 ```
 
-Watch for `[JETPACK-RECOVERY]` log blocks after leader changes when Jetpack is enabled.
+> **Warning**: The `make raft-test` build enables special coroutines for the lab harness. The normal concurrency configs (`1c1s3r1p.yml`, `12c1s3r1p.yml`, etc.) will **not work** with this build.
+
+### Unit Tests
+
+```bash
+# CTest integration
+make test                 # Run all tests
+make test-verbose         # Verbose output
+make test-parallel        # Parallel execution
+
+# Silo/STO unit tests
+cd tests && ./run_tests.sh all
+```
+
+---
+
+## Running Mako with Paxos
+
+### Single Machine Setup (1 Leader + 2 Followers + 1 Learner)
+
+```bash
+# Build
+make -j32
+
+# Start followers and leader in separate terminals
+# Follower p1
+./build/dbtest --verbose --bench tpcc --basedir ./tmp \
+  --db-type mbta --num-threads 6 --scale-factor 6 \
+  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
+  --txn-flags 1 --runtime 30 -P p1 &
+
+# Follower p2
+./build/dbtest --verbose --bench tpcc --basedir ./tmp \
+  --db-type mbta --num-threads 6 --scale-factor 6 \
+  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
+  --txn-flags 1 --runtime 30 -P p2 &
+
+# Leader
+./build/dbtest --verbose --bench tpcc --basedir ./tmp \
+  --db-type mbta --num-threads 6 --scale-factor 6 \
+  -F config/1leader_2followers/paxos6_shardidx0.yml -F config/occ_paxos.yml \
+  --txn-flags 1 --runtime 30 -P localhost &
+
+# Monitor logs
+tail -f leader.log p1.log p2.log
+```
+
+---
+
+## Running Mako with Raft
+
+### Build and Test
+
+```bash
+# Build Mako with Raft replication
+make mako-raft -j64
+
+# Run the Mako-Raft CI suite
+./ci/ci_mako_raft.sh all
+
+# Or run individual tests
+./ci/ci_mako_raft.sh simpleRaft
+./ci/ci_mako_raft.sh shard1ReplicationRaft
+```
+
+The `dbtest` binary with Raft replication runs Mako transactions but uses Raft (instead of Paxos) for log replication and leader election.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Client Applications                   │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Transaction Coordinators                    │
+│  ┌──────────┬──────────┬──────────┬──────────┐         │
+│  │  Mako    │   2PL    │   OCC    │  Janus   │         │
+│  └──────────┴──────────┴──────────┴──────────┘         │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│            Replication Layer (Pluggable)                 │
+│         ┌──────────────┬──────────────┐                 │
+│         │    Paxos     │     Raft     │                 │
+│         └──────────────┴──────────────┘                 │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│                RPC Communication Layer                   │
+│           (TCP/IP, DPDK, RDMA, eRPC)                    │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Sharded Data Partitions                     │
+│  ┌─────────────┬─────────────┬─────────────┐           │
+│  │   Shard 1   │   Shard 2   │   Shard N   │           │
+│  │  (Replicas) │  (Replicas) │  (Replicas) │           │
+│  └─────────────┴─────────────┴─────────────┘           │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│              Storage Backends                            │
+│    Masstree (In-Memory)  |  RocksDB (Persistent)        │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Benchmarks
+
+Performance results from our OSDI'25 evaluation on Azure cloud infrastructure (TPC-C benchmark):
+
+| Configuration | Shards | Threads/Shard | Throughput | Notes |
+|--------------|--------|---------------|------------|-------|
+| Single Shard | 1 | 24 | 960K TPS | 22.5× faster than Calvin |
+| Geo-Replicated | 10 | 24 | 3.66M TPS | 8.6× faster than Calvin |
+
+### Performance Advantages
+
+- **8.6× higher throughput** than Calvin (state-of-the-art geo-replicated system)
+- **22.5× higher throughput** than Calvin at single shard
+- **32.2× higher throughput** than OCC+OR at 10 shards
 
 ---
 
@@ -273,20 +351,12 @@ bash ./src/mako/update_config.sh
 
 Key configuration directories:
 
-- Host topology: `config/hosts*.yml`
-- Workload knobs: `config/rw.yml`, `config/client_closed.yml`, `config/concurrent_*.yml`
-- Paxos protocol: `config/1leader_2followers/*.yml`, `config/occ_paxos.yml`
-- Raft protocol: `config/none_raft.yml`, `config/rule_raft.yml`, `config/raft_lab_test.yml`, `config/1c1s3r1p.yml`
-
----
-
-## Results Processing
-
-```bash
-python3 results_processor.py <results/timestamp>
-# Example:
-python3 results_processor.py 2023-10-10-03:38:03
-```
+| Directory | Purpose |
+|-----------|---------|
+| `config/hosts*.yml` | Host topology |
+| `config/rw.yml`, `config/concurrent_*.yml` | Workload settings |
+| `config/occ_paxos.yml`, `config/1leader_2followers/` | Paxos protocol |
+| `config/none_raft.yml`, `config/rule_raft.yml` | Raft protocol |
 
 ---
 
@@ -295,57 +365,74 @@ python3 results_processor.py 2023-10-10-03:38:03
 ```
 mako/
 ├── src/
-│   ├── deptran/           # Transaction protocols (Paxos, Raft, Janus, etc.)
-│   │   ├── paxos/         # Paxos-based Mako implementation
-│   │   ├── raft/          # Raft + Jetpack implementation
+│   ├── deptran/           # Transaction protocols
+│   │   ├── paxos/         # Paxos replication
+│   │   ├── raft/          # Raft replication
 │   │   └── ...
-│   ├── mako/              # Masstree, benchmarks, watermark logic
-│   ├── bench/             # Workloads (TPC-C, TPC-A, RW)
-│   ├── rrr/               # Custom RPC framework
+│   ├── mako/              # Mako core (Masstree, watermarks)
+│   ├── bench/             # Benchmarks (TPC-C, TPC-A, RW)
+│   ├── rrr/               # RPC framework
 │   └── memdb/             # In-memory datastore
-├── config/                # YAML configs for hosts, workloads, consensus
-├── build/                 # Generated binaries and libraries
-├── ci/                    # Continuous integration scripts
-├── doc/                   # Detailed design docs (Raft, Mako, migration plan)
-└── README.md              # This document
+├── config/                # YAML configurations
+├── ci/
+│   ├── ci.sh              # Mako + Paxos tests
+│   └── ci_mako_raft.sh    # Mako + Raft tests
+├── examples/
+│   └── mako-raft-tests/   # Mako-Raft test scripts
+├── tests/                 # Unit tests
+├── third-party/           # Dependencies
+└── rust-lib/              # Rust components
 ```
 
 ---
 
-## Architecture Overview
+## Use Cases
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Client Applications                   │
-└──────────────┬───────────────────────────────┬──────────┘
-               │                               │
-      ┌────────▼────────┐              ┌───────▼────────┐
-      │ Transaction     │              │ Watermark &     │
-      │ Coordinators    │              │ Recovery Logic  │
-      └────────┬────────┘              └────────┬────────┘
-               │                               │
-      ┌────────▼────────┐              ┌───────▼────────┐
-      │ Consensus Layer │◄────────────►│  Masstree /     │
-      │  Paxos or Raft  │              │  RocksDB Store  │
-      └────────┬────────┘              └────────┬────────┘
-               │                               │
-      ┌────────▼────────┐              ┌───────▼────────┐
-      │ Network (eRPC,  │              │ Disk / Check-  │
-      │ TCP, DPDK)      │              │ pointing        │
-      └─────────────────┘              └────────────────┘
-```
+### Distributed RocksDB Alternative
 
-Leaders execute transactions speculatively; consensus replicates logs; followers validate against watermarks before exposing state. Jetpack extends Raft with witness-based fast recovery.
+Mako provides a familiar key-value API with distributed transactions, geo-replication, and fault tolerance. Perfect for applications that need:
+- **Horizontal scalability** across multiple nodes
+- **ACID transactions** spanning multiple keys or partitions
+- **Geographic replication** for disaster recovery
+
+### Redis Alternative with Transactions
+
+Mako includes a Redis-compatible layer for:
+- **Strong consistency** with serializable transactions
+- **Multi-key atomic operations** with full ACID guarantees
+- **Geographic distribution** with automatic failover
 
 ---
 
 ## Troubleshooting
 
-- **Frequent Raft leader churn:** Increase heartbeat interval in `config/none_raft.yml` and confirm followers log `resetTimer()` messages.
-- **Commands stuck uncommitted:** Check connectivity and `match_index_` in Raft logs or Paxos learner output.
-- **Jetpack not triggering:** Ensure `config/rule_raft.yml` is included and watch for `[JETPACK-RECOVERY]` in logs.
-- **Build failures after CMake edits:** Always re-run `cmake -B build ...` before invoking `cmake --build` or `make`.
+| Issue | Solution |
+|-------|----------|
+| Frequent Raft leader churn | Increase heartbeat interval in `config/none_raft.yml` |
+| Commands stuck uncommitted | Check connectivity and `match_index_` in logs |
+| Build failures after CMake edits | Re-run `cmake -B build ...` before building |
+| Hanging test processes | Run `./ci/ci_mako_raft.sh cleanup` |
 
 ---
 
-Happy hacking! Open an issue with reproduction steps (commands + configs) if you run into trouble, and include leader/follower logs for consensus-related questions.
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Ensure all tests pass (`make test`)
+5. Submit a pull request
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+- **Research Team**: Mako research and development team
+- **Contributors**: All researchers and students who have contributed
+- **Dependencies**: Built on Janus, Masstree, RocksDB, eRPC, and other open-source projects

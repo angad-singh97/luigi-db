@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
+#include <cstddef>
 #include <sys/file.h>
 #include "rpc.h"
 #include <mutex>
@@ -330,7 +331,7 @@ namespace mako
         }
 
         size_t get_msg_len() {
-            return msg_len + sizeof(request->batch_size) + sizeof(request->req_nr);
+            return msg_len + offsetof(batch_lock_request_t, data);
         }
 
         batch_lock_request_t *get_request_ptr() {
@@ -477,6 +478,7 @@ namespace mako
         return static_cast<size_t>(ms * 1000 * 1000 * freq_ghz);
     }
 
+    // @unsafe: uses std::chrono::duration::count
     static uint64_t getCurrentTimeMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch()).count();

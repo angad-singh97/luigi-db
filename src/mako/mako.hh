@@ -740,34 +740,42 @@ static void cleanup_and_shutdown()
 }
 
 static char** prepare_paxos_args(const vector<string>& paxos_config_file,
-  const string paxos_proc_name)
+  const string paxos_proc_name, int& argc_out)
 {
-  int argc_paxos = 18;
-  int kPaxosBatchSize = 50000; 
+  // Support variable number of config files (typically 2 or 3)
+  // Base args: 14 args + 2 args per config file
+  int num_configs = paxos_config_file.size();
+  int argc_paxos = 14 + (num_configs * 2);
+  argc_out = argc_paxos;
+
+  int kPaxosBatchSize = 50000;
   char **argv_paxos = new char*[argc_paxos];
-  int k = 0;
-  
-  argv_paxos[0] = (char *) "";
-  argv_paxos[1] = (char *) "-b";
-  argv_paxos[2] = (char *) "-d";
-  argv_paxos[3] = (char *) "60";
-  argv_paxos[4] = (char *) "-f";
-  argv_paxos[5] = (char *) paxos_config_file[k++].c_str();
-  argv_paxos[6] = (char *) "-f";
-  argv_paxos[7] = (char *) paxos_config_file[k++].c_str();
-  argv_paxos[8] = (char *) "-t";
-  argv_paxos[9] = (char *) "30";
-  argv_paxos[10] = (char *) "-T";
-  argv_paxos[11] = (char *) "100000";
-  argv_paxos[12] = (char *) "-n";
-  argv_paxos[13] = (char *) "32";
-  argv_paxos[14] = (char *) "-P";
-  argv_paxos[15] = (char *) paxos_proc_name.c_str();
-  argv_paxos[16] = (char *) "-A";
-  argv_paxos[17] = new char[20];
-  memset(argv_paxos[17], '\0', 20);
-  sprintf(argv_paxos[17], "%d", kPaxosBatchSize);
-  
+  int i = 0;
+
+  argv_paxos[i++] = (char *) "";
+  argv_paxos[i++] = (char *) "-b";
+  argv_paxos[i++] = (char *) "-d";
+  argv_paxos[i++] = (char *) "60";
+
+  // Add all config files
+  for (int k = 0; k < num_configs; k++) {
+    argv_paxos[i++] = (char *) "-f";
+    argv_paxos[i++] = (char *) paxos_config_file[k].c_str();
+  }
+
+  argv_paxos[i++] = (char *) "-t";
+  argv_paxos[i++] = (char *) "30";
+  argv_paxos[i++] = (char *) "-T";
+  argv_paxos[i++] = (char *) "100000";
+  argv_paxos[i++] = (char *) "-n";
+  argv_paxos[i++] = (char *) "32";
+  argv_paxos[i++] = (char *) "-P";
+  argv_paxos[i++] = (char *) paxos_proc_name.c_str();
+  argv_paxos[i++] = (char *) "-A";
+  argv_paxos[i] = new char[20];
+  memset(argv_paxos[i], '\0', 20);
+  sprintf(argv_paxos[i], "%d", kPaxosBatchSize);
+
   return argv_paxos;
 }
 
@@ -788,8 +796,9 @@ static abstract_db * init_env() {
     setup_leader_election_callbacks();
 
 
-    char** argv_paxos = prepare_paxos_args(benchConfig.getPaxosConfigFile(), benchConfig.getPaxosProcName());
-    std::vector<std::string> ret = setup(18, argv_paxos);
+    int argc_paxos = 0;
+    char** argv_paxos = prepare_paxos_args(benchConfig.getPaxosConfigFile(), benchConfig.getPaxosProcName(), argc_paxos);
+    std::vector<std::string> ret = setup(argc_paxos, argv_paxos);
     if (ret.empty()) {
       Warning("paxos args errors");
       return db;
