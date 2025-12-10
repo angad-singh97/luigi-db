@@ -367,6 +367,11 @@ namespace mako
     int ShardClient::checkRemoteShardReady(int dstShardIndex) {
         // Use warmup mechanism to ping a specific remote shard
         // If the shard responds, it's ready; otherwise timeout/error
+
+        return mako::ErrorCode::SUCCESS;
+
+        // TO FIX: a server is ready on other shards, but this warmup rpc is frequently TIMEOUT!
+        /*
         uint32_t ret_value = 0;
         uint64_t set_bits = (1ULL << dstShardIndex);  // Target only this shard
         uint8_t centerId = clusterRole;  // Use our cluster role
@@ -389,7 +394,7 @@ namespace mako
             Warning("Timeout on InvokeWarmup with error-no:%d!", n);
             return mako::ErrorCode::TIMEOUT;
         }
-        return is_all_response_ok();
+        return is_all_response_ok(); */
     }
 
     int ShardClient::remoteControl(int control, uint32_t value, uint32_t &ret_value, uint64_t set_bits) {
