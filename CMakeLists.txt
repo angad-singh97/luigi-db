@@ -43,7 +43,7 @@ if(NOT EXISTS ${CPP_BORROW_CHECKER})
 endif()
 
 # Enable borrow checking (can be disabled with -DENABLE_BORROW_CHECKING=OFF)
-option(ENABLE_BORROW_CHECKING "Enable RustyCpp borrow checking" OFF)
+option(ENABLE_BORROW_CHECKING "Enable RustyCpp borrow checking" ON)
 if(ENABLE_BORROW_CHECKING)
     enable_borrow_checking()
 endif()
