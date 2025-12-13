@@ -91,7 +91,11 @@ run_simple_transaction() {
     echo "Running: ./ci/ci.sh simpleTransaction"
     echo "========================================="
     cleanup_processes
-    ./build/simpleTransaction
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        ./build/simpleTransaction --use-luigi
+    else
+        ./build/simpleTransaction
+    fi
 }
 
 # Function 3: Run simple Paxos test
@@ -117,7 +121,11 @@ run_2shard_no_replication() {
     echo "========================================="
     cleanup_processes
     set +e
-    bash ./examples/test_2shard_no_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_2shard_no_replication.sh --use-luigi
+    else
+        bash ./examples/test_2shard_no_replication.sh
+    fi
     local test_result=$?
     set -e
     check_for_hanging_processes "shardNoReplication"
@@ -132,7 +140,11 @@ run_2shard_no_replication_erpc() {
     echo "========================================="
     cleanup_processes
     set +e
-    MAKO_TRANSPORT=erpc bash ./examples/test_2shard_no_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        MAKO_TRANSPORT=erpc bash ./examples/test_2shard_no_replication.sh --use-luigi
+    else
+        MAKO_TRANSPORT=erpc bash ./examples/test_2shard_no_replication.sh
+    fi
     local test_result=$?
     set -e
     check_for_hanging_processes "shardNoReplicationErpc"
@@ -145,15 +157,16 @@ run_1shard_replication() {
     echo "Running: ./ci/ci.sh shard1Replication"
     echo "========================================="
     cleanup_processes
-    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
-    bash ./examples/test_1shard_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_1shard_replication.sh --use-luigi
+    else
+        bash ./examples/test_1shard_replication.sh
+    fi
     local test_result=$?
     set -e
-    # Always check for hanging processes, even if test failed
     check_for_hanging_processes "shard1Replication"
     local hanging_check=$?
-    # Return failure if either check failed
     [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
 }
 
@@ -162,9 +175,12 @@ run_2shard_replication() {
     echo "Running: ./ci/ci.sh shard2Replication"
     echo "========================================="
     cleanup_processes
-    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
-    bash ./examples/test_2shard_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_2shard_replication.sh --use-luigi
+    else
+        bash ./examples/test_2shard_replication.sh
+    fi
     local test_result=$?
     set -e
     # Always check for hanging processes, even if test failed
@@ -179,9 +195,12 @@ run_2shard_replication_erpc() {
     echo "Running: ./ci/ci.sh shard2ReplicationErpc"
     echo "========================================="
     cleanup_processes
-    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
-    MAKO_TRANSPORT=erpc bash ./examples/test_2shard_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        MAKO_TRANSPORT=erpc bash ./examples/test_2shard_replication.sh --use-luigi
+    else
+        MAKO_TRANSPORT=erpc bash ./examples/test_2shard_replication.sh
+    fi
     local test_result=$?
     set -e
     # Always check for hanging processes, even if test failed
@@ -196,9 +215,12 @@ run_1shard_replication_simple() {
     echo "Running: ./ci/ci.sh shard1ReplicationSimple"
     echo "========================================="
     cleanup_processes
-    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
-    bash ./examples/test_1shard_replication_simple.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_1shard_replication_simple.sh --use-luigi
+    else
+        bash ./examples/test_1shard_replication_simple.sh
+    fi
     local test_result=$?
     set -e
     # Always check for hanging processes, even if test failed
@@ -213,9 +235,12 @@ run_2shard_replication_simple() {
     echo "Running: ./ci/ci.sh shard2ReplicationSimple"
     echo "========================================="
     cleanup_processes
-    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
-    bash ./examples/test_2shard_replication_simple.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_2shard_replication_simple.sh --use-luigi
+    else
+        bash ./examples/test_2shard_replication_simple.sh
+    fi
     local test_result=$?
     set -e
     # Always check for hanging processes, even if test failed
@@ -260,7 +285,11 @@ run_multi_shard_single_process() {
     echo "========================================="
     cleanup_processes
     set +e
-    bash ./examples/test_multi_shard_single_process.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_multi_shard_single_process.sh --use-luigi
+    else
+        bash ./examples/test_multi_shard_single_process.sh
+    fi
     local test_result=$?
     set -e
     check_for_hanging_processes "multiShardSingleProcess"
@@ -274,7 +303,11 @@ run_2shard_single_process() {
     echo "========================================="
     cleanup_processes
     set +e
-    bash ./examples/test_2shard_single_process.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_2shard_single_process.sh --use-luigi
+    else
+        bash ./examples/test_2shard_single_process.sh
+    fi
     local test_result=$?
     set -e
     check_for_hanging_processes "shard2SingleProcess"
@@ -288,7 +321,11 @@ run_2shard_single_process_replication() {
     echo "========================================="
     cleanup_processes
     set +e
-    bash ./examples/test_2shard_single_process_replication.sh
+    if [ "$MAKO_LUIGI_FLAG" = "1" ]; then
+        bash ./examples/test_2shard_single_process_replication.sh --use-luigi
+    else
+        bash ./examples/test_2shard_single_process_replication.sh
+    fi
     local test_result=$?
     set -e
     check_for_hanging_processes "shard2SingleProcessReplication"
@@ -328,6 +365,13 @@ cleanup() {
     rm -rf ./src/mako/out-perf.masstree/*
     rm -rf build/*
 }
+
+# Parse command-line arguments
+MAKO_LUIGI_FLAG="0"
+if [ "${1:-}" = "--use-luigi" ]; then
+    MAKO_LUIGI_FLAG="1"
+    shift  # Remove the flag, so $1 is now the test name
+fi
 
 # Main entry point with command parsing
 case "${1:-}" in

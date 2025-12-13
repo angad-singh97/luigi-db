@@ -5,6 +5,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <cstring>
 #include <mako.hh>
 #include <examples/common.h>
 
@@ -167,15 +168,31 @@ void run_tests(abstract_db *db) {
     delete worker;
 }
 
-int main() {
-    abstract_db *db = new mbta_wrapper;
-    db->init() ;
-    printf("=== Mako Transaction Tests  ===\n");
-    
+int main(int argc, char** argv) {
+    // Parse command-line arguments
+    int use_luigi = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--use-luigi") == 0) {
+            use_luigi = 1;
+        }
+    }
+
+    auto& benchConfig = BenchmarkConfig::getInstance();
     auto config = new transport::Configuration(
         get_current_absolute_path() + "../src/mako/config/local-shards2-warehouses1.yml"
     );
-    BenchmarkConfig::getInstance().setConfig(config);
+    benchConfig.setConfig(config);
+    benchConfig.setUseLuigi(use_luigi);
+
+    // Conditionally initialize abstract_db based on use_luigi flag
+    abstract_db *db = nullptr;
+    if (use_luigi) {
+        db = new luigi_wrapper(config, {});
+    } else {
+        db = new mbta_wrapper;
+    }
+    db->init();
+    printf("=== Mako Transaction Tests (using %s) ===\n", use_luigi ? "Luigi" : "MBTA");
     
     run_tests(db);
     

@@ -13,17 +13,34 @@ echo "========================================="
 echo "Testing 2-shard single process mode (no replication)"
 echo "========================================="
 
+# Parse command-line arguments
+use_luigi=""
+trd=6
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --use-luigi)
+            use_luigi="1"
+            shift
+            ;;
+        *)
+            trd=$1
+            shift
+            ;;
+    esac
+done
+
 # Clean up old log files
 rm -f nfs_sync_*
 USERNAME=${USER:-unknown}
 rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
-trd=${1:-6}
 script_name="$(basename "$0")"
 
 # Determine transport type and create unique log prefix
 transport="${MAKO_TRANSPORT:-rrr}"
 log_prefix="${script_name}_${transport}"
+[ "$use_luigi" == "1" ] && log_prefix="${log_prefix}_luigi"
 log_file="${log_prefix}_2shard_single-$trd.log"
 
 ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
@@ -34,6 +51,7 @@ path=$(pwd)/src/mako
 # Build the command for 2-shard single process mode (no replication)
 # Key: -L 0,1 specifies running shards 0 and 1 in the same process
 CMD="./build/dbtest --num-threads $trd --shard-config $path/config/local-shards2-warehouses$trd.yml -P localhost -L 0,1"
+[ "$use_luigi" == "1" ] && CMD="$CMD --use-luigi"
 
 echo ""
 echo "Configuration:"

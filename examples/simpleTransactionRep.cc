@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <cstring>
 #include <mako.hh>
 #include "examples/common.h"
 #include "examples/test_verification.h"
@@ -684,9 +685,9 @@ bool verify_data_integrity(abstract_db* db, int nshards, int nthreads) {
 int main(int argc, char **argv) {
     
     // All necessary parameters expected from users
-    if (argc != 6) {
-        printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> <is_replicated>\n", argv[0]);
-        printf("Example: %s 2 0 6 localhost 1\n", argv[0]);
+    if (argc < 6) {
+        printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> <is_replicated> [use_luigi]\n", argv[0]);
+        printf("Example: %s 2 0 6 localhost 1 1\n", argv[0]);
         return 1;
     }
 
@@ -695,6 +696,7 @@ int main(int argc, char **argv) {
     int nthreads = std::stoi(argv[3]);
     std::string paxos_proc_name = std::string(argv[4]);
     int is_replicated = std::stoi(argv[5]);
+    int use_luigi = (argc > 6) ? std::stoi(argv[6]) : 0;
 
     // Build config path - fix the format string to use std::to_string
     std::string config_path = get_current_absolute_path() 
@@ -711,6 +713,7 @@ int main(int argc, char **argv) {
     benchConfig.setNthreads(nthreads);
     benchConfig.setPaxosProcName(paxos_proc_name);
     benchConfig.setIsReplicated(is_replicated);
+    benchConfig.setUseLuigi(use_luigi);
 
     auto config = new transport::Configuration(config_path);
     benchConfig.setConfig(config);
@@ -718,7 +721,7 @@ int main(int argc, char **argv) {
 
     abstract_db* replicated_db = init_env();
 
-    printf("=== Mako Transaction Tests  ===\n");
+    printf("=== Mako Transaction Tests (using %s) ===\n", use_luigi ? "Luigi" : "MBTA");
     
     abstract_db* db = initWithDB();
 

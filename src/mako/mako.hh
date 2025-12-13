@@ -23,6 +23,7 @@
 #include "benchmarks/bench.h"
 #include "benchmarks/sto/sync_util.hh"
 #include "benchmarks/mbta_wrapper.hh"
+#include "benchmarks/luigi_wrapper.hh"
 #include "benchmarks/common.h"
 #include "benchmarks/common2.h"
 #include "benchmarks/benchmark_config.h"
@@ -111,9 +112,17 @@ static abstract_db* initShardDB(int shard_idx, bool is_leader, const std::string
          shard_idx, cluster_role.c_str(), is_leader);
 
   // Create and initialize database instance for this shard
-  abstract_db *db = new mbta_wrapper;
+  abstract_db *db = nullptr;
+  
+  if (benchConfig.getUseLuigi()) {
+    db = new luigi_wrapper(benchConfig.getConfig(), {});
+    Notice("Initialized Luigi wrapper for shard %d", shard_idx);
+  } else {
+    db = new mbta_wrapper;
+    Notice("Initialized MBTA wrapper for shard %d", shard_idx);
+  }
+  
   db->init();
-
   return db;
 }
 
@@ -206,8 +215,20 @@ static abstract_db* initWithDB() {
                                benchConfig.getCluster(),
                                benchConfig.getConfig());
 
-  abstract_db *db = new mbta_wrapper; // on the leader replica
-  db->init() ;
+  abstract_db *db = nullptr;
+  
+  // Choose DB backend based on configuration
+  if (benchConfig.getUseLuigi()) {
+    // Luigi distributed transaction backend
+    db = new luigi_wrapper(benchConfig.getConfig(), {});
+    Notice("Initialized Luigi wrapper for distributed transactions");
+  } else {
+    // Standard STO backend  
+    db = new mbta_wrapper;
+    Notice("Initialized MBTA wrapper for local transactions");
+  }
+  
+  db->init();
   return db;
 }
 
