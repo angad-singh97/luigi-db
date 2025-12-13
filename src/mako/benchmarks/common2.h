@@ -123,6 +123,16 @@ void modeMonitor(abstract_db *db, int thread_nums, bench_runner *R) {
     mimic_thread.detach();  // thread detach
 }
 
-abstract_db *ThreadDBWrapperMbta::replay_thread_wrapper_db = new mbta_wrapper; // include just once!
+// Initialize replay thread wrapper DB based on configuration
+inline abstract_db* InitReplayThreadWrapperDB() {
+    auto& benchConfig = BenchmarkConfig::getInstance();
+    if (benchConfig.getUseLuigi()) {
+        return new luigi_wrapper(benchConfig.getConfig(), {});
+    } else {
+        return new mbta_wrapper;
+    }
+}
+
+abstract_db *ThreadDBWrapperMbta::replay_thread_wrapper_db = InitReplayThreadWrapperDB();
 
 #endif // SILO_STO_COMMON_2_H

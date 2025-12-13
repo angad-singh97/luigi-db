@@ -9,6 +9,7 @@
 #include <algorithm>
 #include "benchmarks/bench.h"
 #include "benchmarks/mbta_wrapper.hh"
+#include "benchmarks/luigi_wrapper.hh"
 #include "benchmarks/tpcc.h"
 #include "benchmarks/benchmark_config.h"
 #include "common.h"
@@ -259,9 +260,18 @@ void runner(abstract_db *db) {
 }
 
 int main() {
-    abstract_db *db = new mbta_wrapper;
     config = new transport::Configuration("./config/local-shards2-warehouses1.yml");
     shardIndex = 0;
+    
+    auto& benchConfig = BenchmarkConfig::getInstance();
+    benchConfig.setConfig(config);
+    
+    abstract_db *db = nullptr;
+    if (benchConfig.getUseLuigi()) {
+        db = new luigi_wrapper(config, {});
+    } else {
+        db = new mbta_wrapper;
+    }
 
     runner(db);
     return 0;
