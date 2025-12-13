@@ -1,8 +1,7 @@
 #pragma once
 
-#include "deptran/__dep__.h"
-#include "deptran/scheduler.h"
-#include "deptran/tx.h"
+#include "__dep__.h"
+#include "constants.h"
 
 #include <atomic>
 #include <cstdint>

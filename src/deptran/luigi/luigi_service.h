@@ -1,9 +1,9 @@
 #pragma once
 
-#include "deptran/__dep__.h"       // Must come first for type definitions
-#include "deptran/procedure.h"     // For SimpleCommand
-#include "deptran/command_marshaler.h"  // For command marshaling
-#include "deptran/rcc_rpc.h"       // Generated RPC (needs SimpleCommand)
+#include "__dep__.h"       // Must come first for type definitions
+#include "procedure.h"     // For SimpleCommand
+#include "command_marshaler.h"  // For command marshaling
+#include "rcc_rpc.h"       // Generated RPC (needs SimpleCommand)
 #include "luigi_entry.h"
 
 namespace janus {
