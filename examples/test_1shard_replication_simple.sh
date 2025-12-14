@@ -21,7 +21,7 @@ PID_LEARNER=$!
 nohup ./build/simpleTransactionRep 1 0 6 p2 1 > simple-shard0-p2.log 2>&1 &
 PID_P2=$!
 sleep 1
-nohup ./build/simpleTransactionRep 1 0 6 p1 1 > simple-shard0-p1.log 2>&1 &
+nohup ./build/simpleTransactionRep 1 0 6 p1 1  > simple-shard0-p1.log 2>&1 &
 PID_P1=$!
 sleep 2
 

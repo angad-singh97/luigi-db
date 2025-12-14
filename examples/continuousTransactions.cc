@@ -12,7 +12,6 @@
 #include <iomanip>
 #include <signal.h>
 #include <map>
-#include <cstring>
 #include <mako.hh>
 #include "examples/common.h"
 #include "examples/statistics.h"
@@ -137,7 +136,7 @@ int main(int argc, char **argv) {
     signal(SIGTERM, signal_handler);
 
     // Parse configuration - simplified parameters similar to simpleTransactionRep
-    if (argc < 5) {
+    if (argc != 5 && argc != 6) {
         printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> [is_replicated]\n", argv[0]);
         printf("Example: %s 2 0 4 localhost 0\n", argv[0]);
         return 1;
@@ -171,7 +170,7 @@ int main(int argc, char **argv) {
 
     init_env();
 
-    printf("=== Continuous Transaction Test (using MBTA) ===\n");
+    printf("=== Continuous Transaction Test ===\n");
     printf("Configuration: 70%% reads, 30%% writes\n");
     printf("Home shard: %d, Total shards: %d, Workers: %d\n",
            shardIdx, nshards, nthreads);

@@ -13,21 +13,10 @@ echo "========================================="
 echo "Testing multi-shard single process mode"
 echo "========================================="
 
-# Parse command-line arguments
-trd=6
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        *)
-            trd=$1
-            shift
-            ;;
-    esac
-done
-
 # Clean up old log files
 rm -f nfs_sync_*
 
+trd=${1:-6}
 script_name="$(basename "$0")"
 
 # Determine transport type and create unique log prefix

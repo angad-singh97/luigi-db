@@ -10,18 +10,7 @@ echo "========================================="
 echo "Testing 1-shard setup with replication"
 echo "========================================="
 
-# Parse command-line arguments
-trd=6
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        *)
-            trd=$1
-            shift
-            ;;
-    esac
-done
-
+trd=${1:-6}
 script_name="$(basename "$0")"
 ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 # Clean up old log files

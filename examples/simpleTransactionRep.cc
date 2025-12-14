@@ -7,7 +7,6 @@
 #include <thread>
 #include <vector>
 #include <map>
-#include <cstring>
 #include <mako.hh>
 #include "examples/common.h"
 #include "examples/test_verification.h"
@@ -685,7 +684,7 @@ bool verify_data_integrity(abstract_db* db, int nshards, int nthreads) {
 int main(int argc, char **argv) {
     
     // All necessary parameters expected from users
-    if (argc < 6) {
+    if (argc != 6) {
         printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> <is_replicated>\n", argv[0]);
         printf("Example: %s 2 0 6 localhost 1\n", argv[0]);
         return 1;
@@ -719,7 +718,7 @@ int main(int argc, char **argv) {
 
     abstract_db* replicated_db = init_env();
 
-    printf("=== Mako Transaction Tests (using MBTA) ===\n");
+    printf("=== Mako Transaction Tests  ===\n");
     
     abstract_db* db = initWithDB();
 

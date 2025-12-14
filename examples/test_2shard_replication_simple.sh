@@ -6,18 +6,6 @@ echo "========================================="
 echo "Testing 2-shard setup with replication using simpleTransactionRep"
 echo "========================================="
 
-# Parse command-line arguments
-trd=6
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        *)
-            trd=$1
-            shift
-            ;;
-    esac
-done
-
 #skill dbtest
 # Clean up old log files
 rm -f nfs_sync_*
@@ -29,6 +17,8 @@ ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 ps aux | grep -i simpleTransactionRep | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
 
+trd=6
+
 # Start BOTH shards simultaneously to avoid timing issues where shard 0 tries
 # to connect to shard 1 before shard 1 is ready
 echo "Starting shard 0 and shard 1 simultaneously..."
@@ -36,7 +26,7 @@ echo "Starting shard 0 and shard 1 simultaneously..."
 # Start shard 0 followers first
 nohup ./build/simpleTransactionRep 2 0 $trd learner 1 > simple-shard0-learner.log 2>&1 &
 PID_S0_LEARNER=$!
-nohup ./build/simpleTransactionRep 2 0 $trd p2 1 $luigi_val > simple-shard0-p2.log 2>&1 &
+nohup ./build/simpleTransactionRep 2 0 $trd p2 1 > simple-shard0-p2.log 2>&1 &
 PID_S0_P2=$!
 
 # Start shard 1 followers simultaneously

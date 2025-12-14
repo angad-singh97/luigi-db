@@ -5,7 +5,6 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include <cstring>
 #include <mako.hh>
 #include <examples/common.h>
 
@@ -168,17 +167,15 @@ void run_tests(abstract_db *db) {
     delete worker;
 }
 
-int main(int argc, char** argv) {
-    auto& benchConfig = BenchmarkConfig::getInstance();
+int main() {
+    abstract_db *db = new mbta_wrapper;
+    db->init() ;
+    printf("=== Mako Transaction Tests  ===\n");
+    
     auto config = new transport::Configuration(
         get_current_absolute_path() + "../src/mako/config/local-shards2-warehouses1.yml"
     );
-    benchConfig.setConfig(config);
-
-    // Initialize abstract_db with mbta_wrapper
-    abstract_db *db = new mbta_wrapper;
-    db->init();
-    printf("=== Mako Transaction Tests (using MBTA) ===\n");
+    BenchmarkConfig::getInstance().setConfig(config);
     
     run_tests(db);
     

@@ -13,23 +13,12 @@ echo "========================================="
 echo "Testing 2-shard single process mode (no replication)"
 echo "========================================="
 
-# Parse command-line arguments
-trd=6
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        *)
-            trd=$1
-            shift
-            ;;
-    esac
-done
-
 # Clean up old log files
 rm -f nfs_sync_*
 USERNAME=${USER:-unknown}
 rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
+trd=${1:-6}
 script_name="$(basename "$0")"
 
 # Determine transport type and create unique log prefix

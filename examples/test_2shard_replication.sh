@@ -9,18 +9,6 @@ echo "========================================="
 echo "Testing 2-shard setup with replication"
 echo "========================================="
 
-# Parse command-line arguments
-trd=6
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        *)
-            trd=$1
-            shift
-            ;;
-    esac
-done
-
 #skill dbtest
 # Clean up old log files
 #rm -f shard0*.log shard1*.log
@@ -29,6 +17,7 @@ rm -f simple-shard0*.log simple-shard1*.log
 USERNAME=${USER:-unknown}
 rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
+trd=6
 script_name="$(basename "$0")"
 
 # Determine transport type and create unique log prefix
