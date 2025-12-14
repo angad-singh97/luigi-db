@@ -8,29 +8,12 @@
 #include <algorithm>
 #include <map>
 #include <unordered_map>
-#include <shared_mutex>
 #include "lib/fasttransport.h"
 #include "lib/timestamp.h"
 #include "lib/common.h"
 #include "benchmarks/abstract_db.h"
 #include "benchmarks/abstract_ordered_index.h"
 #include "lib/helper_queue.h"
-
-// Forward declarations for Luigi (avoid heavy deptran includes in header)
-namespace janus {
-class SchedulerLuigi;
-class LuigiRpcSetup;
-struct LuigiLogEntry;
-}
-
-// Forward declarations for rrr RPC
-namespace rrr {
-class Server;
-class PollThread;
-}
-namespace rusty {
-template<typename T> class Arc;
-}
 
 void register_sync_util_ss(std::function<int()>);
 
@@ -73,30 +56,15 @@ namespace mako
         void HandleGetMicroMegaRequest(char *reqBuf, char *respBuf, size_t &respLen);
         void HandleBatchLockMicroMegaRequest(char *reqBuf, char *respBuf, size_t &respLen);
 
-        // Luigi (Tiga-style) handler - async: queues and returns QUEUED immediately
-        void HandleLuigiDispatch(char *reqBuf, char *respBuf, size_t &respLen);
-        
-        // Luigi status check handler - poll for completion of async dispatch
-        void HandleLuigiStatusCheck(char *reqBuf, char *respBuf, size_t &respLen);
-        
-        // OWD ping handler for latency measurement
-        void HandleOwdPing(char *reqBuf, char *respBuf, size_t &respLen);
-
     protected:
         inline void *txn_buf() { return (void *) txn_obj_buf.data(); }
 
     private:
         transport::Configuration config;
 
-        // std::vector<uint64_t> latency_get;
-        // std::vector<uint64_t> latency_prepare;
-        // std::vector<uint64_t> latency_commit;
-
         // store layer
         abstract_db *db;
         map<int, abstract_ordered_index *> open_tables_table_id;
-        // map<string, vector<abstract_ordered_index *>> partitions;
-        // map<string, vector<abstract_ordered_index *>> remote_partitions;
 
         uint64_t txn_flags = 0;
         std::string txn_obj_buf;
@@ -107,49 +75,6 @@ namespace mako
         string obj_v;
 
         int current_term ;
-
-        // Luigi (Tiga-style) scheduler for timestamp-ordered execution
-        janus::SchedulerLuigi* luigi_scheduler_ = nullptr;
-        janus::LuigiRpcSetup* luigi_rpc_setup_ = nullptr;
-        uint32_t partition_id_ = 0;
-        
-        //=====================================================================
-        // Async Luigi: Store completed txn results for polling
-        //=====================================================================
-        struct LuigiTxnResult {
-            int status;                          // LUIGI_STATUS_*
-            uint64_t commit_timestamp;
-            std::vector<std::string> read_results;
-            std::chrono::steady_clock::time_point completion_time;
-        };
-        std::unordered_map<uint64_t, LuigiTxnResult> luigi_completed_txns_;
-        mutable std::shared_mutex luigi_results_mutex_;
-        
-        // Store result for later polling (called from scheduler callback)
-        void StoreLuigiResult(uint64_t txn_id, int status, uint64_t commit_ts,
-                              const std::vector<std::string>& read_results);
-        
-        // Cleanup old results (called periodically, removes results older than TTL)
-        void CleanupStaleLuigiResults(int ttl_seconds = 60);
-        
-        // Replicate a Luigi entry to Paxos (called from executor)
-        bool ReplicateLuigiEntry(const std::shared_ptr<janus::LuigiLogEntry>& entry);
-
-    public:
-        // Initialize and start Luigi scheduler
-        void InitLuigiScheduler(uint32_t partition_id);
-        
-        // Set up Luigi RPC (call after InitLuigiScheduler)
-        // rpc_server: the rrr::Server to register service with
-        // poll_thread: for async I/O
-        // shard_addresses: map of shard_id -> "host:port" for other leaders
-        void SetupLuigiRpc(
-            rrr::Server* rpc_server,
-            rusty::Arc<rrr::PollThread> poll_thread,
-            const std::map<uint32_t, std::string>& shard_addresses);
-        
-        void StopLuigiScheduler();
-        janus::SchedulerLuigi* GetLuigiScheduler() { return luigi_scheduler_; }
     };
 
     class ShardServer
@@ -164,16 +89,6 @@ namespace mako
                  const map<string, vector<abstract_ordered_index *>> &remote_partitions*/);
         void UpdateTable(int table_id, abstract_ordered_index *table);
         void Run();
-        
-        // Setup Luigi RPC for multi-shard agreement protocol
-        void SetupLuigiRpc(rrr::Server* rpc_server,
-                          rusty::Arc<rrr::PollThread> poll_thread,
-                          const std::map<uint32_t, std::string>& shard_addresses);
-        
-        // Get Luigi scheduler for local dispatch
-        janus::SchedulerLuigi* GetLuigiScheduler() {
-            return shardReceiver ? shardReceiver->GetLuigiScheduler() : nullptr;
-        }
 
     protected:
         transport::Configuration config;
@@ -189,8 +104,6 @@ namespace mako
         mako::HelperQueue *queue;
         mako::HelperQueue *queue_response;
         map<int, abstract_ordered_index *> open_tables_table_id;
-        // map<string, vector<abstract_ordered_index *>> partitions;
-        // map<string, vector<abstract_ordered_index *>> remote_partitions;
     };
 }
 #endif

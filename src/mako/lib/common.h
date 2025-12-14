@@ -178,15 +178,7 @@ namespace mako
     // reserved for watermark exchange between follower data center
     const uint8_t watermarkReqType = 13;
     
-    // Luigi: Tiga-style timestamp-ordered execution
-    const uint8_t luigiDispatchReqType = 14;
-    
-    // Luigi: OWD (One-Way Delay) ping for latency measurement
-    const uint8_t owdPingReqType = 15;
-    
-    // Luigi: Status check for async dispatch polling
-    const uint8_t luigiStatusReqType = 16;
-    
+
     const size_t max_key_length = 64;
 #if defined(MEGA_BENCHMARK)
     const size_t max_value_length = 7000; // mega in new order 
@@ -268,79 +260,6 @@ namespace mako
         uint16_t targert_server_id; // (0-255) <= warehouses * shards
         uint32_t req_nr;
         uint32_t req_val;
-    };
-
-    //=========================================================================
-    // Luigi (Tiga-style) request/response structures
-    //=========================================================================
-    
-    // Maximum number of key-value pairs in a Luigi dispatch
-    const size_t luigi_max_ops = 32;
-    const size_t luigi_max_shards = 16;  // Max shards involved in one txn
-    
-    struct luigi_dispatch_request_t {
-        uint16_t target_server_id;     // Target shard
-        uint32_t req_nr;               // Request number (for matching response)
-        uint64_t txn_id;               // Unique transaction ID
-        uint64_t expected_time;        // Timestamp at which transaction should execute
-        uint16_t num_ops;              // Number of operations in this dispatch
-        uint16_t num_involved_shards;  // Number of shards involved in this txn (for agreement)
-        uint16_t involved_shards[luigi_max_shards];  // List of all involved shard IDs
-        // Each op: [table_id(2) | op_type(1) | klen(2) | vlen(2) | key | value]
-        // op_type: 0=read, 1=write
-        char ops_data[luigi_max_ops * (max_key_length + max_value_length + 8)];
-    };
-
-    struct luigi_dispatch_response_t {
-        uint32_t req_nr;
-        uint64_t txn_id;
-        int status;                    // SUCCESS or ABORT
-        uint64_t commit_timestamp;     // The timestamp at which txn was committed
-        uint16_t num_results;          // Number of read results
-        char results_data[luigi_max_ops * max_value_length];
-    };
-
-    // Operation types for Luigi
-    const uint8_t LUIGI_OP_READ = 0;
-    const uint8_t LUIGI_OP_WRITE = 1;
-
-    //=========================================================================
-    // OWD Ping: Simple ping for measuring one-way delay
-    //=========================================================================
-    struct owd_ping_request_t {
-        uint16_t target_server_id;     // Target shard
-        uint32_t req_nr;               // Request number
-        uint64_t send_time;            // Timestamp when ping was sent (for debugging)
-    };
-
-    struct owd_ping_response_t {
-        uint32_t req_nr;               // Echo back request number
-        int status;                    // 0 = OK
-    };
-
-    //=========================================================================
-    // Luigi Status Check: Poll for completion of async dispatch
-    //=========================================================================
-    
-    // Status values for async Luigi dispatch
-    const int LUIGI_STATUS_QUEUED = 100;     // Txn queued, not yet complete
-    const int LUIGI_STATUS_COMPLETE = 101;   // Txn completed successfully
-    const int LUIGI_STATUS_ABORTED = 102;    // Txn aborted
-    const int LUIGI_STATUS_NOT_FOUND = 103;  // Txn not found (expired or invalid)
-    
-    struct luigi_status_request_t {
-        uint16_t target_server_id;     // Target shard
-        uint32_t req_nr;               // Request number
-        uint64_t txn_id;               // Transaction ID to check
-    };
-    
-    struct luigi_status_response_t {
-        uint32_t req_nr;
-        uint64_t txn_id;
-        int status;                    // QUEUED, COMPLETE, ABORTED, NOT_FOUND
-        uint64_t commit_timestamp;     // Valid only if COMPLETE
-        uint16_t num_results;          // Number of read results (valid if COMPLETE)
-        char results_data[luigi_max_ops * max_value_length];
     };
 
     struct lock_request_t
@@ -468,12 +387,10 @@ namespace mako
         uint32_t req_nr;
     };
 
-    // Renamed from ErrorCode to MakoErrorCode to avoid conflict with 
-    // deptran/constants.h SUCCESS macro
-    class MakoErrorCode
+    class ErrorCode
     {
     public:
-        static const int OK = 0;       // Was SUCCESS, renamed to avoid macro conflict
+        static const int SUCCESS = 0;
         static const int TIMEOUT = 1;
         static const int ERROR = 2;
         static const int ABORT = 3;
@@ -486,7 +403,7 @@ namespace mako
     using continuation_t =
         std::function<void(const std::string &request, const std::string &reply)>;
     using error_continuation_t =
-        std::function<void(const std::string &request, MakoErrorCode err)>;
+        std::function<void(const std::string &request, ErrorCode err)>;
 
     // Single timestamp encoding
     static char* encode_single_timestamp(uint32_t timestamp) {
@@ -561,6 +478,7 @@ namespace mako
         return static_cast<size_t>(ms * 1000 * 1000 * freq_ghz);
     }
 
+    // @unsafe: uses std::chrono::duration::count
     static uint64_t getCurrentTimeMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch()).count();
