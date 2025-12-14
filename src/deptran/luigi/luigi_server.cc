@@ -3,12 +3,10 @@
  */
 
 #include "luigi_server.h"
-#include "luigi_entry.h"
-#include "luigi_rpc_setup.h"
+#include "deptran/__dep__.h"
+#include "deptran/rcc/tx.h" pp "
+#include "luigi_common.h"
 #include "luigi_scheduler.h"
-
-#include "deptran/config.h"
-#include "rrr/rrr.hpp"
 
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/common.h"
@@ -141,47 +139,26 @@ void LuigiReceiver::InitScheduler(uint32_t partition_id) {
         return ReplicateEntry(entry);
       });
 
-  scheduler_->Start();
-  Log_info("Luigi scheduler initialized for partition %d", partition_id);
+  // Transport and RPC setup handled externally (like Mako)
+  Log_info("LuigiReceiver initialized for shard %u",
+           scheduler_->partition_id());
 }
 
 void LuigiReceiver::SetupRpc(
-    rrr::Server *rpc_server, rusty::Arc<rrr::PollThread> poll_thread,
-    const std::map<uint32_t, std::string> &shard_addresses) {
-  if (scheduler_ == nullptr) {
-    Log_error("SetupRpc: Luigi scheduler not initialized!");
-    return;
-  }
+    rrr::Server *rpc_server,
+    const std::map<uint32_t, std::string> &shard_addresses,
+    rusty::Arc<rrr::PollThread> poll_thread) {
+  // RPC setup no longer needed - using eRPC transport directly (like Mako)
+  Log_info("SetupRpc: eRPC transport managed externally");
+}
 
-  if (rpc_setup_ != nullptr) {
-    Log_warn("SetupRpc: Already set up");
-    return;
-  }
-
-  rpc_setup_ = new LuigiRpcSetup();
-
-  // Register RPC service
-  if (rpc_server != nullptr) {
-    bool ok = rpc_setup_->SetupService(rpc_server, scheduler_);
-    if (!ok) {
-      Log_error("SetupRpc: Failed to register service");
-    }
-  }
-
-  // Connect to other shard leaders
-  if (!shard_addresses.empty() && poll_thread) {
-    int connected =
-        rpc_setup_->ConnectToLeaders(shard_addresses, poll_thread, scheduler_);
-    Log_info("Luigi RPC: connected to %d remote leaders", connected);
-  }
+void LuigiReceiver::Shutdown() {
+  // Transport cleanup handled externally
+  Log_info("LuigiReceiver shutdown complete");
 }
 
 void LuigiReceiver::StopScheduler() {
-  if (rpc_setup_ != nullptr) {
-    rpc_setup_->Shutdown();
-    delete rpc_setup_;
-    rpc_setup_ = nullptr;
-  }
+  // Transport cleanup handled externally
 
   if (scheduler_ != nullptr) {
     scheduler_->Stop();
@@ -552,13 +529,12 @@ void SetupLuigiRpc() {
   Log_info("setup_luigi_rpc: Using eRPC for all Luigi coordination");
 }
 
-
 //=============================================================================
 // Coordination RPC Handlers (Leader-to-Leader)
 //=============================================================================
 
 void LuigiReceiver::HandleDeadlinePropose(char *reqBuf, char *respBuf,
-                                           size_t &respLen) {
+                                          size_t &respLen) {
   auto *req = reinterpret_cast<luigi::DeadlineProposeRequest *>(reqBuf);
   auto *resp = reinterpret_cast<luigi::DeadlineProposeResponse *>(respBuf);
 
@@ -583,7 +559,7 @@ void LuigiReceiver::HandleDeadlinePropose(char *reqBuf, char *respBuf,
 }
 
 void LuigiReceiver::HandleDeadlineConfirm(char *reqBuf, char *respBuf,
-                                           size_t &respLen) {
+                                          size_t &respLen) {
   auto *req = reinterpret_cast<luigi::DeadlineConfirmRequest *>(reqBuf);
   auto *resp = reinterpret_cast<luigi::DeadlineConfirmResponse *>(respBuf);
 
@@ -594,7 +570,7 @@ void LuigiReceiver::HandleDeadlineConfirm(char *reqBuf, char *respBuf,
   bool success = false;
   if (scheduler_) {
     success = scheduler_->HandleRemoteDeadlineConfirm(req->tid, req->src_shard,
-                                                       req->new_ts);
+                                                      req->new_ts);
   }
 
   // Build response
@@ -605,7 +581,7 @@ void LuigiReceiver::HandleDeadlineConfirm(char *reqBuf, char *respBuf,
 }
 
 void LuigiReceiver::HandleWatermarkExchange(char *reqBuf, char *respBuf,
-                                             size_t &respLen) {
+                                            size_t &respLen) {
   auto *req = reinterpret_cast<luigi::WatermarkExchangeRequest *>(reqBuf);
   auto *resp = reinterpret_cast<luigi::WatermarkExchangeResponse *>(respBuf);
 

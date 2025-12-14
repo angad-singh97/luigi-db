@@ -40,7 +40,6 @@ class HelperQueue;
 namespace janus {
 
 class SchedulerLuigi;
-class LuigiRpcSetup;
 
 /**
  * LuigiReceiver: Handles incoming Luigi protocol requests.
@@ -147,7 +146,6 @@ private:
 
   // Luigi scheduler
   SchedulerLuigi *scheduler_ = nullptr;
-  LuigiRpcSetup *rpc_setup_ = nullptr;
   uint32_t partition_id_ = 0;
 
   // Async result storage
