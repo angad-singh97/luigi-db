@@ -1,6 +1,5 @@
 #include "luigi_rpc_setup.h"
 #include "luigi_scheduler.h"
-#include "luigi_service.h"
 
 #include "deptran/__dep__.h" // For logging
 #include "deptran/rcc/tx.h"  // For parent_set_t definition
@@ -30,18 +29,12 @@ bool LuigiRpcSetup::SetupService(rrr::Server *rpc_server,
   // RRR service removed - now using eRPC for all coordination
   Log_info("LuigiRpcSetup: Using eRPC for leader coordination");
 
-  // Register with the RPC server
-  int ret = rpc_server->reg(service_);
-  if (ret != 0) {
-    Log_error(
-        "LuigiRpcSetup::SetupService: failed to register service (ret=%d)",
-        ret);
-    delete service_;
-    service_ = nullptr;
-    return false;
-  }
+  // RRR service registration code removed as per instruction.
+  // The service_ member is now expected to be managed externally or not used
+  // for RRR. If eRPC is used, its setup would be elsewhere.
 
-  Log_info("Luigi RPC service registered successfully");
+  // Assuming that if RRR service is removed, this function should just return
+  // true if it reaches this point, indicating no RRR service setup is needed.
   return true;
 }
 
@@ -95,19 +88,7 @@ void LuigiRpcSetup::Shutdown() {
   for (auto *proxy : proxies_) {
     delete proxy;
   }
-  proxies_.clear();
-
-  // Clean up RPC clients - Arc handles reference counting
-  for (auto &client : rpc_clients_) {
-    client->close();
-  }
-  rpc_clients_.clear();
-
-  // Service is owned by the RPC server after registration
-  // but we need to clean it up if never registered
-  // For now, we assume the server takes ownership
-  service_ = nullptr;
-
+  // RRR service removed - using eRPC for all coordination
   Log_info("Luigi RPC shutdown complete");
 }
 
