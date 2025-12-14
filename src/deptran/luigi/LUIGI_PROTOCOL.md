@@ -2,6 +2,41 @@
 
 ## Quick Reference for LLMs
 
+**Summary**
+
+**Timestamp Initialization**
+* Coordinator assign future timestamps based on OWD measurements. T.timestamp = now() + max_OWD + headroom
+* Composite timestamp = T.timestamp_workerID
+
+**Transaction Receipt and Queueing**
+* Leaders perform conflict detection (check read map and write map for any transaction that touches the same keys, but has a higher timestamp and has been released) before accepting transaction
+* Timestamp update for late transactions; T.timestamp = now()
+* Insert into timestamp-ordered priority queue for execution
+
+**Timestamp Agreement**
+* Leaders exchange T.timestamp
+* T.agreed_ts = max(T.timestamp<S_i>) across all shards
+* If all leader timestamps match → agreement; execute and replicate
+
+**Transaction Execution (agreement success)**
+* Leaders execute the transaction and send the result back to coordinator
+* Transaction Replication (agreement success)
+* Leader appends transaction to Paxos stream
+* Per-worker Paxos stream; worker_ID from composite timestamp which stream replicates
+
+**Watermark Updates**
+* Leaders maintain per-worker watermark: T.timestamp of last replicated transaction
+* Update per-worker watermark upon successful replication
+* Periodically exchange watermarks with other shard leaders
+* Transaction Commit Decision
+* Coordinator replies back to client with result when T.timestamp <= watermark[shard][worker_ID] for all involved shards
+
+
+
+================================================================
+Anything below this is obsolete (but can be used for reference)
+================================================================
+
 **Key Files:**
 - Coordinator: `src/mako/benchmarks/sto/Transaction.cc` → `try_commit_luigi()`
 - Client RPC: `src/mako/lib/shardClient.cc` → `remoteLuigiDispatch()`
