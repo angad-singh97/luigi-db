@@ -145,12 +145,15 @@ run_1shard_replication() {
     echo "Running: ./ci/ci.sh shard1Replication"
     echo "========================================="
     cleanup_processes
+    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
     bash ./examples/test_1shard_replication.sh
     local test_result=$?
     set -e
+    # Always check for hanging processes, even if test failed
     check_for_hanging_processes "shard1Replication"
     local hanging_check=$?
+    # Return failure if either check failed
     [ $test_result -eq 0 ] && [ $hanging_check -eq 0 ]
 }
 
@@ -159,6 +162,7 @@ run_2shard_replication() {
     echo "Running: ./ci/ci.sh shard2Replication"
     echo "========================================="
     cleanup_processes
+    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
     bash ./examples/test_2shard_replication.sh
     local test_result=$?
@@ -175,6 +179,7 @@ run_2shard_replication_erpc() {
     echo "Running: ./ci/ci.sh shard2ReplicationErpc"
     echo "========================================="
     cleanup_processes
+    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
     MAKO_TRANSPORT=erpc bash ./examples/test_2shard_replication.sh
     local test_result=$?
@@ -191,6 +196,7 @@ run_1shard_replication_simple() {
     echo "Running: ./ci/ci.sh shard1ReplicationSimple"
     echo "========================================="
     cleanup_processes
+    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
     bash ./examples/test_1shard_replication_simple.sh
     local test_result=$?
@@ -207,6 +213,7 @@ run_2shard_replication_simple() {
     echo "Running: ./ci/ci.sh shard2ReplicationSimple"
     echo "========================================="
     cleanup_processes
+    # Run test and capture exit code (set +e to prevent immediate exit)
     set +e
     bash ./examples/test_2shard_replication_simple.sh
     local test_result=$?

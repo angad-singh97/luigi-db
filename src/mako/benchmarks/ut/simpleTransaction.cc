@@ -259,13 +259,9 @@ void runner(abstract_db *db) {
 }
 
 int main() {
+    abstract_db *db = new mbta_wrapper;
     config = new transport::Configuration("./config/local-shards2-warehouses1.yml");
     shardIndex = 0;
-    
-    auto& benchConfig = BenchmarkConfig::getInstance();
-    benchConfig.setConfig(config);
-    
-    abstract_db *db = new mbta_wrapper;
 
     runner(db);
     return 0;
