@@ -2,9 +2,6 @@
 #ifndef _LIB_SHARDCLIENT_H_
 #define _LIB_SHARDCLIENT_H_
 
-#include <map>
-#include <vector>
-#include <string>
 #include "lib/fasttransport.h"
 #include "lib/client.h"
 #include "lib/promise.h"
@@ -31,22 +28,10 @@ namespace mako
         int remoteInstall(uint32_t timestamp);
         int remoteUnLock();
         int warmupRequest(uint32_t req_val, uint8_t centerId, uint32_t &ret_value, uint64_t set_bits);
+        // Check if a remote shard is ready to receive requests
+        // Returns SUCCESS if ready, ERROR/TIMEOUT if not ready yet
+        int checkRemoteShardReady(int dstShardIndex);
         int remoteInvokeSerializeUtil(uint32_t timestamp);
-        
-        // Luigi: Timestamp-ordered execution dispatch
-        int remoteLuigiDispatch(
-            uint64_t txn_id,
-            uint64_t expected_time,
-            std::vector<int>& table_ids,
-            std::vector<uint8_t>& op_types,
-            std::vector<std::string>& keys,
-            std::vector<std::string>& values,
-            std::map<int, uint64_t>& out_execute_timestamps,
-            std::map<int, std::vector<std::string>>& out_read_results);
-        
-        // OWD: Ping a single shard to measure round-trip time
-        int pingOneShard(int shard_idx);
-        
         void statistics();
         void stop();
         void setBreakTimeout(bool);
@@ -85,12 +70,6 @@ namespace mako
         bool is_all_response_ok();
         void calculate_num_response_waiting(int shards_to_send_bits);
         void calculate_num_response_waiting_no_skip(int shards_to_send_bits);
-        
-        // Luigi dispatch callback and response storage
-        void LuigiDispatchCallback(char *respBuf);
-        void LuigiStatusResponseHandler(char *respBuf);  // Handles status poll responses
-        std::map<int, uint64_t> luigi_execute_timestamps_;
-        std::map<int, std::vector<std::string>> luigi_read_results_;
 
     };
 

@@ -1,5 +1,6 @@
 #include "luigi_executor.h"
 #include "luigi_scheduler.h"  // For RPC coordination
+#include "luigi_state_machine.h"
 
 #include <chrono>
 #include <algorithm>
@@ -117,8 +118,13 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
   
   //-------------------------------------------------------------------------
   // Step 3: Execute all operations
+  // Choose between callback mode (Mako) and state machine mode (Tiga-style)
   //-------------------------------------------------------------------------
-  status = ExecuteAllOps(entry);
+  if (use_state_machine_ && state_machine_) {
+    status = ExecuteViaStateMachine(entry);
+  } else {
+    status = ExecuteAllOps(entry);
+  }
   if (status != 0) {
     Log_error("Luigi Execute: Operation execution failed for txn %lu", entry->tid_);
     goto done;
@@ -391,5 +397,89 @@ int LuigiExecutor::TriggerReplication(std::shared_ptr<LuigiLogEntry> entry) {
 // If we later want speculative execution (Option A/B/C from the design),
 // we would add a RollbackSpeculativeExecution() function here.
 //=============================================================================
+
+//=============================================================================
+// State Machine Mode Execution (Tiga-style stored procedures)
+//
+// When using state machine mode:
+// - No STO transaction tracking overhead
+// - Direct storage access via memdb
+// - Execution logic contained in the state machine
+//
+// This mode is used when Luigi runs independently (not integrated with Mako).
+//=============================================================================
+
+int LuigiExecutor::ExecuteViaStateMachine(std::shared_ptr<LuigiLogEntry> entry) {
+  if (!state_machine_) {
+    Log_error("Luigi ExecuteViaStateMachine: state machine not set!");
+    return -1;
+  }
+  
+  // Filter operations for local keys (same logic as ExecuteAllOps)
+  std::vector<LuigiOp> local_ops;
+  std::set<std::string> local_key_set;
+  
+  // Build local key set
+  for (int32_t k : entry->local_keys_) {
+    local_key_set.insert(std::to_string(k));
+  }
+  if (local_key_set.empty() && !entry->shard_to_keys_.empty()) {
+    auto it = entry->shard_to_keys_.find(partition_id_);
+    if (it != entry->shard_to_keys_.end()) {
+      for (int32_t k : it->second) {
+        local_key_set.insert(std::to_string(k));
+      }
+    }
+  }
+  
+  bool should_filter = !local_key_set.empty();
+  
+  // Collect local operations
+  for (const auto& op : entry->ops_) {
+    bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
+    if (is_local) {
+      local_ops.push_back(op);
+    }
+  }
+  
+  Log_debug("Luigi ExecuteViaStateMachine: txn %lu executing %zu local ops via %s",
+            entry->tid_, local_ops.size(), state_machine_->RTTI().c_str());
+  
+  // Execute via state machine
+  std::map<std::string, std::string> output;
+  bool success = state_machine_->Execute(
+      entry->txn_type_,
+      local_ops,
+      &output,
+      entry->tid_);
+  
+  if (!success) {
+    Log_error("Luigi ExecuteViaStateMachine: execution failed for txn %lu", entry->tid_);
+    return -1;
+  }
+  
+  // Populate read results from output
+  entry->read_results_.clear();
+  for (const auto& op : local_ops) {
+    if (op.op_type == LUIGI_OP_READ) {
+      auto it = output.find(op.key);
+      if (it != output.end()) {
+        entry->read_results_.push_back(it->second);
+      } else {
+        entry->read_results_.push_back("");
+      }
+    }
+  }
+  
+  // Mark operations as executed
+  for (auto& op : entry->ops_) {
+    bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
+    if (is_local) {
+      op.executed = true;
+    }
+  }
+  
+  return 0;  // SUCCESS
+}
 
 } // namespace janus

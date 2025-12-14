@@ -8,6 +8,7 @@
 
 #include "luigi_entry.h"
 #include "luigi_executor.h"
+#include "luigi_state_machine.h"
 
 #include <atomic>
 #include <map>
@@ -213,6 +214,23 @@ class SchedulerLuigi : public SchedulerClassic {
   }
   void SetReplicationCallback(LuigiExecutor::ReplicationCallback cb) { 
     executor_.SetReplicationCallback(std::move(cb)); 
+  }
+  
+  //==========================================================================
+  // STATE MACHINE MODE (Tiga-style stored procedure execution)
+  // When enabled, bypasses callbacks and uses direct storage access.
+  //==========================================================================
+  
+  void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {
+    executor_.SetStateMachine(std::move(sm));
+  }
+  
+  void EnableStateMachineMode(bool enable) {
+    executor_.EnableStateMachineMode(enable);
+  }
+  
+  bool IsStateMachineMode() const {
+    return executor_.IsStateMachineMode();
   }
   
   //==========================================================================

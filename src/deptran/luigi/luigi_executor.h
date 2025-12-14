@@ -1,11 +1,13 @@
 #pragma once
 
 #include "luigi_entry.h"
+#include "luigi_state_machine.h"
 
 #include <map>
 #include <string>
 #include <vector>
 #include <functional>
+#include <memory>
 
 namespace janus {
 
@@ -59,6 +61,19 @@ class LuigiExecutor {
   void SetReplicationCallback(ReplicationCallback cb) { replication_cb_ = std::move(cb); }
 
   //===========================================================================
+  // State Machine Mode (Tiga-style stored procedure execution)
+  //===========================================================================
+  
+  // Set the state machine for direct storage access (no STO overhead)
+  void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {
+    state_machine_ = std::move(sm);
+  }
+  
+  // Enable/disable state machine mode (default: disabled, uses callbacks)
+  void EnableStateMachineMode(bool enable) { use_state_machine_ = enable; }
+  bool IsStateMachineMode() const { return use_state_machine_ && state_machine_ != nullptr; }
+
+  //===========================================================================
   // Main Execution Entry Point
   //===========================================================================
   
@@ -102,6 +117,12 @@ class LuigiExecutor {
   int ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry);
 
   //===========================================================================
+  // State Machine Mode Execution
+  //===========================================================================
+  
+  int ExecuteViaStateMachine(std::shared_ptr<LuigiLogEntry> entry);
+
+  //===========================================================================
   // Replication (delegate to callback)
   //===========================================================================
   
@@ -118,6 +139,10 @@ class LuigiExecutor {
   ReadCallback read_cb_;
   WriteCallback write_cb_;
   ReplicationCallback replication_cb_;
+  
+  // State machine for direct execution (Tiga-style)
+  std::shared_ptr<LuigiStateMachine> state_machine_;
+  bool use_state_machine_ = false;
 };
 
 } // namespace janus

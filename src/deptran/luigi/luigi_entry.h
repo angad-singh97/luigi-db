@@ -80,6 +80,9 @@ struct LuigiLogEntry {
   uint64_t agreed_ts_ = 0;       // Final agreed timestamp (after multi-shard agreement)
   uint64_t dequeue_ts_ = 0;      // For debug: timestamp when dequeued from priority queue
 
+  //--- Transaction type (for stored-procedure style execution) ---
+  uint32_t txn_type_ = 0;        // Transaction type (e.g., NEW_ORDER=0, PAYMENT=1, etc.)
+
   //--- Status flags (atomic for thread-safe reads) ---
   std::atomic<uint32_t> prev_agree_status_{LUIGI_AGREE_INIT};  // Previous agree status
   std::atomic<uint32_t> agree_status_{LUIGI_AGREE_INIT};       // Current agreement status
@@ -133,6 +136,7 @@ struct LuigiLogEntry {
         proposed_ts_(0),
         agreed_ts_(0),
         dequeue_ts_(0),
+        txn_type_(0),
         requeue_count_(0),
         prev_agree_status_(LUIGI_AGREE_INIT),
         agree_status_(LUIGI_AGREE_INIT),
