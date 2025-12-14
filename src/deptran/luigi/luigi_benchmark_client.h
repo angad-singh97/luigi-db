@@ -165,9 +165,8 @@ private:
   // LuigiClient (replaces ShardClient)
   std::unique_ptr<LuigiClient> luigi_client_;
 
-  // Transport and configuration (owned by this class)
-  Transport *transport_ = nullptr;
-  std::unique_ptr<transport::Configuration> transport_config_;
+  // Transport
+  Transport *transport_ = nullptr; // Don't own, retrieved from BenchmarkConfig
 
   // Benchmark state
   std::atomic<bool> running_{false};

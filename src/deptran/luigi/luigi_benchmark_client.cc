@@ -3,12 +3,13 @@
  * @brief Implementation of Luigi benchmark client
  */
 
-#include "luigi_benchmark_client.h"
+#include "deptran/luigi/luigi_benchmark_client.h"
+#include "deptran/luigi/luigi_client.h"
+#include "mako/benchmarks/benchmark_config.h"
+#include "mako/lib/configuration.h"
+#include "mako/lib/fasttransport.h"
 
-#include <algorithm>
-#include <cmath>
 #include <future>
-#include <iostream>
 #include <memory>
 #include <numeric>
 
@@ -32,27 +33,22 @@ LuigiBenchmarkClient::~LuigiBenchmarkClient() {
 
 bool LuigiBenchmarkClient::Initialize() {
   try {
-    // 1. Parse configuration
-    transport_config_ =
-        std::make_unique<transport::Configuration>(config_.config_file);
+    // Get transport from BenchmarkConfig (created by setup_luigi_transport)
+    auto &cfg = BenchmarkConfig::getInstance();
+    auto &server_transports = cfg.getServerTransports();
 
-    // 2. Resolve local URI
-    std::string local_uri =
-        transport_config_
-            ->shard(config_.shard_index, mako::convertCluster(config_.cluster))
-            .host;
+    if (server_transports.empty()) {
+      std::cerr << "No transports available in BenchmarkConfig. "
+                << "Did you call setup_luigi_transport()?" << std::endl;
+      return false;
+    }
 
-    // 3. Create FastTransport (mimicking ShardClient logic)
-    // Note: nr_req_types=1, physPort=0, numa=0
-    transport_ =
-        new FastTransport(config_.config_file, local_uri, config_.cluster, 1, 0,
-                          0, 0, config_.shard_index, config_.par_id);
+    // Use the first transport (or could use round-robin for load balancing)
+    transport_ = server_transports[0];
 
-    // 4. Create LuigiClient
-    luigi_client_ =
-        std::make_unique<LuigiClient>(config_.config_file, transport_,
-                                      0 // client_id=0 (random/default)
-        );
+    // Create LuigiClient with the transport
+    luigi_client_ = std::make_unique<LuigiClient>(
+        config_.config_file, transport_, 0 /* client_id */);
 
   } catch (const std::exception &e) {
     std::cerr << "Failed to initialize LuigiBenchmarkClient: " << e.what()

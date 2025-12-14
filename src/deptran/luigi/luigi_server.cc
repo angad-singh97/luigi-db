@@ -145,16 +145,10 @@ void LuigiReceiver::InitScheduler(uint32_t partition_id) {
 }
 
 void LuigiReceiver::SetupRpc(
-    rrr::Server *rpc_server,
-    const std::map<uint32_t, std::string> &shard_addresses,
-    rusty::Arc<rrr::PollThread> poll_thread) {
+    rrr::Server *rpc_server, rusty::Arc<rrr::PollThread> poll_thread,
+    const std::map<uint32_t, std::string> &shard_addresses) {
   // RPC setup no longer needed - using eRPC transport directly (like Mako)
   Log_info("SetupRpc: eRPC transport managed externally");
-}
-
-void LuigiReceiver::Shutdown() {
-  // Transport cleanup handled externally
-  Log_info("LuigiReceiver shutdown complete");
 }
 
 void LuigiReceiver::StopScheduler() {

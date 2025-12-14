@@ -626,6 +626,13 @@ endif()
 # Collect RRR source files
 file(GLOB RRR_SRC
     "src/rrr/base/*.hpp"
+    src/deptran/luigi/luigi_client.cc
+    src/deptran/luigi/luigi_server.cc
+    src/deptran/luigi/luigi_scheduler.cc
+    src/deptran/luigi/luigi_executor.cc
+    src/deptran/luigi/luigi_state_machine.cc
+    src/deptran/luigi/luigi_owd.cc
+    src/deptran/luigi/luigi_transport_setup.cc
     "src/rrr/base/*.cpp"
     "src/rrr/misc/*.hpp"
     "src/rrr/misc/*.cpp"
