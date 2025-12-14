@@ -385,9 +385,9 @@ struct basic_request_t {
   uint32_t req_nr;
 };
 
-class Status {
-public:
 #undef SUCCESS // Avoid macro conflict with deptran/constants.h
+class ErrorCode {
+public:
   static const int SUCCESS = 0;
   static const int TIMEOUT = 1;
   static const int ERROR = 2;

@@ -27,7 +27,8 @@ bool LuigiRpcSetup::SetupService(rrr::Server *rpc_server,
   }
 
   // Create the service implementation
-  service_ = new LuigiLeaderServiceImpl(scheduler);
+  // RRR service removed - now using eRPC for all coordination
+  Log_info("LuigiRpcSetup: Using eRPC for leader coordination");
 
   // Register with the RPC server
   int ret = rpc_server->reg(service_);
