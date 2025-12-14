@@ -978,10 +978,6 @@ public:
 
     static bool try_commit() {
         always_assert(in_progress());
-        // Check if Luigi protocol is enabled
-        if (BenchmarkConfig::getInstance().getUseLuigi()) {
-            return TThread::txn->try_commit_luigi();
-        }
         return TThread::txn->try_commit();
     }
 

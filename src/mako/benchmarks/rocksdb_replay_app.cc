@@ -40,12 +40,7 @@ static abstract_db* initWithDB_replay() {
     sync_util::sync_logger::Init(0, 1, benchConfig.getNthreads(),
                                   false, "localhost", nullptr);
 
-    abstract_db* db = nullptr;
-    if (benchConfig.getUseLuigi()) {
-        db = new luigi_wrapper(benchConfig.getConfig(), {});
-    } else {
-        db = new mbta_wrapper;
-    }
+    abstract_db* db = new mbta_wrapper;
     db->init();
     return db;
 }

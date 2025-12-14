@@ -15,7 +15,6 @@ trd=$3
 cluster=$4
 is_micro=$5
 is_replicated=$6
-use_luigi=$7
 let up=trd+3
 #sudo cgset -r cpuset.mems=0 cpulimit
 #sudo cgset -r cpuset.cpus=0-$up cpulimit
@@ -60,11 +59,6 @@ if [ "$is_replicated" == "1" ]; then
     CMD="$CMD -F config/1leader_2followers/paxos${trd}_shardidx${shard}.yml -F config/occ_paxos.yml --is-replicated"
 fi
 
-# Add --use-luigi flag if enabled (value is 1)
-if [ "$use_luigi" == "1" ]; then
-    CMD="$CMD --use-luigi"
-fi
-
 # Print configuration
 echo "========================================="
 echo "Configuration:"
@@ -75,7 +69,6 @@ echo "  Number of threads: $trd"
 echo "  Cluster:           $cluster"
 echo "  Micro benchmark:   $([ "$is_micro" == "1" ] && echo "enabled" || echo "disabled")"
 echo "  Replicated mode:   $([ "$is_replicated" == "1" ] && echo "enabled" || echo "disabled")"
-echo "  Luigi protocol:    $([ "$use_luigi" == "1" ] && echo "enabled" || echo "disabled")"
 echo "========================================="
 
 # Execute command (with or without gdb)

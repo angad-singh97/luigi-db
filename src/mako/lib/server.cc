@@ -694,12 +694,6 @@ namespace mako
         queue_response = queueY;
         open_tables_table_id = open_tablesX;
         shardReceiver->Register(db, open_tables_table_id);
-        
-        // Initialize Luigi scheduler only when --use-luigi flag is enabled
-        if (BenchmarkConfig::getInstance().getUseLuigi()) {
-            // par_id serves as the partition_id for this server
-            shardReceiver->InitLuigiScheduler(par_id);
-        }
     }
 
     void ShardServer::UpdateTable(int table_id, abstract_ordered_index *table)

@@ -18,15 +18,10 @@ echo "Testing 2-shard single process mode WITH replication"
 echo "========================================="
 
 # Parse command-line arguments
-use_luigi=""
 trd=6
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --use-luigi)
-            use_luigi="1"
-            shift
-            ;;
         *)
             trd=$1
             shift
@@ -43,7 +38,6 @@ script_name="$(basename "$0")"
 # Determine transport type and create unique log prefix
 transport="${MAKO_TRANSPORT:-rrr}"
 log_prefix="${script_name}_${transport}"
-[ "$use_luigi" == "1" ] && log_prefix="${log_prefix}_luigi"
 
 ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
@@ -64,23 +58,23 @@ echo ""
 echo "Starting follower processes..."
 
 # Shard 0 followers
-nohup bash bash/shard.sh 2 0 $trd learner 0 1 $use_luigi > ${log_prefix}_shard0-learner.log 2>&1 &
+nohup bash bash/shard.sh 2 0 $trd learner 0 1 > ${log_prefix}_shard0-learner.log 2>&1 &
 SHARD0_LEARNER_PID=$!
-nohup bash bash/shard.sh 2 0 $trd p2 0 1 $use_luigi > ${log_prefix}_shard0-p2.log 2>&1 &
+nohup bash bash/shard.sh 2 0 $trd p2 0 1 > ${log_prefix}_shard0-p2.log 2>&1 &
 SHARD0_P2_PID=$!
 
 # Shard 1 followers
-nohup bash bash/shard.sh 2 1 $trd learner 0 1 $use_luigi > ${log_prefix}_shard1-learner.log 2>&1 &
+nohup bash bash/shard.sh 2 1 $trd learner 0 1 > ${log_prefix}_shard1-learner.log 2>&1 &
 SHARD1_LEARNER_PID=$!
-nohup bash bash/shard.sh 2 1 $trd p2 0 1 $use_luigi > ${log_prefix}_shard1-p2.log 2>&1 &
+nohup bash bash/shard.sh 2 1 $trd p2 0 1 > ${log_prefix}_shard1-p2.log 2>&1 &
 SHARD1_P2_PID=$!
 
 sleep 1
 
 # Start p1 followers (after p2 and learner are up)
-nohup bash bash/shard.sh 2 0 $trd p1 0 1 $use_luigi > ${log_prefix}_shard0-p1.log 2>&1 &
+nohup bash bash/shard.sh 2 0 $trd p1 0 1 > ${log_prefix}_shard0-p1.log 2>&1 &
 SHARD0_P1_PID=$!
-nohup bash bash/shard.sh 2 1 $trd p1 0 1 $use_luigi > ${log_prefix}_shard1-p1.log 2>&1 &
+nohup bash bash/shard.sh 2 1 $trd p1 0 1 > ${log_prefix}_shard1-p1.log 2>&1 &
 SHARD1_P1_PID=$!
 
 sleep 3
@@ -92,7 +86,6 @@ echo "Starting combined leader process for shards 0 and 1..."
 log_file="${log_prefix}_leader.log"
 
 CMD="./build/dbtest --num-threads $trd --shard-config $path/config/local-shards2-warehouses$trd.yml -F config/1leader_2followers/paxos${trd}_shardidx0.yml -F config/1leader_2followers/paxos${trd}_shardidx1.yml -F config/occ_paxos.yml -P localhost -L 0,1 --is-replicated"
-[ "$use_luigi" == "1" ] && CMD="$CMD --use-luigi"
 
 echo "Command: $CMD"
 echo ""

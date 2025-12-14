@@ -6,42 +6,22 @@ echo "========================================="
 echo "Testing 1-shard setup with replication using simpleTransactionRep"
 echo "========================================="
 
-# Parse command-line arguments
-use_luigi=""
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --use-luigi)
-            use_luigi="1"
-            shift
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
-
 ps aux | grep -i simpleTransactionRep | awk "{print \$2}" | xargs kill -9 2>/dev/null
 # Clean up old log files
 rm -f simple-shard0*.log nfs_sync_*
 USERNAME=${USER:-unknown}
 rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
-# Build command args: <nshards> <shardIdx> <nthreads> <paxos_proc_name> <is_replicated> <use_luigi>
-# use_luigi is 0 or 1 as positional argument
-luigi_val="0"
-[ "$use_luigi" == "1" ] && luigi_val="1"
-
 # Start shard 0 in background - capture ALL PIDs
 echo "Starting shard 0..."
-nohup ./build/simpleTransactionRep 1 0 6 localhost 1 $luigi_val > simple-shard0-localhost.log 2>&1 &
+nohup ./build/simpleTransactionRep 1 0 6 localhost 1 > simple-shard0-localhost.log 2>&1 &
 PID_LOCALHOST=$!
-nohup ./build/simpleTransactionRep 1 0 6 learner 1 $luigi_val > simple-shard0-learner.log 2>&1 &
+nohup ./build/simpleTransactionRep 1 0 6 learner 1 > simple-shard0-learner.log 2>&1 &
 PID_LEARNER=$!
-nohup ./build/simpleTransactionRep 1 0 6 p2 1 $luigi_val > simple-shard0-p2.log 2>&1 &
+nohup ./build/simpleTransactionRep 1 0 6 p2 1 > simple-shard0-p2.log 2>&1 &
 PID_P2=$!
 sleep 1
-nohup ./build/simpleTransactionRep 1 0 6 p1 1 $luigi_val > simple-shard0-p1.log 2>&1 &
+nohup ./build/simpleTransactionRep 1 0 6 p1 1 > simple-shard0-p1.log 2>&1 &
 PID_P1=$!
 sleep 2
 

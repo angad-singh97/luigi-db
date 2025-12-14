@@ -10,15 +10,10 @@ echo "Testing 2-shard setup without replication"
 echo "========================================="
 
 # Parse command-line arguments
-use_luigi=""
 trd=6
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --use-luigi)
-            use_luigi="1"
-            shift
-            ;;
         *)
             trd=$1
             shift
@@ -38,19 +33,18 @@ script_name="$(basename "$0")"
 # Determine transport type and create unique log prefix
 transport="${MAKO_TRANSPORT:-rrr}"
 log_prefix="${script_name}_${transport}"
-[ "$use_luigi" == "1" ] && log_prefix="${log_prefix}_luigi"
 
 ps aux | grep -i dbtest | awk "{print \$2}" | xargs kill -9 2>/dev/null
 sleep 1
 # Start shard 0 in background
 echo "Starting shard 0..."
-nohup bash bash/shard.sh 2 0 $trd localhost "" "" $use_luigi > ${log_prefix}_shard0-$trd.log 2>&1 &
+nohup bash bash/shard.sh 2 0 $trd localhost "" "" > ${log_prefix}_shard0-$trd.log 2>&1 &
 SHARD0_PID=$!
 sleep 5
 
 # Start shard 1 in background (delayed start ensures shard1 stays running while shard0 shuts down)
 echo "Starting shard 1..."
-nohup bash bash/shard.sh 2 1 $trd localhost "" "" $use_luigi > ${log_prefix}_shard1-$trd.log 2>&1 &
+nohup bash bash/shard.sh 2 1 $trd localhost "" "" > ${log_prefix}_shard1-$trd.log 2>&1 &
 SHARD1_PID=$!
 
 # Wait for experiments to run

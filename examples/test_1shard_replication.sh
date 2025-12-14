@@ -11,15 +11,10 @@ echo "Testing 1-shard setup with replication"
 echo "========================================="
 
 # Parse command-line arguments
-use_luigi=""
 trd=6
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --use-luigi)
-            use_luigi="1"
-            shift
-            ;;
         *)
             trd=$1
             shift
@@ -36,11 +31,11 @@ rm -rf /tmp/${USERNAME}_mako_rocksdb_shard*
 
 # Start shard 0 in background
 echo "Starting shard 0..."
-nohup bash bash/shard.sh 1 0 $trd localhost 0 1 $use_luigi > $script_name\_shard0-localhost-$trd.log 2>&1 &
-nohup bash bash/shard.sh 1 0 $trd learner 0 1 $use_luigi > $script_name\_shard0-learner-$trd.log 2>&1 &
-nohup bash bash/shard.sh 1 0 $trd p2 0 1 $use_luigi > $script_name\_shard0-p2-$trd.log 2>&1 &
+nohup bash bash/shard.sh 1 0 $trd localhost 0 1 > $script_name\_shard0-localhost-$trd.log 2>&1 &
+nohup bash bash/shard.sh 1 0 $trd learner 0 1 > $script_name\_shard0-learner-$trd.log 2>&1 &
+nohup bash bash/shard.sh 1 0 $trd p2 0 1 > $script_name\_shard0-p2-$trd.log 2>&1 &
 sleep 1
-nohup bash bash/shard.sh 1 0 $trd p1 0 1 $use_luigi > $script_name\_shard0-p1-$trd.log 2>&1 &
+nohup bash bash/shard.sh 1 0 $trd p1 0 1 > $script_name\_shard0-p1-$trd.log 2>&1 &
 SHARD0_PID=$!
 sleep 2
 

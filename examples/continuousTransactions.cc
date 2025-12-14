@@ -138,8 +138,8 @@ int main(int argc, char **argv) {
 
     // Parse configuration - simplified parameters similar to simpleTransactionRep
     if (argc < 5) {
-        printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> [is_replicated] [use_luigi]\n", argv[0]);
-        printf("Example: %s 2 0 4 localhost 0 1\n", argv[0]);
+        printf("Usage: %s <nshards> <shardIdx> <nthreads> <paxos_proc_name> [is_replicated]\n", argv[0]);
+        printf("Example: %s 2 0 4 localhost 0\n", argv[0]);
         return 1;
     }
 
@@ -148,7 +148,6 @@ int main(int argc, char **argv) {
     int nthreads = stoi(argv[3]);
     string paxos_proc_name = string(argv[4]);
     int is_replicated = argc > 5 ? stoi(argv[5]) : 0;
-    int use_luigi = argc > 6 ? stoi(argv[6]) : 0;
 
     // Build config path
     string config_path = get_current_absolute_path()
@@ -165,7 +164,6 @@ int main(int argc, char **argv) {
     benchConfig.setNthreads(nthreads);
     benchConfig.setPaxosProcName(paxos_proc_name);
     benchConfig.setIsReplicated(is_replicated);
-    benchConfig.setUseLuigi(use_luigi);
 
     auto config = new transport::Configuration(config_path);
     benchConfig.setConfig(config);
@@ -173,7 +171,7 @@ int main(int argc, char **argv) {
 
     init_env();
 
-    printf("=== Continuous Transaction Test (using %s) ===\n", use_luigi ? "Luigi" : "MBTA");
+    printf("=== Continuous Transaction Test (using MBTA) ===\n");
     printf("Configuration: 70%% reads, 30%% writes\n");
     printf("Home shard: %d, Total shards: %d, Workers: %d\n",
            shardIdx, nshards, nthreads);

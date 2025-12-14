@@ -658,6 +658,8 @@ list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/raft_main_helper.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
 # Exclude MongoDB backend (requires mongocxx library)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
+# Exclude Luigi benchmark main (it's a standalone executable)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main.cc")
 
 # Choose helper source based on MAKO_USE_RAFT
 if(MAKO_USE_RAFT)
@@ -902,6 +904,7 @@ function(add_apps exec_name exec_path)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
+add_apps(luigi_bench src/deptran/luigi/luigi_bench_main.cc)  # Luigi stored-procedure benchmark
 add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(continuousTransactions examples/continuousTransactions.cc)
@@ -935,6 +938,9 @@ add_apps(paxos_async_commit_test src/mako/benchmarks/paxos_async_commit_test.cc)
 add_apps(basic src/mako/benchmarks/ut/basic.cc)
 add_apps(erpc_client src/mako/benchmarks/ut/erpc_client.cc)
 add_apps(erpc_server src/mako/benchmarks/ut/erpc_server.cc)
+
+# Luigi benchmark (Tiga-style stored-procedure benchmark)
+add_apps(luigi_bench src/deptran/luigi/luigi_bench_main.cc)
 
 # RPC benchmark binary
 add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)

@@ -169,30 +169,16 @@ void run_tests(abstract_db *db) {
 }
 
 int main(int argc, char** argv) {
-    // Parse command-line arguments
-    int use_luigi = 0;
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--use-luigi") == 0) {
-            use_luigi = 1;
-        }
-    }
-
     auto& benchConfig = BenchmarkConfig::getInstance();
     auto config = new transport::Configuration(
         get_current_absolute_path() + "../src/mako/config/local-shards2-warehouses1.yml"
     );
     benchConfig.setConfig(config);
-    benchConfig.setUseLuigi(use_luigi);
 
-    // Conditionally initialize abstract_db based on use_luigi flag
-    abstract_db *db = nullptr;
-    if (use_luigi) {
-        db = new luigi_wrapper(config, {});
-    } else {
-        db = new mbta_wrapper;
-    }
+    // Initialize abstract_db with mbta_wrapper
+    abstract_db *db = new mbta_wrapper;
     db->init();
-    printf("=== Mako Transaction Tests (using %s) ===\n", use_luigi ? "Luigi" : "MBTA");
+    printf("=== Mako Transaction Tests (using MBTA) ===\n");
     
     run_tests(db);
     
