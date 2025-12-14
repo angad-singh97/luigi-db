@@ -681,6 +681,7 @@ add_dependencies(txlog rcc_rpc_gen)
 
 target_include_directories(txlog PRIVATE
     src
+    src/mako
     src/rrr
     src/memdb
     src/deptran
@@ -940,7 +941,7 @@ add_apps(erpc_client src/mako/benchmarks/ut/erpc_client.cc)
 add_apps(erpc_server src/mako/benchmarks/ut/erpc_server.cc)
 
 # Luigi benchmark (Tiga-style stored-procedure benchmark)
-add_apps(luigi_bench src/deptran/luigi/luigi_bench_main.cc)
+
 
 # RPC benchmark binary
 add_executable(rpcbench test/rpcbench.cc test/benchmark_service.cc)

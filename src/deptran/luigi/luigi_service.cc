@@ -68,4 +68,20 @@ void LuigiLeaderServiceImpl::DeadlineConfirm(
   defer->reply();
 }
 
+void LuigiLeaderServiceImpl::WatermarkExchange(
+    const LuigiWatermarkRequest& req,
+    LuigiWatermarkResponse* res,
+    rrr::DeferredReply* defer) {
+  //===========================================================================
+  // Watermark Update: Update global view with remote watermarks
+  //===========================================================================
+  
+  // Log_debug("LuigiService: WatermarkExchange from shard=%d", req.src_shard);
+  
+  scheduler_->HandleWatermarkExchange(req.src_shard, req.watermarks);
+  
+  res->status = 0;
+  defer->reply();
+}
+
 } // namespace janus

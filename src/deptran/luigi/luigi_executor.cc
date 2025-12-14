@@ -338,40 +338,29 @@ int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
 }
 
 //=============================================================================
-// Replication (delegate to callback)
+// Replication Trigger (Abstracted)
 //=============================================================================
 
 int LuigiExecutor::TriggerReplication(std::shared_ptr<LuigiLogEntry> entry) {
-  // Count writes for logging
-  size_t num_writes = 0;
-  for (const auto& op : entry->ops_) {
-    if (op.op_type == LUIGI_OP_WRITE) {
-      num_writes++;
-    }
-  }
+  //-------------------------------------------------------------------------
+  // In Tiga, replication happens via per-worker Paxos streams.
+  // We determine the worker/stream ID from the transaction metadata.
+  //-------------------------------------------------------------------------
   
-  if (num_writes == 0) {
-    // Read-only txn, no replication needed
-    return 0;
-  }
+  // Extract worker ID (bits 63-48 of txn_id)
+  uint32_t worker_id = (uint32_t)((entry->tid_ >> 48) & 0xFFFF);
   
-  // Use callback if available
-  if (replication_cb_) {
-    try {
-      bool success = replication_cb_(entry);
-      if (!success) {
-        Log_warn("Luigi TriggerReplication: replication callback returned false for txn %lu",
-                 entry->tid_);
-        // Don't fail - replication errors are handled by Paxos recovery
-      }
-    } catch (const std::exception& ex) {
-      Log_warn("Luigi TriggerReplication: exception for txn %lu: %s",
-               entry->tid_, ex.what());
-    }
+  // Use scheduler's Replication layer
+  if (scheduler_) {
+      scheduler_->Replicate(worker_id, entry);
   } else {
-    Log_debug("Luigi TriggerReplication: txn %lu has %zu writes (callback not set)",
-              entry->tid_, num_writes);
+      Log_error("Luigi TriggerReplication: scheduler not set!");
+      return -1;
   }
+  
+  // NOTE: In the original Mako code, there was a replication_cb_.
+  // We've replaced that pattern with the Scheduler's Replicate method
+  // which handles the per-stream logic and watermark updates.
   
   return 0;
 }

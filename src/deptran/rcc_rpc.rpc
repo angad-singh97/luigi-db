@@ -539,6 +539,16 @@ struct LuigiDeadlineResponse {
     i32 status;           // 0 = success, non-zero = error
 }
 
+// Request for Watermark Exchange
+struct LuigiWatermarkRequest {
+    i32 src_shard;           // Source shard ID
+    vector<i64> watermarks;  // List of watermarks, index corresponds to worker logic stream
+}
+
+struct LuigiWatermarkResponse {
+    i32 status;
+}
+
 // Luigi leader-to-leader communication service
 abstract service LuigiLeader {
     // Phase 1: Exchange timestamp proposals between leaders
@@ -550,4 +560,7 @@ abstract service LuigiLeader {
     // Called after a shard has repositioned to agreed_ts
     // No response needed - this is a notification
     defer DeadlineConfirm(LuigiDeadlineRequest req | i32 status);
+
+    // Watermark Exchange: Periodic broadcast of watermarks
+    defer WatermarkExchange(LuigiWatermarkRequest req | LuigiWatermarkResponse res);
 }

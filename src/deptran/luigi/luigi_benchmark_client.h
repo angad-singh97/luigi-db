@@ -1,17 +1,18 @@
 /**
  * @file luigi_benchmark_client.h
  * @brief Luigi benchmark client for Tiga-style stored-procedure benchmarks
- * 
- * This client uses the transaction generators (MicroTxnGenerator, TPCCTxnGenerator)
- * and dispatches them through Luigi's timestamp-ordered execution protocol.
- * 
+ *
+ * This client uses the transaction generators (MicroTxnGenerator,
+ * TPCCTxnGenerator) and dispatches them through Luigi's timestamp-ordered
+ * execution protocol.
+ *
  * Usage:
  *   LuigiBenchmarkClient client(config_file, cluster, shard_idx);
  *   client.Initialize();
- *   
+ *
  *   // Run micro benchmark
  *   auto micro_results = client.RunMicroBenchmark(duration_sec, num_threads);
- *   
+ *
  *   // Run TPC-C benchmark
  *   auto tpcc_results = client.RunTPCCBenchmark(duration_sec, num_threads);
  */
@@ -28,54 +29,60 @@
 #include <thread>
 #include <vector>
 
-#include "txn_generator.h"
+#include "lib/configuration.h"
+#include "lib/transport.h"
+#include "luigi_client.h"
+
 #include "micro_txn_generator.h"
 #include "tpcc_txn_generator.h"
+#include "txn_generator.h"
 
 namespace mako {
 namespace luigi {
 
+using namespace janus;
+
 // Benchmark result statistics
 struct BenchmarkStats {
-    uint64_t total_txns = 0;
-    uint64_t committed_txns = 0;
-    uint64_t aborted_txns = 0;
-    double throughput_tps = 0.0;  // transactions per second
-    double avg_latency_us = 0.0;  // average latency in microseconds
-    double p50_latency_us = 0.0;
-    double p99_latency_us = 0.0;
-    double p999_latency_us = 0.0;
-    uint64_t duration_ms = 0;
-    
-    void Print() const {
-        printf("========== Benchmark Results ==========\n");
-        printf("Duration:          %lu ms\n", duration_ms);
-        printf("Total Txns:        %lu\n", total_txns);
-        printf("Committed:         %lu\n", committed_txns);
-        printf("Aborted:           %lu (%.2f%%)\n", aborted_txns, 
-               total_txns > 0 ? 100.0 * aborted_txns / total_txns : 0.0);
-        printf("Throughput:        %.2f txns/sec\n", throughput_tps);
-        printf("Avg Latency:       %.2f us\n", avg_latency_us);
-        printf("P50 Latency:       %.2f us\n", p50_latency_us);
-        printf("P99 Latency:       %.2f us\n", p99_latency_us);
-        printf("P99.9 Latency:     %.2f us\n", p999_latency_us);
-        printf("========================================\n");
-    }
+  uint64_t total_txns = 0;
+  uint64_t committed_txns = 0;
+  uint64_t aborted_txns = 0;
+  double throughput_tps = 0.0; // transactions per second
+  double avg_latency_us = 0.0; // average latency in microseconds
+  double p50_latency_us = 0.0;
+  double p99_latency_us = 0.0;
+  double p999_latency_us = 0.0;
+  uint64_t duration_ms = 0;
+
+  void Print() const {
+    printf("========== Benchmark Results ==========\n");
+    printf("Duration:          %lu ms\n", duration_ms);
+    printf("Total Txns:        %lu\n", total_txns);
+    printf("Committed:         %lu\n", committed_txns);
+    printf("Aborted:           %lu (%.2f%%)\n", aborted_txns,
+           total_txns > 0 ? 100.0 * aborted_txns / total_txns : 0.0);
+    printf("Throughput:        %.2f txns/sec\n", throughput_tps);
+    printf("Avg Latency:       %.2f us\n", avg_latency_us);
+    printf("P50 Latency:       %.2f us\n", p50_latency_us);
+    printf("P99 Latency:       %.2f us\n", p99_latency_us);
+    printf("P99.9 Latency:     %.2f us\n", p999_latency_us);
+    printf("========================================\n");
+  }
 };
 
 // Transaction completion record for latency tracking
 struct TxnRecord {
-    uint64_t txn_id;
-    uint64_t start_time_us;
-    uint64_t end_time_us;
-    bool committed;
-    int txn_type;
+  uint64_t txn_id;
+  uint64_t start_time_us;
+  uint64_t end_time_us;
+  bool committed;
+  int txn_type;
 };
 
 /**
  * @class LuigiBenchmarkClient
  * @brief Client for running Tiga-style benchmarks on Luigi
- * 
+ *
  * This class provides:
  * - Transaction generation using MicroTxnGenerator or TPCCTxnGenerator
  * - Dispatch to Luigi via remoteLuigiDispatch
@@ -84,129 +91,132 @@ struct TxnRecord {
  */
 class LuigiBenchmarkClient {
 public:
-    // Benchmark type enumeration
-    enum class BenchmarkType {
-        MICRO,
-        MICRO_SINGLE_SHARD,
-        TPCC
-    };
-    
-    // Configuration for the benchmark
-    struct Config {
-        std::string config_file;    // Path to shard config
-        std::string cluster;        // Cluster name
-        int shard_index = 0;        // This client's shard index
-        int par_id = 0;             // Partition id within shard
-        int num_shards = 1;         // Total number of shards
-        int num_threads = 1;        // Worker threads
-        int duration_sec = 10;      // Benchmark duration
-        bool is_open_loop = false;  // Open-loop vs closed-loop
-        int target_rate = 0;        // Target ops/sec for open-loop
-        
-        // Generator config
-        TxnGeneratorConfig gen_config;
-    };
-    
-    LuigiBenchmarkClient(const Config& config);
-    ~LuigiBenchmarkClient();
-    
-    // Initialize client (create ShardClient, generator, etc.)
-    bool Initialize();
-    
-    // Run benchmark and return results
-    BenchmarkStats RunBenchmark(BenchmarkType type);
-    
-    // Convenience methods
-    BenchmarkStats RunMicroBenchmark() {
-        return RunBenchmark(BenchmarkType::MICRO);
-    }
-    
-    BenchmarkStats RunSingleShardMicroBenchmark() {
-        return RunBenchmark(BenchmarkType::MICRO_SINGLE_SHARD);
-    }
-    
-    BenchmarkStats RunTPCCBenchmark() {
-        return RunBenchmark(BenchmarkType::TPCC);
-    }
-    
-    // Stop benchmark early
-    void Stop();
-    
+  // Benchmark type enumeration
+  enum class BenchmarkType { BM_MICRO, BM_MICRO_SINGLE, BM_TPCC };
+
+  // Configuration for the benchmark
+  struct Config {
+    std::string config_file;   // Path to shard config
+    std::string cluster;       // Cluster name
+    int shard_index = 0;       // This client's shard index
+    int par_id = 0;            // Partition id within shard
+    int num_shards = 1;        // Total number of shards
+    int num_threads = 1;       // Worker threads
+    int duration_sec = 10;     // Benchmark duration
+    bool is_open_loop = false; // Open-loop vs closed-loop
+    int target_rate = 0;       // Target ops/sec for open-loop
+
+    // Generator config
+    janus::TxnGeneratorConfig gen_config;
+  };
+
+  LuigiBenchmarkClient(const Config &config);
+  ~LuigiBenchmarkClient();
+
+  // Initialize client (create ShardClient, generator, etc.)
+  bool Initialize();
+
+  // Run benchmark and return results
+  BenchmarkStats RunBenchmark(BenchmarkType type);
+
+  // Convenience methods
+  BenchmarkStats RunMicroBenchmark() {
+    return RunBenchmark(BenchmarkType::BM_MICRO);
+  }
+
+  BenchmarkStats RunSingleShardMicroBenchmark() {
+    return RunBenchmark(BenchmarkType::BM_MICRO_SINGLE);
+  }
+
+  BenchmarkStats RunTPCCBenchmark() {
+    return RunBenchmark(BenchmarkType::BM_TPCC);
+  }
+
+  // Stop benchmark early
+  void Stop();
+
 private:
-    // Worker thread function (closed-loop)
-    void WorkerThread(int thread_id);
-    
-    // Generate and dispatch a single transaction
-    bool DispatchOneTransaction(int thread_id);
-    
-    // Dispatch a LuigiTxnRequest via ShardClient
-    bool DispatchRequest(const LuigiTxnRequest& req);
-    
-    // Calculate statistics from recorded transactions
-    BenchmarkStats CalculateStats();
-    
-    // Get current time in microseconds
-    static uint64_t GetTimestampUs() {
-        auto now = std::chrono::steady_clock::now();
-        return std::chrono::duration_cast<std::chrono::microseconds>(
-            now.time_since_epoch()).count();
-    }
-    
-    // Configuration
-    Config config_;
-    
-    // Transaction generator (polymorphic)
-    std::unique_ptr<LuigiTxnGenerator> generator_;
-    
-    // ShardClient pointer (owned by this class)
-    // Note: Using void* to avoid including shardClient.h in header
-    void* shard_client_;
-    
-    // Benchmark state
-    std::atomic<bool> running_{false};
-    std::atomic<uint64_t> next_txn_id_{1};
-    
-    // Per-thread results
-    struct ThreadStats {
-        std::vector<TxnRecord> records;
-        uint64_t committed = 0;
-        uint64_t aborted = 0;
-    };
-    std::vector<ThreadStats> thread_stats_;
-    
-    // Timing
-    uint64_t start_time_us_ = 0;
-    uint64_t end_time_us_ = 0;
-    
-    // Mutex for generator access (generators may not be thread-safe)
-    std::mutex generator_mutex_;
+  // Worker thread function (closed-loop)
+  void WorkerThread(int thread_id);
+
+  // Generate and dispatch a single transaction
+  bool DispatchOneTransaction(int thread_id);
+
+  // Dispatch a LuigiTxnRequest via ShardClient
+  bool DispatchRequest(const LuigiTxnRequest &req);
+
+  // Calculate statistics from recorded transactions
+  BenchmarkStats CalculateStats();
+
+  // Get current time in microseconds
+  static uint64_t GetTimestampUs() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               now.time_since_epoch())
+        .count();
+  }
+
+  // Configuration
+  Config config_;
+
+  // Transaction generator (polymorphic)
+  std::unique_ptr<LuigiTxnGenerator> generator_;
+
+  // LuigiClient (replaces ShardClient)
+  std::unique_ptr<LuigiClient> luigi_client_;
+
+  // Transport and configuration (owned by this class)
+  Transport *transport_ = nullptr;
+  std::unique_ptr<transport::Configuration> transport_config_;
+
+  // Benchmark state
+  std::atomic<bool> running_{false};
+  std::atomic<uint64_t> next_txn_id_{1};
+
+  // Per-thread results
+  struct ThreadStats {
+    std::vector<TxnRecord> records;
+    uint64_t committed = 0;
+    uint64_t aborted = 0;
+  };
+  std::vector<ThreadStats> thread_stats_;
+
+  // Timing
+  uint64_t start_time_us_ = 0;
+  uint64_t end_time_us_ = 0;
+
+  // Mutex for generator access (generators may not be thread-safe)
+  std::mutex generator_mutex_;
 };
 
 // Helper function to create default configs
-inline TxnGeneratorConfig CreateDefaultMicroConfig(int num_shards, int keys_per_shard = 100000) {
-    TxnGeneratorConfig cfg;
-    cfg.shard_num = num_shards;
-    cfg.key_num = keys_per_shard;
-    cfg.read_ratio = 0.5;  // 50% reads, 50% writes
-    cfg.ops_per_txn = 10;
-    return cfg;
+inline janus::TxnGeneratorConfig
+CreateDefaultMicroConfig(int num_shards, int keys_per_shard = 100000) {
+  janus::TxnGeneratorConfig cfg;
+  cfg.shard_num = num_shards;
+  cfg.key_num = keys_per_shard;
+  cfg.read_ratio = 0.5; // 50% reads, 50% writes
+  cfg.ops_per_txn = 10;
+  return cfg;
 }
 
-inline TxnGeneratorConfig CreateDefaultTPCCConfig(int num_shards, int warehouses_per_shard = 1) {
-    TxnGeneratorConfig cfg;
-    cfg.shard_num = num_shards;
-    cfg.tpcc.warehouses_per_shard = warehouses_per_shard;
-    cfg.tpcc.districts_per_warehouse = 10;
-    cfg.tpcc.customers_per_district = 3000;
-    cfg.tpcc.items = 100000;
-    // Standard TPC-C mix
-    cfg.tpcc.new_order_weight = 45;
-    cfg.tpcc.payment_weight = 43;
-    cfg.tpcc.order_status_weight = 4;
-    cfg.tpcc.delivery_weight = 4;
-    cfg.tpcc.stock_level_weight = 4;
-    return cfg;
+inline janus::TxnGeneratorConfig
+CreateDefaultTPCCConfig(int num_shards, int warehouses_per_shard = 1) {
+  janus::TxnGeneratorConfig cfg;
+  cfg.shard_num = num_shards;
+  cfg.num_warehouses =
+      warehouses_per_shard; // Note: assigning to num_warehouses
+  cfg.num_districts_per_wh = 10;
+  cfg.num_customers_per_district = 3000;
+  cfg.num_items = 100000;
+  // Standard TPC-C mix
+  cfg.new_order_weight = 45;
+  cfg.payment_weight = 43;
+  cfg.order_status_weight = 4;
+  cfg.delivery_weight = 4;
+  cfg.stock_level_weight = 4;
+  return cfg;
 }
 
-}  // namespace luigi
-}  // namespace mako
+} // namespace luigi
+} // namespace mako
