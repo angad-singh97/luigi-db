@@ -7,7 +7,6 @@
 #include <thread>
 #include <algorithm>
 #include <map>
-#include <unordered_map>
 #include "lib/fasttransport.h"
 #include "lib/timestamp.h"
 #include "lib/common.h"
@@ -62,9 +61,15 @@ namespace mako
     private:
         transport::Configuration config;
 
+        // std::vector<uint64_t> latency_get;
+        // std::vector<uint64_t> latency_prepare;
+        // std::vector<uint64_t> latency_commit;
+
         // store layer
         abstract_db *db;
         map<int, abstract_ordered_index *> open_tables_table_id;
+        // map<string, vector<abstract_ordered_index *>> partitions;
+        // map<string, vector<abstract_ordered_index *>> remote_partitions;
 
         uint64_t txn_flags = 0;
         std::string txn_obj_buf;
@@ -104,6 +109,8 @@ namespace mako
         mako::HelperQueue *queue;
         mako::HelperQueue *queue_response;
         map<int, abstract_ordered_index *> open_tables_table_id;
+        // map<string, vector<abstract_ordered_index *>> partitions;
+        // map<string, vector<abstract_ordered_index *>> remote_partitions;
     };
 }
 #endif

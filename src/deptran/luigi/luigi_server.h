@@ -32,6 +32,9 @@ class PollThread;
 namespace rusty {
 template<typename T> class Arc;
 }
+namespace mako {
+class HelperQueue;
+}
 
 namespace janus {
 
@@ -159,6 +162,7 @@ class LuigiServer {
                 int client_shard_idx, 
                 int server_shard_idx,
                 int partition_id);
+    ~LuigiServer();
     
     /**
      * Register database, queues, and tables.
@@ -205,5 +209,33 @@ class LuigiServer {
     mako::HelperQueue* queue_response_ = nullptr;
     std::map<int, abstract_ordered_index*> tables_;
 };
+
+//=============================================================================
+// Global Luigi Server Management
+//=============================================================================
+
+/**
+ * Register a Luigi server instance for global management.
+ * Used for setting up cross-shard RPC connections.
+ */
+void RegisterLuigiServer(LuigiServer* server);
+
+/**
+ * Unregister a Luigi server instance.
+ */
+void UnregisterLuigiServer(LuigiServer* server);
+
+/**
+ * Get the Luigi scheduler for local dispatch (multi-shard mode).
+ * Returns nullptr if no Luigi servers are registered.
+ */
+SchedulerLuigi* GetLocalLuigiScheduler();
+
+/**
+ * Setup Luigi RPC for all registered servers.
+ * This is the Luigi-equivalent of mako::setup_luigi_rpc().
+ * Should be called after server transports are initialized.
+ */
+void SetupLuigiRpc();
 
 }  // namespace janus

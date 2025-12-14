@@ -111,12 +111,9 @@ static abstract_db* initShardDB(int shard_idx, bool is_leader, const std::string
          shard_idx, cluster_role.c_str(), is_leader);
 
   // Create and initialize database instance for this shard
-  abstract_db *db = nullptr;
-  
-  db = new mbta_wrapper;
-  Notice("Initialized MBTA wrapper for shard %d", shard_idx);
-  
+  abstract_db *db = new mbta_wrapper;
   db->init();
+
   return db;
 }
 
@@ -209,13 +206,8 @@ static abstract_db* initWithDB() {
                                benchConfig.getCluster(),
                                benchConfig.getConfig());
 
-  abstract_db *db = nullptr;
-  
-  // Standard STO backend  
-  db = new mbta_wrapper;
-  Notice("Initialized MBTA wrapper for local transactions");
-  
-  db->init();
+  abstract_db *db = new mbta_wrapper; // on the leader replica
+  db->init() ;
   return db;
 }
 

@@ -3,8 +3,6 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
-#include <mutex>
-#include <condition_variable>
 #include "lib/fasttransport.h"
 #include "lib/timestamp.h"
 #include "lib/server.h"
@@ -14,7 +12,6 @@
 #include "benchmarks/common.h"
 #include "benchmarks/bench.h"
 #include "benchmarks/tpcc.h"
-#include "benchmarks/benchmark_config.h"
 #include <x86intrin.h>
 #include "deptran/s_main.h"
 #include "benchmarks/sto/sync_util.hh"
@@ -102,13 +99,13 @@ namespace mako
 
     void ShardReceiver::HandleAbortRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         auto *req = reinterpret_cast<basic_request_t *>(reqBuf);
         db->shard_abort_txn(nullptr);
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         db->shard_reset();
 
@@ -117,26 +114,26 @@ namespace mako
     void ShardReceiver::HandleUnLockRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
         Panic("Deprecated!");
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         auto *req = reinterpret_cast<basic_request_t *>(reqBuf);
         try {
             db->shard_unlock(true);
         } catch (abstract_db::abstract_abort_exception &ex) {
             //db->shard_abort_txn(nullptr);
-            status = MakoErrorCode::ABORT;
+            status = ErrorCode::ABORT;
             Warning("HandleUnLockRequest error");
         }
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         db->shard_reset();
     }
 
     void ShardReceiver::HandleInstallRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         auto *req = reinterpret_cast<vector_int_request_t *>(reqBuf);
         try {
             // Single timestamp system: decode single timestamp directly
@@ -146,20 +143,20 @@ namespace mako
             db->shard_unlock(true);
         } catch (abstract_db::abstract_abort_exception &ex) {
             //db->shard_abort_txn(nullptr);
-            status = MakoErrorCode::ABORT;
+            status = ErrorCode::ABORT;
             Warning("HandleInstallRequest error");
         }
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         db->shard_reset();
     }
 
     void ShardReceiver::HandleValidateRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         auto *req = reinterpret_cast<basic_request_t *>(reqBuf);
         try {
             status = db->shard_validate();
@@ -168,34 +165,34 @@ namespace mako
             }
         } catch (abstract_db::abstract_abort_exception &ex) {
             //db->shard_abort_txn(nullptr);
-            status = MakoErrorCode::ABORT;
+            status = ErrorCode::ABORT;
             Warning("HandleValidateRequest error");
         }
 
         auto *resp = reinterpret_cast<get_int_response_t *>(respBuf);
         respLen = sizeof(get_int_response_t);
         resp->result = sync_util::sync_logger::retrieveShardW();
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->shard_index = TThread::get_shard_index();
         resp->req_nr = req->req_nr;
     }
 
     void ShardReceiver::HandleGetTimestampRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         uint32_t result = 0;
         auto *req = reinterpret_cast<basic_request_t*>(reqBuf);
         auto *resp = reinterpret_cast<get_int_response_t *>(respBuf);
         resp->shard_index = TThread::get_shard_index();
         resp->req_nr = req->req_nr;
         respLen = sizeof(get_int_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->result = __sync_fetch_and_add(&sync_util::sync_logger::local_replica_id, 1);;
     }
 
     void ShardReceiver::HandleSerializeUtilRequest(char *reqBuf, char *respBuf, size_t &respLen) {
         Panic("Deprecated");
-        // int status = MakoErrorCode::OK;
+        // int status = ErrorCode::SUCCESS;
         // auto *req = reinterpret_cast<vector_int_request_t *>(reqBuf);
         // std::vector<uint32_t> ret;
         // decode_vec_uint32(req->value, TThread::get_nshards()).swap(ret);
@@ -203,14 +200,14 @@ namespace mako
 
         // auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         // respLen = sizeof(basic_response_t);
-        // resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        // resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         // resp->req_nr = req->req_nr;
     }
 
     void ShardReceiver::HandleBatchLockMicroMegaRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
         auto *req = reinterpret_cast<batch_lock_request_t *>(reqBuf);
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
 
         uint16_t table_id, klen, vlen;
         char *k_ptr, *v_ptr;
@@ -233,7 +230,7 @@ namespace mako
                         open_tables_table_id[table_id]->shard_put(EncodeK(obj_key0, k_s_new), obj_v);
                     }
                 } catch (abstract_db::abstract_abort_exception &ex) {
-                   status = MakoErrorCode::ABORT;
+                   status = ErrorCode::ABORT;
                    Debug("HandleBatchLockMicroMegaRequest: fail to lock a key");
                 }
             }
@@ -241,14 +238,14 @@ namespace mako
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
     }
 
     void ShardReceiver::HandleBatchLockMegaRequest(char *reqBuf, char *respBuf, size_t &respLen)
     {
         auto *req = reinterpret_cast<batch_lock_request_t *>(reqBuf);
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
 
         uint16_t table_id, klen, vlen;
         char *k_ptr, *v_ptr;
@@ -272,7 +269,7 @@ namespace mako
                     }
                 } catch (abstract_db::abstract_abort_exception &ex) {
                    //db->shard_abort_txn(nullptr);
-                   status = MakoErrorCode::ABORT;
+                   status = ErrorCode::ABORT;
                    Debug("HandleLockRequest: fail to lock a key");
                 }
             }
@@ -280,7 +277,7 @@ namespace mako
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
     }
 
@@ -292,7 +289,7 @@ namespace mako
         HandleBatchLockMicroMegaRequest(reqBuf, respBuf, respLen);
 #else
         auto *req = reinterpret_cast<batch_lock_request_t *>(reqBuf);
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
 
         uint16_t table_id, klen, vlen;
         char *k_ptr, *v_ptr;
@@ -310,7 +307,7 @@ namespace mako
                     open_tables_table_id[table_id]->shard_put(obj_key0, obj_v);
                 } catch (abstract_db::abstract_abort_exception &ex) {
                    //db->shard_abort_txn(nullptr);
-                   status = MakoErrorCode::ABORT;
+                   status = ErrorCode::ABORT;
                    Debug("HandleLockRequest: fail to lock a key");
                 }
             }
@@ -318,7 +315,7 @@ namespace mako
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
 #endif
     }
@@ -334,21 +331,21 @@ namespace mako
         obj_v.assign(req->key_and_value + req->klen, req->vlen);
 
         int table_id = req->table_id;
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
 
         if (table_id > 0) {
             try {
                 open_tables_table_id[table_id]->shard_put(obj_key0, obj_v);
             } catch (abstract_db::abstract_abort_exception &ex) {
                 //db->shard_abort_txn(nullptr);
-                status = MakoErrorCode::ABORT;
+                status = ErrorCode::ABORT;
                 Debug("HandleLockRequest: fail to lock a key");
             }
         }
 
         auto *resp = reinterpret_cast<basic_response_t *>(respBuf);
         respLen = sizeof(basic_response_t);
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
     }
 
@@ -363,7 +360,7 @@ namespace mako
         // const std::string start_key = string(req->start_end_key, req->slen);
         // const std::string end_key = string(req->start_end_key+req->slen, req->elen);
 
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
 
         static_limit_callback<512> c(s_arena.get(), true); // probably a safe bet for now, NMaxCustomerIdxScanElems
         if (req->table_id > 0) {
@@ -381,7 +378,7 @@ namespace mako
                 }
             } catch (abstract_db::abstract_abort_exception &ex) {
                 db->shard_abort_txn(nullptr);
-                status = MakoErrorCode::ABORT;
+                status = ErrorCode::ABORT;
             }
         } else {
             val = "this is a mocked value for erpc_client and erpc_server";
@@ -389,7 +386,7 @@ namespace mako
         
         auto *resp = reinterpret_cast<scan_response_t *>(respBuf);
         respLen = sizeof(scan_response_t) - max_value_length + val.length();
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         resp->len = val.length();
         memcpy(resp->value, val.c_str(), val.length());
@@ -408,7 +405,7 @@ namespace mako
         int value_size = 8;
         c_v.resize(value_size);
 
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         if (req->table_id > 0) {
             try {
                 bool ret = true;
@@ -423,12 +420,12 @@ namespace mako
                 // abort here,
                 if (!ret){ // key not found or found but invalid
                     db->shard_abort_txn(nullptr);
-                    status = MakoErrorCode::ABORT;
+                    status = ErrorCode::ABORT;
                 }
             } catch (abstract_db::abstract_abort_exception &ex) {
                 // No need to abort, the client side will issue an abort
                 db->shard_abort_txn(nullptr);
-                status = MakoErrorCode::ABORT;
+                status = ErrorCode::ABORT;
             }
         } else {
             obj_v = "this is a mocked value for erpc_client and erpc_server";
@@ -437,7 +434,7 @@ namespace mako
         auto *resp = reinterpret_cast<get_response_t *>(respBuf);
         respLen = sizeof(get_response_t) - max_value_length + c_v.length();
         ALWAYS_ASSERT(max_value_length>=obj_v.length());
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         resp->len = c_v.length();
         //Warning("the remoteGET,len:%d,table_id:%d,keys:%s,key_len:%d,val_len:%d",obj_v.length(),req->table_id,mako::printStringAsBit(obj_key0).c_str(),req->len,obj_v.length());
@@ -459,7 +456,7 @@ namespace mako
         int offset = 0;
         c_v.resize(tol_len);
 
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         if (req->table_id > 0) {
             try {
                 bool ret = true;
@@ -476,12 +473,12 @@ namespace mako
                 //  "not found a key" maybe a expected behavior
                 if (!ret){ // key not found or found but invalid
                     db->shard_abort_txn(nullptr);
-                    status = MakoErrorCode::ABORT;
+                    status = ErrorCode::ABORT;
                 }
             } catch (abstract_db::abstract_abort_exception &ex) {
                 // No need to abort, the client side will issue an abort
                 db->shard_abort_txn(nullptr);
-                status = MakoErrorCode::ABORT;
+                status = ErrorCode::ABORT;
             }
         } else {
             obj_v = "this is a mocked value for erpc_client and erpc_server";
@@ -490,7 +487,7 @@ namespace mako
         auto *resp = reinterpret_cast<get_response_t *>(respBuf);
         respLen = sizeof(get_response_t) - max_value_length + c_v.length();
         ALWAYS_ASSERT(max_value_length>=obj_v.length());
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         resp->len = c_v.length();
         //Warning("the remoteGET,len:%d,table_id:%d,keys:%s,key_len:%d,val_len:%d",obj_v.length(),req->table_id,mako::printStringAsBit(obj_key0).c_str(),req->len,obj_v.length());
@@ -510,13 +507,13 @@ namespace mako
 #endif
         obj_key0.assign(req->key, req->len);
 
-        int status = MakoErrorCode::OK;
+        int status = ErrorCode::SUCCESS;
         if (req->table_id > 0) {
             // Check if table exists (may not exist in micro benchmark mode)
             auto it = open_tables_table_id.find(req->table_id);
             if (it == open_tables_table_id.end() || it->second == nullptr) {
                 db->shard_abort_txn(nullptr);
-                status = MakoErrorCode::ABORT;
+                status = ErrorCode::ABORT;
             } else {
                 try {
                     bool ret = it->second->shard_get(obj_key0, obj_v);
@@ -524,12 +521,12 @@ namespace mako
                     //  "not found a key" maybe a expected behavior
                     if (!ret){ // key not found or found but invalid
                         db->shard_abort_txn(nullptr);
-                        status = MakoErrorCode::ABORT;
+                        status = ErrorCode::ABORT;
                     }
                 } catch (abstract_db::abstract_abort_exception &ex) {
                     // No need to abort, the client side will issue an abort
                     db->shard_abort_txn(nullptr);
-                    status = MakoErrorCode::ABORT;
+                    status = ErrorCode::ABORT;
                 }
             }
         } else {
@@ -539,7 +536,7 @@ namespace mako
         auto *resp = reinterpret_cast<get_response_t *>(respBuf);
         respLen = sizeof(get_response_t) - max_value_length + obj_v.length();
         ALWAYS_ASSERT(max_value_length>=obj_v.length());
-        resp->status = (current_term > req->req_nr % 10)? MakoErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
+        resp->status = (current_term > req->req_nr % 10)? ErrorCode::ABORT: status; // If a reqest comes from old epoch, reject it.;
         resp->req_nr = req->req_nr;
         resp->len = obj_v.length();
         //Warning("the remoteGET,len:%d,table_id:%d,keys:%s,key_len:%d,val_len:%d",obj_v.length(),req->table_id,mako::printStringAsBit(obj_key0).c_str(),req->len,obj_v.length());

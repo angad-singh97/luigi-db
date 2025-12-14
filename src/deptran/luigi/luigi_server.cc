@@ -10,9 +10,19 @@
 #include "deptran/config.h"
 #include "rrr/rrr.hpp"
 
+#include "lib/transport_request_handle.h"
+#include "lib/helper_queue.h"
+#include "lib/fasttransport.h"
+#include "lib/common.h"
 #include "benchmarks/sto/Interface.hh"
 #include "benchmarks/common.h"
 #include "benchmarks/benchmark_config.h"
+
+#include <iostream>
+#include <chrono>
+#include <thread>
+#include <algorithm>
+#include <mutex>
 
 namespace janus {
 
@@ -386,6 +396,14 @@ LuigiServer::LuigiServer(const std::string& config_file,
     receiver_ = new LuigiReceiver(config_file);
 }
 
+LuigiServer::~LuigiServer() {
+    if (receiver_) {
+        receiver_->StopScheduler();
+        delete receiver_;
+        receiver_ = nullptr;
+    }
+}
+
 void LuigiServer::Register(abstract_db* db,
                            mako::HelperQueue* queue,
                            mako::HelperQueue* queue_response,
@@ -396,6 +414,9 @@ void LuigiServer::Register(abstract_db* db,
     tables_ = tables;
     
     receiver_->Register(db, tables);
+    
+    // Initialize the scheduler with partition id
+    receiver_->InitScheduler(partition_id_);
 }
 
 void LuigiServer::UpdateTable(int table_id, abstract_ordered_index* table) {
@@ -406,14 +427,157 @@ void LuigiServer::UpdateTable(int table_id, abstract_ordered_index* table) {
 }
 
 void LuigiServer::Run() {
-    // Similar to Mako's ShardServer::Run()
-    // The actual event loop is handled by the transport layer
+    if (!queue_) {
+        Log_warn("LuigiServer::Run() called but no queue registered");
+        return;
+    }
+    
+    // Initialize scheduler if not already done
+    if (receiver_->GetScheduler() == nullptr) {
+        receiver_->InitScheduler(partition_id_);
+    }
+    
+    // Event loop similar to Mako's ShardServer::Run()
+    while (true) {
+        queue_->suspend();
+
+        while (true) {
+            erpc::ReqHandle *handle;
+            size_t msg_size;
+            if (!queue_->fetch_one_req(&handle, msg_size)) {
+                break;
+            }
+            if (!handle) {
+                Log_error("LuigiServer: invalid pointer in queue");
+                continue;
+            }
+
+            // Cast to transport-agnostic interface
+            mako::TransportRequestHandle* req_handle = 
+                reinterpret_cast<mako::TransportRequestHandle*>(handle);
+
+            // Process request through LuigiReceiver
+            size_t msgLen = receiver_->ReceiveRequest(
+                req_handle->GetRequestType(),
+                req_handle->GetRequestBuffer(),
+                req_handle->GetResponseBuffer());
+
+            // Enqueue response
+            req_handle->EnqueueResponse(msgLen);
+        }
+
+        if (queue_->should_stop()) {
+            break;
+        }
+    }
+    
+    Log_info("LuigiServer::Run() exiting for partition %d", partition_id_);
 }
 
 void LuigiServer::SetupRpc(rrr::Server* rpc_server,
                            rusty::Arc<rrr::PollThread> poll_thread,
                            const std::map<uint32_t, std::string>& shard_addresses) {
     receiver_->SetupRpc(rpc_server, poll_thread, shard_addresses);
+}
+
+//=============================================================================
+// Global Luigi Server Management
+//=============================================================================
+
+namespace {
+    std::mutex g_luigi_servers_mu;
+    std::vector<LuigiServer*> g_luigi_servers;
+}
+
+void RegisterLuigiServer(LuigiServer* server) {
+    std::lock_guard<std::mutex> lock(g_luigi_servers_mu);
+    g_luigi_servers.push_back(server);
+}
+
+void UnregisterLuigiServer(LuigiServer* server) {
+    std::lock_guard<std::mutex> lock(g_luigi_servers_mu);
+    auto it = std::find(g_luigi_servers.begin(), g_luigi_servers.end(), server);
+    if (it != g_luigi_servers.end()) {
+        g_luigi_servers.erase(it);
+    }
+}
+
+SchedulerLuigi* GetLocalLuigiScheduler() {
+    std::lock_guard<std::mutex> lock(g_luigi_servers_mu);
+    if (!g_luigi_servers.empty()) {
+        return g_luigi_servers[0]->GetScheduler();
+    }
+    return nullptr;
+}
+
+void SetupLuigiRpc() {
+    auto& cfg = BenchmarkConfig::getInstance();
+    
+    // Only setup if Luigi mode is enabled
+    if (!cfg.getUseLuigi()) {
+        return;
+    }
+    
+    auto& server_transports = cfg.getServerTransports();
+    if (server_transports.empty()) {
+        Log_info("setup_luigi_rpc: No server transports available, skipping");
+        return;
+    }
+    
+    // Get RPC server and poll thread from the first transport
+    mako::FastTransport* transport = server_transports[0];
+    if (!transport) {
+        Log_warn("setup_luigi_rpc: First transport is null");
+        return;
+    }
+    
+    rrr::Server* rpc_server = transport->GetRpcServer();
+    auto poll_thread_opt = transport->GetPollThread();
+    
+    if (!rpc_server) {
+        Log_info("setup_luigi_rpc: No RPC server available (eRPC mode?), skipping");
+        return;
+    }
+    
+    if (poll_thread_opt.is_none()) {
+        Log_warn("setup_luigi_rpc: No poll thread available");
+        return;
+    }
+    
+    rusty::Arc<rrr::PollThread> poll_thread = poll_thread_opt.unwrap();
+    
+    // Build shard addresses map: shard_id -> "host:port"
+    std::map<uint32_t, std::string> shard_addresses;
+    transport::Configuration* config = cfg.getConfig();
+    if (config) {
+        std::string cluster = cfg.getCluster();
+        int cluster_role = mako::convertCluster(cluster);
+        
+        for (int shard_idx = 0; shard_idx < config->nshards; shard_idx++) {
+            // Skip our own shard
+            if (shard_idx == (int)cfg.getShardIndex()) {
+                continue;
+            }
+            
+            std::string host = config->shard(shard_idx, cluster_role).host;
+            std::string port = config->shard(shard_idx, cluster_role).port;
+            shard_addresses[shard_idx] = host + ":" + port;
+        }
+    }
+    
+    // Setup Luigi RPC for each registered Luigi server
+    {
+        std::lock_guard<std::mutex> lock(g_luigi_servers_mu);
+        for (auto* server : g_luigi_servers) {
+            server->SetupRpc(rpc_server, poll_thread.clone(), shard_addresses);
+        }
+        
+        if (g_luigi_servers.empty() && cfg.getUseLuigi()) {
+            Log_info("Single-shard Luigi mode: using direct local execution");
+        }
+    }
+    
+    Log_info("Luigi RPC setup complete: %zu shard addresses configured", shard_addresses.size());
 }
 
 }  // namespace janus
