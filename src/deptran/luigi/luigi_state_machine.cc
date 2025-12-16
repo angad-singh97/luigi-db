@@ -1,6 +1,9 @@
 #include "luigi_state_machine.h"
 #include "__dep__.h"
+#include "tpcc_constants.h"
+#include "tpcc_helpers.h"
 
+#include <algorithm>
 #include <chrono>
 #include <random>
 
@@ -10,31 +13,31 @@ namespace janus {
 // LuigiMicroStateMachine Implementation
 //=============================================================================
 
-bool LuigiMicroStateMachine::Execute(uint32_t txn_type,
-                                     const std::vector<LuigiOp> &ops,
-                                     std::map<std::string, std::string> *output,
-                                     uint64_t txn_id) {
-  // Simple execution: process each op sequentially
-  for (const auto &op : ops) {
-    if (!IsLocalOp(op)) {
-      // Skip ops for other shards (should be routed there)
-      continue;
-    }
+bool LuigiMicroStateMachine::Execute(
+    uint32_t txn_type, const std::map<int32_t, std::string> &working_set,
+    std::map<std::string, std::string> *output, uint64_t txn_id) {
+  // For micro benchmark, working_set contains key-value pairs
+  // Process each entry in working_set
+  for (const auto &[var_id, value] : working_set) {
+    // Generate key from variable ID
+    std::string key = "key_" + std::to_string(var_id);
 
-    if (op.op_type == LUIGI_OP_READ) {
-      std::string value;
-      if (Get(op.key, value)) {
+    // Determine if this is a read or write based on value
+    if (value.empty()) {
+      // Empty value = read operation
+      std::string result;
+      if (Get(key, result)) {
         if (output) {
-          (*output)[op.key] = value;
+          (*output)[key] = result;
         }
       } else {
-        // Key not found - return empty string
         if (output) {
-          (*output)[op.key] = "";
+          (*output)[key] = "";
         }
       }
-    } else if (op.op_type == LUIGI_OP_WRITE) {
-      Put(op.key, op.value);
+    } else {
+      // Non-empty value = write operation
+      Put(key, value);
     }
   }
   return true;
@@ -314,30 +317,22 @@ void LuigiTPCCStateMachine::PopulateData() {
   Log_info("LuigiTPCCStateMachine[%u]: Data populated", shard_id_);
 }
 
-bool LuigiTPCCStateMachine::Execute(uint32_t txn_type,
-                                    const std::vector<LuigiOp> &ops,
-                                    std::map<std::string, std::string> *output,
-                                    uint64_t txn_id) {
-  // TPC-C transaction types
-  enum TPCCTxnType {
-    NEW_ORDER = 0,
-    PAYMENT = 1,
-    ORDER_STATUS = 2,
-    DELIVERY = 3,
-    STOCK_LEVEL = 4
-  };
+bool LuigiTPCCStateMachine::Execute(
+    uint32_t txn_type, const std::map<int32_t, std::string> &working_set,
+    std::map<std::string, std::string> *output, uint64_t txn_id) {
 
+  // Dispatch to appropriate TPC-C transaction handler
   switch (txn_type) {
-  case NEW_ORDER:
-    return ExecuteNewOrder(ops, output, txn_id);
-  case PAYMENT:
-    return ExecutePayment(ops, output, txn_id);
-  case ORDER_STATUS:
-    return ExecuteOrderStatus(ops, output, txn_id);
-  case DELIVERY:
-    return ExecuteDelivery(ops, output, txn_id);
-  case STOCK_LEVEL:
-    return ExecuteStockLevel(ops, output, txn_id);
+  case LUIGI_TXN_NEW_ORDER:
+    return ExecuteNewOrder(working_set, output, txn_id);
+  case LUIGI_TXN_PAYMENT:
+    return ExecutePayment(working_set, output, txn_id);
+  case LUIGI_TXN_ORDER_STATUS:
+    return ExecuteOrderStatus(working_set, output, txn_id);
+  case LUIGI_TXN_DELIVERY:
+    return ExecuteDelivery(working_set, output, txn_id);
+  case LUIGI_TXN_STOCK_LEVEL:
+    return ExecuteStockLevel(working_set, output, txn_id);
   default:
     Log_warn("Unknown TPC-C transaction type: %u", txn_type);
     return false;

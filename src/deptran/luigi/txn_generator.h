@@ -135,8 +135,20 @@ protected:
     return dist(rand_gen_);
   }
 
-  uint32_t KeyToShard(int32_t key) const {
-    return static_cast<uint32_t>(key) % config_.shard_num;
+  // FNV-1a hash function (matches Mako's mbta_sharded_ordered_index)
+  static uint32_t HashFNV1a(const std::string &key) {
+    constexpr uint64_t fnv_offset = 14695981039346656037ULL;
+    constexpr uint64_t fnv_prime = 1099511628211ULL;
+    uint64_t hash = fnv_offset;
+    for (char c : key) {
+      hash ^= static_cast<uint8_t>(c);
+      hash *= fnv_prime;
+    }
+    return static_cast<uint32_t>(hash);
+  }
+
+  uint32_t KeyToShard(const std::string &key) const {
+    return HashFNV1a(key) % config_.shard_num;
   }
 
   static LuigiOp MakeOp(uint16_t table_id, uint8_t op_type,
@@ -149,7 +161,9 @@ protected:
     return op;
   }
 
-  static std::string KeyToString(int32_t key) { return std::to_string(key); }
+  static std::string KeyToString(int32_t key) {
+    return "key_" + std::to_string(key); // Match Mako format
+  }
 
   static std::string ValueToString(int32_t value) {
     return std::to_string(value);

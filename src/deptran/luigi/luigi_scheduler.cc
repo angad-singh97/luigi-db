@@ -6,6 +6,9 @@
 #include <functional>
 #include <iostream>
 
+// Fix macro conflict between deptran/constants.h and mako/lib/common.h
+#undef SUCCESS
+
 namespace janus {
 
 //=============================================================================

@@ -1,12 +1,12 @@
 #include "luigi_executor.h"
-#include "luigi_scheduler.h"  // For RPC coordination
+#include "luigi_scheduler.h" // For RPC coordination
 #include "luigi_state_machine.h"
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <set>
 
-#include "deptran/__dep__.h"  // For logging macros
+#include "deptran/__dep__.h" // For logging macros
 
 namespace janus {
 
@@ -23,14 +23,14 @@ LuigiExecutor::~LuigiExecutor() {}
 //=============================================================================
 
 void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
-  int status = 0;  // SUCCESS
+  int status = 0; // SUCCESS
   uint64_t commit_ts = entry->proposed_ts_;
-  
+
   //-------------------------------------------------------------------------
   // Step 1: Multi-shard detection
   //-------------------------------------------------------------------------
   bool is_multi_shard = IsMultiShard(entry);
-  
+
   //-------------------------------------------------------------------------
   // Step 2: For multi-shard txns, handle agreement state machine
   //
@@ -41,71 +41,74 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
   // - COMPLETE: Execute!
   //-------------------------------------------------------------------------
   if (is_multi_shard) {
-    LuigiAgreeStatus agree_status = 
+    LuigiAgreeStatus agree_status =
         static_cast<LuigiAgreeStatus>(entry->agree_status_.load());
-    
+
     switch (agree_status) {
-      case LUIGI_AGREE_INIT:
-        //-------------------------------------------------------------------
-        // First time seeing this txn - initiate agreement
-        // This broadcasts our proposal and returns immediately.
-        // When all proposals are received, UpdateDeadlineRecord() will
-        // determine the case and re-enqueue the txn to ready_queue_.
-        //-------------------------------------------------------------------
-        Log_info("Luigi Execute: txn %lu initiating agreement (async)", entry->tid_);
-        if (scheduler_ != nullptr) {
-          scheduler_->InitiateAgreement(entry);
-        }
-        // Don't execute yet - wait for agreement to complete asynchronously
-        entry->exec_status_.store(LUIGI_EXEC_INIT);
-        return;
-        
-      case LUIGI_AGREE_FLUSHING:
-        //-------------------------------------------------------------------
-        // Case 3: We had smaller timestamp, need to reposition
-        // Update our proposed_ts and send confirmations
-        //-------------------------------------------------------------------
-        Log_info("Luigi Execute: txn %lu repositioning (proposed=%lu -> agreed=%lu)",
-                 entry->tid_, entry->proposed_ts_, entry->agreed_ts_);
-        
-        // Send Phase 2 confirmations to other leaders
-        if (scheduler_ != nullptr) {
-          entry->proposed_ts_ = entry->agreed_ts_;  // Update our timestamp
-          scheduler_->SendRepositionConfirmations(entry);
-        }
-        
-        // Requeue to priority queue at new timestamp
-        entry->agree_status_.store(LUIGI_AGREE_COMPLETE);
-        entry->requeue_count_++;
-        // Caller (ExecTd in scheduler) will handle requeuing
-        return;
-        
-      case LUIGI_AGREE_CONFIRMING:
-        //-------------------------------------------------------------------
-        // Case 2: We're max, waiting for others to confirm repositioning
-        // If we get here, confirmations haven't arrived yet - return and wait
-        //-------------------------------------------------------------------
-        Log_info("Luigi Execute: txn %lu still waiting for confirmations", entry->tid_);
-        // The scheduler's HandleRemoteDeadlineConfirm will re-enqueue us
-        // when all confirmations arrive
-        return;
-        
-      case LUIGI_AGREE_COMPLETE:
-        //-------------------------------------------------------------------
-        // Agreement complete! Proceed to execution
-        //-------------------------------------------------------------------
-        Log_info("Luigi Execute: txn %lu agreement complete at ts=%lu",
-                 entry->tid_, entry->agreed_ts_);
-        commit_ts = entry->agreed_ts_;
-        entry->ts_agreed_.store(true);
-        entry->exec_status_.store(LUIGI_EXEC_DIRECT);
-        break;
-        
-      default:
-        Log_error("Luigi Execute: txn %lu unexpected agree_status %d",
-                  entry->tid_, static_cast<int>(agree_status));
-        status = -1;
-        goto done;
+    case LUIGI_AGREE_INIT:
+      //-------------------------------------------------------------------
+      // First time seeing this txn - initiate agreement
+      // This broadcasts our proposal and returns immediately.
+      // When all proposals are received, UpdateDeadlineRecord() will
+      // determine the case and re-enqueue the txn to ready_queue_.
+      //-------------------------------------------------------------------
+      Log_info("Luigi Execute: txn %lu initiating agreement (async)",
+               entry->tid_);
+      if (scheduler_ != nullptr) {
+        scheduler_->InitiateAgreement(entry);
+      }
+      // Don't execute yet - wait for agreement to complete asynchronously
+      entry->exec_status_.store(LUIGI_EXEC_INIT);
+      return;
+
+    case LUIGI_AGREE_FLUSHING:
+      //-------------------------------------------------------------------
+      // Case 3: We had smaller timestamp, need to reposition
+      // Update our proposed_ts and send confirmations
+      //-------------------------------------------------------------------
+      Log_info(
+          "Luigi Execute: txn %lu repositioning (proposed=%lu -> agreed=%lu)",
+          entry->tid_, entry->proposed_ts_, entry->agreed_ts_);
+
+      // Send Phase 2 confirmations to other leaders
+      if (scheduler_ != nullptr) {
+        entry->proposed_ts_ = entry->agreed_ts_; // Update our timestamp
+        scheduler_->SendRepositionConfirmations(entry);
+      }
+
+      // Requeue to priority queue at new timestamp
+      entry->agree_status_.store(LUIGI_AGREE_COMPLETE);
+      entry->requeue_count_++;
+      // Caller (ExecTd in scheduler) will handle requeuing
+      return;
+
+    case LUIGI_AGREE_CONFIRMING:
+      //-------------------------------------------------------------------
+      // Case 2: We're max, waiting for others to confirm repositioning
+      // If we get here, confirmations haven't arrived yet - return and wait
+      //-------------------------------------------------------------------
+      Log_info("Luigi Execute: txn %lu still waiting for confirmations",
+               entry->tid_);
+      // The scheduler's HandleRemoteDeadlineConfirm will re-enqueue us
+      // when all confirmations arrive
+      return;
+
+    case LUIGI_AGREE_COMPLETE:
+      //-------------------------------------------------------------------
+      // Agreement complete! Proceed to execution
+      //-------------------------------------------------------------------
+      Log_info("Luigi Execute: txn %lu agreement complete at ts=%lu",
+               entry->tid_, entry->agreed_ts_);
+      commit_ts = entry->agreed_ts_;
+      entry->ts_agreed_.store(true);
+      entry->exec_status_.store(LUIGI_EXEC_DIRECT);
+      break;
+
+    default:
+      Log_error("Luigi Execute: txn %lu unexpected agree_status %d",
+                entry->tid_, static_cast<int>(agree_status));
+      status = -1;
+      goto done;
     }
   } else {
     // Single-shard: no agreement needed, execute directly
@@ -115,7 +118,7 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
     entry->exec_status_.store(LUIGI_EXEC_DIRECT);
     commit_ts = entry->proposed_ts_;
   }
-  
+
   //-------------------------------------------------------------------------
   // Step 3: Execute all operations
   // Choose between callback mode (Mako) and state machine mode (Tiga-style)
@@ -126,10 +129,11 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
     status = ExecuteAllOps(entry);
   }
   if (status != 0) {
-    Log_error("Luigi Execute: Operation execution failed for txn %lu", entry->tid_);
+    Log_error("Luigi Execute: Operation execution failed for txn %lu",
+              entry->tid_);
     goto done;
   }
-  
+
   //-------------------------------------------------------------------------
   // Step 4: Trigger replication (background Paxos)
   //-------------------------------------------------------------------------
@@ -137,14 +141,15 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
   // This matches Mako's behavior - replication happens for committed txns
   status = TriggerReplication(entry);
   if (status != 0) {
-    Log_error("Luigi Execute: Replication trigger failed for txn %lu", entry->tid_);
+    Log_error("Luigi Execute: Replication trigger failed for txn %lu",
+              entry->tid_);
     // Don't abort - replication failure is handled by Paxos recovery
-    status = 0;  // Reset status, txn still committed locally
+    status = 0; // Reset status, txn still committed locally
   }
 
 done:
   entry->exec_status_.store(LUIGI_EXEC_COMPLETE);
-  
+
   // Call reply callback
   if (entry->reply_cb_) {
     entry->reply_cb_(status, commit_ts, entry->read_results_);
@@ -155,14 +160,14 @@ done:
 // Multi-shard Detection & Agreement
 //=============================================================================
 
-bool LuigiExecutor::IsMultiShard(const std::shared_ptr<LuigiLogEntry>& entry) {
+bool LuigiExecutor::IsMultiShard(const std::shared_ptr<LuigiLogEntry> &entry) {
   // Check if the transaction has remote_shards set
   // This would be populated by the coordinator when it knows the txn
   // touches multiple shards
-  
+
   // For now, we rely on the entry having this information from the coordinator
   // The coordinator knows which partitions a txn touches based on the keys
-  
+
   // Simple check: if remote_shards_ is non-empty, it's multi-shard
   return !entry->remote_shards_.empty();
 }
@@ -185,15 +190,15 @@ bool LuigiExecutor::IsMultiShard(const std::shared_ptr<LuigiLogEntry>& entry) {
 // Read Operations (delegate to callback)
 //=============================================================================
 
-int LuigiExecutor::ExecuteRead(const LuigiOp& op, std::string& value_out) {
+int LuigiExecutor::ExecuteRead(const LuigiOp &op, std::string &value_out) {
   value_out.clear();
-  
+
   // Validate callback is set
   if (!read_cb_) {
     Log_error("Luigi ExecuteRead: read callback not set!");
     return -1;
   }
-  
+
   // Execute via callback (provided by Mako)
   try {
     bool found = read_cb_(op.table_id, op.key, value_out);
@@ -203,14 +208,13 @@ int LuigiExecutor::ExecuteRead(const LuigiOp& op, std::string& value_out) {
       value_out.clear();
       // Return success - not finding a key is not an error
     }
-    return 0;  // SUCCESS
-  } catch (const std::exception& ex) {
-    Log_error("Luigi ExecuteRead: exception in table %d: %s", 
-              op.table_id, ex.what());
+    return 0; // SUCCESS
+  } catch (const std::exception &ex) {
+    Log_error("Luigi ExecuteRead: exception in table %d: %s", op.table_id,
+              ex.what());
     return -1;
   } catch (...) {
-    Log_error("Luigi ExecuteRead: unknown exception in table %d", 
-              op.table_id);
+    Log_error("Luigi ExecuteRead: unknown exception in table %d", op.table_id);
     return -1;
   }
 }
@@ -219,13 +223,13 @@ int LuigiExecutor::ExecuteRead(const LuigiOp& op, std::string& value_out) {
 // Write Operations (delegate to callback)
 //=============================================================================
 
-int LuigiExecutor::ExecuteWrite(const LuigiOp& op) {
+int LuigiExecutor::ExecuteWrite(const LuigiOp &op) {
   // Validate callback is set
   if (!write_cb_) {
     Log_error("Luigi ExecuteWrite: write callback not set!");
     return -1;
   }
-  
+
   // Execute via callback (provided by Mako)
   try {
     bool success = write_cb_(op.table_id, op.key, op.value);
@@ -233,14 +237,13 @@ int LuigiExecutor::ExecuteWrite(const LuigiOp& op) {
       Log_error("Luigi ExecuteWrite: write failed for table %d", op.table_id);
       return -1;
     }
-    return 0;  // SUCCESS
-  } catch (const std::exception& ex) {
-    Log_error("Luigi ExecuteWrite: exception in table %d: %s", 
-              op.table_id, ex.what());
+    return 0; // SUCCESS
+  } catch (const std::exception &ex) {
+    Log_error("Luigi ExecuteWrite: exception in table %d: %s", op.table_id,
+              ex.what());
     return -1;
   } catch (...) {
-    Log_error("Luigi ExecuteWrite: unknown exception in table %d", 
-              op.table_id);
+    Log_error("Luigi ExecuteWrite: unknown exception in table %d", op.table_id);
     return -1;
   }
 }
@@ -259,7 +262,7 @@ int LuigiExecutor::ExecuteWrite(const LuigiOp& op) {
 
 int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
   entry->read_results_.clear();
-  
+
   // Build a set of local keys for O(1) lookup
   // local_keys_ contains the keys that THIS shard owns
   std::set<std::string> local_key_set;
@@ -267,7 +270,7 @@ int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
     // Convert int32_t key to string for comparison with op.key
     local_key_set.insert(std::to_string(k));
   }
-  
+
   // If local_keys_ is empty but we have shard_to_keys_, use that
   if (local_key_set.empty() && !entry->shard_to_keys_.empty()) {
     // Find our shard's keys from shard_to_keys_
@@ -278,47 +281,49 @@ int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
       }
     }
   }
-  
+
   // Determine if we should filter by local keys
   // If local_key_set is empty, assume single-shard txn and execute all ops
   bool should_filter = !local_key_set.empty();
-  
-  Log_debug("Luigi ExecuteAllOps: txn %lu has %zu ops, %zu local keys, filter=%d",
-            entry->tid_, entry->ops_.size(), local_key_set.size(), should_filter);
-  
+
+  Log_debug(
+      "Luigi ExecuteAllOps: txn %lu has %zu ops, %zu local keys, filter=%d",
+      entry->tid_, entry->ops_.size(), local_key_set.size(), should_filter);
+
   //-------------------------------------------------------------------------
   // Phase 1: Execute READ operations (only for local keys)
   //-------------------------------------------------------------------------
-  for (auto& op : entry->ops_) {
+  for (auto &op : entry->ops_) {
     if (op.op_type == LUIGI_OP_READ) {
       // Check if this key belongs to us
       bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
-      
+
       if (is_local) {
         std::string value;
         int ret = ExecuteRead(op, value);
         if (ret != 0) {
-          Log_error("Luigi ExecuteAllOps: Read failed for txn %lu, key=%s", 
+          Log_error("Luigi ExecuteAllOps: Read failed for txn %lu, key=%s",
                     entry->tid_, op.key.c_str());
           return -1;
         }
         entry->read_results_.push_back(value);
         op.executed = true;
       } else {
-        Log_debug("Luigi ExecuteAllOps: Skipping remote read key=%s for txn %lu",
-                  op.key.c_str(), entry->tid_);
+        Log_debug(
+            "Luigi ExecuteAllOps: Skipping remote read key=%s for txn %lu",
+            op.key.c_str(), entry->tid_);
       }
     }
   }
-  
+
   //-------------------------------------------------------------------------
   // Phase 2: Execute WRITE operations (only for local keys)
   //-------------------------------------------------------------------------
-  for (auto& op : entry->ops_) {
+  for (auto &op : entry->ops_) {
     if (op.op_type == LUIGI_OP_WRITE) {
       // Check if this key belongs to us
       bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
-      
+
       if (is_local) {
         int ret = ExecuteWrite(op);
         if (ret != 0) {
@@ -328,13 +333,14 @@ int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
         }
         op.executed = true;
       } else {
-        Log_debug("Luigi ExecuteAllOps: Skipping remote write key=%s for txn %lu",
-                  op.key.c_str(), entry->tid_);
+        Log_debug(
+            "Luigi ExecuteAllOps: Skipping remote write key=%s for txn %lu",
+            op.key.c_str(), entry->tid_);
       }
     }
   }
-  
-  return 0;  // SUCCESS
+
+  return 0; // SUCCESS
 }
 
 //=============================================================================
@@ -346,22 +352,22 @@ int LuigiExecutor::TriggerReplication(std::shared_ptr<LuigiLogEntry> entry) {
   // In Tiga, replication happens via per-worker Paxos streams.
   // We determine the worker/stream ID from the transaction metadata.
   //-------------------------------------------------------------------------
-  
+
   // Extract worker ID (bits 63-48 of txn_id)
   uint32_t worker_id = (uint32_t)((entry->tid_ >> 48) & 0xFFFF);
-  
+
   // Use scheduler's Replication layer
   if (scheduler_) {
-      scheduler_->Replicate(worker_id, entry);
+    scheduler_->Replicate(worker_id, entry);
   } else {
-      Log_error("Luigi TriggerReplication: scheduler not set!");
-      return -1;
+    Log_error("Luigi TriggerReplication: scheduler not set!");
+    return -1;
   }
-  
+
   // NOTE: In the original Mako code, there was a replication_cb_.
   // We've replaced that pattern with the Scheduler's Replicate method
   // which handles the per-stream logic and watermark updates.
-  
+
   return 0;
 }
 
@@ -398,16 +404,17 @@ int LuigiExecutor::TriggerReplication(std::shared_ptr<LuigiLogEntry> entry) {
 // This mode is used when Luigi runs independently (not integrated with Mako).
 //=============================================================================
 
-int LuigiExecutor::ExecuteViaStateMachine(std::shared_ptr<LuigiLogEntry> entry) {
+int LuigiExecutor::ExecuteViaStateMachine(
+    std::shared_ptr<LuigiLogEntry> entry) {
   if (!state_machine_) {
     Log_error("Luigi ExecuteViaStateMachine: state machine not set!");
     return -1;
   }
-  
+
   // Filter operations for local keys (same logic as ExecuteAllOps)
   std::vector<LuigiOp> local_ops;
   std::set<std::string> local_key_set;
-  
+
   // Build local key set
   for (int32_t k : entry->local_keys_) {
     local_key_set.insert(std::to_string(k));
@@ -420,36 +427,37 @@ int LuigiExecutor::ExecuteViaStateMachine(std::shared_ptr<LuigiLogEntry> entry) 
       }
     }
   }
-  
+
   bool should_filter = !local_key_set.empty();
-  
+
   // Collect local operations
-  for (const auto& op : entry->ops_) {
+  for (const auto &op : entry->ops_) {
     bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
     if (is_local) {
       local_ops.push_back(op);
     }
   }
-  
-  Log_debug("Luigi ExecuteViaStateMachine: txn %lu executing %zu local ops via %s",
-            entry->tid_, local_ops.size(), state_machine_->RTTI().c_str());
-  
-  // Execute via state machine
+
+  Log_debug(
+      "Luigi ExecuteViaStateMachine: txn %lu executing %zu local ops via %s",
+      entry->tid_, local_ops.size(), state_machine_->RTTI().c_str());
+
+  // Execute via state machine (using working_set for TPC-C)
   std::map<std::string, std::string> output;
   bool success = state_machine_->Execute(
       entry->txn_type_,
-      local_ops,
-      &output,
-      entry->tid_);
-  
+      entry->working_set_, // Pass TPC-C parameters instead of ops
+      &output, entry->tid_);
+
   if (!success) {
-    Log_error("Luigi ExecuteViaStateMachine: execution failed for txn %lu", entry->tid_);
+    Log_error("Luigi ExecuteViaStateMachine: execution failed for txn %lu",
+              entry->tid_);
     return -1;
   }
-  
+
   // Populate read results from output
   entry->read_results_.clear();
-  for (const auto& op : local_ops) {
+  for (const auto &op : local_ops) {
     if (op.op_type == LUIGI_OP_READ) {
       auto it = output.find(op.key);
       if (it != output.end()) {
@@ -459,16 +467,16 @@ int LuigiExecutor::ExecuteViaStateMachine(std::shared_ptr<LuigiLogEntry> entry) 
       }
     }
   }
-  
+
   // Mark operations as executed
-  for (auto& op : entry->ops_) {
+  for (auto &op : entry->ops_) {
     bool is_local = !should_filter || (local_key_set.count(op.key) > 0);
     if (is_local) {
       op.executed = true;
     }
   }
-  
-  return 0;  // SUCCESS
+
+  return 0; // SUCCESS
 }
 
 } // namespace janus

@@ -33,9 +33,6 @@ bool setup_luigi_transport(const std::string &config_file,
     cfg.setNumErpcServer(num_erpc_servers);
     cfg.setScaleFactor(warehouses); // Warehouses per shard
 
-    // Mark that Luigi is being used (for any Mako code that checks)
-    cfg.setUseLuigi(1);
-
     // Delegate to Mako's battle-tested setup function
     Log_info("Calling mako::setup_erpc_server()...");
     mako::setup_erpc_server();

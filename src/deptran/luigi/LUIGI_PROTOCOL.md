@@ -430,12 +430,6 @@ make
 ./dbtest --use-luigi --shard-config config.yaml --num-threads 4 ...
 ```
 
-The `--use-luigi` flag:
-1. Sets `BenchmarkConfig::getInstance().setUseLuigi(1)`
-2. Starts `LuigiOWD` background ping thread
-3. Initializes `SchedulerLuigi` in each `ShardServer`
-4. Routes `Sto::try_commit()` → `try_commit_luigi()`
-
 ---
 
 ## 10. Current Limitations
