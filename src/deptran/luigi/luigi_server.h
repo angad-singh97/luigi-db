@@ -160,8 +160,8 @@ private:
  */
 class LuigiServer {
 public:
-  LuigiServer(const std::string &config_file, int client_shard_idx,
-              int server_shard_idx, int partition_id);
+  LuigiServer(int client_shard_idx, int server_shard_idx, int partition_id,
+              const std::string &benchmark_type = "tpcc");
   ~LuigiServer();
 
   /**
