@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "benchmarks/benchmark_config.h"
+#include "benchmarks/mbta_wrapper.hh"
 #include "benchmarks/rpc_setup.h"
 #include "deptran/luigi/luigi_owd.h"
 #include "deptran/luigi/luigi_server.h"
@@ -26,6 +27,10 @@
 using namespace std;
 using namespace mako;
 using namespace janus;
+
+// Global variables (following Mako's pattern)
+transport::Configuration *config = nullptr;
+int shardIndex = 0;
 
 static void print_usage(const char *prog) {
   cerr
@@ -73,18 +78,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Load configuration
-  cfg.setConfig(new transport::Configuration(cfg.getConfigFile()));
+  // Load configuration (set global variable)
+  config = new transport::Configuration(cfg.getConfigFile());
+  cfg.setConfig(config);
 
   // Get site info and set shard index
-  auto site = cfg.getConfig()->GetSiteByName(site_name);
+  auto site = config->GetSiteByName(site_name);
   if (!site) {
     cerr << "Error: Site '" << site_name << "' not found in config\n";
     return 1;
   }
 
-  cfg.setShardIndex(site->shard_id);
-  cfg.setNshards(cfg.getConfig()->nshards);
+  shardIndex = site->shard_id;
+  cfg.setShardIndex(shardIndex);
+  cfg.setNshards(config->nshards);
 
   // Set cluster role
   if (site->is_leader) {
@@ -113,14 +120,14 @@ int main(int argc, char **argv) {
            cfg.getNshards());
   owd.start();
 
-  // Create database and tables (reuse Mako's pattern)
-  cout << "Creating database and tables...\n";
-  abstract_db *db = nullptr;
+  // Create database instance (following simpleTransaction.cc pattern)
+  cout << "Creating database...\n";
+  abstract_db *db = new mbta_wrapper;
   map<int, abstract_ordered_index *> tables;
 
-  // TODO: Initialize database based on benchmark type
-  // For now, this is a placeholder - actual DB initialization
-  // should follow Mako's pattern from tpcc.cc
+  // TODO: Open tables based on benchmark type
+  // For TPC-C: customer, district, warehouse, etc.
+  // For Micro: simple key-value table
 
   // Create LuigiServer instance
   cout << "Creating Luigi server...\n";
