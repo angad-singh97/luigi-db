@@ -114,13 +114,10 @@ int main(int argc, char **argv) {
   // All setup (OWD, scheduler, state machine, RPC) happens inside server->Run()
   cout << "Creating Luigi server...\n";
   int partition_id = 0; // For single-partition mode
-  LuigiServer *server = new LuigiServer(config_file,
-                                        cfg.getShardIndex(), // client_shard_idx
+  LuigiServer *server = new LuigiServer(cfg.getShardIndex(), // client_shard_idx
                                         cfg.getShardIndex(), // server_shard_idx
-                                        partition_id);
-
-  // TODO: Pass benchmark_type to server so it knows which state machine to
-  // create For now, server will need to be configured or default to TPC-C
+                                        partition_id,
+                                        benchmark_type); // benchmark type
 
   cout << "\n=== Starting Luigi Server ===\n";
   cout << "Server will initialize OWD, scheduler, and state machine...\n";
