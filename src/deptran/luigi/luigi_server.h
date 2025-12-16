@@ -160,7 +160,7 @@ private:
  */
 class LuigiServer {
 public:
-  LuigiServer(int client_shard_idx, int server_shard_idx, int partition_id,
+  LuigiServer(int shard_idx, int partition_id,
               const std::string &benchmark_type = "tpcc");
   ~LuigiServer();
 
@@ -196,11 +196,10 @@ public:
   }
 
 private:
-  transport::Configuration config_;
+  transport::Configuration *config_; // Pointer, not value
   LuigiReceiver *receiver_ = nullptr;
 
-  int client_shard_idx_;
-  int server_shard_idx_;
+  int shard_idx_;
   int partition_id_;
 
   abstract_db *db_ = nullptr;

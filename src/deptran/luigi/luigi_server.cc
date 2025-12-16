@@ -377,11 +377,16 @@ bool LuigiReceiver::ReplicateEntry(
 // LuigiServer Implementation
 //=============================================================================
 
-LuigiServer::LuigiServer(const std::string &config_file, int client_shard_idx,
-                         int server_shard_idx, int partition_id)
-    : config_(config_file), client_shard_idx_(client_shard_idx),
-      server_shard_idx_(server_shard_idx), partition_id_(partition_id) {
-  receiver_ = new LuigiReceiver(config_file);
+LuigiServer::LuigiServer(int shard_idx, int partition_id,
+                         const std::string &benchmark_type)
+    : shard_idx_(shard_idx), partition_id_(partition_id) {
+  // Get config from BenchmarkConfig singleton
+  auto &cfg = BenchmarkConfig::getInstance();
+  config_ = cfg.getConfig();
+
+  receiver_ = new LuigiReceiver(config_->configFile);
+  // TODO: Store benchmark_type and use it in Run() to create appropriate state
+  // machine
 }
 
 LuigiServer::~LuigiServer() {
