@@ -5,6 +5,10 @@
 #include "deptran/concurrentqueue.h"   // moodycamel lock-free queue
 #include "deptran/tx.h"
 
+// Fix macro conflict: deptran/constants.h defines SUCCESS as (0)
+// but mako/lib/common.h uses SUCCESS as an enum value
+#undef SUCCESS
+
 #include "luigi_entry.h"
 #include "luigi_executor.h"
 #include "luigi_state_machine.h"
