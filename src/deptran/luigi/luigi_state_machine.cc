@@ -191,6 +191,20 @@ void LuigiTPCCStateMachine::InitializeTables() {
     txn_mgr_.reg_table("order", tbl_order_);
   }
 
+  // Order C_ID Secondary Index: (O_C_ID, O_D_ID, O_W_ID) -> O_ID
+  // Used by OrderStatus to find most recent order for a customer
+  {
+    auto *schema = new mdb::Schema();
+    schema->add_column("o_c_id", mdb::Value::I32, true);
+    schema->add_column("o_d_id", mdb::Value::I32, true);
+    schema->add_column("o_w_id", mdb::Value::I32, true);
+    schema->add_column("o_id", mdb::Value::I32); // The actual o_id value
+    schemas_.push_back(schema);
+    tbl_order_cid_secondary_ =
+        new mdb::SortedTable("order_cid_secondary", schema);
+    txn_mgr_.reg_table("order_cid_secondary", tbl_order_cid_secondary_);
+  }
+
   // OrderLine table: OL_O_ID + OL_D_ID + OL_W_ID + OL_NUMBER
   {
     auto *schema = new mdb::Schema();
@@ -555,6 +569,14 @@ bool LuigiTPCCStateMachine::ExecuteNewOrder(
   auto *o_row = mdb::Row::create(tbl_order_->schema(), o_data);
   txn->insert_row(tbl_order_, o_row);
 
+  // Insert into secondary index for OrderStatus lookup
+  std::vector<mdb::Value> idx_data = {mdb::Value(c_id), mdb::Value(d_id),
+                                      mdb::Value(w_id),
+                                      mdb::Value(d_next_o_id)};
+  auto *idx_row =
+      mdb::Row::create(tbl_order_cid_secondary_->schema(), idx_data);
+  txn->insert_row(tbl_order_cid_secondary_, idx_row);
+
   // 6. Insert new_order
   std::vector<mdb::Value> no_data = {mdb::Value(d_next_o_id), mdb::Value(d_id),
                                      mdb::Value(w_id)};
@@ -710,8 +732,39 @@ bool LuigiTPCCStateMachine::ExecuteOrderStatus(
     return false;
   }
 
-  // Simplified: use hardcoded o_id instead of finding most recent
-  int32_t o_id = 3000;
+  // Find most recent order for this customer using secondary index
+  // Query range: (c_id, d_id, w_id, MIN) to (c_id, d_id, w_id, MAX)
+  std::vector<mdb::Value> idx_key_vals = {mdb::Value(c_id), mdb::Value(d_id),
+                                          mdb::Value(w_id)};
+  mdb::MultiBlob idx_mbl(4), idx_mbh(4);
+  idx_mbl[0] = idx_key_vals[0].get_blob();
+  idx_mbl[1] = idx_key_vals[1].get_blob();
+  idx_mbl[2] = idx_key_vals[2].get_blob();
+  idx_mbh[0] = idx_key_vals[0].get_blob();
+  idx_mbh[1] = idx_key_vals[1].get_blob();
+  idx_mbh[2] = idx_key_vals[2].get_blob();
+
+  mdb::Value o_id_low(std::numeric_limits<int32_t>::min());
+  mdb::Value o_id_high(std::numeric_limits<int32_t>::max());
+  idx_mbl[3] = o_id_low.get_blob();
+  idx_mbh[3] = o_id_high.get_blob();
+
+  mdb::ResultSet idx_rs =
+      txn->query_in(tbl_order_cid_secondary_, idx_mbl, idx_mbh, mdb::ORD_DESC);
+  mdb::Row *idx_row = idx_rs.has_next() ? idx_rs.next() : nullptr;
+
+  if (!idx_row) {
+    // No orders for this customer
+    delete txn;
+    return false;
+  }
+
+  // Get the o_id from secondary index
+  mdb::Value o_id_val;
+  txn->read_column(idx_row,
+                   tbl_order_cid_secondary_->schema()->get_column_id("o_id"),
+                   &o_id_val);
+  int32_t o_id = o_id_val.get_i32();
 
   // Read order
   std::vector<mdb::Value> o_key_vals = {mdb::Value(o_id), mdb::Value(d_id),
@@ -728,6 +781,7 @@ bool LuigiTPCCStateMachine::ExecuteOrderStatus(
     txn->read_column(o_row, tbl_order_->schema()->get_column_id("o_carrier_id"),
                      &o_carrier_id_val);
     (*output)["o_carrier_id"] = std::to_string(o_carrier_id_val.get_i32());
+    (*output)["o_id"] = std::to_string(o_id);
   }
 
   delete txn;
@@ -745,21 +799,36 @@ bool LuigiTPCCStateMachine::ExecuteDelivery(
 
   // Process all 10 districts
   for (int32_t d_id = 1; d_id <= 10; d_id++) {
-    // Simplified: use hardcoded o_id instead of finding MIN(no_o_id)
-    int32_t o_id = 2101;
+    // Find MIN(no_o_id) for this district using query_in
+    std::vector<mdb::Value> no_key_vals = {mdb::Value(d_id), mdb::Value(w_id)};
+    mdb::MultiBlob no_mbl(3), no_mbh(3);
+    no_mbl[0] = no_key_vals[0].get_blob();
+    no_mbl[1] = no_key_vals[1].get_blob();
+    no_mbh[0] = no_key_vals[0].get_blob();
+    no_mbh[1] = no_key_vals[1].get_blob();
+
+    mdb::Value no_o_id_low(std::numeric_limits<int32_t>::min());
+    mdb::Value no_o_id_high(std::numeric_limits<int32_t>::max());
+    no_mbl[2] = no_o_id_low.get_blob();
+    no_mbh[2] = no_o_id_high.get_blob();
+
+    mdb::ResultSet no_rs =
+        txn->query_in(tbl_new_order_, no_mbl, no_mbh, mdb::ORD_ASC);
+    mdb::Row *no_row = no_rs.has_next() ? no_rs.next() : nullptr;
+
+    if (!no_row) {
+      // No undelivered orders for this district
+      continue;
+    }
+
+    // Get the o_id from new_order row
+    mdb::Value no_o_id_val;
+    txn->read_column(no_row, tbl_new_order_->schema()->get_column_id("no_o_id"),
+                     &no_o_id_val);
+    int32_t o_id = no_o_id_val.get_i32();
 
     // Delete from new_order
-    std::vector<mdb::Value> no_key_vals = {mdb::Value(o_id), mdb::Value(d_id),
-                                           mdb::Value(w_id)};
-    mdb::MultiBlob no_mb(3);
-    no_mb[0] = no_key_vals[0].get_blob();
-    no_mb[1] = no_key_vals[1].get_blob();
-    no_mb[2] = no_key_vals[2].get_blob();
-    mdb::ResultSet no_rs = txn->query(tbl_new_order_, no_mb);
-    mdb::Row *no_row = no_rs.has_next() ? no_rs.next() : nullptr;
-    if (no_row) {
-      txn->remove_row(tbl_new_order_, no_row);
-    }
+    txn->remove_row(tbl_new_order_, no_row);
 
     // Update order
     std::vector<mdb::Value> o_key_vals = {mdb::Value(o_id), mdb::Value(d_id),
@@ -809,45 +878,52 @@ bool LuigiTPCCStateMachine::ExecuteStockLevel(
   int32_t d_next_o_id = d_next_o_id_val.get_i32();
 
   // Count distinct items with stock < threshold in last 20 orders
+  // Use range scan for order lines: [d_next_o_id-20, d_next_o_id)
   std::set<int32_t> low_stock_items;
-  for (int32_t o_id = d_next_o_id - 20; o_id < d_next_o_id; o_id++) {
-    // Simplified: iterate through order lines (should use range scan)
-    for (int32_t ol_number = 1; ol_number <= 15; ol_number++) {
-      std::vector<mdb::Value> ol_key_vals = {mdb::Value(o_id), mdb::Value(d_id),
-                                             mdb::Value(w_id),
-                                             mdb::Value(ol_number)};
-      mdb::MultiBlob ol_mb(4);
-      ol_mb[0] = ol_key_vals[0].get_blob();
-      ol_mb[1] = ol_key_vals[1].get_blob();
-      ol_mb[2] = ol_key_vals[2].get_blob();
-      ol_mb[3] = ol_key_vals[3].get_blob();
-      mdb::ResultSet ol_rs = txn->query(tbl_order_line_, ol_mb);
-      mdb::Row *ol_row = ol_rs.has_next() ? ol_rs.next() : nullptr;
-      if (!ol_row)
-        continue;
 
-      mdb::Value i_id_val;
-      txn->read_column(ol_row,
-                       tbl_order_line_->schema()->get_column_id("ol_i_id"),
-                       &i_id_val);
-      int32_t i_id = i_id_val.get_i32();
+  std::vector<mdb::Value> ol_key_vals = {mdb::Value(d_id), mdb::Value(w_id)};
+  mdb::MultiBlob ol_mbl(4), ol_mbh(4);
+  ol_mbl[0] = ol_key_vals[0].get_blob();
+  ol_mbl[1] = ol_key_vals[1].get_blob();
+  ol_mbh[0] = ol_key_vals[0].get_blob();
+  ol_mbh[1] = ol_key_vals[1].get_blob();
 
-      // Check stock
-      std::vector<mdb::Value> s_key_vals = {mdb::Value(i_id), mdb::Value(w_id)};
-      mdb::MultiBlob s_mb(2);
-      s_mb[0] = s_key_vals[0].get_blob();
-      s_mb[1] = s_key_vals[1].get_blob();
-      mdb::ResultSet s_rs = txn->query(tbl_stock_, s_mb);
-      mdb::Row *s_row = s_rs.has_next() ? s_rs.next() : nullptr;
-      if (!s_row)
-        continue;
+  mdb::Value o_id_low(d_next_o_id - 20);
+  mdb::Value o_id_high(d_next_o_id - 1);
+  ol_mbl[2] = o_id_low.get_blob();
+  ol_mbh[2] = o_id_high.get_blob();
 
-      mdb::Value s_quantity_val;
-      txn->read_column(s_row, tbl_stock_->schema()->get_column_id("s_quantity"),
-                       &s_quantity_val);
-      if (s_quantity_val.get_i32() < threshold) {
-        low_stock_items.insert(i_id);
-      }
+  mdb::Value ol_number_low(std::numeric_limits<int32_t>::min());
+  mdb::Value ol_number_high(std::numeric_limits<int32_t>::max());
+  ol_mbl[3] = ol_number_low.get_blob();
+  ol_mbh[3] = ol_number_high.get_blob();
+
+  mdb::ResultSet ol_rs =
+      txn->query_in(tbl_order_line_, ol_mbl, ol_mbh, mdb::ORD_ASC);
+
+  while (ol_rs.has_next()) {
+    mdb::Row *ol_row = ol_rs.next();
+
+    mdb::Value i_id_val;
+    txn->read_column(
+        ol_row, tbl_order_line_->schema()->get_column_id("ol_i_id"), &i_id_val);
+    int32_t i_id = i_id_val.get_i32();
+
+    // Check stock
+    std::vector<mdb::Value> s_key_vals = {mdb::Value(i_id), mdb::Value(w_id)};
+    mdb::MultiBlob s_mb(2);
+    s_mb[0] = s_key_vals[0].get_blob();
+    s_mb[1] = s_key_vals[1].get_blob();
+    mdb::ResultSet s_rs = txn->query(tbl_stock_, s_mb);
+    mdb::Row *s_row = s_rs.has_next() ? s_rs.next() : nullptr;
+    if (!s_row)
+      continue;
+
+    mdb::Value s_quantity_val;
+    txn->read_column(s_row, tbl_stock_->schema()->get_column_id("s_quantity"),
+                     &s_quantity_val);
+    if (s_quantity_val.get_i32() < threshold) {
+      low_stock_items.insert(i_id);
     }
   }
 
@@ -857,14 +933,6 @@ bool LuigiTPCCStateMachine::ExecuteStockLevel(
 
   delete txn;
   return true;
-}
-
-mdb::Row *LuigiTPCCStateMachine::CreateRowFromOp(mdb::Table *tbl,
-                                                 const LuigiOp &op) {
-  // Parse op.value into column values and create row
-  // This would need proper serialization/deserialization
-  // Placeholder for now
-  return nullptr;
 }
 
 } // namespace janus

@@ -213,6 +213,8 @@ private:
   mdb::Table *tbl_new_order_ = nullptr;
   mdb::Table *tbl_order_ = nullptr;
   mdb::Table *tbl_order_line_ = nullptr;
+  mdb::Table *tbl_order_cid_secondary_ =
+      nullptr; // Secondary index: (c_id, d_id, w_id) -> o_id
   mdb::Table *tbl_item_ = nullptr;
   mdb::Table *tbl_stock_ = nullptr;
 
@@ -284,9 +286,6 @@ public:
 
 protected:
   uint32_t KeyToShard(const std::string &key) const override;
-
-  // Helper to create a row from ops
-  mdb::Row *CreateRowFromOp(mdb::Table *tbl, const LuigiOp &op);
 };
 
 } // namespace janus

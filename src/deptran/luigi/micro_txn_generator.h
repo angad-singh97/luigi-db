@@ -101,19 +101,14 @@ public:
 
     req->working_set.clear();
     req->target_shards.clear();
-    req->ops.clear();
 
     int32_t key = RandomInt(0, config_.key_num);
     bool is_read = RandomDouble() < read_ratio_;
-    uint8_t op_type = is_read ? MICRO_OP_READ : MICRO_OP_WRITE;
 
-    req->working_set[key] = "0";
+    // For reads: empty value, for writes: actual value
+    std::string value_str = is_read ? "" : std::to_string(RandomInt(0, 1000));
+    req->working_set[key] = value_str;
     req->target_shards.insert(fixed_shard_);
-
-    std::string key_str = KeyToString(key);
-    std::string value_str = is_read ? "" : ValueToString(RandomInt(0, 1000));
-
-    req->ops.push_back(MakeOp(MICRO_TABLE_A, op_type, key_str, value_str));
   }
 
   bool NeedDispatch(const LuigiTxnRequest &req) override {
