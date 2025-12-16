@@ -160,8 +160,7 @@ private:
  */
 class LuigiServer {
 public:
-  LuigiServer(int shard_idx, int partition_id,
-              const std::string &benchmark_type = "tpcc");
+  LuigiServer(int shard_idx, const std::string &benchmark_type = "tpcc");
   ~LuigiServer();
 
   /**
@@ -198,9 +197,9 @@ public:
 private:
   transport::Configuration *config_; // Pointer, not value
   LuigiReceiver *receiver_ = nullptr;
+  std::string benchmark_type_; // Store for Run()
 
   int shard_idx_;
-  int partition_id_;
 
   abstract_db *db_ = nullptr;
   mako::HelperQueue *queue_ = nullptr;

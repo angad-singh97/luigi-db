@@ -377,16 +377,13 @@ bool LuigiReceiver::ReplicateEntry(
 // LuigiServer Implementation
 //=============================================================================
 
-LuigiServer::LuigiServer(int shard_idx, int partition_id,
-                         const std::string &benchmark_type)
-    : shard_idx_(shard_idx), partition_id_(partition_id) {
+LuigiServer::LuigiServer(int shard_idx, const std::string &benchmark_type)
+    : shard_idx_(shard_idx), benchmark_type_(benchmark_type) {
   // Get config from BenchmarkConfig singleton
   auto &cfg = BenchmarkConfig::getInstance();
   config_ = cfg.getConfig();
 
   receiver_ = new LuigiReceiver(config_->configFile);
-  // TODO: Store benchmark_type and use it in Run() to create appropriate state
-  // machine
 }
 
 LuigiServer::~LuigiServer() {
@@ -420,50 +417,77 @@ void LuigiServer::UpdateTable(int table_id, abstract_ordered_index *table) {
 }
 
 void LuigiServer::Run() {
-  if (!queue_) {
-    Log_warn("LuigiServer::Run() called but no queue registered");
+  auto &cfg = BenchmarkConfig::getInstance();
+
+  std::cout << "\n=== Luigi Server Initialization ===\n";
+
+  // 1. Initialize Luigi OWD service
+  std::cout << "Initializing Luigi OWD service...\n";
+  auto &owd = mako::luigi::LuigiOWD::getInstance();
+  owd.init(config_->configFile, cfg.getCluster(), shard_idx_, config_->nshards);
+  owd.start();
+
+  // 2. Create state machine based on benchmark_type
+  std::cout << "Creating " << benchmark_type_ << " state machine...\n";
+  std::shared_ptr<LuigiStateMachine> state_machine;
+
+  if (benchmark_type_ == "tpcc") {
+    state_machine =
+        std::make_shared<LuigiTPCCStateMachine>(shard_idx_,       // shard_id
+                                                0,                // replica_id
+                                                config_->nshards, // shard_num
+                                                1                 // replica_num
+        );
+  } else if (benchmark_type_ == "micro") {
+    state_machine = std::make_shared<LuigiMicroStateMachine>(
+        shard_idx_, 0, config_->nshards, 1);
+  } else {
+    Log_error("Unknown benchmark type: %s", benchmark_type_.c_str());
+    owd.stop();
     return;
   }
 
-  // Initialize scheduler if not already done
-  if (receiver_->GetScheduler() == nullptr) {
-    receiver_->InitScheduler(partition_id_);
+  // Initialize state machine tables
+  state_machine->InitializeTables();
+
+  // 3. Initialize scheduler (partition_id = shard_idx for Luigi)
+  std::cout << "Initializing scheduler...\n";
+  receiver_->InitScheduler(shard_idx_);
+
+  auto *scheduler = receiver_->GetScheduler();
+  if (!scheduler) {
+    Log_error("Failed to create scheduler");
+    owd.stop();
+    return;
   }
 
-  // Event loop similar to Mako's ShardServer::Run()
-  while (true) {
-    queue_->suspend();
+  // Wire scheduler with state machine
+  scheduler->SetStateMachine(state_machine);
+  scheduler->EnableStateMachineMode(true);
+  scheduler->SetWorkerCount(cfg.getNthreads());
 
-    while (true) {
-      erpc::ReqHandle *handle;
-      size_t msg_size;
-      if (!queue_->fetch_one_req(&handle, msg_size)) {
-        break;
-      }
-      if (!handle) {
-        Log_error("LuigiServer: invalid pointer in queue");
-        continue;
-      }
+  // 4. TODO: Setup RPC connections to other shards
+  // This would involve creating RPC server and poll thread
+  // receiver_->SetupRpc(rpc_server, poll_thread, shard_addresses);
 
-      // Cast to transport-agnostic interface
-      mako::TransportRequestHandle *req_handle =
-          reinterpret_cast<mako::TransportRequestHandle *>(handle);
+  std::cout << "\n=== Luigi Server Ready ===\n";
+  std::cout << "Shard:      " << shard_idx_ << "/" << config_->nshards << "\n";
+  std::cout << "Benchmark:  " << benchmark_type_ << "\n";
+  std::cout << "Workers:    " << cfg.getNthreads() << "\n";
+  std::cout << "Listening for requests...\n\n";
 
-      // Process request through LuigiReceiver
-      size_t msgLen = receiver_->ReceiveRequest(
-          req_handle->GetRequestType(), req_handle->GetRequestBuffer(),
-          req_handle->GetResponseBuffer());
-
-      // Enqueue response
-      req_handle->EnqueueResponse(msgLen);
-    }
-
-    if (queue_->should_stop()) {
-      break;
-    }
+  // 5. Event loop - for now, just sleep
+  // TODO: Implement proper event loop when transport is set up
+  while (cfg.getRunning()) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  Log_info("LuigiServer::Run() exiting for partition %d", partition_id_);
+  // Cleanup
+  std::cout << "\nShutting down Luigi server...\n";
+  receiver_->StopScheduler();
+  owd.stop();
+
+  Log_info("LuigiServer::Run() exiting for shard %d", shard_idx_);
 }
 
 void LuigiServer::SetupRpc(

@@ -113,9 +113,7 @@ int main(int argc, char **argv) {
   // Create LuigiServer instance
   // All setup (OWD, scheduler, state machine, RPC) happens inside server->Run()
   cout << "Creating Luigi server...\n";
-  int partition_id = 0; // For single-partition mode
-  LuigiServer *server =
-      new LuigiServer(cfg.getShardIndex(), partition_id, benchmark_type);
+  LuigiServer *server = new LuigiServer(cfg.getShardIndex(), benchmark_type);
 
   cout << "\n=== Starting Luigi Server ===\n";
   cout << "Server will initialize OWD, scheduler, and state machine...\n";
