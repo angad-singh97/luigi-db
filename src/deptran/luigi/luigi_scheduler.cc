@@ -140,37 +140,6 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
 }
 
 //=============================================================================
-// LuigiDispatch: Original Entry Point (for deptran-style compatibility)
-//=============================================================================
-
-void SchedulerLuigi::LuigiDispatch(
-    txnid_t tx_id, std::shared_ptr<Marshallable> cmd, uint64_t send_time,
-    uint32_t bound, const std::vector<int32_t> &local_keys,
-    std::function<void(const TxnOutput &)> reply_cb) {
-  auto entry = std::make_shared<LuigiLogEntry>(tx_id);
-  entry->cmd_ = cmd;
-  entry->send_time_ = send_time;
-  entry->bound_ = bound;
-  entry->proposed_ts_ = send_time + bound;
-  entry->local_keys_ = local_keys;
-
-  // Wrap the old-style callback
-  entry->reply_cb_ = [reply_cb](int status, uint64_t commit_ts,
-                                const std::vector<std::string> &read_results) {
-    TxnOutput output;
-    // Convert read_results to TxnOutput if needed
-    if (reply_cb) {
-      reply_cb(output);
-    }
-  };
-
-  uint64_t now = GetMicrosecondTimestamp();
-  entry->owd_ = (now > send_time) ? (uint32_t)(now - send_time) : 1000;
-
-  incoming_txn_queue_.enqueue(entry);
-}
-
-//=============================================================================
 // RequeueForReposition: Called when agreement determines need for Case 3
 //
 // After a multi-shard agreement, if this leader used a smaller timestamp than
@@ -739,26 +708,6 @@ void SchedulerLuigi::BroadcastWatermarks() {
   // Each shard independently broadcasts to all others (Tiga-style)
   // Need shard list from configuration
   Log_debug("BroadcastWatermarks: num_watermarks=%zu", watermarks_u64.size());
-}
-
-//=============================================================================
-// REPLICATION
-//=============================================================================
-
-void SchedulerLuigi::Replicate(uint32_t worker_id,
-                               const std::shared_ptr<LuigiLogEntry> &entry) {
-  // In a real Tiga implementation, this would submit the entry to the
-  // Paxos stream corresponding to worker_id.
-  // For now, we simulate success and update the watermark immediately.
-
-  // Log_debug("Luigi Replicate: worker %d replicating txn %lu at ts %lu",
-  //           worker_id, entry->tid_, entry->agreed_ts_);
-
-  // Paxos replication is handled by LuigiReceiver::ReplicateEntry()
-  // which is called via the replication callback set in InitScheduler()
-
-  // Update watermark immediately (simulating instant replication for now)
-  UpdateLocalWatermark(worker_id, entry->agreed_ts_);
 }
 
 void SchedulerLuigi::WatermarkTd() {
