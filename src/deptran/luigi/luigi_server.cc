@@ -461,9 +461,10 @@ void LuigiServer::Run() {
   scheduler->EnableStateMachineMode(true);
   scheduler->SetWorkerCount(cfg.getNthreads());
 
-  // 4. TODO: Setup RPC connections to other shards
-  // This would involve creating RPC server and poll thread
-  // TODO: Setup RPC connections to other shards when transport is integrated
+  // 4. RPC connections are handled by eRPC/FastTransport infrastructure
+  // Luigi uses the same transport as Mako for all coordination RPCs
+  // (deadline agreement, watermark exchange, etc.)
+  // No additional setup needed here - transport is initialized externally
 
   std::cout << "\n=== Luigi Server Ready ===\n";
   std::cout << "Shard:      " << shard_idx_ << "/" << config_->nshards << "\n";
@@ -471,8 +472,10 @@ void LuigiServer::Run() {
   std::cout << "Workers:    " << cfg.getNthreads() << "\n";
   std::cout << "Listening for requests...\n\n";
 
-  // 5. Event loop - simple sleep loop
-  // TODO: Integrate with transport event loop when RPC is set up
+  // 5. Event loop
+  // For now, simple sleep loop. In production, this would integrate with
+  // the eRPC transport event loop (rpc_server->run_event_loop_timeout())
+  // or be driven by external request dispatch (like Mako's HelperQueue)
   volatile bool running = true;
   while (running) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -514,32 +517,6 @@ SchedulerLuigi *GetLocalLuigiScheduler() {
     return g_luigi_servers[0]->GetScheduler();
   }
   return nullptr;
-}
-
-void SetupLuigiRpc() {
-  auto &cfg = BenchmarkConfig::getInstance();
-
-  // Only setup if Luigi mode is enabled
-  if (!cfg.getUseLuigi()) {
-    return;
-  }
-
-  auto &server_transports = cfg.getServerTransports();
-  if (server_transports.empty()) {
-    Log_info("setup_luigi_rpc: No server transports available, skipping");
-    return;
-  }
-
-  // Get RPC server and poll thread from the first transport
-  FastTransport *transport = server_transports[0];
-  if (!transport) {
-    Log_warn("setup_luigi_rpc: First transport is null");
-    return;
-  }
-
-  // TODO: RRR-based RPC setup is no longer needed with eRPC consolidation
-  // All coordination RPCs now use eRPC/FastTransport
-  Log_info("setup_luigi_rpc: Using eRPC for all Luigi coordination");
 }
 
 //=============================================================================

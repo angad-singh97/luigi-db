@@ -181,6 +181,5 @@ SchedulerLuigi *GetLocalLuigiScheduler();
  * This is the Luigi-equivalent of mako::setup_luigi_rpc().
  * Should be called after server transports are initialized.
  */
-void SetupLuigiRpc();
 
 } // namespace janus
