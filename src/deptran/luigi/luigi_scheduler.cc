@@ -329,6 +329,17 @@ void SchedulerLuigi::ExecTd() {
     for (size_t i = 0; i < cnt; i++) {
       auto &entry = entries[i];
 
+      // CRITICAL: Check if timestamp agreement is complete
+      // For multi-shard txns, we may have released the txn before agreement
+      // finished If agreement isn't done yet, re-enqueue to priority queue
+      if (!entry->ts_agreed_) {
+        Log_debug("Luigi ExecTd: txn %lu agreement incomplete, re-enqueuing",
+                  entry->tid_);
+        std::lock_guard<std::mutex> lock(priority_queue_mutex_);
+        priority_queue_[{entry->agreed_ts_, entry->tid_}] = entry;
+        continue; // Skip execution
+      }
+
       // Delegate to executor for clean separation of concerns
       executor_.Execute(entry);
 
