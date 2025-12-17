@@ -719,11 +719,9 @@ void SchedulerLuigi::BroadcastWatermarks() {
       continue; // Don't send to ourselves
     }
 
-    luigi_client_->InvokeWatermarkExchange(remote_shard, watermarks_u64,
-                                           [](int status) {
-                                             // Fire-and-forget, no response
-                                             // needed
-                                           });
+    luigi_client_->InvokeWatermarkExchange(
+        remote_shard, watermarks_u64, [](char *) {}, // Response callback
+        []() { Log_warn("BroadcastWatermarks: RPC error"); }); // Error callback
   }
 
   Log_debug("BroadcastWatermarks: sent %zu watermarks to %u shards",
