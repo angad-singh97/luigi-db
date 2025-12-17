@@ -136,7 +136,7 @@ protected:
   //==========================================================================
   // Partition ID (for replication)
   //==========================================================================
-  uint32_t partition_id_ = 0;
+  uint32_t shard_id_ = 0;
 
   //==========================================================================
   // Executor (handles actual read/write operations and replication)
@@ -227,9 +227,9 @@ public:
   void Replicate(uint32_t worker_id,
                  const std::shared_ptr<LuigiLogEntry> &entry);
 
-  void SetPartitionId(uint32_t par_id) {
-    partition_id_ = par_id;
-    executor_.SetPartitionId(par_id);
+  void SetPartitionId(uint32_t shard_id) {
+    shard_id_ = shard_id;
+    executor_.SetPartitionId(shard_id);
   }
 
   // Initialize with worker count (from config)
@@ -239,8 +239,8 @@ public:
     watermarks_.assign(count, 0);
   }
 
-  uint32_t GetPartitionId() const { return partition_id_; }
-  uint32_t partition_id() const { return partition_id_; } // alias
+  uint32_t GetPartitionId() const { return shard_id_; }
+  uint32_t partition_id() const { return shard_id_; } // alias for compatibility
 
   /**
    * Check if a transaction is still pending (queued or executing).

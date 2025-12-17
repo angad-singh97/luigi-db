@@ -117,7 +117,7 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
   // Populate remote_shards_ with OTHER shards (not ourselves)
   // This is used by IsMultiShard() to detect multi-shard transactions
   for (uint32_t shard_id : involved_shards) {
-    if (shard_id != partition_id_) {
+    if (shard_id != shard_id_) {
       entry->remote_shards_.push_back(shard_id);
     }
   }
@@ -513,7 +513,7 @@ void SchedulerLuigi::UpdateDeadlineRecord(
       dqi.expected_count_ =
           pending + 1; // Need confirmations from smaller ts shards
       for (uint32_t i = 0; i < DeadlineQItem::MAX_SHARDS; i++) {
-        if (i == partition_id_)
+        if (i == shard_id_)
           continue;
         if (dqi.received_[i] && dqi.deadlines_[i] < agreed_ts) {
           // Need phase 2 from this shard
@@ -600,7 +600,7 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
   Log_info("Luigi InitiateAgreement: tid=%lu, my_ts=%lu, remote_shards=%zu",
            tid, my_ts, entry->remote_shards_.size());
 
-  UpdateDeadlineRecord(tid, partition_id_, my_ts, 1, entry);
+  UpdateDeadlineRecord(tid, shard_id_, my_ts, 1, entry);
 
   if (!luigi_client_) {
     Log_warn("Luigi InitiateAgreement: No LuigiClient available");
@@ -670,7 +670,7 @@ uint64_t SchedulerLuigi::GetGlobalWatermark(uint32_t shard_id,
                                             uint32_t worker_id) {
   std::lock_guard<std::mutex> lock(watermark_mutex_);
 
-  if (shard_id == partition_id_) {
+  if (shard_id == shard_id_) {
     if (worker_id < watermarks_.size()) {
       return watermarks_[worker_id];
     }
