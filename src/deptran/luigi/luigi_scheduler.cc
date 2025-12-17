@@ -124,15 +124,15 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
     }
   }
 
-  // Extract keys for conflict detection
-  // We use a simple hash of (table_id, key) as the conflict key
+  // Extract keys for conflict detection (Tiga-style)
+  // Convert (table_id, key) pairs to integer key IDs using hash
   for (const auto &op : ops) {
-    // Simple key hash: combine table_id and first few bytes of key
-    int32_t conflict_key = op.table_id;
-    if (op.key.size() >= 4) {
-      conflict_key ^= *reinterpret_cast<const uint32_t *>(op.key.data());
-    }
-    entry->local_keys_.push_back(conflict_key);
+    // Create unique key ID from table_id and key
+    // Use std::hash to combine them properly
+    std::string combined_key = std::to_string(op.table_id) + ":" + op.key;
+    int32_t key_id =
+        static_cast<int32_t>(std::hash<std::string>{}(combined_key));
+    entry->local_keys_.push_back(key_id);
   }
 
   // Enqueue to incoming queue (lock-free, thread-safe)
@@ -208,10 +208,10 @@ void SchedulerLuigi::HoldReleaseTd() {
 
         Log_info("Luigi HoldReleaseTd: Repositioning txn %lu at new timestamp "
                  "%lu (requeue #%u)",
-                 entry->tid_, entry->proposed_ts_, entry->requeue_count_);
+                 entry->tid_, entry->agreed_ts_, entry->requeue_count_);
 
-        // Insert at new position
-        priority_queue_[{entry->proposed_ts_, txn_key}] = entry;
+        // Insert at new position using agreed_ts (like Tiga's localDdlRank_)
+        priority_queue_[{entry->agreed_ts_, txn_key}] = entry;
         continue; // Skip normal conflict detection
       }
 
@@ -219,7 +219,7 @@ void SchedulerLuigi::HoldReleaseTd() {
       // Normal path: NEW txn entering for the first time
       //-----------------------------------------------------------------------
 
-      // CONFLICT DETECTION (from Algorithm 1, line 1-4 in paper):
+      // CONFLICT DETECTION (from Tiga Algorithm 1, line 1-4):
       // Find the maximum lastReleasedDeadline among all keys this txn touches
       uint64_t max_last_released = 0;
       for (auto &k : entry->local_keys_) {
@@ -231,13 +231,14 @@ void SchedulerLuigi::HoldReleaseTd() {
       }
 
       // If txn's timestamp is too small (conflict), update it
-      // This is the LEADER PRIVILEGE: we can bump the timestamp
-      if (entry->proposed_ts_ <= max_last_released) {
-        entry->proposed_ts_ = max_last_released + 1;
+      // This is the LEADER PRIVILEGE: we can bump the timestamp (like Tiga)
+      if (entry->agreed_ts_ <= max_last_released) {
+        entry->agreed_ts_ = max_last_released + 1;
+        entry->proposed_ts_ = entry->agreed_ts_; // Keep in sync
       }
 
-      // Insert into priority_queue_ (sorted by timestamp, then txn_id)
-      priority_queue_[{entry->proposed_ts_, txn_key}] = entry;
+      // Insert into priority_queue_ (sorted by agreed_ts, then txn_id)
+      priority_queue_[{entry->agreed_ts_, txn_key}] = entry;
     }
 
     //-------------------------------------------------------------------------
@@ -256,10 +257,10 @@ void SchedulerLuigi::HoldReleaseTd() {
       auto entry = it->second;
       priority_queue_.erase(it);
 
-      // Update lastReleasedDeadlines for all keys this txn touches
+      // Update lastReleasedDeadlines for all keys this txn touches (like Tiga)
       for (auto &k : entry->local_keys_) {
-        if (last_released_deadlines_[k] < entry->proposed_ts_) {
-          last_released_deadlines_[k] = entry->proposed_ts_;
+        if (last_released_deadlines_[k] < entry->agreed_ts_) {
+          last_released_deadlines_[k] = entry->agreed_ts_;
         }
       }
 
