@@ -186,11 +186,13 @@ void SchedulerLuigi::LuigiDispatch(
 
 void SchedulerLuigi::RequeueForReposition(
     std::shared_ptr<LuigiLogEntry> entry) {
-           entry->tid_, entry->proposed_ts_);
+  // Re-insert into priority queue with the new agreed timestamp
+  // The agreed_ts has been updated by the agreement protocol
+  Log_info("Luigi RequeueForReposition: tid=%lu, agreed_ts=%lu", entry->tid_,
+           entry->agreed_ts_);
 
-           // Put back in incoming queue - HoldReleaseTd will handle the
-           // repositioning
-           incoming_txn_queue_.enqueue(entry);
+  // Put back in incoming queue - HoldReleaseTd will handle the repositioning
+  incoming_txn_queue_.enqueue(entry);
 }
 
 //=============================================================================
