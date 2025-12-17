@@ -629,8 +629,11 @@ void SchedulerLuigi::SendRepositionConfirmations(
 
   for (uint32_t remote_shard : entry->remote_shards_) {
     luigi_client_->InvokeDeadlineConfirm(
-        remote_shard, tid, new_ts, [](char *) {},
-        []() { Log_warn("SendRepositionConfirmations: RPC error"); });
+        remote_shard, entry->tid_, entry->agreed_ts_,
+        shard_id_, // Use agreed_ts, not proposed_ts
+        [](int status) {
+          // Fire-and-forget confirmation
+        });
     Log_info("Luigi SendRepositionConfirmations: sent phase-2 to shard %u",
              remote_shard);
   }
