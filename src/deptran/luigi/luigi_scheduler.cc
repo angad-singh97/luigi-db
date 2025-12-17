@@ -97,6 +97,8 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
   auto entry = std::make_shared<LuigiLogEntry>(txn_id);
   entry->proposed_ts_ =
       expected_time; // Use expected_time directly as proposed timestamp
+  entry->agreed_ts_ =
+      expected_time; // Initialize to proposed - will be updated by agreement
   entry->ops_ = ops;
 
   // Wrap callback to remove from pending when complete
@@ -184,20 +186,11 @@ void SchedulerLuigi::LuigiDispatch(
 
 void SchedulerLuigi::RequeueForReposition(
     std::shared_ptr<LuigiLogEntry> entry) {
-  // Validate state
-  if (entry->agree_status_.load() != LUIGI_AGREE_FLUSHING) {
-    Log_error("Luigi RequeueForReposition: txn %lu has wrong status %u "
-              "(expected AGREE_FLUSHING)",
-              entry->tid_, entry->agree_status_.load());
-    return;
-  }
-
-  Log_info("Luigi RequeueForReposition: txn %lu going back to queue with "
-           "timestamp %lu",
            entry->tid_, entry->proposed_ts_);
 
-  // Put back in incoming queue - HoldReleaseTd will handle the repositioning
-  incoming_txn_queue_.enqueue(entry);
+           // Put back in incoming queue - HoldReleaseTd will handle the
+           // repositioning
+           incoming_txn_queue_.enqueue(entry);
 }
 
 //=============================================================================
