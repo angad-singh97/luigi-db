@@ -75,12 +75,6 @@ public:
                          const std::vector<std::string> &read_results)>
           reply_cb);
 
-  // Original entry point (kept for compatibility with deptran-style calls)
-  void LuigiDispatch(txnid_t tx_id, std::shared_ptr<Marshallable> cmd,
-                     uint64_t send_time, uint32_t bound,
-                     const std::vector<int32_t> &local_keys,
-                     std::function<void(const TxnOutput &)> reply_cb);
-
   // Requeue a txn after agreement determines it needs repositioning (Case 3)
   // This is called by the executor when AGREE_FLUSHING is needed
   void RequeueForReposition(std::shared_ptr<LuigiLogEntry> entry);
@@ -222,11 +216,6 @@ protected:
   // Abstract the multiple Paxos streams
   // void Replicate(uint32_t worker_id, const std::shared_ptr<LuigiLogEntry>&
   // entry);
-
-public:
-  // Abstract the multiple Paxos streams (Public for Executor)
-  void Replicate(uint32_t worker_id,
-                 const std::shared_ptr<LuigiLogEntry> &entry);
 
   void SetPartitionId(uint32_t shard_id) {
     shard_id_ = shard_id;
