@@ -35,19 +35,6 @@ LuigiReceiver::LuigiReceiver(const std::string &config_file)
 
 LuigiReceiver::~LuigiReceiver() { StopScheduler(); }
 
-void LuigiReceiver::Register(
-    abstract_db *db, const std::map<int, abstract_ordered_index *> &tables) {
-  db_ = db;
-  tables_ = tables;
-}
-
-void LuigiReceiver::UpdateTableEntry(int table_id,
-                                     abstract_ordered_index *table) {
-  if (table_id > 0 && table) {
-    tables_[table_id] = table;
-  }
-}
-
 //=============================================================================
 // TransportReceiver Interface
 //=============================================================================
@@ -87,18 +74,13 @@ size_t LuigiReceiver::ReceiveRequest(uint8_t reqType, char *reqBuf,
 // Luigi Scheduler Management
 //=============================================================================
 
-void LuigiReceiver::InitScheduler(uint32_t partition_id) {
+void LuigiReceiver::InitScheduler(uint32_t shard_id) {
   if (scheduler_ != nullptr) {
     return; // Already initialized
   }
 
-  partition_id_ = partition_id;
-
-  // Ensure minimal deptran Config exists
-  // janus::Config::CreateMinimalConfig();  // TODO: Not available
-
   scheduler_ = new SchedulerLuigi();
-  scheduler_->SetPartitionId(partition_id);
+  scheduler_->SetPartitionId(shard_id);
 
   // Set worker count based on warehouses (default 1)
   uint32_t worker_count = (config_.warehouses > 0) ? config_.warehouses : 1;
@@ -160,7 +142,8 @@ void LuigiReceiver::StopScheduler() {
     scheduler_->Stop();
     delete scheduler_;
     scheduler_ = nullptr;
-    Log_info("Luigi scheduler stopped for partition %d", partition_id_);
+    Log_info("Luigi scheduler stopped for shard %d",
+             scheduler_->GetPartitionId());
   }
 }
 
@@ -396,28 +379,6 @@ LuigiServer::~LuigiServer() {
   }
 }
 
-void LuigiServer::Register(
-    abstract_db *db, mako::HelperQueue *queue,
-    mako::HelperQueue *queue_response,
-    const std::map<int, abstract_ordered_index *> &tables) {
-  db_ = db;
-  queue_ = queue;
-  queue_response_ = queue_response;
-  tables_ = tables;
-
-  receiver_->Register(db, tables);
-
-  // Initialize the scheduler with partition id
-  receiver_->InitScheduler(partition_id_);
-}
-
-void LuigiServer::UpdateTable(int table_id, abstract_ordered_index *table) {
-  if (table_id > 0 && table) {
-    tables_[table_id] = table;
-  }
-  receiver_->UpdateTableEntry(table_id, table);
-}
-
 void LuigiServer::Run() {
   auto &cfg = BenchmarkConfig::getInstance();
 
@@ -490,12 +451,6 @@ void LuigiServer::Run() {
   owd.stop();
 
   Log_info("LuigiServer::Run() exiting for shard %d", shard_idx_);
-}
-
-void LuigiServer::SetupRpc(
-    rrr::Server *rpc_server, rusty::Arc<rrr::PollThread> poll_thread,
-    const std::map<uint32_t, std::string> &shard_addresses) {
-  receiver_->SetupRpc(rpc_server, poll_thread, shard_addresses);
 }
 
 //=============================================================================
@@ -577,7 +532,7 @@ void LuigiReceiver::HandleDeadlinePropose(char *reqBuf, char *respBuf,
   resp->req_nr = req->req_nr;
   resp->tid = req->tid;
   resp->proposed_ts = my_ts;
-  resp->shard_id = partition_id_;
+  resp->shard_id = scheduler_ ? scheduler_->GetPartitionId() : 0;
   resp->status = 0;
 
   respLen = sizeof(luigi::DeadlineProposeResponse);

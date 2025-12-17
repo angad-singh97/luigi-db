@@ -17,9 +17,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "benchmarks/abstract_db.h"
-#include "benchmarks/abstract_ordered_index.h"
-#include "lib/fasttransport.h"
 #include "lib/transport.h"
 
 #include "luigi_common.h"
@@ -56,18 +53,6 @@ public:
   // Registration and Setup
   //=========================================================================
 
-  /**
-   * Register database and tables for Luigi operations.
-   * Must be called before handling any requests.
-   */
-  void Register(abstract_db *db,
-                const std::map<int, abstract_ordered_index *> &tables);
-
-  /**
-   * Update a single table entry (for dynamic table registration).
-   */
-  void UpdateTableEntry(int table_id, abstract_ordered_index *table);
-
   //=========================================================================
   // TransportReceiver Interface
   //=========================================================================
@@ -85,14 +70,6 @@ public:
    * Sets up read/write callbacks and replication hooks.
    */
   void InitScheduler(uint32_t partition_id);
-
-  /**
-   * Set up RPC connections to other shard leaders.
-   * Required for multi-shard timestamp agreement.
-   */
-  void SetupRpc(rrr::Server *rpc_server,
-                rusty::Arc<rrr::PollThread> poll_thread,
-                const std::map<uint32_t, std::string> &shard_addresses);
 
   /**
    * Stop the scheduler and clean up resources.
@@ -140,13 +117,8 @@ protected:
 private:
   transport::Configuration config_;
 
-  // Database layer
-  abstract_db *db_ = nullptr;
-  std::map<int, abstract_ordered_index *> tables_;
-
   // Luigi scheduler
   SchedulerLuigi *scheduler_ = nullptr;
-  uint32_t partition_id_ = 0;
 
   // Async result storage
   std::unordered_map<uint64_t, TxnResult> completed_txns_;
@@ -164,28 +136,10 @@ public:
   ~LuigiServer();
 
   /**
-   * Register database, queues, and tables.
-   */
-  void Register(abstract_db *db, mako::HelperQueue *queue,
-                mako::HelperQueue *queue_response,
-                const std::map<int, abstract_ordered_index *> &tables);
-
-  /**
-   * Update a table entry.
-   */
-  void UpdateTable(int table_id, abstract_ordered_index *table);
-
-  /**
    * Start the server's event loop.
+   * Initializes OWD, scheduler, state machine, and runs until stopped.
    */
   void Run();
-
-  /**
-   * Set up Luigi RPC for multi-shard agreement.
-   */
-  void SetupRpc(rrr::Server *rpc_server,
-                rusty::Arc<rrr::PollThread> poll_thread,
-                const std::map<uint32_t, std::string> &shard_addresses);
 
   /**
    * Get the scheduler for local dispatch.
@@ -195,16 +149,10 @@ public:
   }
 
 private:
-  transport::Configuration *config_; // Pointer, not value
+  transport::Configuration *config_;
   LuigiReceiver *receiver_ = nullptr;
-  std::string benchmark_type_; // Store for Run()
-
+  std::string benchmark_type_;
   int shard_idx_;
-
-  abstract_db *db_ = nullptr;
-  mako::HelperQueue *queue_ = nullptr;
-  mako::HelperQueue *queue_response_ = nullptr;
-  std::map<int, abstract_ordered_index *> tables_;
 };
 
 //=============================================================================
