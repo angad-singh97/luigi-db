@@ -24,8 +24,6 @@
 
 namespace janus {
 
-class LuigiClient; // Forward declaration for eRPC coordination
-
 class LuigiClient; // Forward declaration for leader-to-leader eRPC
 
 /**
@@ -191,8 +189,7 @@ protected:
   //==========================================================================
   // LEADER CLIENT (for eRPC coordination)
   //==========================================================================
-  LuigiClient *luigi_client_ =
-      nullptr; // Client for leader-to-leader RPCsr RPCs
+  LuigiClient *luigi_client_ = nullptr; // Client for leader-to-leader RPCs
 
   //==========================================================================
   // WATERMARK MANAGEMENT (Tiga-style)
