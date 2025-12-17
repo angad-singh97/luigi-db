@@ -693,10 +693,15 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
 }
 
 void SchedulerLuigi::BroadcastWatermarks() {
-  std::vector<int64_t> current_wms = GetLocalWatermarks();
-
   if (!luigi_client_) {
     return;
+  }
+
+  // Get current watermarks
+  std::vector<int64_t> current_wms;
+  {
+    std::lock_guard<std::mutex> lock(watermark_mutex_);
+    current_wms.assign(watermarks_.begin(), watermarks_.end());
   }
 
   std::vector<uint64_t> watermarks_u64;
@@ -704,10 +709,25 @@ void SchedulerLuigi::BroadcastWatermarks() {
     watermarks_u64.push_back(static_cast<uint64_t>(wm));
   }
 
-  // Broadcast proposal to all involved shards via eRPC
+  // Broadcast to all shards via eRPC
   // Each shard independently broadcasts to all others (Tiga-style)
-  // Need shard list from configuration
-  Log_debug("BroadcastWatermarks: num_watermarks=%zu", watermarks_u64.size());
+  // TODO: Get num_shards from configuration
+  uint32_t num_shards = 4; // Default, should come from config
+
+  for (uint32_t remote_shard = 0; remote_shard < num_shards; remote_shard++) {
+    if (remote_shard == shard_id_) {
+      continue; // Don't send to ourselves
+    }
+
+    luigi_client_->InvokeWatermarkExchange(remote_shard, watermarks_u64,
+                                           [](int status) {
+                                             // Fire-and-forget, no response
+                                             // needed
+                                           });
+  }
+
+  Log_debug("BroadcastWatermarks: sent %zu watermarks to %u shards",
+            watermarks_u64.size(), num_shards - 1);
 }
 
 void SchedulerLuigi::WatermarkTd() {
