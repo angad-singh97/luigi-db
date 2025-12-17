@@ -12,6 +12,7 @@
 
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/common.h"
+#include "benchmarks/common2.h"
 #include "benchmarks/sto/Interface.hh"
 #include "lib/common.h"
 #include "lib/fasttransport.h"
@@ -92,30 +93,8 @@ void LuigiReceiver::InitScheduler(uint32_t shard_id) {
   // Actually, SchedulerLuigi creates its own executor, so we can assume it sets
   // itself up? Let's check SchedulerLuigi constructor/init.
 
-  // Set up read callback
-  scheduler_->SetReadCallback([this](int table_id, const std::string &key,
-                                     std::string &value_out) -> bool {
-    auto it = tables_.find(table_id);
-    if (it == tables_.end() || it->second == nullptr) {
-      return false;
-    }
-    return it->second->shard_get(lcdf::Str(key), value_out);
-  });
-
-  // Set up write callback
-  scheduler_->SetWriteCallback([this](int table_id, const std::string &key,
-                                      const std::string &value) -> bool {
-    auto it = tables_.find(table_id);
-    if (it == tables_.end() || it->second == nullptr) {
-      return false;
-    }
-    try {
-      it->second->shard_put(lcdf::Str(key), value);
-      return true;
-    } catch (...) {
-      return false;
-    }
-  });
+  // Luigi uses state machine mode - no need for read/write callbacks
+  // The state machine will be set via SetStateMachine() in LuigiServer::Run()
 
   // Set up replication callback
   scheduler_->SetReplicationCallback(
@@ -124,8 +103,8 @@ void LuigiReceiver::InitScheduler(uint32_t shard_id) {
       });
 
   // Transport and RPC setup handled externally (like Mako)
-  Log_info("LuigiReceiver initialized for shard %u",
-           scheduler_->partition_id());
+  Log_info("Luigi scheduler initialized for shard %d with %d workers", shard_id,
+           worker_count);
 }
 
 void LuigiReceiver::SetupRpc(
@@ -399,7 +378,7 @@ bool LuigiReceiver::ReplicateEntry(
     *reinterpret_cast<uint16_t *>(ptr) = vlen;
     ptr += sizeof(uint16_t);
     if (vlen > 0) {
-      ``` memcpy(ptr, op.value.data(), vlen);
+      memcpy(ptr, op.value.data(), vlen);
       ptr += vlen;
     }
   }
