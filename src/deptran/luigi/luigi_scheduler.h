@@ -105,9 +105,10 @@ protected:
   //==========================================================================
   // PRIORITY QUEUE: ordered by (deadline, txid)
   // After conflict check, txns wait here until their deadline arrives.
-  // ONLY accessed by HoldReleaseTd — no mutex needed.
-  // Think of this as: "txns waiting for their turn to execute"
+  // NOW accessed by both HoldReleaseTd AND ExecTd (for re-enqueuing incomplete
+  // agreements) Think of this as: "txns waiting for their turn to execute"
   //==========================================================================
+  std::mutex priority_queue_mutex_; // Protects priority_queue_
   std::map<std::pair<uint64_t, txnid_t>, std::shared_ptr<LuigiLogEntry>>
       priority_queue_;
 
