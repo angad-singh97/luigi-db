@@ -107,13 +107,6 @@ void LuigiReceiver::InitScheduler(uint32_t shard_id) {
            worker_count);
 }
 
-void LuigiReceiver::SetupRpc(
-    rrr::Server *rpc_server, rusty::Arc<rrr::PollThread> poll_thread,
-    const std::map<uint32_t, std::string> &shard_addresses) {
-  // RPC setup no longer needed - using eRPC transport directly (like Mako)
-  Log_info("SetupRpc: eRPC transport managed externally");
-}
-
 void LuigiReceiver::StopScheduler() {
   // Transport cleanup handled externally
 
@@ -470,7 +463,7 @@ void LuigiServer::Run() {
 
   // 4. TODO: Setup RPC connections to other shards
   // This would involve creating RPC server and poll thread
-  // receiver_->SetupRpc(rpc_server, poll_thread, shard_addresses);
+  // TODO: Setup RPC connections to other shards when transport is integrated
 
   std::cout << "\n=== Luigi Server Ready ===\n";
   std::cout << "Shard:      " << shard_idx_ << "/" << config_->nshards << "\n";
