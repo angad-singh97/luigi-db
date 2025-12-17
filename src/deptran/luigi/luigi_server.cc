@@ -351,10 +351,70 @@ bool LuigiReceiver::ReplicateEntry(
     return true;
   }
 
-  // TODO: Integrate with Mako's Paxos replication
-  // For now, just log and return success
-  Log_debug("Luigi entry replication requested for txn %lu (not implemented)",
-            entry->tid_);
+  // Serialize Luigi entry to log buffer
+  // Format: [tid (8 bytes)][timestamp (8 bytes)][num_ops (4 bytes)][ops
+  // data...]
+  size_t log_size = sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint32_t);
+
+  // Calculate ops data size
+  for (const auto &op : entry->ops_) {
+    log_size += sizeof(uint16_t); // table_id
+    log_size += sizeof(uint8_t);  // op_type
+    log_size += sizeof(uint16_t); // key length
+    log_size += op.key.size();
+    log_size += sizeof(uint16_t); // value length
+    log_size += op.value.size();
+  }
+
+  std::vector<unsigned char> log_buffer(log_size);
+  unsigned char *ptr = log_buffer.data();
+
+  // Write tid
+  *reinterpret_cast<uint64_t *>(ptr) = entry->tid_;
+  ptr += sizeof(uint64_t);
+
+  // Write timestamp
+  *reinterpret_cast<uint64_t *>(ptr) = entry->agreed_ts_;
+  ptr += sizeof(uint64_t);
+
+  // Write num_ops
+  *reinterpret_cast<uint32_t *>(ptr) = entry->ops_.size();
+  ptr += sizeof(uint32_t);
+
+  // Write ops
+  for (const auto &op : entry->ops_) {
+    *reinterpret_cast<uint16_t *>(ptr) = op.table_id;
+    ptr += sizeof(uint16_t);
+
+    *reinterpret_cast<uint8_t *>(ptr) = op.op_type;
+    ptr += sizeof(uint8_t);
+
+    uint16_t klen = op.key.size();
+    *reinterpret_cast<uint16_t *>(ptr) = klen;
+    ptr += sizeof(uint16_t);
+    memcpy(ptr, op.key.data(), klen);
+    ptr += klen;
+
+    uint16_t vlen = op.value.size();
+    *reinterpret_cast<uint16_t *>(ptr) = vlen;
+    ptr += sizeof(uint16_t);
+    if (vlen > 0) {
+      ``` memcpy(ptr, op.value.data(), vlen);
+      ptr += vlen;
+    }
+  }
+
+  // Propose log to Paxos using add_log_to_nc
+  // Use scheduler's partition_id as the partition identifier
+  uint32_t partition_id = scheduler_ ? scheduler_->GetPartitionId() : 0;
+
+  // add_log_to_nc sends the log to Paxos for replication
+  // Parameters: log buffer, size, partition_id, batch_size
+  int batch_size = 100; // Default batch size for Luigi
+  add_log_to_nc(reinterpret_cast<char *>(log_buffer.data()), log_buffer.size(),
+                partition_id, batch_size);
+
+  Log_debug("Luigi entry replicated for txn %lu via Paxos", entry->tid_);
   return true;
 }
 
@@ -439,9 +499,10 @@ void LuigiServer::Run() {
   std::cout << "Workers:    " << cfg.getNthreads() << "\n";
   std::cout << "Listening for requests...\n\n";
 
-  // 5. Event loop - for now, just sleep
-  // TODO: Implement proper event loop when transport is set up
-  while (cfg.getRunning()) {
+  // 5. Event loop - simple sleep loop
+  // TODO: Integrate with transport event loop when RPC is set up
+  volatile bool running = true;
+  while (running) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
