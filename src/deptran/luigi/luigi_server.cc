@@ -87,14 +87,8 @@ void LuigiReceiver::InitScheduler(uint32_t shard_id) {
   uint32_t worker_count = (config_.warehouses > 0) ? config_.warehouses : 1;
   scheduler_->SetWorkerCount(worker_count);
 
-  // Set scheduler reference in executor
-  // This is required for Replicate() to work
-  // Note: executor_ is a private member, so we need a method in SchedulerLuigi
-  // Actually, SchedulerLuigi creates its own executor, so we can assume it sets
-  // itself up? Let's check SchedulerLuigi constructor/init.
-
-  // Luigi uses state machine mode - no need for read/write callbacks
-  // The state machine will be set via SetStateMachine() in LuigiServer::Run()
+  // Replication callback: called by scheduler when transaction commits
+  // and needs to be replicated via Paxos for durability
 
   // Set up replication callback
   scheduler_->SetReplicationCallback(
@@ -120,9 +114,20 @@ void LuigiReceiver::StopScheduler() {
 }
 
 //=============================================================================
-// Request Handlers
+// Client Request Handlers
 //=============================================================================
 
+/**
+ * HandleDispatch: RPC handler for client transaction dispatch requests
+ *
+ * Flow:
+ *   1. Client calls LuigiClient::InvokeDispatch()
+ *   2. eRPC transport delivers request to this server
+ *   3. ReceiveRequest() routes to HandleDispatch() based on reqType
+ *   4. We parse the request and call scheduler->LuigiDispatchFromRequest()
+ *   5. Return kStatusQueued immediately (async execution)
+ *   6. Client polls with HandleStatusCheck() to get final result
+ */
 void LuigiReceiver::HandleDispatch(char *reqBuf, char *respBuf,
                                    size_t &respLen) {
   auto *req = reinterpret_cast<luigi::DispatchRequest *>(reqBuf);
@@ -186,7 +191,9 @@ void LuigiReceiver::HandleDispatch(char *reqBuf, char *respBuf,
 
   uint64_t txn_id = req->txn_id;
 
-  // Dispatch to scheduler with async callback
+  // Dispatch to scheduler's internal queue
+  // LuigiDispatchFromRequest creates a LuigiLogEntry and enqueues it
+  // for timestamp-ordered execution by worker threads
   scheduler_->LuigiDispatchFromRequest(
       txn_id, req->expected_time, ops, involved_shards,
       [this, txn_id](int status, uint64_t commit_ts,
@@ -194,7 +201,7 @@ void LuigiReceiver::HandleDispatch(char *reqBuf, char *respBuf,
         StoreResult(txn_id, status, commit_ts, read_results);
       });
 
-  // Return QUEUED immediately
+  // Return QUEUED immediately - client will poll for completion
   resp->status = luigi::kStatusQueued;
   resp->commit_timestamp = 0;
   resp->num_results = 0;
