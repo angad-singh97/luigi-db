@@ -221,9 +221,9 @@ protected:
   // REPLICATION LAYER
   //==========================================================================
 
-  // Abstract the multiple Paxos streams
-  // void Replicate(uint32_t worker_id, const std::shared_ptr<LuigiLogEntry>&
-  // entry);
+  // Route transaction to per-worker Paxos stream for replication
+  void Replicate(uint32_t worker_id,
+                 const std::shared_ptr<LuigiLogEntry> &entry);
 
   void SetPartitionId(uint32_t shard_id) {
     shard_id_ = shard_id;

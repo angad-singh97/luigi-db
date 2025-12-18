@@ -221,6 +221,26 @@ int main(int argc, char *argv[]) {
 
   // Create and initialize benchmark client
   std::cout << "Creating benchmark client..." << std::endl;
+
+  // Configure worker IDs for per-worker replication
+  // Read client_vm_index from config (defaults to 0 for single-VM)
+  uint32_t client_vm_index = 0;
+  if (config.Has("luigi.client_vm_index")) {
+    client_vm_index = config.Get<uint32_t>("luigi.client_vm_index");
+  }
+
+  uint32_t num_workers_per_vm = num_threads;
+  if (config.Has("luigi.num_workers_per_vm")) {
+    num_workers_per_vm = config.Get<uint32_t>("luigi.num_workers_per_vm");
+  }
+
+  client_config.worker_id_base = client_vm_index * num_workers_per_vm;
+  client_config.num_workers_per_vm = num_workers_per_vm;
+
+  Log_info("Luigi worker ID configuration: client_vm_index=%u, "
+           "num_workers_per_vm=%u, worker_id_base=%u",
+           client_vm_index, num_workers_per_vm, client_config.worker_id_base);
+
   LuigiBenchmarkClient client(config);
   if (!client.Initialize()) {
     std::cerr << "Failed to initialize benchmark client" << std::endl;

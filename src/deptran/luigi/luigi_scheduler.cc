@@ -1,6 +1,14 @@
 #include "luigi_scheduler.h"
-
-#include "luigi_client.h" // For LuigiClient eRPC coordination
+#include "benchmarks/benchmark_config.h"
+#include "benchmarks/sto/sync_util.hh"
+#include "deptran/__dep__.h"
+#include "deptran/s_main.h" // For add_log_to_nc
+#include "lib/common.h"
+#include "lib/fasttransport.h"
+#include "lib/message.h"
+#include "luigi_client.h"
+#include "luigi_common.h"
+#include "luigi_entry.h"
 
 #include <chrono>
 #include <functional>
@@ -212,7 +220,8 @@ void SchedulerLuigi::HoldReleaseTd() {
                  entry->tid_, entry->agreed_ts_, entry->requeue_count_);
 
         // Insert at new position using agreed_ts (like Tiga's localDdlRank_)
-        priority_queue_[{entry->agreed_ts_, txn_key}] = entry;
+        priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
+            entry;
         continue; // Skip normal conflict detection
       }
 
@@ -791,6 +800,84 @@ void SchedulerLuigi::BroadcastWatermarks() {
   Log_debug("BroadcastWatermarks: sent %zu watermarks to %u shards",
             watermarks_u64.size(), num_shards - 1);
 }
+
+//=============================================================================
+// Replication Layer
+//=============================================================================
+
+// Replicate transaction to per-worker Paxos stream
+// Routes the transaction to the appropriate replication stream based on
+// worker_id
+void SchedulerLuigi::Replicate(uint32_t worker_id,
+                               const std::shared_ptr<LuigiLogEntry> &entry) {
+  if (!BenchmarkConfig::getInstance().getIsReplicated()) {
+    return; // Replication disabled
+  }
+
+  // Serialize the transaction entry for replication
+  // Format: [timestamp(8) | tid(8) | worker_id(4) | num_ops(2) | ops_data]
+  std::vector<char> log_buffer;
+
+  // Reserve space for header
+  size_t header_size =
+      sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint16_t);
+  log_buffer.reserve(header_size + 1024); // Estimate for ops
+
+  // Write timestamp
+  uint64_t ts = entry->agreed_ts_;
+  log_buffer.insert(log_buffer.end(), (char *)&ts,
+                    (char *)&ts + sizeof(uint64_t));
+
+  // Write transaction ID
+  uint64_t tid = entry->tid_;
+  log_buffer.insert(log_buffer.end(), (char *)&tid,
+                    (char *)&tid + sizeof(uint64_t));
+
+  // Write worker ID
+  log_buffer.insert(log_buffer.end(), (char *)&worker_id,
+                    (char *)&worker_id + sizeof(uint32_t));
+
+  // Write number of operations
+  uint16_t num_ops = static_cast<uint16_t>(entry->ops_.size());
+  log_buffer.insert(log_buffer.end(), (char *)&num_ops,
+                    (char *)&num_ops + sizeof(uint16_t));
+
+  // Write operations - match Mako's format: [key_len | key | val_len | val |
+  // table_id]
+  for (const auto &op : entry->ops_) {
+    // Write key length and key
+    uint16_t key_len = static_cast<uint16_t>(op.key.size());
+    log_buffer.insert(log_buffer.end(), (char *)&key_len,
+                      (char *)&key_len + sizeof(uint16_t));
+    log_buffer.insert(log_buffer.end(), op.key.begin(), op.key.end());
+
+    // Write value length and value
+    uint16_t val_len = static_cast<uint16_t>(op.value.size());
+    log_buffer.insert(log_buffer.end(), (char *)&val_len,
+                      (char *)&val_len + sizeof(uint16_t));
+    log_buffer.insert(log_buffer.end(), op.value.begin(), op.value.end());
+
+    // Write table_id
+    // Note: Luigi only has READ(0), WRITE(1), INSERT(2) - no delete operations
+    uint16_t table_id = op.table_id;
+    log_buffer.insert(log_buffer.end(), (char *)&table_id,
+                      (char *)&table_id + sizeof(uint16_t));
+  }
+
+  // Route to per-worker Paxos stream using worker_id as partition_id
+  // This is the key: worker_id determines which Paxos instance/stream to use
+  add_log_to_nc(log_buffer.data(), log_buffer.size(), worker_id);
+
+  // Update watermark after successful replication
+  UpdateWatermark(worker_id, ts);
+
+  Log_debug("Luigi Replicate: worker_id=%u, txn_id=%lu, ts=%lu, log_size=%zu",
+            worker_id, tid, ts, log_buffer.size());
+}
+
+//=============================================================================
+// Watermark Management
+//=============================================================================
 
 void SchedulerLuigi::WatermarkTd() {
   while (running_) {
