@@ -6,7 +6,7 @@
 #include "deptran/__dep__.h"
 #include "deptran/rcc/tx.h"
 #include "luigi_common.h"
-#include "luigi_owd.h"
+// OWD module removed - coordinator-only functionality
 #include "luigi_scheduler.h"
 #include "luigi_state_machine.h"
 
@@ -190,12 +190,13 @@ void LuigiReceiver::HandleDispatch(char *reqBuf, char *respBuf,
   }
 
   uint64_t txn_id = req->txn_id;
+  uint32_t worker_id = req->worker_id; // Extract worker ID from request
 
   // Dispatch to scheduler's internal queue
   // LuigiDispatchFromRequest creates a LuigiLogEntry and enqueues it
   // for timestamp-ordered execution by worker threads
   scheduler_->LuigiDispatchFromRequest(
-      txn_id, req->expected_time, ops, involved_shards,
+      txn_id, req->expected_time, ops, involved_shards, worker_id,
       [this, txn_id](int status, uint64_t commit_ts,
                      const std::vector<std::string> &read_results) {
         StoreResult(txn_id, status, commit_ts, read_results);
@@ -423,13 +424,10 @@ void LuigiServer::Run() {
 
   std::cout << "\n=== Luigi Server Initialization ===\n";
 
-  // 1. Initialize Luigi OWD service
-  std::cout << "Initializing Luigi OWD service...\n";
-  auto &owd = mako::luigi::LuigiOWD::getInstance();
-  owd.init(config_->configFile, cfg.getCluster(), shard_idx_, config_->nshards);
-  owd.start();
+  // OWD initialization removed - coordinator-only functionality
+  // Servers receive timestamps from coordinators, don't need OWD
 
-  // 2. Create state machine based on benchmark_type
+  // 1. Create state machine based on benchmark_type
   std::cout << "Creating " << benchmark_type_ << " state machine...\n";
   std::shared_ptr<LuigiStateMachine> state_machine;
 
@@ -445,8 +443,7 @@ void LuigiServer::Run() {
         shard_idx_, 0, config_->nshards, 1);
   } else {
     Log_error("Unknown benchmark type: %s", benchmark_type_.c_str());
-    owd.stop();
-    return;
+    return; // OWD stop removed
   }
 
   // Initialize state machine tables
@@ -459,8 +456,7 @@ void LuigiServer::Run() {
   auto *scheduler = receiver_->GetScheduler();
   if (!scheduler) {
     Log_error("Failed to create scheduler");
-    owd.stop();
-    return;
+    return; // OWD stop removed
   }
 
   // Wire scheduler with state machine
@@ -491,7 +487,7 @@ void LuigiServer::Run() {
   // Cleanup
   std::cout << "\nShutting down Luigi server...\n";
   receiver_->StopScheduler();
-  owd.stop();
+  // OWD stop removed - not initialized on server
 
   Log_info("LuigiServer::Run() exiting for shard %d", shard_idx_);
 }

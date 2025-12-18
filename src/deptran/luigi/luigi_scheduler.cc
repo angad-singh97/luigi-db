@@ -83,7 +83,7 @@ bool SchedulerLuigi::HasPendingTxn(uint64_t txn_id) const {
 
 void SchedulerLuigi::LuigiDispatchFromRequest(
     uint64_t txn_id, uint64_t expected_time, const std::vector<LuigiOp> &ops,
-    const std::vector<uint32_t> &involved_shards,
+    const std::vector<uint32_t> &involved_shards, uint32_t worker_id,
     std::function<void(int status, uint64_t commit_ts,
                        const std::vector<std::string> &read_results)>
         reply_cb) {
@@ -99,6 +99,7 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
       expected_time; // Use expected_time directly as proposed timestamp
   entry->agreed_ts_ =
       expected_time; // Initialize to proposed - will be updated by agreement
+  entry->worker_id_ = worker_id; // Store worker ID for per-worker replication
   entry->ops_ = ops;
 
   // Wrap callback to remove from pending when complete
@@ -244,8 +245,10 @@ void SchedulerLuigi::HoldReleaseTd() {
         entry->agree_status_.store(LUIGI_AGREE_COMPLETE);
       }
 
-      // Insert into priority_queue_ (sorted by agreed_ts, then txn_id)
-      priority_queue_[{entry->agreed_ts_, txn_key}] = entry;
+      // Insert into priority queue (ordered by deadline, worker_id, txn_id)
+      std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
+      priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
+          entry;
     }
 
     //-------------------------------------------------------------------------
@@ -404,9 +407,10 @@ void SchedulerLuigi::ExecTd() {
 
     // Re-enqueue transactions that need to wait
     if (!to_requeue.empty()) {
-      std::lock_guard<std::mutex> lock(priority_queue_mutex_);
+      std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
       for (auto &entry : to_requeue) {
-        priority_queue_[{entry->agreed_ts_, entry->tid_}] = entry;
+        priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
+            entry;
       }
       Log_debug(
           "Luigi ExecTd: re-enqueued %zu transactions to maintain ordering",

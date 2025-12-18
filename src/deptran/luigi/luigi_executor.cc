@@ -350,25 +350,23 @@ int LuigiExecutor::ExecuteAllOps(std::shared_ptr<LuigiLogEntry> entry) {
 int LuigiExecutor::TriggerReplication(std::shared_ptr<LuigiLogEntry> entry) {
   //-------------------------------------------------------------------------
   // In Tiga, replication happens via per-worker Paxos streams.
-  // We determine the worker/stream ID from the transaction metadata.
+  // We determine the worker ID from the transaction metadata.
   //-------------------------------------------------------------------------
 
-  // Extract worker ID (bits 63-48 of txn_id)
-  uint32_t worker_id = (uint32_t)((entry->tid_ >> 48) & 0xFFFF);
+  // Use worker_id field directly (not extracted from txn_id)
+  uint32_t worker_id = entry->worker_id_;
 
   // Use scheduler's Replication layer
   if (scheduler_) {
     scheduler_->Replicate(worker_id, entry);
+    return 0;
   } else {
     Log_error("Luigi TriggerReplication: scheduler not set!");
     return -1;
   }
-
   // NOTE: In the original Mako code, there was a replication_cb_.
   // We've replaced that pattern with the Scheduler's Replicate method
   // which handles the per-stream logic and watermark updates.
-
-  return 0;
 }
 
 //=============================================================================

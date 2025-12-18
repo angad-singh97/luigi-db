@@ -50,6 +50,11 @@ public:
   LuigiDispatchBuilder &SetExpectedTime(uint64_t expected_time);
 
   /**
+   * Set the worker ID (for per-worker replication).
+   */
+  LuigiDispatchBuilder &SetWorkerId(uint32_t worker_id);
+
+  /**
    * Set the target server ID.
    */
   LuigiDispatchBuilder &SetTargetServer(uint16_t server_id);

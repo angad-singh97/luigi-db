@@ -5,6 +5,7 @@
 
 #include "deptran/luigi/luigi_benchmark_client.h"
 #include "deptran/luigi/luigi_client.h"
+#include "deptran/luigi/luigi_owd.h"
 #include "mako/benchmarks/benchmark_config.h"
 #include "mako/lib/configuration.h"
 #include "mako/lib/fasttransport.h"
@@ -145,8 +146,11 @@ bool LuigiBenchmarkClient::DispatchOneTransaction(int thread_id) {
     generator_->GetTxnReq(&req, 0, 0);
   }
 
-  // Assign unique transaction ID
+  // Assign unique transaction ID (simple counter - worker_id is separate)
   req.txn_id = next_txn_id_.fetch_add(1);
+
+  // Calculate worker_id for this thread (base + thread_id)
+  req.worker_id = config_.worker_id_base + thread_id;
 
   // Record start time
   TxnRecord record;
@@ -194,14 +198,16 @@ bool LuigiBenchmarkClient::DispatchRequest(const LuigiTxnRequest &req) {
     auto *builder = new LuigiDispatchBuilder();
     builder->SetTxnId(req.txn_id).SetReqNr(req.req_id);
 
-    // Calculate expected execution time
-    uint64_t expected_time =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count();
-    expected_time += 5000; // +5ms buffer
+    // Use OWD module for timestamp calculation
+    auto &owd = mako::luigi::LuigiOWD::getInstance();
+    std::vector<uint32_t> shard_vec(req.target_shards.begin(),
+                                    req.target_shards.end());
+    uint64_t expected_time = owd.getExpectedTimestamp(shard_vec);
 
     builder->SetExpectedTime(expected_time);
+
+    // Set worker_id
+    builder->SetWorkerId(req.worker_id);
 
     // Add ops
     for (const auto &op : req.ops) {

@@ -52,6 +52,11 @@ LuigiDispatchBuilder::SetExpectedTime(uint64_t expected_time) {
   return *this;
 }
 
+LuigiDispatchBuilder &LuigiDispatchBuilder::SetWorkerId(uint32_t worker_id) {
+  request_->worker_id = worker_id;
+  return *this;
+}
+
 LuigiDispatchBuilder &
 LuigiDispatchBuilder::SetTargetServer(uint16_t server_id) {
   request_->target_server_id = server_id;
@@ -398,9 +403,9 @@ void LuigiClient::HandleOwdPingReply(char *respBuf) {
 //=============================================================================
 
 void LuigiClient::InvokeDeadlinePropose(uint32_t target_shard, uint64_t tid,
-                                         uint64_t proposed_ts, uint32_t phase,
-                                         ResponseCallback continuation,
-                                         ErrorCallback error_continuation) {
+                                        uint64_t proposed_ts, uint32_t phase,
+                                        ResponseCallback continuation,
+                                        ErrorCallback error_continuation) {
   Log_debug("InvokeDeadlinePropose: target=%u, tid=%lu, ts=%lu, phase=%u",
             target_shard, tid, proposed_ts, phase);
 
@@ -423,15 +428,14 @@ void LuigiClient::InvokeDeadlinePropose(uint32_t target_shard, uint64_t tid,
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineProposeReqType,
-      config_.warehouses + 5,
+      this, luigi::kDeadlineProposeReqType, config_.warehouses + 5,
       sizeof(luigi::DeadlineProposeResponse), data_to_send);
 }
 
 void LuigiClient::InvokeDeadlineConfirm(uint32_t target_shard, uint64_t tid,
-                                         uint64_t new_ts,
-                                         ResponseCallback continuation,
-                                         ErrorCallback error_continuation) {
+                                        uint64_t new_ts,
+                                        ResponseCallback continuation,
+                                        ErrorCallback error_continuation) {
   Log_debug("InvokeDeadlineConfirm: target=%u, tid=%lu, new_ts=%lu",
             target_shard, tid, new_ts);
 
@@ -453,8 +457,7 @@ void LuigiClient::InvokeDeadlineConfirm(uint32_t target_shard, uint64_t tid,
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineConfirmReqType,
-      config_.warehouses + 5,
+      this, luigi::kDeadlineConfirmReqType, config_.warehouses + 5,
       sizeof(luigi::DeadlineConfirmResponse), data_to_send);
 }
 
@@ -485,8 +488,7 @@ void LuigiClient::InvokeWatermarkExchange(
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kWatermarkExchangeReqType,
-      config_.warehouses + 5,
+      this, luigi::kWatermarkExchangeReqType, config_.warehouses + 5,
       sizeof(luigi::WatermarkExchangeResponse), data_to_send);
 }
 

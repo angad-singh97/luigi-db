@@ -70,7 +70,7 @@ public:
   // transaction
   void LuigiDispatchFromRequest(
       uint64_t txn_id, uint64_t expected_time, const std::vector<LuigiOp> &ops,
-      const std::vector<uint32_t> &involved_shards,
+      const std::vector<uint32_t> &involved_shards, uint32_t worker_id,
       std::function<void(int status, uint64_t commit_ts,
                          const std::vector<std::string> &read_results)>
           reply_cb);
@@ -97,13 +97,14 @@ protected:
       incoming_txn_queue_;
 
   //==========================================================================
-  // PRIORITY QUEUE: ordered by (deadline, txid)
+  // PRIORITY QUEUE: ordered by (deadline, worker_id, txid)
   // After conflict check, txns wait here until their deadline arrives.
   // NOW accessed by both HoldReleaseTd AND ExecTd (for re-enqueuing incomplete
   // agreements) Think of this as: "txns waiting for their turn to execute"
   //==========================================================================
   std::mutex priority_queue_mutex_; // Protects priority_queue_
-  std::map<std::pair<uint64_t, txnid_t>, std::shared_ptr<LuigiLogEntry>>
+  std::map<std::tuple<uint64_t, uint32_t, txnid_t>,
+           std::shared_ptr<LuigiLogEntry>>
       priority_queue_;
 
   //==========================================================================

@@ -30,6 +30,7 @@ struct LuigiTxnRequest {
   uint32_t client_id = 0;
   uint32_t req_id = 0;
   uint64_t txn_id = 0;
+  uint32_t worker_id = 0; // Worker ID (for per-worker replication)
   uint32_t txn_type = 0;
 
   // Working set: key -> value (like Tiga's ws_)

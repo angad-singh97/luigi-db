@@ -102,12 +102,16 @@ public:
     int par_id = 0;            // Partition id within shard
     int num_shards = 1;        // Total number of shards
     int num_threads = 1;       // Worker threads
-    int duration_sec = 10;     // Benchmark duration
+    int duration_sec = 30;     // Benchmark duration (changed from 10 to 30)
     bool is_open_loop = false; // Open-loop vs closed-loop
     int target_rate = 0;       // Target ops/sec for open-loop
 
     // Generator config
     janus::TxnGeneratorConfig gen_config;
+
+    // Worker ID configuration (for per-worker replication)
+    uint32_t worker_id_base = 0;     // Base worker ID for this client VM
+    uint32_t num_workers_per_vm = 8; // Number of worker threads per VM
   };
 
   LuigiBenchmarkClient(const Config &config);

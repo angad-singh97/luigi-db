@@ -71,15 +71,14 @@ void PrintUsage(const char *prog) {
 }
 
 int main(int argc, char *argv[]) {
-  // Default configuration
-  LuigiBenchmarkClient::Config config;
-  config.config_file = "";
-  config.cluster = "localhost"; // Default to localhost like Mako CI
-  config.shard_index = 0;
-  config.par_id = 0;
-  config.num_shards = 0; // 0 means read from config file
-  config.num_threads = 1;
-  config.duration_sec = 30; // Default 30s like typical CI tests
+  // Default configuration values (can be overridden by CLI)
+  std::string config_file = "";
+  std::string cluster = "localhost"; // Default to localhost like Mako CI
+  uint32_t shard_idx = 0;
+  uint32_t par_id = 0;     // Not exposed via CLI, always 0 for now
+  uint32_t num_shards = 0; // 0 means read from config file
+  uint32_t num_threads = 1;
+  uint32_t duration_sec = 30; // Default 30s like typical CI tests
 
   std::string benchmark_type = "tpcc"; // Default to TPC-C like Mako CI
   int keys_per_shard = 100000;
@@ -263,7 +262,9 @@ int main(int argc, char *argv[]) {
 
   // Cleanup
   luigi::stop_luigi_transport();
+  // Cleanup OWD module
   luigiOwd.stop();
+  std::cout << "Luigi OWD module stopped\n";
 
   return 0;
 }

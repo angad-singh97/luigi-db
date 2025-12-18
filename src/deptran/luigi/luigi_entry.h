@@ -84,6 +84,9 @@ struct LuigiLogEntry {
   uint64_t dequeue_ts_ =
       0; // For debug: timestamp when dequeued from priority queue
 
+  //--- Worker ID (for per-worker replication streams) ---
+  uint32_t worker_id_ = 0; // Which worker/client thread generated this txn
+
   //--- Transaction type (for stored-procedure style execution) ---
   uint32_t txn_type_ =
       0; // Transaction type (e.g., NEW_ORDER=0, PAYMENT=1, etc.)
