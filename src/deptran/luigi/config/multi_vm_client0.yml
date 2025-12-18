@@ -1,0 +1,42 @@
+# Luigi Multi-VM Test Configuration - Client VM 0
+# For distributed testing with multiple client VMs
+
+# Transport configuration
+transport:
+  type: erpc
+  cluster: cluster
+  
+# Shard configuration (3 shards for distributed setup)
+shards:
+  - id: 0
+    host: server0.cluster.local
+    port: 31850
+  - id: 1
+    host: server1.cluster.local
+    port: 31851
+  - id: 2
+    host: server2.cluster.local
+    port: 31852
+
+# Luigi-specific configuration
+luigi:
+  # Multi-VM setup - This is VM 0
+  client_vm_index: 0
+  num_workers_per_vm: 8
+  # Worker IDs for this VM: [0-7]
+  
+  # OWD parameters
+  headroom_ms: 3
+  ping_interval_ms: 100
+  initial_owd_ms: 2
+
+# Benchmark configuration
+benchmark:
+  type: tpcc
+  num_threads: 8
+  duration_sec: 60
+  warehouses: 24  # 8 warehouses per shard
+  
+# Replication
+replication:
+  enabled: true
