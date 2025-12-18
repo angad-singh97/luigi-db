@@ -1,69 +1,88 @@
 # Luigi Configuration Files
 
-This directory contains YAML configuration files for Luigi benchmarks.
+This directory contains YAML configuration files for Luigi benchmarks in **Mako-compatible format**.
+
+## Configuration Format
+
+Luigi uses Mako's `transport::Configuration` parser, so configs must follow the **site → process → host** hierarchy:
+
+```yaml
+site:
+  server:  # List of shards (each shard can have multiple replicas)
+    - ["s0:31850"]           # Shard 0, no replication
+    - ["s1:31851", ...]      # Shard 1 with replicas
+  client:
+    - ["c0"]                 # Client processes
+
+process:  # Map site names to process names
+  s0: localhost
+  c0: localhost
+
+host:  # Map process names to IP addresses
+  localhost: 127.0.0.1
+
+# Luigi-specific section
+luigi:
+  client_vm_index: 0
+  num_workers_per_vm: 4
+  headroom_ms: 2
+  ping_interval_ms: 100
+  initial_owd_ms: 1
+```
 
 ## Configuration Files
 
-### Single-VM Testing
-- **`single_vm_test.yml`**: Local testing with one client VM
-  - 4 worker threads (worker IDs: 0-3)
-  - 2 shards on localhost
-  - 30 second duration
-  - Replication disabled
+### No Replication
+- **`local-1shard.yml`**: 1 shard, 4 threads, 4 warehouses
+- **`local-2shard.yml`**: 2 shards, 6 threads, 6 warehouses
 
-### Multi-VM Testing
-- **`multi_vm_client0.yml`**: Configuration for client VM 0
-  - 8 worker threads (worker IDs: 0-7)
-  - 3 shards on cluster
-  - 60 second duration
-  - Replication enabled
+### With Replication (3 replicas per shard)
+- **`local-1shard-3replicas.yml`**: 1 shard × 3 replicas, 4 threads
+- **`local-2shard-3replicas.yml`**: 2 shards × 3 replicas each, 6 threads
 
-- **`multi_vm_client1.yml`**: Configuration for client VM 1
-  - 8 worker threads (worker IDs: 8-15)
-  - 3 shards on cluster
-  - 60 second duration
-  - Replication enabled
+## Usage
 
-## Configuration Parameters
+### Single Shard
+```bash
+# Shard 0
+./build/luigi_bench --shard-config src/deptran/luigi/config/local-1shard.yml \
+                    --shard-index 0 --num-threads 4 --benchmark tpcc
+```
 
-### Luigi Section
+### Two Shards
+```bash
+# Terminal 1: Shard 0
+./build/luigi_bench --shard-config src/deptran/luigi/config/local-2shard.yml \
+                    --shard-index 0 --num-threads 6 --benchmark tpcc &
+
+# Terminal 2: Shard 1
+./build/luigi_bench --shard-config src/deptran/luigi/config/local-2shard.yml \
+                    --shard-index 1 --num-threads 6 --benchmark tpcc &
+```
+
+**Note**: Same config file used for all shards, `--shard-index` determines which shard each process runs.
+
+## Luigi Parameters
+
 - `client_vm_index`: Index of this client VM (0, 1, 2, ...)
-- `num_workers_per_vm`: Number of worker threads per VM
+- `num_workers_per_vm`: Worker threads per VM
 - `headroom_ms`: OWD headroom in milliseconds
 - `ping_interval_ms`: OWD ping interval
 - `initial_owd_ms`: Initial OWD estimate
 
-### Worker ID Calculation
+## Worker ID Calculation
 ```
-worker_id_base = client_vm_index * num_workers_per_vm
-worker_id_range = [worker_id_base, worker_id_base + num_workers_per_vm - 1]
-```
-
-**Example**:
-- VM 0: `client_vm_index=0`, `num_workers_per_vm=8` → worker IDs: 0-7
-- VM 1: `client_vm_index=1`, `num_workers_per_vm=8` → worker IDs: 8-15
-- VM 2: `client_vm_index=2`, `num_workers_per_vm=8` → worker IDs: 16-23
-
-## Usage
-
-### Single-VM Testing
-```bash
-cd /root/cse532/mako
-./build/luigi_benchmark_client --config src/deptran/luigi/config/single_vm_test.yml
+worker_id = client_vm_index * num_workers_per_vm + thread_id
 ```
 
-### Multi-VM Testing
-On client VM 0:
-```bash
-./build/luigi_benchmark_client --config src/deptran/luigi/config/multi_vm_client0.yml
-```
+**Example** (2 VMs, 6 threads each):
+- VM 0: worker IDs 0-5
+- VM 1: worker IDs 6-11
 
-On client VM 1:
-```bash
-./build/luigi_benchmark_client --config src/deptran/luigi/config/multi_vm_client1.yml
-```
+## Matching Mako Test Scenarios
 
-## Notes
-- Ensure all VMs can reach the shard servers
-- Worker IDs must not overlap between VMs
-- OWD parameters may need tuning based on network latency
+These configs match Mako's CI test scenarios:
+- `local-1shard.yml` → Similar to `1c1s1p.yml`
+- `local-2shard.yml` → Similar to `test_2shard_no_replication.sh`
+- `local-1shard-3replicas.yml` → Similar to `1c1s3r1p.yml`
+- `local-2shard-3replicas.yml` → Similar to `test_2shard_replication.sh`

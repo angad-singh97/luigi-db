@@ -1,0 +1,28 @@
+# Luigi 1-Shard Local Test Configuration
+# Mako-compatible format for transport::Configuration parser
+# Based on Mako's 1c1s1p.yml pattern
+
+site:
+  server:  # 1 shard, 1 partition (no replication)
+    - ["s0:31850"]
+  client:
+    - ["c0"]
+
+process:
+  s0: localhost
+  c0: localhost
+
+host:
+  localhost: 127.0.0.1
+
+# Luigi-specific configuration
+luigi:
+  client_vm_index: 0
+  num_workers_per_vm: 4
+  headroom_ms: 2
+  ping_interval_ms: 100
+  initial_owd_ms: 1
+
+# Benchmark defaults (can be overridden by CLI)
+benchmark:
+  warehouses: 4
