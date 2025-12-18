@@ -96,11 +96,11 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
     case LUIGI_AGREE_COMPLETE:
       //-------------------------------------------------------------------
       // Agreement complete! Proceed to execution
+      // Note: ts_agreed_ is already set by UpdateDeadlineRecord()
       //-------------------------------------------------------------------
       Log_info("Luigi Execute: txn %lu agreement complete at ts=%lu",
                entry->tid_, entry->agreed_ts_);
       commit_ts = entry->agreed_ts_;
-      entry->ts_agreed_.store(true);
       entry->exec_status_.store(LUIGI_EXEC_DIRECT);
       break;
 

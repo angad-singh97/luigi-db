@@ -121,6 +121,13 @@ protected:
   moodycamel::ConcurrentQueue<std::shared_ptr<LuigiLogEntry>> ready_txn_queue_;
 
   //==========================================================================
+  // Timestamp ordering enforcement
+  // Track minimum timestamp of any transaction with pending agreement
+  // to ensure later transactions don't execute before earlier ones
+  //==========================================================================
+  std::atomic<uint64_t> min_pending_timestamp_{UINT64_MAX};
+
+  //==========================================================================
   // Threads
   //==========================================================================
   std::thread *hold_thread_ = nullptr;

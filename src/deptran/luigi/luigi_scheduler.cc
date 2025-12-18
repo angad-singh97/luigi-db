@@ -237,6 +237,13 @@ void SchedulerLuigi::HoldReleaseTd() {
         entry->proposed_ts_ = entry->agreed_ts_; // Keep in sync
       }
 
+      // For single-shard transactions, set ts_agreed_ now since no async
+      // agreement needed
+      if (entry->remote_shards_.empty()) {
+        entry->ts_agreed_.store(true);
+        entry->agree_status_.store(LUIGI_AGREE_COMPLETE);
+      }
+
       // Insert into priority_queue_ (sorted by agreed_ts, then txn_id)
       priority_queue_[{entry->agreed_ts_, txn_key}] = entry;
     }
@@ -296,17 +303,46 @@ void SchedulerLuigi::ExecTd() {
   while (running_) {
     size_t cnt = ready_txn_queue_.try_dequeue_bulk(entries, 64);
 
+    std::vector<std::shared_ptr<LuigiLogEntry>> to_requeue;
+    uint64_t batch_min_pending = UINT64_MAX;
+
+    // Get current global minimum pending timestamp
+    uint64_t global_min_pending = min_pending_timestamp_.load();
+
+    // First pass: identify transactions with pending agreement in this batch
+    for (size_t i = 0; i < cnt; i++) {
+      auto &entry = entries[i];
+      if (!entry->ts_agreed_) {
+        if (entry->agreed_ts_ < batch_min_pending) {
+          batch_min_pending = entry->agreed_ts_;
+        }
+      }
+    }
+
+    // Use the minimum of global and batch pending timestamps
+    uint64_t effective_min_pending =
+        std::min(global_min_pending, batch_min_pending);
+
+    // Second pass: execute or re-enqueue based on timestamp ordering
     for (size_t i = 0; i < cnt; i++) {
       auto &entry = entries[i];
 
       // CRITICAL: Check if timestamp agreement is complete
-      // For multi-shard txns, we may have released the txn before agreement
-      // finished If agreement isn't done yet, re-enqueue to priority queue
       if (!entry->ts_agreed_) {
         Log_debug("Luigi ExecTd: txn %lu agreement incomplete, re-enqueuing",
                   entry->tid_);
-        std::lock_guard<std::mutex> lock(priority_queue_mutex_);
-        priority_queue_[{entry->agreed_ts_, entry->tid_}] = entry;
+        to_requeue.push_back(entry);
+        continue; // Skip execution
+      }
+
+      // CRITICAL: Enforce timestamp ordering
+      // If there's a transaction with smaller timestamp and pending agreement,
+      // we must re-enqueue this transaction to maintain ordering
+      if (entry->agreed_ts_ > effective_min_pending) {
+        Log_debug(
+            "Luigi ExecTd: txn %lu (ts=%lu) blocked by pending txn (ts=%lu)",
+            entry->tid_, entry->agreed_ts_, effective_min_pending);
+        to_requeue.push_back(entry);
         continue; // Skip execution
       }
 
@@ -363,6 +399,28 @@ void SchedulerLuigi::ExecTd() {
             "Luigi ExecTd: txn %lu has unexpected status %d after Execute()",
             entry->tid_, static_cast<int>(status));
         break;
+      }
+    }
+
+    // Re-enqueue transactions that need to wait
+    if (!to_requeue.empty()) {
+      std::lock_guard<std::mutex> lock(priority_queue_mutex_);
+      for (auto &entry : to_requeue) {
+        priority_queue_[{entry->agreed_ts_, entry->tid_}] = entry;
+      }
+      Log_debug(
+          "Luigi ExecTd: re-enqueued %zu transactions to maintain ordering",
+          to_requeue.size());
+    }
+
+    // Update global minimum pending timestamp
+    if (batch_min_pending < UINT64_MAX) {
+      // Found pending transactions in this batch - update global min atomically
+      uint64_t expected = global_min_pending;
+      while (batch_min_pending < expected &&
+             !min_pending_timestamp_.compare_exchange_weak(expected,
+                                                           batch_min_pending)) {
+        // CAS loop: retry if another thread updated it
       }
     }
 
@@ -461,6 +519,7 @@ void SchedulerLuigi::UpdateDeadlineRecord(
       // Case 1: All proposals match - we're done!
       dqi.entry_->agreed_ts_ = agreed_ts;
       dqi.entry_->agree_status_.store(LUIGI_AGREE_COMPLETE);
+      dqi.entry_->ts_agreed_.store(true); // Agreement complete!
 
       Log_info("Luigi: tid=%lu Case 1 - all match at ts=%lu", tid, agreed_ts);
 
