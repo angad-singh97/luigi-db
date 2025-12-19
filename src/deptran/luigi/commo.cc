@@ -177,4 +177,55 @@ LuigiCommo::SendWatermarkExchange(siteid_t site_id, parid_t par_id,
   return ret;
 }
 
+void LuigiCommo::BroadcastOwdPing(
+    int64_t send_time, const std::vector<uint32_t>& involved_shards) {
+  auto config = Config::GetConfig();
+  for (uint32_t shard : involved_shards) {
+    auto sites = config->SitesByPartitionId(shard);
+    if (sites.empty()) continue;
+    siteid_t leader_site_id = config->LeaderSiteByPartitionId(shard).id;
+    rrr::i32 status;
+    SendOwdPing(leader_site_id, shard, send_time, &status);
+  }
+}
+
+void LuigiCommo::BroadcastDeadlinePropose(
+    uint64_t tid, int32_t src_shard, int64_t proposed_ts,
+    const std::vector<uint32_t>& involved_shards) {
+  auto config = Config::GetConfig();
+  for (uint32_t shard : involved_shards) {
+    auto sites = config->SitesByPartitionId(shard);
+    if (sites.empty()) continue;
+    siteid_t leader_site_id = config->LeaderSiteByPartitionId(shard).id;
+    rrr::i32 status;
+    SendDeadlinePropose(leader_site_id, shard, tid, src_shard, proposed_ts, &status);
+  }
+}
+
+void LuigiCommo::BroadcastDeadlineConfirm(
+    uint64_t tid, int32_t src_shard, int64_t agreed_ts,
+    const std::vector<uint32_t>& involved_shards) {
+  auto config = Config::GetConfig();
+  for (uint32_t shard : involved_shards) {
+    auto sites = config->SitesByPartitionId(shard);
+    if (sites.empty()) continue;
+    siteid_t leader_site_id = config->LeaderSiteByPartitionId(shard).id;
+    rrr::i32 status;
+    SendDeadlineConfirm(leader_site_id, shard, tid, src_shard, agreed_ts, &status);
+  }
+}
+
+void LuigiCommo::BroadcastWatermarkExchange(
+    int32_t src_shard, const std::vector<int64_t>& watermarks,
+    const std::vector<uint32_t>& involved_shards) {
+  auto config = Config::GetConfig();
+  for (uint32_t shard : involved_shards) {
+    auto sites = config->SitesByPartitionId(shard);
+    if (sites.empty()) continue;
+    siteid_t leader_site_id = config->LeaderSiteByPartitionId(shard).id;
+    rrr::i32 status;
+    SendWatermarkExchange(leader_site_id, shard, src_shard, watermarks, &status);
+  }
+}
+
 } // namespace janus

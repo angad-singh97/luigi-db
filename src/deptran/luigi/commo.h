@@ -61,6 +61,34 @@ public:
                         rrr::i32 src_shard,
                         const std::vector<rrr::i64> &watermarks,
                         rrr::i32 *status);
+
+  /**
+   * Broadcast DeadlinePropose to all involved shard leaders.
+   * For each involved_shard, looks up leader site_id and sends proposal.
+   */
+  void BroadcastDeadlinePropose(
+      uint64_t tid, int32_t src_shard, int64_t proposed_ts,
+      const std::vector<uint32_t>& involved_shards);
+
+  /**
+   * Broadcast OwdPing to all involved shard leaders.
+   */
+  void BroadcastOwdPing(
+      int64_t send_time, const std::vector<uint32_t>& involved_shards);
+
+  /**
+   * Broadcast DeadlineConfirm to all involved shard leaders.
+   */
+  void BroadcastDeadlineConfirm(
+      uint64_t tid, int32_t src_shard, int64_t agreed_ts,
+      const std::vector<uint32_t>& involved_shards);
+
+  /**
+   * Broadcast WatermarkExchange to all involved shard leaders.
+   */
+  void BroadcastWatermarkExchange(
+      int32_t src_shard, const std::vector<int64_t>& watermarks,
+      const std::vector<uint32_t>& involved_shards);
 };
 
 } // namespace janus

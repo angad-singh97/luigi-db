@@ -649,13 +649,10 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
     return;
   }
 
-  for (uint32_t remote_shard : entry->remote_shards_) {
-    luigi_client_->InvokeDeadlinePropose(
-        remote_shard, tid, shard_id_, my_ts, [](int status) {},
-        []() { Log_warn("InitiateAgreement: RPC error"); });
-    Log_info("Luigi InitiateAgreement: sent proposal to shard %u",
-             remote_shard);
-  }
+  // Broadcast to all involved shard leaders
+  commo_->BroadcastDeadlinePropose(
+      tid, shard_id_, my_ts, entry->remote_shards_);
+  Log_info("Luigi InitiateAgreement: broadcasted proposal to %zu shards", entry->remote_shards_.size());
 }
 
 void SchedulerLuigi::SendRepositionConfirmations(
@@ -671,16 +668,9 @@ void SchedulerLuigi::SendRepositionConfirmations(
     return;
   }
 
-  for (uint32_t remote_shard : entry->remote_shards_) {
-    luigi_client_->InvokeDeadlineConfirm(
-        remote_shard, entry->tid_, entry->agreed_ts_, // Use agreed_ts
-        [](int status) {},                            // Response callback
-        []() {
-          Log_warn("SendRepositionConfirmations: RPC error");
-        }); // Error callback
-    Log_info("Luigi SendRepositionConfirmations: sent phase-2 to shard %u",
-             remote_shard);
-  }
+  // Use commo_ broadcast helper for DeadlineConfirm
+  commo_->BroadcastDeadlineConfirm(entry->tid_, shard_id_, entry->agreed_ts_, entry->remote_shards_);
+  Log_info("Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu shards", entry->remote_shards_.size());
 
   {
     std::lock_guard<std::mutex> lock(deadline_queue_mutex_);
@@ -773,23 +763,21 @@ void SchedulerLuigi::BroadcastWatermarks() {
     watermarks_u64.push_back(static_cast<uint64_t>(wm));
   }
 
-  // Broadcast to all shards via eRPC
-  // Each shard independently broadcasts to all others (Tiga-style)
-  // TODO: Get num_shards from configuration
-  uint32_t num_shards = 4; // Default, should come from config
-
-  for (uint32_t remote_shard = 0; remote_shard < num_shards; remote_shard++) {
-    if (remote_shard == shard_id_) {
-      continue; // Don't send to ourselves
+  // Use commo_ broadcast helper for WatermarkExchange
+  commo_->BroadcastWatermarkExchange(shard_id_, current_wms, GetAllShardIdsExceptSelf());
+  Log_debug("BroadcastWatermarks: broadcasted to all shards except self");
+// Helper to get all shard IDs except self for broadcasting
+std::vector<uint32_t> SchedulerLuigi::GetAllShardIdsExceptSelf() const {
+  std::vector<uint32_t> all_shards;
+  auto config = Config::GetConfig();
+  uint32_t num_shards = config->GetNumPartition();
+  for (uint32_t i = 0; i < num_shards; ++i) {
+    if (i != shard_id_) {
+      all_shards.push_back(i);
     }
-
-    luigi_client_->InvokeWatermarkExchange(
-        remote_shard, watermarks_u64, [](char *) {}, // Response callback
-        []() { Log_warn("BroadcastWatermarks: RPC error"); }); // Error callback
   }
-
-  Log_debug("BroadcastWatermarks: sent %zu watermarks to %u shards",
-            watermarks_u64.size(), num_shards - 1);
+  return all_shards;
+}
 }
 
 //=============================================================================

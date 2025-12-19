@@ -46,6 +46,8 @@ class LuigiClient; // Forward declaration for leader-to-leader eRPC
  * 5. ExecTd() executes and triggers timestamp agreement for multi-shard txns
  */
 class SchedulerLuigi : public SchedulerClassic {
+  // Helper to get all shard IDs except self for broadcasting
+  std::vector<uint32_t> GetAllShardIdsExceptSelf() const;
 public:
   SchedulerLuigi();
   virtual ~SchedulerLuigi();
