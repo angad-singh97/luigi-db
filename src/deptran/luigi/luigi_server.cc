@@ -32,7 +32,9 @@ namespace janus {
 //=============================================================================
 
 LuigiReceiver::LuigiReceiver(const std::string &config_file)
-    : config_(config_file) {}
+    : config_(config_file) {
+  // transport::Configuration initialized with config file path
+}
 
 LuigiReceiver::~LuigiReceiver() { StopScheduler(); }
 
@@ -84,7 +86,8 @@ void LuigiReceiver::InitScheduler(uint32_t shard_id) {
   scheduler_->SetPartitionId(shard_id);
 
   // Set worker count based on warehouses (default 1)
-  uint32_t worker_count = (config_.warehouses > 0) ? config_.warehouses : 1;
+  auto &cfg = BenchmarkConfig::getInstance();
+  uint32_t worker_count = (cfg.getScaleFactor() > 0) ? cfg.getScaleFactor() : 1;
   scheduler_->SetWorkerCount(worker_count);
 
   // Replication callback: called by scheduler when transaction commits
@@ -406,9 +409,10 @@ LuigiServer::LuigiServer(int shard_idx, const std::string &benchmark_type)
     : shard_idx_(shard_idx), benchmark_type_(benchmark_type) {
   // Get config from BenchmarkConfig singleton
   auto &cfg = BenchmarkConfig::getInstance();
-  config_ = cfg.getConfig();
+  // Config already set by BenchmarkConfig::getInstance()
+  // receiver_ will use it via getInstance()
 
-  receiver_ = new LuigiReceiver(config_->configFile);
+  receiver_ = new LuigiReceiver(cfg.getConfig()->configFile);
 }
 
 LuigiServer::~LuigiServer() {
@@ -435,12 +439,12 @@ void LuigiServer::Run() {
     state_machine =
         std::make_shared<LuigiTPCCStateMachine>(shard_idx_,       // shard_id
                                                 0,                // replica_id
-                                                config_->nshards, // shard_num
+                                                cfg.getNshards(), // shard_num
                                                 1                 // replica_num
         );
   } else if (benchmark_type_ == "micro") {
     state_machine = std::make_shared<LuigiMicroStateMachine>(
-        shard_idx_, 0, config_->nshards, 1);
+        shard_idx_, 0, cfg.getNshards(), 1);
   } else {
     Log_error("Unknown benchmark type: %s", benchmark_type_.c_str());
     return; // OWD stop removed
@@ -470,7 +474,7 @@ void LuigiServer::Run() {
   // No additional setup needed here - transport is initialized externally
 
   std::cout << "\n=== Luigi Server Ready ===\n";
-  std::cout << "Shard:      " << shard_idx_ << "/" << config_->nshards << "\n";
+  std::cout << "Shard:      " << shard_idx_ << "/" << cfg.getNshards() << "\n";
   std::cout << "Benchmark:  " << benchmark_type_ << "\n";
   std::cout << "Workers:    " << cfg.getNthreads() << "\n";
   std::cout << "Listening for requests...\n\n";

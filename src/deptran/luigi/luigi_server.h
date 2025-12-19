@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "lib/configuration.h" // For transport::Configuration
 #include "lib/transport.h"
 
 #include "luigi_common.h"

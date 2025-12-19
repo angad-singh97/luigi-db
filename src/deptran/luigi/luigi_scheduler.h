@@ -97,6 +97,7 @@ public:
   void EnableStateMachineMode(bool enable);
   void SetReplicationCallback(LuigiExecutor::ReplicationCallback cb);
   bool HasPendingTxn(uint64_t txn_id) const;
+  void SetPartitionId(uint32_t shard_id);
 
   // Requeue a txn after agreement determines it needs repositioning (Case 3)
   void RequeueForReposition(std::shared_ptr<LuigiLogEntry> entry);
@@ -239,26 +240,11 @@ protected:
   mutable std::mutex pending_txns_mutex_;
   std::unordered_set<uint64_t> pending_txns_;
 
-  void SetPartitionId(uint32_t shard_id) {
-    shard_id_ = shard_id;
-    executor_.SetPartitionId(shard_id);
-  }
+  // (SetPartitionId moved to public section above)
 
-  // Initialize with worker count (from config)
-  void SetWorkerCount(uint32_t count) {
-    worker_count_ = count;
-    std::lock_guard<std::mutex> lock(watermark_mutex_);
-    watermarks_.assign(count, 0);
-  }
+  // (SetWorkerCount moved to public section above)
 
-  uint32_t GetPartitionId() const { return shard_id_; }
-  uint32_t partition_id() const { return shard_id_; } // alias for compatibility
-
-  /**
-   * Check if a transaction is still pending (queued or executing).
-   * Used by async status check to distinguish QUEUED vs NOT_FOUND.
-   */
-  bool HasPendingTxn(uint64_t txn_id) const;
+  // (GetPartitionId, partition_id, HasPendingTxn moved to public section above)
 
   //==========================================================================
   // WATERMARK METHODS
@@ -278,9 +264,8 @@ protected:
 
   /**
    * Handle incoming WatermarkExchange RPC.
+   * (Implementation moved to .cc file)
    */
-  void HandleWatermarkExchange(uint32_t src_shard,
-                               const std::vector<int64_t> &watermarks);
 
   /**
    * Periodic task to broadcast local watermarks to other leaders.
@@ -296,28 +281,14 @@ protected:
   // CALLBACKS FOR DB OPERATIONS (set by Mako's ShardReceiver)
   //==========================================================================
 
-  void SetReadCallback(LuigiExecutor::ReadCallback cb) {
-    executor_.SetReadCallback(std::move(cb));
-  }
-  void SetWriteCallback(LuigiExecutor::WriteCallback cb) {
-    executor_.SetWriteCallback(std::move(cb));
-  }
-  void SetReplicationCallback(LuigiExecutor::ReplicationCallback cb) {
-    executor_.SetReplicationCallback(std::move(cb));
-  }
+  // (SetReplicationCallback moved to public section)
 
   //==========================================================================
   // STATE MACHINE MODE (Tiga-style stored procedure execution)
   // When enabled, bypasses callbacks and uses direct storage access.
   //==========================================================================
 
-  void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {
-    executor_.SetStateMachine(std::move(sm));
-  }
-
-  void EnableStateMachineMode(bool enable) {
-    executor_.EnableStateMachineMode(enable);
-  }
+  // (SetStateMachine and EnableStateMachineMode moved to public section)
 
   bool IsStateMachineMode() const { return executor_.IsStateMachineMode(); }
 
@@ -355,26 +326,6 @@ protected:
   void UpdateDeadlineRecord(uint64_t tid, uint32_t src_shard,
                             uint64_t proposed_ts, uint32_t phase,
                             std::shared_ptr<LuigiLogEntry> entry = nullptr);
-
-  /**
-   * Handle a deadline proposal RPC from a remote leader.
-   * This is the RPC handler called by LuigiLeaderServiceImpl.
-   *
-   * @param tid Transaction ID
-   * @param src_shard Source shard that sent the proposal
-   * @param remote_ts Remote shard's proposed timestamp
-   * @param phase 1=initial proposal, 2=reposition confirmation
-   * @return Our proposed timestamp for this txn (0 if we don't have entry yet)
-   */
-  uint64_t HandleRemoteDeadlineProposal(uint64_t tid, uint32_t src_shard,
-                                        uint64_t remote_ts, uint32_t phase);
-
-  /**
-   * Handle a confirmation from a remote leader (phase=2).
-   * Implemented via HandleRemoteDeadlineProposal.
-   */
-  bool HandleRemoteDeadlineConfirm(uint64_t tid, uint32_t src_shard,
-                                   uint64_t new_ts);
 
   /**
    * Initiate agreement for a multi-shard transaction (Tiga-style).
