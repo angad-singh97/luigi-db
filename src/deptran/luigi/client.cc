@@ -2,7 +2,7 @@
  * LuigiClient: Standalone client implementation for Luigi protocol.
  */
 
-#include "luigi_client.h"
+#include "client.h"
 
 #include <chrono>
 #include <random>

@@ -1,5 +1,5 @@
 /**
- * @file luigi_benchmark_client.h
+ * @file benchmark_client.h
  * @brief Luigi benchmark client for Tiga-style stored-procedure benchmarks
  *
  * This client uses the transaction generators (MicroTxnGenerator,
@@ -31,7 +31,7 @@
 
 #include "lib/configuration.h"
 #include "lib/transport.h"
-#include "luigi_client.h"
+#include "client.h"
 
 #include "micro_txn_generator.h"
 #include "tpcc_txn_generator.h"

@@ -1,0 +1,87 @@
+namespace janus;
+
+abstract service Luigi {
+    // Main transaction dispatch RPC
+    defer Dispatch(
+        i32 target_server_id,
+        i32 req_nr,
+        i64 txn_id,
+        i64 expected_time,
+        i32 worker_id,
+        i32 num_ops,
+        i32 num_involved_shards,
+        vector<i32> involved_shards,
+        string ops_data
+        |
+        i32 req_nr_out,
+        i64 txn_id_out,
+        i32 status,
+        i64 commit_timestamp,
+        i32 num_results,
+        string results_data
+    );
+    
+    // Check transaction status (for async dispatch)
+    defer StatusCheck(
+        i32 target_server_id,
+        i32 req_nr,
+        i64 txn_id
+        |
+        i32 req_nr_out,
+        i64 txn_id_out,
+        i32 status,
+        i64 commit_timestamp,
+        i32 num_results,
+        string results_data
+    );
+    
+    // One-way delay ping for latency measurement
+    defer OwdPing(
+        i32 target_server_id,
+        i32 req_nr,
+        i64 send_time
+        |
+        i32 req_nr_out,
+        i32 status
+    );
+    
+    // Deadline proposal (leader-to-leader coordination)
+    defer DeadlinePropose(
+        i32 target_server_id,
+        i32 req_nr,
+        i64 tid,
+        i64 proposed_ts,
+        i32 src_shard,
+        i32 phase
+        |
+        i32 req_nr_out,
+        i64 tid_out,
+        i64 proposed_ts_out,
+        i32 shard_id,
+        i32 status
+    );
+    
+    // Deadline confirmation (leader-to-leader coordination)
+    defer DeadlineConfirm(
+        i32 target_server_id,
+        i32 req_nr,
+        i64 tid,
+        i32 src_shard,
+        i64 new_ts
+        |
+        i32 req_nr_out,
+        i32 status
+    );
+    
+    // Watermark exchange (leader-to-leader coordination)
+    defer WatermarkExchange(
+        i32 target_server_id,
+        i32 req_nr,
+        i32 src_shard,
+        i32 num_watermarks,
+        vector<i64> watermarks
+        |
+        i32 req_nr_out,
+        i32 status
+    );
+}

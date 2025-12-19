@@ -10,8 +10,8 @@
 #undef SUCCESS
 
 #include "luigi_entry.h"
-#include "luigi_executor.h"
-#include "luigi_state_machine.h"
+#include "executor.h"
+#include "state_machine.h"
 
 #include <atomic>
 #include <functional>

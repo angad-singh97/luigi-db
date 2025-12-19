@@ -17,7 +17,7 @@
 
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/rpc_setup.h"
-#include "deptran/luigi/luigi_server.h"
+#include "deptran/luigi/service.h"
 #include "lib/common.h"
 
 using namespace std;

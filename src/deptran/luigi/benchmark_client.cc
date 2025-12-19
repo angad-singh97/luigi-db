@@ -3,9 +3,9 @@
  * @brief Implementation of Luigi benchmark client
  */
 
-#include "deptran/luigi/luigi_benchmark_client.h"
-#include "deptran/luigi/luigi_client.h"
-#include "deptran/luigi/luigi_owd.h"
+#include "deptran/luigi/benchmark_client.h"
+#include "deptran/luigi/client.h"
+#include "deptran/luigi/owd.h"
 #include "mako/benchmarks/benchmark_config.h"
 #include "mako/lib/configuration.h"
 #include "mako/lib/fasttransport.h"

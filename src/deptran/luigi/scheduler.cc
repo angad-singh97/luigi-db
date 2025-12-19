@@ -1,4 +1,4 @@
-#include "luigi_scheduler.h"
+#include "scheduler.h"
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/sto/sync_util.hh"
 #include "deptran/__dep__.h"
@@ -6,7 +6,7 @@
 #include "lib/common.h"
 #include "lib/fasttransport.h"
 #include "lib/message.h"
-#include "luigi_client.h"
+#include "client.h"
 #include "luigi_common.h"
 #include "luigi_entry.h"
 

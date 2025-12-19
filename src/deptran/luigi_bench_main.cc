@@ -36,8 +36,8 @@
 #include <iostream>
 #include <string>
 
-#include "deptran/luigi/luigi_benchmark_client.h"
-#include "deptran/luigi/luigi_owd.h"
+#include "deptran/luigi/benchmark_client.h"
+#include "deptran/luigi/owd.h"
 #include "deptran/luigi/luigi_transport_setup.h"
 #include "mako/lib/configuration.h"
 

@@ -1,6 +1,6 @@
-#include "luigi_executor.h"
-#include "luigi_scheduler.h" // For RPC coordination
-#include "luigi_state_machine.h"
+#include "executor.h"
+#include "scheduler.h" // For RPC coordination
+#include "state_machine.h"
 
 #include <algorithm>
 #include <chrono>

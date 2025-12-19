@@ -1,8 +1,8 @@
-#include "luigi_owd.h"
+#include "owd.h"
 #include "lib/configuration.h"
 #include "lib/fasttransport.h"
-#include "luigi_client.h"
-#include "luigi_owd.h"
+#include "client.h"
+#include "owd.h"
 
 #include <algorithm>
 #include <future>

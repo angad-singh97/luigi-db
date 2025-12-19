@@ -1,7 +1,7 @@
 #pragma once
 
 #include "luigi_entry.h"
-#include "luigi_state_machine.h"
+#include "state_machine.h"
 
 #include <map>
 #include <string>

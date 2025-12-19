@@ -608,6 +608,21 @@ add_custom_target(rcc_rpc_gen DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/rcc_rpc.py
 )
 
+# Luigi RPC generation
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/luigi/luigi.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/luigi/luigi.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/bin/rpcgen --cpp --python src/deptran/luigi/luigi.rpc
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/luigi/luigi.rpc
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_target(luigi_rpc_gen DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/luigi/luigi.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran/luigi/luigi.py
+)
+
+
 # Custom command for lz4 library - build only if missing
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third-party/lz4/liblz4.so")
   message(STATUS "Building LZ4 library...")
@@ -667,6 +682,19 @@ list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
 # Exclude Luigi benchmark main (it's a standalone executable)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main.cc")
+# Exclude Luigi server main (it's a standalone executable)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_server_main.cc")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi_server_main.cc")
+# Exclude Luigi benchmark main (it's a standalone executable)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main.cc")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi_bench_main.cc")
+# Exclude hello world test files (they have main functions)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_client.cc")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_server.cc")
+# Exclude Luigi client files (they depend on eRPC TransportReceiver which requires mako)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "luigi_client.cc$")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "luigi_transport_setup.cc$")
+
 
 # Choose helper source based on MAKO_USE_RAFT
 if(MAKO_USE_RAFT)
@@ -713,6 +741,7 @@ target_link_libraries(txlog
     ${CMAKE_DL_LIBS}
     Python3::Python
 )
+
 
 # Set output location to match expected path
 set_target_properties(txlog PROPERTIES
@@ -912,8 +941,70 @@ function(add_apps exec_name exec_path)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
-add_apps(luigi_bench "src/deptran/luigi/luigi_bench_main.cc;src/deptran/luigi/luigi_transport_setup.cc")  # Luigi stored-procedure benchmark
-add_apps(luigi_server src/deptran/luigi/luigi_server_main.cc)  # Luigi server
+add_apps(luigi_bench src/deptran/luigi_bench_main.cc)  # Luigi benchmark client
+# Luigi RRR server - custom target without txlog to avoid eRPC dependencies
+# This is a minimal server that only uses RRR for RPC
+set(LUIGI_SERVER_RRR_SOURCES
+    src/deptran/luigi_server_main.cc
+    src/deptran/luigi/server.cc
+    src/deptran/luigi/service.cc
+    src/deptran/luigi/scheduler.cc
+    src/deptran/luigi/executor.cc
+    src/deptran/luigi/state_machine.cc
+    src/deptran/luigi/commo.cc
+    src/deptran/luigi/luigi.h
+    src/deptran/communicator.cc
+    src/memdb/row.cc
+    src/memdb/schema.cc
+    src/memdb/table.cc
+    src/memdb/txn.cc
+    src/memdb/value.cc
+    src/rrr/base/basetypes.cpp
+    src/rrr/base/debugging.cpp
+    src/rrr/base/logging.cpp
+    src/rrr/base/misc.cpp
+    src/rrr/base/strop.cpp
+    src/rrr/base/threading.cpp
+    src/rrr/misc/alock.cpp
+    src/rrr/misc/marshal.cpp
+    src/rrr/misc/rand.cpp
+    src/rrr/rpc/client.cpp
+    src/rrr/rpc/server.cpp
+    src/rrr/rpc/utils.cpp
+    src/rrr/reactor/coroutine.cc
+    src/rrr/reactor/epoll_wrapper.cc
+    src/rrr/reactor/event.cc
+    src/rrr/reactor/quorum_event.cc
+    src/rrr/reactor/reactor.cc
+)
+add_executable(luigi_server_rrr ${LUIGI_SERVER_RRR_SOURCES})
+target_link_libraries(luigi_server_rrr txlog mako erpc pthread event event_pthreads event_core)
+target_include_directories(luigi_server_rrr PRIVATE
+    src
+    src/mako
+    src/rrr
+    src/deptran
+    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
+    dependencies/yaml-cpp/include
+    ${Boost_INCLUDE_DIRS}
+)
+target_compile_options(luigi_server_rrr PRIVATE ${BENCH_CXXFLAGS})
+target_link_libraries(luigi_server_rrr
+    mako
+    yaml-cpp
+    Boost::system
+    Boost::filesystem
+    Boost::thread
+    Boost::coroutine
+    Boost::context
+    pthread
+    numa
+    event_pthreads
+    rocksdb
+)
+add_dependencies(luigi_server_rrr mako rcc_rpc_gen)
+
+
 add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(continuousTransactions examples/continuousTransactions.cc)
