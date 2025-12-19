@@ -632,7 +632,7 @@ file(GLOB RRR_SRC
     src/deptran/luigi/luigi_executor.cc
     src/deptran/luigi/luigi_state_machine.cc
     src/deptran/luigi/luigi_owd.cc
-    src/deptran/luigi/luigi_transport_setup.cc
+    # luigi_transport_setup.cc excluded - only used by luigi_bench executable
     "src/rrr/base/*.cpp"
     "src/rrr/misc/*.hpp"
     "src/rrr/misc/*.cpp"
@@ -912,7 +912,7 @@ function(add_apps exec_name exec_path)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
-add_apps(luigi_bench src/deptran/luigi/luigi_bench_main.cc)  # Luigi stored-procedure benchmark
+add_apps(luigi_bench "src/deptran/luigi/luigi_bench_main.cc;src/deptran/luigi/luigi_transport_setup.cc")  # Luigi stored-procedure benchmark
 add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(continuousTransactions examples/continuousTransactions.cc)
