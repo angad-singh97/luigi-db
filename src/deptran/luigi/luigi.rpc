@@ -1,87 +1,49 @@
 namespace janus;
 
 abstract service Luigi {
-    // Main transaction dispatch RPC
+    // Main transaction dispatch RPC (synchronous - waits for execution)
     defer Dispatch(
-        i32 target_server_id,
-        i32 req_nr,
         i64 txn_id,
         i64 expected_time,
         i32 worker_id,
-        i32 num_ops,
-        i32 num_involved_shards,
         vector<i32> involved_shards,
         string ops_data
         |
-        i32 req_nr_out,
-        i64 txn_id_out,
         i32 status,
         i64 commit_timestamp,
-        i32 num_results,
-        string results_data
-    );
-    
-    // Check transaction status (for async dispatch)
-    defer StatusCheck(
-        i32 target_server_id,
-        i32 req_nr,
-        i64 txn_id
-        |
-        i32 req_nr_out,
-        i64 txn_id_out,
-        i32 status,
-        i64 commit_timestamp,
-        i32 num_results,
         string results_data
     );
     
     // One-way delay ping for latency measurement
     defer OwdPing(
-        i32 target_server_id,
-        i32 req_nr,
         i64 send_time
         |
-        i32 req_nr_out,
         i32 status
     );
     
-    // Deadline proposal (leader-to-leader coordination)
+    // Deadline proposal phase 1: broadcast proposed timestamp to all leaders
     defer DeadlinePropose(
-        i32 target_server_id,
-        i32 req_nr,
         i64 tid,
-        i64 proposed_ts,
         i32 src_shard,
-        i32 phase
+        i64 proposed_ts
         |
-        i32 req_nr_out,
-        i64 tid_out,
-        i64 proposed_ts_out,
-        i32 shard_id,
         i32 status
     );
     
-    // Deadline confirmation (leader-to-leader coordination)
+    // Deadline confirmation phase 2: confirm agreed max timestamp
     defer DeadlineConfirm(
-        i32 target_server_id,
-        i32 req_nr,
         i64 tid,
         i32 src_shard,
-        i64 new_ts
+        i64 agreed_ts
         |
-        i32 req_nr_out,
         i32 status
     );
     
     // Watermark exchange (leader-to-leader coordination)
     defer WatermarkExchange(
-        i32 target_server_id,
-        i32 req_nr,
         i32 src_shard,
-        i32 num_watermarks,
         vector<i64> watermarks
         |
-        i32 req_nr_out,
         i32 status
     );
 }

@@ -1,311 +1,246 @@
 /**
- * @file luigi_benchmark_client.cc
- * @brief Implementation of Luigi benchmark client
+ * @file benchmark_client.cc
+ * @brief Implementation of Luigi benchmark client using RRR framework
  */
 
-#include "deptran/luigi/benchmark_client.h"
-#include "deptran/luigi/client.h"
-#include "deptran/luigi/owd.h"
-#include "mako/benchmarks/benchmark_config.h"
-#include "mako/lib/configuration.h"
-#include "mako/lib/fasttransport.h"
+#include "benchmark_client.h"
+#include "owd.h"
 
+#include <algorithm>
 #include <future>
 #include <memory>
 #include <numeric>
 
-namespace mako {
+namespace janus {
 namespace luigi {
 
-// Constructor
-LuigiBenchmarkClient::LuigiBenchmarkClient(
-    const LuigiBenchmarkClient::Config &config)
-    : config_(config), luigi_client_(nullptr), transport_(nullptr) {}
+LuigiBenchmarkClient::LuigiBenchmarkClient(const Config &config)
+    : config_(config) {}
 
 LuigiBenchmarkClient::~LuigiBenchmarkClient() {
-  // LuigiClient needs to be destroyed before transport
-  luigi_client_.reset();
-
-  if (transport_) {
-    delete transport_;
-    transport_ = nullptr;
-  }
+  Stop();
+  clients_.clear();
 }
 
-bool LuigiBenchmarkClient::Initialize() {
-  try {
-    // Get transport from BenchmarkConfig (created by setup_luigi_transport)
-    auto &cfg = BenchmarkConfig::getInstance();
-    auto &server_transports = cfg.getServerTransports();
+bool LuigiBenchmarkClient::Initialize(std::shared_ptr<LuigiCommo> commo) {
+  commo_ = commo;
 
-    if (server_transports.empty()) {
-      std::cerr << "No transports available in BenchmarkConfig. "
-                << "Did you call setup_luigi_transport()?" << std::endl;
-      return false;
-    }
-
-    // Use the first transport (or could use round-robin for load balancing)
-    transport_ = server_transports[0];
-
-    // Create LuigiClient with the transport
-    // Note: config_file parameter not used (LuigiClient uses BenchmarkConfig)
-    luigi_client_ =
-        std::make_unique<LuigiClient>("", transport_, 0 /* client_id */);
-
-  } catch (const std::exception &e) {
-    std::cerr << "Failed to initialize LuigiBenchmarkClient: " << e.what()
-              << std::endl;
+  if (!commo_) {
+    Log_error("LuigiBenchmarkClient: commo is null");
     return false;
   }
 
-  // Pre-allocate thread stats
+  // Create clients for each partition/shard
+  for (int i = 0; i < config_.num_shards; i++) {
+    auto client = std::make_unique<LuigiClient>(i);
+    client->Initialize(commo_);
+    clients_[i] = std::move(client);
+  }
+
+  // Initialize thread stats
   thread_stats_.resize(config_.num_threads);
+
+  Log_info("LuigiBenchmarkClient initialized with %d shards, %d threads",
+           config_.num_shards, config_.num_threads);
 
   return true;
 }
 
-mako::luigi::BenchmarkStats
-LuigiBenchmarkClient::RunBenchmark(LuigiBenchmarkClient::BenchmarkType type) {
-  // Create generator based on type
-  switch (type) {
-  case BenchmarkType::BM_MICRO:
-    generator_ = std::make_unique<MicroTxnGenerator>(config_.gen_config);
-    break;
-  case BenchmarkType::BM_MICRO_SINGLE:
-    generator_ = std::make_unique<SingleShardMicroTxnGenerator>(
-        config_.gen_config, config_.shard_index);
-    break;
-  case BenchmarkType::BM_TPCC:
-    generator_ = std::make_unique<TPCCTxnGenerator>(config_.gen_config);
-    break;
+void LuigiBenchmarkClient::Stop() {
+  running_.store(false);
+}
+
+BenchmarkStats LuigiBenchmarkClient::RunBenchmark(BenchmarkType type) {
+  current_benchmark_type_ = type;
+
+  // Create appropriate generator
+  {
+    std::lock_guard<std::mutex> lock(generator_mutex_);
+    switch (type) {
+    case BenchmarkType::BM_MICRO:
+      generator_ = std::make_unique<MicroTxnGenerator>(config_.gen_config);
+      break;
+    case BenchmarkType::BM_MICRO_SINGLE:
+      generator_ = std::make_unique<MicroTxnGenerator>(config_.gen_config);
+      // Force single-shard by setting shard_num to 1 in generator
+      break;
+    case BenchmarkType::BM_TPCC:
+      generator_ = std::make_unique<TPCCTxnGenerator>(config_.gen_config);
+      break;
+    }
   }
 
-  if (!generator_) {
-    std::cerr << "Failed to create transaction generator" << std::endl;
-    return BenchmarkStats{};
-  }
-
-  // Clear previous stats
+  // Reset stats
   for (auto &ts : thread_stats_) {
     ts.records.clear();
     ts.committed = 0;
     ts.aborted = 0;
   }
-
-  // Reserve space for latency records (estimate)
-  size_t estimated_txns = config_.duration_sec * 10000 / config_.num_threads;
-  for (auto &ts : thread_stats_) {
-    ts.records.reserve(estimated_txns);
-  }
+  next_txn_id_.store(1);
 
   // Start benchmark
-  running_ = true;
+  running_.store(true);
   start_time_us_ = GetTimestampUs();
-  uint64_t target_end_time = start_time_us_ + config_.duration_sec * 1000000ULL;
 
-  std::cout << "Starting benchmark: type=" << static_cast<int>(type)
-            << ", threads=" << config_.num_threads
-            << ", duration=" << config_.duration_sec << "s" << std::endl;
-
-  // Launch worker threads
+  // Spawn worker threads
   std::vector<std::thread> workers;
-  for (int i = 0; i < config_.num_threads; ++i) {
+  for (int i = 0; i < config_.num_threads; i++) {
     workers.emplace_back(&LuigiBenchmarkClient::WorkerThread, this, i);
   }
 
-  // Wait for duration to elapse or Stop() called
-  while (running_ && GetTimestampUs() < target_end_time) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
+  // Wait for duration
+  std::this_thread::sleep_for(std::chrono::seconds(config_.duration_sec));
 
-  // Signal workers to stop
-  running_ = false;
-  end_time_us_ = GetTimestampUs();
-
-  // Wait for all workers to finish
+  // Stop and wait for workers
+  running_.store(false);
   for (auto &w : workers) {
     w.join();
   }
 
-  std::cout << "Benchmark completed" << std::endl;
+  end_time_us_ = GetTimestampUs();
 
-  // Calculate and return statistics
   return CalculateStats();
 }
 
 void LuigiBenchmarkClient::WorkerThread(int thread_id) {
-  while (running_) {
-    DispatchOneTransaction(thread_id);
+  while (running_.load()) {
+    if (!DispatchOneTransaction(thread_id)) {
+      // Small sleep on failure to avoid tight loop
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
   }
 }
 
 bool LuigiBenchmarkClient::DispatchOneTransaction(int thread_id) {
-  // Generate transaction request
   LuigiTxnRequest req;
+
+  // Generate transaction
   {
     std::lock_guard<std::mutex> lock(generator_mutex_);
-    generator_->GetTxnReq(&req, 0, 0);
+    if (!generator_) {
+      return false;
+    }
+    uint64_t local_id = next_txn_id_.fetch_add(1);
+    uint64_t txn_id = (static_cast<uint64_t>(thread_id) << 48) | local_id;
+    generator_->GetTxnReq(&req, static_cast<uint32_t>(txn_id), thread_id);
+    req.txn_id = txn_id;
   }
 
-  // Assign unique transaction ID (simple counter - worker_id is separate)
-  req.txn_id = next_txn_id_.fetch_add(1);
-
-  // Calculate worker_id for this thread (base + thread_id)
-  req.worker_id = config_.worker_id_base + thread_id;
+  // Calculate worker ID
+  uint32_t worker_id = config_.worker_id_base + thread_id;
 
   // Record start time
-  TxnRecord record;
-  record.txn_id = req.txn_id;
-  record.start_time_us = GetTimestampUs();
-  record.txn_type = req.txn_type;
+  uint64_t start_us = GetTimestampUs();
 
-  // Dispatch via ShardClient
-  bool committed = DispatchRequest(req);
+  // Dispatch
+  bool committed = DispatchRequest(req, worker_id);
 
   // Record end time
-  record.end_time_us = GetTimestampUs();
+  uint64_t end_us = GetTimestampUs();
+
+  // Record result
+  TxnRecord record;
+  record.txn_id = req.txn_id;
+  record.start_time_us = start_us;
+  record.end_time_us = end_us;
   record.committed = committed;
+  record.txn_type = req.txn_type;
 
-  // Store record
-  auto &ts = thread_stats_[thread_id];
-  ts.records.push_back(record);
+  thread_stats_[thread_id].records.push_back(record);
   if (committed) {
-    ts.committed++;
+    thread_stats_[thread_id].committed++;
   } else {
-    ts.aborted++;
+    thread_stats_[thread_id].aborted++;
   }
 
-  return committed;
+  return true;
 }
 
-bool LuigiBenchmarkClient::DispatchRequest(const LuigiTxnRequest &req) {
-  if (!luigi_client_) {
+bool LuigiBenchmarkClient::DispatchRequest(const LuigiTxnRequest &req,
+                                           uint32_t worker_id) {
+  // Determine involved shards
+  std::vector<uint32_t> involved_shards;
+  for (const auto &op : req.ops) {
+    // Simple hash-based sharding
+    uint32_t shard = 0;
+    if (config_.num_shards > 1) {
+      size_t hash = std::hash<std::string>{}(op.key);
+      shard = hash % config_.num_shards;
+    }
+    if (std::find(involved_shards.begin(), involved_shards.end(), shard) ==
+        involved_shards.end()) {
+      involved_shards.push_back(shard);
+    }
+  }
+
+  // For single-shard benchmark, force all to local shard
+  if (current_benchmark_type_ == BenchmarkType::BM_MICRO_SINGLE) {
+    involved_shards = {static_cast<uint32_t>(config_.shard_index)};
+  }
+
+  // Calculate expected timestamp using OWD
+  std::vector<int> shard_indices(involved_shards.begin(), involved_shards.end());
+  uint64_t expected_time =
+      LuigiOWD::getInstance().getExpectedTimestamp(shard_indices);
+
+  // Send to primary shard (first involved shard)
+  parid_t primary_shard = involved_shards.empty() ? 0 : involved_shards[0];
+
+  auto it = clients_.find(primary_shard);
+  if (it == clients_.end()) {
+    Log_error("No client for shard %d", primary_shard);
     return false;
   }
 
-  // Create promise for synchronous wait
-  auto promise = std::make_shared<std::promise<bool>>();
-  auto future = promise->get_future();
+  int status;
+  uint64_t commit_ts;
+  std::vector<std::string> results;
 
-  // Build dispatch request
-  std::map<int, LuigiDispatchBuilder *> requests_per_shard;
+  bool ok = it->second->Dispatch(req.txn_id, expected_time, req.ops,
+                                 involved_shards, worker_id, &status,
+                                 &commit_ts, &results);
 
-  // Group ops by shard (not done here, assuming single shard or simple
-  // partitioning for now) For now, we broadcast the full request to all target
-  // shards
-  // TODO: Ideally allow splitting request by shard
-
-  for (uint32_t shard_id : req.target_shards) {
-    auto *builder = new LuigiDispatchBuilder();
-    builder->SetTxnId(req.txn_id).SetReqNr(req.req_id);
-
-    // Use OWD module for timestamp calculation
-    auto &owd = mako::luigi::LuigiOWD::getInstance();
-    std::vector<int> shard_vec(req.target_shards.begin(),
-                               req.target_shards.end());
-    uint64_t expected_time = owd.getExpectedTimestamp(shard_vec);
-
-    builder->SetExpectedTime(expected_time);
-
-    // Set worker_id
-    builder->SetWorkerId(req.worker_id);
-
-    // Add ops
-    for (const auto &op : req.ops) {
-      if (op.op_type == 1) { // READ
-        builder->AddRead(op.table_id, op.key);
-      } else { // WRITE
-        builder->AddWrite(op.table_id, op.key, op.value);
-      }
-    }
-
-    requests_per_shard[shard_id] = builder;
-  }
-
-  // Call LuigiClient
-  luigi_client_->InvokeDispatch(
-      req.txn_id, requests_per_shard,
-      [promise](char *respBuf) {
-        // Success callback
-        promise->set_value(true);
-      },
-      [promise]() {
-        // Error callback
-        promise->set_value(false);
-      },
-      250 // timeout ms
-  );
-
-  // Wait for result
-  if (future.wait_for(std::chrono::milliseconds(1000)) ==
-      std::future_status::ready) {
-    bool success = future.get();
-    // Cleanup builders
-    for (auto &pair : requests_per_shard) {
-      delete pair.second;
-    }
-    return success;
-  } else {
-    // Timeout
-    // Cleanup builders
-    for (auto &pair : requests_per_shard) {
-      delete pair.second;
-    }
-    return false;
-  }
+  return ok && status == 0; // LUIGI_SUCCESS
 }
 
-void LuigiBenchmarkClient::Stop() { running_ = false; }
-
-mako::luigi::BenchmarkStats LuigiBenchmarkClient::CalculateStats() {
+BenchmarkStats LuigiBenchmarkClient::CalculateStats() {
   BenchmarkStats stats;
 
-  // Aggregate all latencies
-  std::vector<uint64_t> all_latencies;
-
+  // Aggregate all records
+  std::vector<uint64_t> latencies;
   for (const auto &ts : thread_stats_) {
     stats.committed_txns += ts.committed;
     stats.aborted_txns += ts.aborted;
-
-    for (const auto &record : ts.records) {
-      uint64_t latency = record.end_time_us - record.start_time_us;
-      all_latencies.push_back(latency);
+    for (const auto &rec : ts.records) {
+      latencies.push_back(rec.end_time_us - rec.start_time_us);
     }
   }
 
   stats.total_txns = stats.committed_txns + stats.aborted_txns;
   stats.duration_ms = (end_time_us_ - start_time_us_) / 1000;
 
-  // Calculate throughput
-  double duration_sec = stats.duration_ms / 1000.0;
-  if (duration_sec > 0) {
-    stats.throughput_tps = stats.committed_txns / duration_sec;
+  if (stats.duration_ms > 0) {
+    stats.throughput_tps =
+        1000.0 * stats.committed_txns / stats.duration_ms;
   }
 
-  // Calculate latency percentiles
-  if (!all_latencies.empty()) {
-    std::sort(all_latencies.begin(), all_latencies.end());
+  if (!latencies.empty()) {
+    // Sort for percentiles
+    std::sort(latencies.begin(), latencies.end());
 
     // Average
-    uint64_t sum =
-        std::accumulate(all_latencies.begin(), all_latencies.end(), 0ULL);
-    stats.avg_latency_us = static_cast<double>(sum) / all_latencies.size();
+    double sum = std::accumulate(latencies.begin(), latencies.end(), 0.0);
+    stats.avg_latency_us = sum / latencies.size();
 
     // Percentiles
-    auto percentile = [&](double p) -> double {
-      size_t idx = static_cast<size_t>(p * all_latencies.size());
-      if (idx >= all_latencies.size())
-        idx = all_latencies.size() - 1;
-      return static_cast<double>(all_latencies[idx]);
-    };
-
-    stats.p50_latency_us = percentile(0.50);
-    stats.p99_latency_us = percentile(0.99);
-    stats.p999_latency_us = percentile(0.999);
+    size_t n = latencies.size();
+    stats.p50_latency_us = latencies[n * 50 / 100];
+    stats.p99_latency_us = latencies[n * 99 / 100];
+    stats.p999_latency_us = latencies[std::min(n - 1, n * 999 / 1000)];
   }
 
   return stats;
 }
 
 } // namespace luigi
-} // namespace mako
+} // namespace janus

@@ -9,8 +9,6 @@
 #include <memory>
 #include <string>
 
-#include "lib/configuration.h"
-
 namespace rrr {
 class Server;
 }
@@ -69,7 +67,7 @@ public:
   uint32_t GetPartitionId() const { return partition_id_; }
 
 private:
-  transport::Configuration config_;
+  std::string config_file_;
   uint32_t partition_id_;
   int shard_idx_;
 

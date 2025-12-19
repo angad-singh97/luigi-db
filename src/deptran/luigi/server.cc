@@ -11,7 +11,7 @@
 namespace janus {
 
 LuigiServer::LuigiServer(const std::string &config_file, int shard_idx)
-    : config_(config_file), partition_id_(shard_idx), shard_idx_(shard_idx) {}
+    : config_file_(config_file), partition_id_(shard_idx), shard_idx_(shard_idx) {}
 
 LuigiServer::~LuigiServer() {
   Stop();

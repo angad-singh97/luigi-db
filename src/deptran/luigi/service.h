@@ -35,44 +35,29 @@ public:
   // RRR LuigiService Interface Implementation
   //===========================================================================
 
-  void Dispatch(const rrr::i32 &target_server_id, const rrr::i32 &req_nr,
-                const rrr::i64 &txn_id, const rrr::i64 &expected_time,
-                const rrr::i32 &worker_id, const rrr::i32 &num_ops,
-                const rrr::i32 &num_involved_shards,
+  void Dispatch(const rrr::i64 &txn_id, const rrr::i64 &expected_time,
+                const rrr::i32 &worker_id,
                 const std::vector<rrr::i32> &involved_shards,
-                const std::string &ops_data, rrr::i32 *req_nr_out,
-                rrr::i64 *txn_id_out, rrr::i32 *status,
-                rrr::i64 *commit_timestamp, rrr::i32 *num_results,
+                const std::string &ops_data,
+                rrr::i32 *status,
+                rrr::i64 *commit_timestamp,
                 std::string *results_data, rrr::DeferredReply *defer);
 
-  void StatusCheck(const rrr::i32 &target_server_id, const rrr::i32 &req_nr,
-                   const rrr::i64 &txn_id, rrr::i32 *req_nr_out,
-                   rrr::i64 *txn_id_out, rrr::i32 *status,
-                   rrr::i64 *commit_timestamp, rrr::i32 *num_results,
-                   std::string *results_data,
-                   rrr::DeferredReply *defer);
-
-  void OwdPing(const rrr::i32 &target_server_id, const rrr::i32 &req_nr,
-               const rrr::i64 &send_time, rrr::i32 *req_nr_out,
+  void OwdPing(const rrr::i64 &send_time,
                rrr::i32 *status, rrr::DeferredReply *defer);
 
-  void DeadlinePropose(const rrr::i32 &target_server_id, const rrr::i32 &req_nr,
-                       const rrr::i64 &tid, const rrr::i64 &proposed_ts,
-                       const rrr::i32 &src_shard, const rrr::i32 &phase,
-                       rrr::i32 *req_nr_out, rrr::i64 *tid_out,
-                       rrr::i64 *proposed_ts_out, rrr::i32 *shard_id,
+  void DeadlinePropose(const rrr::i64 &tid,
+                       const rrr::i32 &src_shard,
+                       const rrr::i64 &proposed_ts,
                        rrr::i32 *status, rrr::DeferredReply *defer);
 
-  void DeadlineConfirm(const rrr::i32 &target_server_id, const rrr::i32 &req_nr,
-                       const rrr::i64 &tid, const rrr::i32 &src_shard,
-                       const rrr::i64 &new_ts, rrr::i32 *req_nr_out,
+  void DeadlineConfirm(const rrr::i64 &tid, const rrr::i32 &src_shard,
+                       const rrr::i64 &agreed_ts,
                        rrr::i32 *status, rrr::DeferredReply *defer);
 
-  void WatermarkExchange(const rrr::i32 &target_server_id,
-                         const rrr::i32 &req_nr, const rrr::i32 &src_shard,
-                         const rrr::i32 &num_watermarks,
+  void WatermarkExchange(const rrr::i32 &src_shard,
                          const std::vector<rrr::i64> &watermarks,
-                         rrr::i32 *req_nr_out, rrr::i32 *status,
+                         rrr::i32 *status,
                          rrr::DeferredReply *defer);
 
 protected:

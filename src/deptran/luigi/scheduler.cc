@@ -1,11 +1,6 @@
 #include "scheduler.h"
-#include "benchmarks/benchmark_config.h"
-#include "benchmarks/sto/sync_util.hh"
 #include "deptran/__dep__.h"
-#include "deptran/s_main.h" // For add_log_to_nc
-#include "lib/common.h"
-#include "lib/fasttransport.h"
-#include "lib/message.h"
+#include "deptran/raft_main_helper.h"  // For add_log_to_nc
 #include "client.h"
 #include "luigi_common.h"
 #include "luigi_entry.h"
@@ -13,9 +8,6 @@
 #include <chrono>
 #include <functional>
 #include <iostream>
-
-// Fix macro conflict between deptran/constants.h and mako/lib/common.h
-#undef SUCCESS
 
 namespace janus {
 
@@ -659,7 +651,7 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
 
   for (uint32_t remote_shard : entry->remote_shards_) {
     luigi_client_->InvokeDeadlinePropose(
-        remote_shard, tid, my_ts, 1, [](char *) {},
+        remote_shard, tid, shard_id_, my_ts, [](int status) {},
         []() { Log_warn("InitiateAgreement: RPC error"); });
     Log_info("Luigi InitiateAgreement: sent proposal to shard %u",
              remote_shard);
@@ -682,7 +674,7 @@ void SchedulerLuigi::SendRepositionConfirmations(
   for (uint32_t remote_shard : entry->remote_shards_) {
     luigi_client_->InvokeDeadlineConfirm(
         remote_shard, entry->tid_, entry->agreed_ts_, // Use agreed_ts
-        [](char *) {},                                // Response callback
+        [](int status) {},                            // Response callback
         []() {
           Log_warn("SendRepositionConfirmations: RPC error");
         }); // Error callback
@@ -809,10 +801,6 @@ void SchedulerLuigi::BroadcastWatermarks() {
 // worker_id
 void SchedulerLuigi::Replicate(uint32_t worker_id,
                                const std::shared_ptr<LuigiLogEntry> &entry) {
-  if (!BenchmarkConfig::getInstance().getIsReplicated()) {
-    return; // Replication disabled
-  }
-
   // Serialize the transaction entry for replication
   // Format: [timestamp(8) | tid(8) | worker_id(4) | num_ops(2) | ops_data]
   std::vector<char> log_buffer;
@@ -866,9 +854,6 @@ void SchedulerLuigi::Replicate(uint32_t worker_id,
   // Route to per-worker Paxos stream using worker_id as partition_id
   // This is the key: worker_id determines which Paxos instance/stream to use
   add_log_to_nc(log_buffer.data(), log_buffer.size(), worker_id);
-
-  // TODO: Update watermarks after replication
-  // UpdateLocalWatermark(worker_id, ts);
 
   Log_debug("Luigi Replicate: worker_id=%u, txn_id=%lu, ts=%lu, log_size=%zu",
             worker_id, tid, ts, log_buffer.size());

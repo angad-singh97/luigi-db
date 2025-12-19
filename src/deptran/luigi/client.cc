@@ -1,567 +1,336 @@
 /**
- * LuigiClient: Standalone client implementation for Luigi protocol.
+ * LuigiClient: RRR-based client implementation for Luigi protocol.
  */
 
 #include "client.h"
+#include "../config.h"
 
 #include <chrono>
-#include <random>
-
-#include "benchmarks/sto/Interface.hh"
 
 namespace janus {
 
-//=============================================================================
-// LuigiDispatchBuilder Implementation
-//=============================================================================
+LuigiClient::LuigiClient(parid_t partition_id) : partition_id_(partition_id) {}
 
-LuigiDispatchBuilder::LuigiDispatchBuilder() {
-  request_ = new luigi::DispatchRequest();
-  memset(request_, 0, sizeof(luigi::DispatchRequest));
+LuigiClient::~LuigiClient() {}
+
+void LuigiClient::Initialize(std::shared_ptr<LuigiCommo> commo) {
+  commo_ = commo;
 }
 
-LuigiDispatchBuilder::~LuigiDispatchBuilder() { delete request_; }
-
-LuigiDispatchBuilder::LuigiDispatchBuilder(
-    LuigiDispatchBuilder &&other) noexcept
-    : request_(other.request_), msg_len_(other.msg_len_) {
-  other.request_ = nullptr;
-  other.msg_len_ = 0;
-}
-
-LuigiDispatchBuilder &
-LuigiDispatchBuilder::operator=(LuigiDispatchBuilder &&other) noexcept {
-  if (this != &other) {
-    delete request_;
-    request_ = other.request_;
-    msg_len_ = other.msg_len_;
-    other.request_ = nullptr;
-    other.msg_len_ = 0;
+siteid_t LuigiClient::GetLeaderSiteId() {
+  // Get the leader site for this partition from config
+  auto config = Config::GetConfig();
+  auto sites = config->SitesByPartitionId(partition_id_);
+  if (sites.empty()) {
+    Log_error("No sites found for partition %d", partition_id_);
+    return 0;
   }
-  return *this;
+  // Return first site (leader) for now
+  // TODO: support leader election
+  return sites[0].id;
 }
 
-LuigiDispatchBuilder &LuigiDispatchBuilder::SetTxnId(uint64_t txn_id) {
-  request_->txn_id = txn_id;
-  return *this;
-}
-
-LuigiDispatchBuilder &
-LuigiDispatchBuilder::SetExpectedTime(uint64_t expected_time) {
-  request_->expected_time = expected_time;
-  return *this;
-}
-
-LuigiDispatchBuilder &LuigiDispatchBuilder::SetWorkerId(uint32_t worker_id) {
-  request_->worker_id = worker_id;
-  return *this;
-}
-
-LuigiDispatchBuilder &
-LuigiDispatchBuilder::SetTargetServer(uint16_t server_id) {
-  request_->target_server_id = server_id;
-  return *this;
-}
-
-LuigiDispatchBuilder &LuigiDispatchBuilder::SetReqNr(uint32_t req_nr) {
-  request_->req_nr = req_nr;
-  return *this;
-}
-
-LuigiDispatchBuilder &
-LuigiDispatchBuilder::SetInvolvedShards(const std::vector<uint32_t> &shards) {
-  request_->num_involved_shards = std::min(shards.size(), luigi::kMaxShards);
-  for (size_t i = 0; i < request_->num_involved_shards; i++) {
-    request_->involved_shards[i] = static_cast<uint16_t>(shards[i]);
+std::string LuigiClient::SerializeOps(const std::vector<LuigiOp> &ops) {
+  std::string data;
+  for (const auto &op : ops) {
+    // Format: table_id (2 bytes) | op_type (1 byte) | key_len (2 bytes) | 
+    // value_len (2 bytes) | key | value
+    uint16_t table_id = op.table_id;
+    data.append(reinterpret_cast<const char *>(&table_id), sizeof(table_id));
+    data.push_back(static_cast<char>(op.op_type));
+    uint16_t key_len = op.key.size();
+    data.append(reinterpret_cast<const char *>(&key_len), sizeof(key_len));
+    uint16_t value_len = op.value.size();
+    data.append(reinterpret_cast<const char *>(&value_len), sizeof(value_len));
+    data.append(op.key);
+    data.append(op.value);
   }
-  return *this;
+  return data;
 }
 
-LuigiDispatchBuilder &LuigiDispatchBuilder::AddRead(uint16_t table_id,
-                                                    const std::string &key) {
-  if (request_->num_ops >= luigi::kMaxOps) {
-    Log_warn("LuigiDispatchBuilder: Max ops reached, ignoring read");
-    return *this;
+std::vector<std::string>
+LuigiClient::DeserializeResults(const std::string &data, int num_results) {
+  std::vector<std::string> results;
+  size_t offset = 0;
+  for (int i = 0; i < num_results && offset < data.size(); i++) {
+    if (offset + sizeof(uint16_t) > data.size())
+      break;
+    uint16_t len;
+    memcpy(&len, data.data() + offset, sizeof(len));
+    offset += sizeof(len);
+    if (offset + len > data.size())
+      break;
+    results.emplace_back(data.data() + offset, len);
+    offset += len;
+  }
+  return results;
+}
+
+bool LuigiClient::Dispatch(uint64_t txn_id, uint64_t expected_time,
+                           const std::vector<LuigiOp> &ops,
+                           const std::vector<uint32_t> &involved_shards,
+                           uint32_t worker_id, int *status_out,
+                           uint64_t *commit_ts_out,
+                           std::vector<std::string> *results_out) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    return false;
   }
 
-  char *ptr = request_->ops_data + msg_len_;
+  siteid_t site_id = GetLeaderSiteId();
 
-  // table_id (2 bytes)
-  *reinterpret_cast<uint16_t *>(ptr) = table_id;
-  ptr += sizeof(uint16_t);
+  // Convert involved_shards to rrr::i32 vector
+  std::vector<rrr::i32> involved_shards_i32(involved_shards.begin(),
+                                            involved_shards.end());
 
-  // op_type (1 byte) - READ
-  *ptr = luigi::kOpRead;
-  ptr += sizeof(uint8_t);
+  // Serialize operations
+  std::string ops_data = SerializeOps(ops);
 
-  // klen (2 bytes)
-  uint16_t klen = static_cast<uint16_t>(key.size());
-  *reinterpret_cast<uint16_t *>(ptr) = klen;
-  ptr += sizeof(uint16_t);
+  // Output variables
+  rrr::i32 status;
+  rrr::i64 commit_timestamp;
+  std::string results_data;
 
-  // vlen (2 bytes) - 0 for reads
-  *reinterpret_cast<uint16_t *>(ptr) = 0;
-  ptr += sizeof(uint16_t);
+  // Send RPC and wait for response
+  auto ev = commo_->SendDispatch(
+      site_id, partition_id_,
+      txn_id, expected_time, worker_id,
+      involved_shards_i32, ops_data,
+      &status, &commit_timestamp, &results_data);
 
-  // key
-  memcpy(ptr, key.data(), klen);
-  ptr += klen;
+  // Wait for completion
+  ev->Wait();
 
-  msg_len_ = ptr - request_->ops_data;
-  request_->num_ops++;
-
-  return *this;
-}
-
-LuigiDispatchBuilder &LuigiDispatchBuilder::AddWrite(uint16_t table_id,
-                                                     const std::string &key,
-                                                     const std::string &value) {
-  if (request_->num_ops >= luigi::kMaxOps) {
-    Log_warn("LuigiDispatchBuilder: Max ops reached, ignoring write");
-    return *this;
+  // Parse results
+  *status_out = status;
+  *commit_ts_out = commit_timestamp;
+  // Count results from results_data (simplified - just return as single result)
+  if (!results_data.empty()) {
+    results_out->push_back(results_data);
   }
 
-  char *ptr = request_->ops_data + msg_len_;
-
-  // table_id (2 bytes)
-  *reinterpret_cast<uint16_t *>(ptr) = table_id;
-  ptr += sizeof(uint16_t);
-
-  // op_type (1 byte) - WRITE
-  *ptr = luigi::kOpWrite;
-  ptr += sizeof(uint8_t);
-
-  // klen (2 bytes)
-  uint16_t klen = static_cast<uint16_t>(key.size());
-  *reinterpret_cast<uint16_t *>(ptr) = klen;
-  ptr += sizeof(uint16_t);
-
-  // vlen (2 bytes)
-  uint16_t vlen = static_cast<uint16_t>(value.size());
-  *reinterpret_cast<uint16_t *>(ptr) = vlen;
-  ptr += sizeof(uint16_t);
-
-  // key
-  memcpy(ptr, key.data(), klen);
-  ptr += klen;
-
-  // value
-  memcpy(ptr, value.data(), vlen);
-  ptr += vlen;
-
-  msg_len_ = ptr - request_->ops_data;
-  request_->num_ops++;
-
-  return *this;
+  return status == 0; // LUIGI_SUCCESS
 }
 
-size_t LuigiDispatchBuilder::GetTotalSize() const {
-  return sizeof(luigi::DispatchRequest) - sizeof(request_->ops_data) + msg_len_;
-}
-
-//=============================================================================
-// LuigiClient Implementation
-//=============================================================================
-
-LuigiClient::LuigiClient(const std::string &config_file, Transport *transport,
-                         uint64_t client_id)
-    : rpc_transport_(transport), client_id_(client_id) {
-  // Generate random client ID if not provided
-  while (client_id_ == 0) {
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
-    std::uniform_int_distribution<uint64_t> dis;
-    client_id_ = dis(gen);
-  }
-  // Note: config_file parameter kept for API compatibility but not used
-  // We use BenchmarkConfig::getInstance() instead
-}
-
-void LuigiClient::ReceiveResponse(uint8_t reqType, char *respBuf) {
-  switch (reqType) {
-  case luigi::kLuigiDispatchReqType:
-    HandleDispatchReply(respBuf);
-    break;
-  case luigi::kLuigiStatusReqType:
-    HandleStatusReply(respBuf);
-    break;
-  case luigi::kOwdPingReqType:
-    HandleOwdPingReply(respBuf);
-    break;
-  case luigi::kDeadlineProposeReqType:
-    HandleDeadlineProposeReply(respBuf);
-    break;
-  case luigi::kDeadlineConfirmReqType:
-    HandleDeadlineConfirmReply(respBuf);
-    break;
-  case luigi::kWatermarkExchangeReqType:
-    HandleWatermarkExchangeReply(respBuf);
-    break;
-  default:
-    Log_warn("LuigiClient: Unrecognized response type: %d", reqType);
-    break;
-  }
-}
-
-void LuigiClient::InvokeDispatch(
-    uint64_t txn_nr, std::map<int, LuigiDispatchBuilder *> &requests_per_shard,
-    ResponseCallback continuation, ErrorCallback error_continuation,
-    uint32_t timeout) {
-
-  Log_debug("InvokeDispatch: num_shards=%zu", requests_per_shard.size());
-
-  uint32_t req_id = ++last_req_id_;
-  req_id *= 10;
-
-  // Get first shard's server_id for tracking
-  uint16_t server_id = 0;
-  if (!requests_per_shard.empty()) {
-    server_id =
-        requests_per_shard.begin()->second->GetRequest()->target_server_id;
-  }
-
-  current_request_ = {"luigiDispatch", req_id,       txn_nr,
-                      server_id,       continuation, error_continuation};
-
-  // Build data to send per shard
-  std::map<int, std::pair<char *, size_t>> data_to_send;
-
-  for (auto &kv : requests_per_shard) {
-    int shard_idx = kv.first;
-    LuigiDispatchBuilder *builder = kv.second;
-
-    // Set request number
-    builder->SetReqNr(req_id);
-
-    data_to_send[shard_idx] = {reinterpret_cast<char *>(builder->GetRequest()),
-                               builder->GetTotalSize()};
-  }
-
-  blocked_ = true;
-  num_response_waiting_ = data_to_send.size();
-
-  // Send to all involved shards using mako's transport
-  // Note: Using mako's transport API directly
-  rpc_transport_->SendBatchRequestToAll(
-      nullptr, // receiver - not used for client sends
-      luigi::kLuigiDispatchReqType,
-      BenchmarkConfig::getInstance().getScaleFactor() + 5 +
-          server_id % TThread::get_num_erpc_server(),
-      sizeof(luigi::DispatchResponse), data_to_send);
-}
-
-void LuigiClient::HandleDispatchReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::DispatchResponse *>(respBuf);
-
-  Log_debug(
-      "Luigi dispatch reply: req_nr=%d, txn_id=%lu, status=%d, commit_ts=%lu",
-      resp->req_nr, resp->txn_id, resp->status, resp->commit_timestamp);
-
-  if (resp->req_nr != current_request_.req_nr) {
-    Log_debug("Received reply for wrong request; req_nr=%u, expected=%u",
-              resp->req_nr, current_request_.req_nr);
+void LuigiClient::DispatchAsync(uint64_t txn_id, uint64_t expected_time,
+                                const std::vector<LuigiOp> &ops,
+                                const std::vector<uint32_t> &involved_shards,
+                                uint32_t worker_id,
+                                LuigiResponseCallback callback) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    callback(-1, 0, {});
     return;
   }
 
-  // Invoke callback
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
+  siteid_t site_id = GetLeaderSiteId();
 
-  // Track pending responses
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
+  std::vector<rrr::i32> involved_shards_i32(involved_shards.begin(),
+                                            involved_shards.end());
+  std::string ops_data = SerializeOps(ops);
+
+  // Allocate output variables on heap for async callback
+  auto status = std::make_shared<rrr::i32>();
+  auto commit_timestamp = std::make_shared<rrr::i64>();
+  auto results_data = std::make_shared<std::string>();
+
+  auto ev = commo_->SendDispatch(
+      site_id, partition_id_,
+      txn_id, expected_time, worker_id,
+      involved_shards_i32, ops_data,
+      status.get(), commit_timestamp.get(),
+      results_data.get());
+
+  // Set up callback when event completes
+  std::thread([=]() {
+    ev->Wait();
+    std::vector<std::string> results;
+    if (!results_data->empty()) {
+      results.push_back(*results_data);
+    }
+    callback(*status, *commit_timestamp, results);
+  }).detach();
 }
 
-void LuigiClient::InvokeStatusCheck(uint64_t txn_nr, uint64_t txn_id,
-                                    const std::vector<int> &shard_indices,
-                                    ResponseCallback continuation,
-                                    ErrorCallback error_continuation,
-                                    uint32_t timeout) {
-
-  Log_debug("InvokeStatusCheck: txn_id=%lu, num_shards=%zu", txn_id,
-            shard_indices.size());
-
-  uint32_t req_id = ++last_req_id_;
-  req_id *= 10;
-
-  current_request_ = {"luigiStatusCheck", req_id, txn_nr, 0, continuation,
-                      error_continuation};
-
-  // Build data to send per shard
-  std::map<int, std::pair<char *, size_t>> data_to_send;
-  std::vector<luigi::StatusRequest *> allocated_requests;
-
-  for (int shard_idx : shard_indices) {
-    auto *req = new luigi::StatusRequest();
-    req->target_server_id = 0;
-    req->req_nr = req_id;
-    req->txn_id = txn_id;
-
-    data_to_send[shard_idx] = {reinterpret_cast<char *>(req),
-                               sizeof(luigi::StatusRequest)};
-    allocated_requests.push_back(req);
+bool LuigiClient::OwdPing(uint64_t send_time, int *status_out) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    return false;
   }
 
-  blocked_ = true;
-  num_response_waiting_ = data_to_send.size();
+  siteid_t site_id = GetLeaderSiteId();
 
-  this->rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kLuigiStatusReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
-      sizeof(luigi::StatusResponse), data_to_send);
+  rrr::i32 status;
 
-  // Clean up allocated requests
-  for (auto *req : allocated_requests) {
-    delete req;
-  }
+  auto ev = commo_->SendOwdPing(site_id, partition_id_, send_time, &status);
+
+  ev->Wait();
+
+  *status_out = status;
+  return status == 0;
 }
 
-void LuigiClient::HandleStatusReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::StatusResponse *>(respBuf);
-
-  Log_debug("Luigi status reply: req_nr=%d, txn_id=%lu, status=%d",
-            resp->req_nr, resp->txn_id, resp->status);
-
-  if (resp->req_nr != current_request_.req_nr) {
-    Log_debug("Received reply for wrong request; req_nr=%u, expected=%u",
-              resp->req_nr, current_request_.req_nr);
-    return;
+bool LuigiClient::DeadlinePropose(uint64_t tid, uint32_t src_shard,
+                                  uint64_t proposed_ts,
+                                  int *status_out) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    return false;
   }
 
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
+  siteid_t site_id = GetLeaderSiteId();
 
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
+  rrr::i32 status;
+
+  auto ev = commo_->SendDeadlinePropose(site_id, partition_id_,
+                                        tid, src_shard, proposed_ts,
+                                        &status);
+
+  ev->Wait();
+
+  *status_out = status;
+  return status == 0;
 }
 
-void LuigiClient::InvokeOwdPing(uint64_t txn_nr, int shard_idx,
-                                ResponseCallback continuation,
-                                ErrorCallback error_continuation,
-                                uint32_t timeout) {
+bool LuigiClient::DeadlineConfirm(uint64_t tid, uint32_t src_shard,
+                                  uint64_t agreed_ts, int *status_out) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    return false;
+  }
 
-  Log_debug("InvokeOwdPing: shard=%d", shard_idx);
+  siteid_t site_id = GetLeaderSiteId();
 
-  uint32_t req_id = ++last_req_id_;
-  req_id *= 10;
+  rrr::i32 status;
 
-  current_request_ = {"owdPing", req_id,       txn_nr,
-                      0,         continuation, error_continuation};
+  auto ev = commo_->SendDeadlineConfirm(site_id, partition_id_,
+                                        tid, src_shard, agreed_ts, &status);
 
-  auto *req = reinterpret_cast<luigi::OwdPingRequest *>(
-      this->rpc_transport_->GetRequestBuf(sizeof(luigi::OwdPingRequest),
-                                          sizeof(luigi::OwdPingResponse)));
+  ev->Wait();
 
-  req->target_server_id = 0;
-  req->req_nr = req_id;
-  req->send_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now().time_since_epoch())
-                       .count();
-
-  blocked_ = true;
-  num_response_waiting_ = 1;
-
-  this->rpc_transport_->SendRequestToShard(this, luigi::kOwdPingReqType,
-                                           shard_idx, BenchmarkConfig::getInstance().getScaleFactor() + 5,
-                                           sizeof(luigi::OwdPingRequest));
+  *status_out = status;
+  return status == 0;
 }
 
-void LuigiClient::HandleOwdPingReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::OwdPingResponse *>(respBuf);
-
-  Log_debug("OWD ping reply: req_nr=%d, status=%d", resp->req_nr, resp->status);
-
-  if (resp->req_nr != current_request_.req_nr) {
-    Log_debug("Received reply for wrong request; req_nr=%u, expected=%u",
-              resp->req_nr, current_request_.req_nr);
-    return;
+bool LuigiClient::WatermarkExchange(uint32_t src_shard,
+                                    const std::vector<uint64_t> &watermarks,
+                                    int *status_out) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    return false;
   }
 
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
+  siteid_t site_id = GetLeaderSiteId();
 
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
+  std::vector<rrr::i64> watermarks_i64(watermarks.begin(), watermarks.end());
+
+  rrr::i32 status;
+
+  auto ev = commo_->SendWatermarkExchange(site_id, partition_id_,
+                                          src_shard, watermarks_i64, &status);
+
+  ev->Wait();
+
+  *status_out = status;
+  return status == 0;
 }
 
 //=============================================================================
-// Coordination RPCs (Leader-to-Leader)
+// Async methods for scheduler (fire-and-forget with callbacks)
 //=============================================================================
 
-void LuigiClient::InvokeDeadlinePropose(uint32_t target_shard, uint64_t tid,
-                                        uint64_t proposed_ts, uint32_t phase,
-                                        ResponseCallback continuation,
-                                        ErrorCallback error_continuation) {
-  Log_debug("InvokeDeadlinePropose: target=%u, tid=%lu, ts=%lu, phase=%u",
-            target_shard, tid, proposed_ts, phase);
+void LuigiClient::InvokeDeadlinePropose(uint32_t target_partition, uint64_t tid,
+                                        uint32_t src_shard, uint64_t proposed_ts,
+                                        std::function<void(int status)> response_cb,
+                                        std::function<void()> error_cb) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    if (error_cb) error_cb();
+    return;
+  }
 
-  uint32_t req_id = ++last_req_id_;
-  current_request_ = {"deadlinePropose", req_id, 0, 0, continuation,
-                      error_continuation};
+  // Get site for target partition from config
+  auto config = Config::GetConfig();
+  auto sites = config->SitesByPartitionId(target_partition);
+  if (sites.empty()) {
+    Log_warn("No sites for partition %u", target_partition);
+    if (error_cb) error_cb();
+    return;
+  }
+  siteid_t site_id = sites[0].id;  // Use first site (leader)
 
-  luigi::DeadlineProposeRequest req;
-  req.target_server_id = target_shard;
-  req.req_nr = req_id;
-  req.tid = tid;
-  req.proposed_ts = proposed_ts;
-  req.src_shard = 0;
-  req.phase = phase;
+  // Allocate outputs on heap for async callback
+  auto status = std::make_shared<rrr::i32>();
 
-  std::map<int, std::pair<char *, size_t>> data_to_send;
-  data_to_send[target_shard] = {reinterpret_cast<char *>(&req), sizeof(req)};
+  auto ev = commo_->SendDeadlinePropose(site_id, target_partition,
+                                        tid, src_shard, proposed_ts,
+                                        status.get());
 
-  blocked_ = true;
-  num_response_waiting_ = 1;
-
-  rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineProposeReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
-      sizeof(luigi::DeadlineProposeResponse), data_to_send);
+  // Fire-and-forget: just log if needed, don't wait
+  Log_debug("InvokeDeadlinePropose sent to partition %u, tid=%lu",
+            target_partition, tid);
 }
 
-void LuigiClient::InvokeDeadlineConfirm(uint32_t target_shard, uint64_t tid,
-                                        uint64_t new_ts,
-                                        ResponseCallback continuation,
-                                        ErrorCallback error_continuation) {
-  Log_debug("InvokeDeadlineConfirm: target=%u, tid=%lu, new_ts=%lu",
-            target_shard, tid, new_ts);
+void LuigiClient::InvokeDeadlineConfirm(uint32_t target_partition, uint64_t tid,
+                                        uint64_t agreed_ts,
+                                        std::function<void(int status)> response_cb,
+                                        std::function<void()> error_cb) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    if (error_cb) error_cb();
+    return;
+  }
 
-  uint32_t req_id = ++last_req_id_;
-  current_request_ = {"deadlineConfirm", req_id, 0, 0, continuation,
-                      error_continuation};
+  // Get site for target partition from config
+  auto config = Config::GetConfig();
+  auto sites = config->SitesByPartitionId(target_partition);
+  if (sites.empty()) {
+    Log_warn("No sites for partition %u", target_partition);
+    if (error_cb) error_cb();
+    return;
+  }
+  siteid_t site_id = sites[0].id;  // Use first site (leader)
 
-  luigi::DeadlineConfirmRequest req;
-  req.target_server_id = target_shard;
-  req.req_nr = req_id;
-  req.tid = tid;
-  req.src_shard = 0;
-  req.new_ts = new_ts;
+  // Allocate outputs on heap for async callback
+  auto status = std::make_shared<rrr::i32>();
 
-  std::map<int, std::pair<char *, size_t>> data_to_send;
-  data_to_send[target_shard] = {reinterpret_cast<char *>(&req), sizeof(req)};
+  auto ev = commo_->SendDeadlineConfirm(site_id, target_partition,
+                                        tid, partition_id_, agreed_ts,
+                                        status.get());
 
-  blocked_ = true;
-  num_response_waiting_ = 1;
-
-  rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineConfirmReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
-      sizeof(luigi::DeadlineConfirmResponse), data_to_send);
+  Log_debug("InvokeDeadlineConfirm sent to partition %u, tid=%lu",
+            target_partition, tid);
 }
 
 void LuigiClient::InvokeWatermarkExchange(
-    uint32_t target_shard, const std::vector<uint64_t> &watermarks,
-    ResponseCallback continuation, ErrorCallback error_continuation) {
-  Log_debug("InvokeWatermarkExchange: target=%u, num_wm=%zu", target_shard,
-            watermarks.size());
-
-  uint32_t req_id = ++last_req_id_;
-  current_request_ = {"watermarkExchange", req_id, 0, 0, continuation,
-                      error_continuation};
-
-  luigi::WatermarkExchangeRequest req;
-  req.target_server_id = target_shard;
-  req.req_nr = req_id;
-  req.src_shard = 0;
-  req.num_watermarks = std::min(watermarks.size(), size_t(32));
-
-  for (size_t i = 0; i < req.num_watermarks; i++) {
-    req.watermarks[i] = watermarks[i];
-  }
-
-  std::map<int, std::pair<char *, size_t>> data_to_send;
-  data_to_send[target_shard] = {reinterpret_cast<char *>(&req), sizeof(req)};
-
-  blocked_ = true;
-  num_response_waiting_ = 1;
-
-  rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kWatermarkExchangeReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
-      sizeof(luigi::WatermarkExchangeResponse), data_to_send);
-}
-
-void LuigiClient::HandleDeadlineProposeReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::DeadlineProposeResponse *>(respBuf);
-
-  Log_debug("DeadlinePropose reply: req_nr=%u, tid=%lu, ts=%lu, shard=%u",
-            resp->req_nr, resp->tid, resp->proposed_ts, resp->shard_id);
-
-  if (resp->req_nr != current_request_.req_nr) {
+    uint32_t target_partition, const std::vector<uint64_t> &watermarks,
+    std::function<void(char *)> response_cb, std::function<void()> error_cb) {
+  if (!commo_) {
+    Log_error("LuigiClient not initialized");
+    if (error_cb) error_cb();
     return;
   }
 
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
-
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
-}
-
-void LuigiClient::HandleDeadlineConfirmReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::DeadlineConfirmResponse *>(respBuf);
-
-  Log_debug("DeadlineConfirm reply: req_nr=%u, status=%d", resp->req_nr,
-            resp->status);
-
-  if (resp->req_nr != current_request_.req_nr) {
+  // Get site for target partition from config
+  auto config = Config::GetConfig();
+  auto sites = config->SitesByPartitionId(target_partition);
+  if (sites.empty()) {
+    Log_warn("No sites for partition %u", target_partition);
+    if (error_cb) error_cb();
     return;
   }
+  siteid_t site_id = sites[0].id;  // Use first site (leader)
 
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
+  std::vector<rrr::i64> watermarks_i64(watermarks.begin(), watermarks.end());
 
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
-}
+  // Allocate outputs on heap for async callback
+  auto status = std::make_shared<rrr::i32>();
 
-void LuigiClient::HandleWatermarkExchangeReply(char *respBuf) {
-  auto *resp = reinterpret_cast<luigi::WatermarkExchangeResponse *>(respBuf);
+  auto ev = commo_->SendWatermarkExchange(site_id, target_partition,
+                                          partition_id_, watermarks_i64,
+                                          status.get());
 
-  Log_debug("WatermarkExchange reply: req_nr=%u, status=%d", resp->req_nr,
-            resp->status);
-
-  if (resp->req_nr != current_request_.req_nr) {
-    return;
-  }
-
-  if (current_request_.response_cb) {
-    current_request_.response_cb(respBuf);
-  }
-
-  if (num_response_waiting_ > 0) {
-    num_response_waiting_--;
-  }
-  if (num_response_waiting_ == 0) {
-    blocked_ = false;
-    current_request_.req_nr = 0;
-  }
+  Log_debug("InvokeWatermarkExchange sent to partition %u", target_partition);
 }
 
 } // namespace janus

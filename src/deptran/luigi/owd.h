@@ -10,22 +10,23 @@
 #include <thread>
 #include <vector>
 
-// Forward declaration
 namespace janus {
 class LuigiClient;
-}
-class Transport;
-namespace transport {
-class Configuration;
-} // namespace transport
+class LuigiCommo;
+} // namespace janus
 
-namespace mako {
+namespace janus {
 namespace luigi {
 
-// One-Way Delay (OWD) measurement service for Luigi protocol
-// Runs a background thread that periodically pings all remote shards
-// and maintains a table of estimated one-way delays.
-// Used to calculate expected_timestamp for transactions.
+/**
+ * One-Way Delay (OWD) measurement service for Luigi protocol.
+ *
+ * Runs a background thread that periodically pings all remote shards
+ * and maintains a table of estimated one-way delays.
+ * Used to calculate expected_timestamp for transactions.
+ *
+ * Uses RRR framework for communication.
+ */
 class LuigiOWD {
 public:
   // Headroom added to max OWD when calculating expected timestamp (ms)
@@ -40,13 +41,15 @@ public:
   // Get singleton instance
   static LuigiOWD &getInstance();
 
-  // Initialize the service
-  // config_file: path to shard configuration YAML
-  // cluster: cluster name (e.g., "localhost")
-  // local_shard_idx: this shard's index
-  // num_shards: total number of shards
-  void init(const std::string &config_file, const std::string &cluster,
-            int local_shard_idx, int num_shards);
+  /**
+   * Initialize the service.
+   *
+   * @param commo Shared pointer to LuigiCommo for RPC communication
+   * @param local_shard_idx This shard's index
+   * @param num_shards Total number of shards
+   */
+  void init(std::shared_ptr<LuigiCommo> commo, int local_shard_idx,
+            int num_shards);
 
   // Start the background ping thread
   void start();
@@ -101,28 +104,31 @@ private:
   // Ping a single shard and update OWD
   void pingShard(int shard_idx);
 
-  int num_shards_;
-  int local_shard_idx_;
-  std::string config_file_;
-  std::string cluster_;
+  int num_shards_ = 0;
+  int local_shard_idx_ = 0;
 
-  // Dedicated LuigiClient for OWD pings
-  std::unique_ptr<janus::LuigiClient> luigi_client_;
-  Transport *transport_ = nullptr;
-  std::unique_ptr<transport::Configuration> transport_config_;
+  // RRR-based communication
+  std::shared_ptr<LuigiCommo> commo_;
+
+  // Per-shard clients for OWD pings
+  std::map<int, std::unique_ptr<LuigiClient>> shard_clients_;
 
   // OWD estimates per shard (in milliseconds)
   mutable std::mutex owd_mutex_;
   std::map<int, uint64_t> owd_table_;
 
   // Background thread control
-  std::atomic<bool> initialized_;
-  std::atomic<bool> running_;
+  std::atomic<bool> initialized_{false};
+  std::atomic<bool> running_{false};
   std::thread ping_thread_;
 };
 
 // Helper function to get current time in milliseconds
-uint64_t getCurrentTimeMillis();
+inline uint64_t getCurrentTimeMillis() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
 
 } // namespace luigi
-} // namespace mako
+} // namespace janus

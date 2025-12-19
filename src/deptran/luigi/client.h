@@ -1,242 +1,195 @@
 #pragma once
 
 /**
- * LuigiClient: Standalone client for Luigi timestamp-ordered execution
- * protocol.
+ * LuigiClient: Client for Luigi timestamp-ordered execution protocol.
  *
- * This is a complete separation from Mako's Client, handling only
- * Luigi-specific request types while using Mako's eRPC transport.
+ * Uses RRR framework for network communication via LuigiCommo.
  */
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "lib/fasttransport.h"
-#include "lib/transport.h"
-
+#include "../__dep__.h"
+#include "commo.h"
 #include "luigi_common.h"
+#include "luigi_entry.h"
 
 namespace janus {
 
 /**
- * LuigiDispatchBuilder: Helper class for building Luigi dispatch requests.
- *
- * Provides a fluent interface for constructing dispatch requests
- * with multiple operations.
- */
-class LuigiDispatchBuilder {
-public:
-  LuigiDispatchBuilder();
-  ~LuigiDispatchBuilder();
-
-  // Prevent copying (owns request buffer)
-  LuigiDispatchBuilder(const LuigiDispatchBuilder &) = delete;
-  LuigiDispatchBuilder &operator=(const LuigiDispatchBuilder &) = delete;
-
-  // Allow moving
-  LuigiDispatchBuilder(LuigiDispatchBuilder &&other) noexcept;
-  LuigiDispatchBuilder &operator=(LuigiDispatchBuilder &&other) noexcept;
-
-  /**
-   * Set the transaction ID.
-   */
-  LuigiDispatchBuilder &SetTxnId(uint64_t txn_id);
-
-  /**
-   * Set the expected execution timestamp.
-   */
-  LuigiDispatchBuilder &SetExpectedTime(uint64_t expected_time);
-
-  /**
-   * Set the worker ID (for per-worker replication).
-   */
-  LuigiDispatchBuilder &SetWorkerId(uint32_t worker_id);
-
-  /**
-   * Set the target server ID.
-   */
-  LuigiDispatchBuilder &SetTargetServer(uint16_t server_id);
-
-  /**
-   * Set the request number.
-   */
-  LuigiDispatchBuilder &SetReqNr(uint32_t req_nr);
-
-  /**
-   * Set the list of involved shards (for multi-shard agreement).
-   */
-  LuigiDispatchBuilder &SetInvolvedShards(const std::vector<uint32_t> &shards);
-
-  /**
-   * Add a read operation.
-   */
-  LuigiDispatchBuilder &AddRead(uint16_t table_id, const std::string &key);
-
-  /**
-   * Add a write operation.
-   */
-  LuigiDispatchBuilder &AddWrite(uint16_t table_id, const std::string &key,
-                                 const std::string &value);
-
-  /**
-   * Get the underlying request structure.
-   */
-  luigi::DispatchRequest *GetRequest() { return request_; }
-
-  /**
-   * Get the total serialized size.
-   */
-  size_t GetTotalSize() const;
-
-private:
-  luigi::DispatchRequest *request_;
-  size_t msg_len_ = 0; // Current offset in ops_data
-};
-
-/**
  * Response/error continuation types.
  */
-using ResponseCallback = std::function<void(char *respBuf)>;
-using ErrorCallback = std::function<void()>;
+using LuigiResponseCallback = std::function<void(
+    int status, uint64_t commit_ts, const std::vector<std::string> &results)>;
+using LuigiErrorCallback = std::function<void(int error_code)>;
 
 /**
  * LuigiClient: Client for Luigi protocol operations.
  *
- * Uses Mako's eRPC transport for network communication.
+ * Uses RRR framework (LuigiCommo) for network communication.
  */
-class LuigiClient : public TransportReceiver {
+class LuigiClient {
 public:
-  LuigiClient(const std::string &config_file, Transport *transport,
-              uint64_t client_id = 0);
-  ~LuigiClient() = default;
+  LuigiClient(parid_t partition_id);
+  ~LuigiClient();
 
   /**
-   * Receive and dispatch response to appropriate handler.
+   * Initialize the client with a communicator.
+   * @param commo Shared pointer to LuigiCommo (manages RPC connections)
    */
-  void ReceiveResponse(uint8_t reqType, char *respBuf) override;
+  void Initialize(std::shared_ptr<LuigiCommo> commo);
 
   /**
-   * Check if client is blocked waiting for response.
+   * Set the partition this client targets.
    */
-  bool Blocked() override { return blocked_; }
+  void SetPartitionId(parid_t par_id) { partition_id_ = par_id; }
 
   //=========================================================================
-  // Luigi Protocol Operations
+  // Luigi Protocol Operations (Synchronous)
   //=========================================================================
 
   /**
-   * Send Luigi dispatch requests to multiple shards.
+   * Send a Luigi dispatch request (synchronous).
    *
-   * @param txn_nr Transaction number for tracking
-   * @param requests_per_shard Map of shard_idx -> dispatch builder
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
-   * @param timeout Request timeout in ms
+   * @param txn_id Transaction ID
+   * @param expected_time Expected execution timestamp
+   * @param ops Operations to execute
+   * @param involved_shards All shards involved in this transaction
+   * @param worker_id Worker ID for per-worker replication
+   * @param status_out Output: status code
+   * @param commit_ts_out Output: commit timestamp
+   * @param results_out Output: read results
+   * @return true on success
    */
-  void InvokeDispatch(uint64_t txn_nr,
-                      std::map<int, LuigiDispatchBuilder *> &requests_per_shard,
-                      ResponseCallback continuation,
-                      ErrorCallback error_continuation, uint32_t timeout = 250);
+  bool Dispatch(uint64_t txn_id, uint64_t expected_time,
+                const std::vector<LuigiOp> &ops,
+                const std::vector<uint32_t> &involved_shards,
+                uint32_t worker_id, int *status_out, uint64_t *commit_ts_out,
+                std::vector<std::string> *results_out);
 
   /**
-   * Poll for completion of async dispatch.
+   * Send a Luigi dispatch request (asynchronous).
    *
-   * @param txn_nr Transaction number
-   * @param txn_id Luigi transaction ID
-   * @param shard_indices Shards to query
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
-   * @param timeout Request timeout in ms
+   * @param txn_id Transaction ID
+   * @param expected_time Expected execution timestamp  
+   * @param ops Operations to execute
+   * @param involved_shards All shards involved
+   * @param worker_id Worker ID
+   * @param callback Callback with (status, commit_ts, results)
    */
-  void InvokeStatusCheck(uint64_t txn_nr, uint64_t txn_id,
-                         const std::vector<int> &shard_indices,
-                         ResponseCallback continuation,
-                         ErrorCallback error_continuation,
-                         uint32_t timeout = 250);
+  void DispatchAsync(uint64_t txn_id, uint64_t expected_time,
+                     const std::vector<LuigiOp> &ops,
+                     const std::vector<uint32_t> &involved_shards,
+                     uint32_t worker_id, LuigiResponseCallback callback);
 
   /**
-   * Send OWD (one-way delay) ping to a shard.
+   * Send OWD (one-way delay) ping to measure latency.
    *
-   * @param txn_nr Transaction number
-   * @param shard_idx Target shard
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
-   * @param timeout Request timeout in ms
+   * @param send_time Timestamp when ping was sent
+   * @param status_out Output: status code
+   * @return true on success
    */
-  void InvokeOwdPing(uint64_t txn_nr, int shard_idx,
-                     ResponseCallback continuation,
-                     ErrorCallback error_continuation, uint32_t timeout = 250);
+  bool OwdPing(uint64_t send_time, int *status_out);
 
   /**
-   * Send deadline proposal to a remote leader (for timestamp agreement).
+   * Broadcast deadline proposal to a shard (phase 1).
    *
-   * @param target_shard Target shard ID
    * @param tid Transaction ID
-   * @param proposed_ts Our proposed timestamp
-   * @param phase 1 = initial proposal, 2 = confirmation
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
+   * @param src_shard Source shard ID
+   * @param proposed_ts This shard's proposed timestamp
+   * @param status_out Output: status
+   * @return true on success
    */
-  void InvokeDeadlinePropose(uint32_t target_shard, uint64_t tid,
-                             uint64_t proposed_ts, uint32_t phase,
-                             ResponseCallback continuation,
-                             ErrorCallback error_continuation);
+  bool DeadlinePropose(uint64_t tid, uint32_t src_shard, uint64_t proposed_ts,
+                       int *status_out);
 
   /**
-   * Send deadline confirmation to a remote leader (after repositioning).
+   * Confirm agreed timestamp after computing max (phase 2).
    *
-   * @param target_shard Target shard ID
    * @param tid Transaction ID
-   * @param new_ts New timestamp after repositioning
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
+   * @param src_shard Source shard ID
+   * @param agreed_ts Agreed max timestamp
+   * @param status_out Output: status
+   * @return true on success
    */
-  void InvokeDeadlineConfirm(uint32_t target_shard, uint64_t tid,
-                             uint64_t new_ts, ResponseCallback continuation,
-                             ErrorCallback error_continuation);
+  bool DeadlineConfirm(uint64_t tid, uint32_t src_shard, uint64_t agreed_ts,
+                       int *status_out);
 
   /**
-   * Broadcast watermarks to a remote leader.
+   * Exchange watermarks with remote shard.
    *
-   * @param target_shard Target shard ID
-   * @param watermarks Vector of watermark values
-   * @param continuation Callback on response
-   * @param error_continuation Callback on error
+   * @param src_shard Source shard ID
+   * @param watermarks Watermark values
+   * @param status_out Output: status
+   * @return true on success
    */
-  void InvokeWatermarkExchange(uint32_t target_shard,
+  bool WatermarkExchange(uint32_t src_shard,
+                         const std::vector<uint64_t> &watermarks,
+                         int *status_out);
+
+  //=========================================================================
+  // Luigi Protocol Operations (Asynchronous with target partition)
+  // These methods send RPCs to a specified remote partition (fire-and-forget)
+  //=========================================================================
+
+  /**
+   * Broadcast deadline proposal to a specific remote partition (async, phase 1).
+   *
+   * @param target_partition Target partition ID
+   * @param tid Transaction ID
+   * @param src_shard Source shard ID (this shard)
+   * @param proposed_ts This shard's proposed timestamp
+   * @param response_cb Called on response
+   * @param error_cb Called on error
+   */
+  void InvokeDeadlinePropose(uint32_t target_partition, uint64_t tid,
+                             uint32_t src_shard, uint64_t proposed_ts,
+                             std::function<void(int status)> response_cb,
+                             std::function<void()> error_cb);
+
+  /**
+   * Send deadline confirmation to a specific remote partition (async, phase 2).
+   *
+   * @param target_partition Target partition ID
+   * @param tid Transaction ID
+   * @param agreed_ts Agreed max timestamp
+   * @param response_cb Called on response
+   * @param error_cb Called on error
+   */
+  void InvokeDeadlineConfirm(uint32_t target_partition, uint64_t tid,
+                             uint64_t agreed_ts,
+                             std::function<void(int status)> response_cb,
+                             std::function<void()> error_cb);
+
+  /**
+   * Send watermark exchange to a specific remote partition (async).
+   *
+   * @param target_partition Target partition ID
+   * @param watermarks Watermark values
+   * @param response_cb Called on response
+   * @param error_cb Called on error
+   */
+  void InvokeWatermarkExchange(uint32_t target_partition,
                                const std::vector<uint64_t> &watermarks,
-                               ResponseCallback continuation,
-                               ErrorCallback error_continuation);
-
-protected:
-  void HandleDispatchReply(char *respBuf);
-  void HandleStatusReply(char *respBuf);
-  void HandleOwdPingReply(char *respBuf);
-  void HandleDeadlineProposeReply(char *respBuf);
-  void HandleDeadlineConfirmReply(char *respBuf);
-  void HandleWatermarkExchangeReply(char *respBuf);
+                               std::function<void(char *)> response_cb,
+                               std::function<void()> error_cb);
 
 private:
-  Transport *rpc_transport_;
-  uint64_t client_id_;
+  // Serialize operations to wire format
+  std::string SerializeOps(const std::vector<LuigiOp> &ops);
+  
+  // Deserialize results from wire format
+  std::vector<std::string> DeserializeResults(const std::string &data,
+                                               int num_results);
 
-  // Request tracking
-  uint32_t last_req_id_ = 0;
-  bool blocked_ = false;
-  int num_response_waiting_ = 0;
+  // Get site ID for this partition (picks leader)
+  siteid_t GetLeaderSiteId();
 
-  // Current pending request state
-  struct PendingRequest {
-    std::string name;
-    uint32_t req_nr = 0;
-    uint64_t txn_nr = 0;
-    uint16_t server_id = 0;
-    ResponseCallback response_cb;
-    ErrorCallback error_cb;
-  };
-  PendingRequest current_request_;
+  parid_t partition_id_;
+  std::shared_ptr<LuigiCommo> commo_;
 };
 
 } // namespace janus

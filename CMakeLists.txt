@@ -641,13 +641,6 @@ endif()
 # Collect RRR source files
 file(GLOB RRR_SRC
     "src/rrr/base/*.hpp"
-    src/deptran/luigi/luigi_client.cc
-    src/deptran/luigi/luigi_server.cc
-    src/deptran/luigi/luigi_scheduler.cc
-    src/deptran/luigi/luigi_executor.cc
-    src/deptran/luigi/luigi_state_machine.cc
-    src/deptran/luigi/luigi_owd.cc
-    # luigi_transport_setup.cc excluded - only used by luigi_bench executable
     "src/rrr/base/*.cpp"
     "src/rrr/misc/*.hpp"
     "src/rrr/misc/*.cpp"
@@ -680,20 +673,12 @@ list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/raft_main_helper.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
 # Exclude MongoDB backend (requires mongocxx library)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
-# Exclude Luigi benchmark main (it's a standalone executable)
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main.cc")
-# Exclude Luigi server main (it's a standalone executable)
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_server_main.cc")
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi_server_main.cc")
-# Exclude Luigi benchmark main (it's a standalone executable)
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main.cc")
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi_bench_main.cc")
+# Exclude Luigi main files (they are standalone executables)
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main\\.cc$")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_server_main\\.cc$")
 # Exclude hello world test files (they have main functions)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_client.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_server.cc")
-# Exclude Luigi client files (they depend on eRPC TransportReceiver which requires mako)
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "luigi_client.cc$")
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "luigi_transport_setup.cc$")
 
 
 # Choose helper source based on MAKO_USE_RAFT
@@ -711,8 +696,8 @@ add_library(txlog SHARED
     ${MEMDB_SRC}
 )
 
-# Add dependency to ensure rcc_rpc.h is generated before txlog is built
-add_dependencies(txlog rcc_rpc_gen)
+# Add dependency to ensure rcc_rpc.h and luigi.h are generated before txlog is built
+add_dependencies(txlog rcc_rpc_gen luigi_rpc_gen)
 
 target_include_directories(txlog PRIVATE
     src
@@ -941,56 +926,27 @@ function(add_apps exec_name exec_path)
 endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
-add_apps(luigi_bench src/deptran/luigi_bench_main.cc)  # Luigi benchmark client
-# Luigi RRR server - custom target without txlog to avoid eRPC dependencies
-# This is a minimal server that only uses RRR for RPC
-set(LUIGI_SERVER_RRR_SOURCES
-    src/deptran/luigi_server_main.cc
-    src/deptran/luigi/server.cc
-    src/deptran/luigi/service.cc
-    src/deptran/luigi/scheduler.cc
-    src/deptran/luigi/executor.cc
-    src/deptran/luigi/state_machine.cc
-    src/deptran/luigi/commo.cc
-    src/deptran/luigi/luigi.h
-    src/deptran/communicator.cc
-    src/memdb/row.cc
-    src/memdb/schema.cc
-    src/memdb/table.cc
-    src/memdb/txn.cc
-    src/memdb/value.cc
-    src/rrr/base/basetypes.cpp
-    src/rrr/base/debugging.cpp
-    src/rrr/base/logging.cpp
-    src/rrr/base/misc.cpp
-    src/rrr/base/strop.cpp
-    src/rrr/base/threading.cpp
-    src/rrr/misc/alock.cpp
-    src/rrr/misc/marshal.cpp
-    src/rrr/misc/rand.cpp
-    src/rrr/rpc/client.cpp
-    src/rrr/rpc/server.cpp
-    src/rrr/rpc/utils.cpp
-    src/rrr/reactor/coroutine.cc
-    src/rrr/reactor/epoll_wrapper.cc
-    src/rrr/reactor/event.cc
-    src/rrr/reactor/quorum_event.cc
-    src/rrr/reactor/reactor.cc
+
+# Luigi benchmark client - uses RRR framework (no mako/eRPC dependencies)
+add_executable(luigi_bench
+    src/deptran/luigi/luigi_bench_main.cc
 )
-add_executable(luigi_server_rrr ${LUIGI_SERVER_RRR_SOURCES})
-target_link_libraries(luigi_server_rrr txlog mako erpc pthread event event_pthreads event_core)
-target_include_directories(luigi_server_rrr PRIVATE
-    src
-    src/mako
-    src/rrr
-    src/deptran
+
+target_include_directories(luigi_bench PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/memdb
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
-    dependencies/yaml-cpp/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/yaml-cpp/include
     ${Boost_INCLUDE_DIRS}
+    ${Python3_INCLUDE_DIRS}
 )
-target_compile_options(luigi_server_rrr PRIVATE ${BENCH_CXXFLAGS})
-target_link_libraries(luigi_server_rrr
-    mako
+
+target_compile_options(luigi_bench PRIVATE ${BENCH_CXXFLAGS})
+
+target_link_libraries(luigi_bench
+    txlog
     yaml-cpp
     Boost::system
     Boost::filesystem
@@ -998,11 +954,54 @@ target_link_libraries(luigi_server_rrr
     Boost::coroutine
     Boost::context
     pthread
-    numa
+    event
     event_pthreads
+    event_core
     rocksdb
+    ${CMAKE_DL_LIBS}
+    Python3::Python
 )
-add_dependencies(luigi_server_rrr mako rcc_rpc_gen)
+
+# Add dependencies for RPC generation
+add_dependencies(luigi_bench txlog rcc_rpc_gen luigi_rpc_gen)
+
+# Luigi RRR server - uses RRR framework for RPC
+add_executable(luigi_server
+    src/deptran/luigi/luigi_server_main.cc
+)
+
+target_include_directories(luigi_server PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/memdb
+    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/rusty-cpp/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/yaml-cpp/include
+    ${Boost_INCLUDE_DIRS}
+    ${Python3_INCLUDE_DIRS}
+)
+
+target_compile_options(luigi_server PRIVATE ${BENCH_CXXFLAGS})
+
+target_link_libraries(luigi_server
+    txlog
+    yaml-cpp
+    Boost::system
+    Boost::filesystem
+    Boost::thread
+    Boost::coroutine
+    Boost::context
+    pthread
+    event
+    event_pthreads
+    event_core
+    rocksdb
+    ${CMAKE_DL_LIBS}
+    Python3::Python
+)
+
+# Add dependencies for RPC generation
+add_dependencies(luigi_server txlog rcc_rpc_gen luigi_rpc_gen)
 
 
 add_apps(simpleTransaction examples/simpleTransaction.cc)
