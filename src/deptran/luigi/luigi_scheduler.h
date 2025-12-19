@@ -75,8 +75,30 @@ public:
                          const std::vector<std::string> &read_results)>
           reply_cb);
 
+  // Methods called by executor
+  void Replicate(uint32_t worker_id,
+                 const std::shared_ptr<LuigiLogEntry> &entry);
+  void InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry);
+  void SendRepositionConfirmations(std::shared_ptr<LuigiLogEntry> entry);
+
+  // Methods called by server (RPC handlers)
+  uint64_t HandleRemoteDeadlineProposal(uint64_t tid, uint32_t src_shard,
+                                        uint64_t proposed_ts, int phase);
+  bool HandleRemoteDeadlineConfirm(uint64_t tid, uint32_t src_shard,
+                                   uint64_t new_ts);
+  void HandleWatermarkExchange(uint32_t src_shard,
+                               const std::vector<int64_t> &watermarks);
+  uint32_t GetPartitionId() const { return shard_id_; }
+  uint32_t partition_id() const { return shard_id_; }
+
+  // Server initialization methods
+  void SetWorkerCount(uint32_t count);
+  void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm);
+  void EnableStateMachineMode(bool enable);
+  void SetReplicationCallback(LuigiExecutor::ReplicationCallback cb);
+  bool HasPendingTxn(uint64_t txn_id) const;
+
   // Requeue a txn after agreement determines it needs repositioning (Case 3)
-  // This is called by the executor when AGREE_FLUSHING is needed
   void RequeueForReposition(std::shared_ptr<LuigiLogEntry> entry);
 
 protected:
@@ -216,14 +238,6 @@ protected:
   // Pending transactions tracking (for async status check)
   mutable std::mutex pending_txns_mutex_;
   std::unordered_set<uint64_t> pending_txns_;
-
-  //==========================================================================
-  // REPLICATION LAYER
-  //==========================================================================
-
-  // Route transaction to per-worker Paxos stream for replication
-  void Replicate(uint32_t worker_id,
-                 const std::shared_ptr<LuigiLogEntry> &entry);
 
   void SetPartitionId(uint32_t shard_id) {
     shard_id_ = shard_id;
@@ -373,7 +387,7 @@ protected:
    *
    * @param entry The transaction entry
    */
-  void InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry);
+  // (Moved to public section above)
 
   /**
    * Send Phase 2 confirmations after repositioning.
@@ -381,7 +395,7 @@ protected:
    *
    * @param entry The transaction entry (with updated proposed_ts)
    */
-  void SendRepositionConfirmations(std::shared_ptr<LuigiLogEntry> entry);
+  // (Moved to public section above)
 };
 
 } // namespace janus

@@ -5,6 +5,7 @@
 #include "luigi_server.h"
 #include "deptran/__dep__.h"
 #include "deptran/rcc/tx.h"
+#include "deptran/s_main.h" // For add_log_to_nc
 #include "luigi_common.h"
 // OWD module removed - coordinator-only functionality
 #include "luigi_scheduler.h"
@@ -12,8 +13,7 @@
 
 #include "benchmarks/benchmark_config.h"
 #include "benchmarks/common.h"
-#include "benchmarks/common2.h"
-#include "benchmarks/sto/Interface.hh"
+// Removed common2.h and Interface.hh - Luigi uses memdb, not STO/Masstree
 #include "lib/common.h"
 #include "lib/fasttransport.h"
 #include "lib/helper_queue.h"

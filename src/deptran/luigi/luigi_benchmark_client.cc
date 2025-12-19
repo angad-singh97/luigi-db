@@ -200,8 +200,8 @@ bool LuigiBenchmarkClient::DispatchRequest(const LuigiTxnRequest &req) {
 
     // Use OWD module for timestamp calculation
     auto &owd = mako::luigi::LuigiOWD::getInstance();
-    std::vector<uint32_t> shard_vec(req.target_shards.begin(),
-                                    req.target_shards.end());
+    std::vector<int> shard_vec(req.target_shards.begin(),
+                               req.target_shards.end());
     uint64_t expected_time = owd.getExpectedTimestamp(shard_vec);
 
     builder->SetExpectedTime(expected_time);

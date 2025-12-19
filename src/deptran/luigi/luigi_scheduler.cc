@@ -265,11 +265,10 @@ void SchedulerLuigi::HoldReleaseTd() {
     //-------------------------------------------------------------------------
     while (!priority_queue_.empty()) {
       auto it = priority_queue_.begin();
-      uint64_t deadline = it->first.first;
-
-      if (now < deadline) {
-        // Earliest deadline not yet reached, stop releasing
-        break;
+      // Check if deadline has passed
+      uint64_t deadline = std::get<0>(it->first); // Get timestamp from tuple
+      if (deadline > now) { // Earliest deadline not yet reached, stop releasing
+        break;              // No more ready transactions
       }
 
       // Deadline reached! Release this entry
@@ -868,8 +867,8 @@ void SchedulerLuigi::Replicate(uint32_t worker_id,
   // This is the key: worker_id determines which Paxos instance/stream to use
   add_log_to_nc(log_buffer.data(), log_buffer.size(), worker_id);
 
-  // Update watermark after successful replication
-  UpdateWatermark(worker_id, ts);
+  // TODO: Update watermarks after replication
+  // UpdateLocalWatermark(worker_id, ts);
 
   Log_debug("Luigi Replicate: worker_id=%u, txn_id=%lu, ts=%lu, log_size=%zu",
             worker_id, tid, ts, log_buffer.size());
