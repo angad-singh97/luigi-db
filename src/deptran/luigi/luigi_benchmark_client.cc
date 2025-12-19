@@ -48,8 +48,9 @@ bool LuigiBenchmarkClient::Initialize() {
     transport_ = server_transports[0];
 
     // Create LuigiClient with the transport
-    luigi_client_ = std::make_unique<LuigiClient>(
-        config_.config_file, transport_, 0 /* client_id */);
+    // Note: config_file parameter not used (LuigiClient uses BenchmarkConfig)
+    luigi_client_ =
+        std::make_unique<LuigiClient>("", transport_, 0 /* client_id */);
 
   } catch (const std::exception &e) {
     std::cerr << "Failed to initialize LuigiBenchmarkClient: " << e.what()

@@ -165,7 +165,7 @@ size_t LuigiDispatchBuilder::GetTotalSize() const {
 
 LuigiClient::LuigiClient(const std::string &config_file, Transport *transport,
                          uint64_t client_id)
-    : config_(config_file), rpc_transport_(transport), client_id_(client_id) {
+    : rpc_transport_(transport), client_id_(client_id) {
   // Generate random client ID if not provided
   while (client_id_ == 0) {
     std::random_device rd;
@@ -173,6 +173,8 @@ LuigiClient::LuigiClient(const std::string &config_file, Transport *transport,
     std::uniform_int_distribution<uint64_t> dis;
     client_id_ = dis(gen);
   }
+  // Note: config_file parameter kept for API compatibility but not used
+  // We use BenchmarkConfig::getInstance() instead
 }
 
 void LuigiClient::ReceiveResponse(uint8_t reqType, char *respBuf) {
@@ -243,7 +245,8 @@ void LuigiClient::InvokeDispatch(
   rpc_transport_->SendBatchRequestToAll(
       nullptr, // receiver - not used for client sends
       luigi::kLuigiDispatchReqType,
-      config_.warehouses + 5 + server_id % TThread::get_num_erpc_server(),
+      BenchmarkConfig::getInstance().getScaleFactor() + 5 +
+          server_id % TThread::get_num_erpc_server(),
       sizeof(luigi::DispatchResponse), data_to_send);
 }
 
@@ -309,7 +312,7 @@ void LuigiClient::InvokeStatusCheck(uint64_t txn_nr, uint64_t txn_id,
   num_response_waiting_ = data_to_send.size();
 
   this->rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kLuigiStatusReqType, config_.warehouses + 5,
+      this, luigi::kLuigiStatusReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
       sizeof(luigi::StatusResponse), data_to_send);
 
   // Clean up allocated requests
@@ -370,7 +373,7 @@ void LuigiClient::InvokeOwdPing(uint64_t txn_nr, int shard_idx,
   num_response_waiting_ = 1;
 
   this->rpc_transport_->SendRequestToShard(this, luigi::kOwdPingReqType,
-                                           shard_idx, config_.warehouses + 5,
+                                           shard_idx, BenchmarkConfig::getInstance().getScaleFactor() + 5,
                                            sizeof(luigi::OwdPingRequest));
 }
 
@@ -428,7 +431,7 @@ void LuigiClient::InvokeDeadlinePropose(uint32_t target_shard, uint64_t tid,
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineProposeReqType, config_.warehouses + 5,
+      this, luigi::kDeadlineProposeReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
       sizeof(luigi::DeadlineProposeResponse), data_to_send);
 }
 
@@ -457,7 +460,7 @@ void LuigiClient::InvokeDeadlineConfirm(uint32_t target_shard, uint64_t tid,
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kDeadlineConfirmReqType, config_.warehouses + 5,
+      this, luigi::kDeadlineConfirmReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
       sizeof(luigi::DeadlineConfirmResponse), data_to_send);
 }
 
@@ -488,7 +491,7 @@ void LuigiClient::InvokeWatermarkExchange(
   num_response_waiting_ = 1;
 
   rpc_transport_->SendBatchRequestToAll(
-      this, luigi::kWatermarkExchangeReqType, config_.warehouses + 5,
+      this, luigi::kWatermarkExchangeReqType, BenchmarkConfig::getInstance().getScaleFactor() + 5,
       sizeof(luigi::WatermarkExchangeResponse), data_to_send);
 }
 

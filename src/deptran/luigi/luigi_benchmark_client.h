@@ -96,7 +96,7 @@ public:
 
   // Configuration for the benchmark
   struct Config {
-    std::string config_file;   // Path to shard config
+    std::string config_file;   // YAML config file path
     std::string cluster;       // Cluster name
     int shard_index = 0;       // This client's shard index
     int par_id = 0;            // Partition id within shard

@@ -212,9 +212,8 @@ int main(int argc, char *argv[]) {
   // Setup transport infrastructure (delegates to Mako's setup_erpc_server)
   std::cout << "Setting up transport infrastructure..." << std::endl;
   int num_erpc_servers = num_threads; // One eRPC server per thread
-  if (!luigi::setup_luigi_transport(config_file, cluster, shard_idx,
-                                    num_shards, num_erpc_servers,
-                                    warehouses)) {
+  if (!luigi::setup_luigi_transport(config_file, cluster, shard_idx, num_shards,
+                                    num_erpc_servers, warehouses)) {
     std::cerr << "Failed to setup transport infrastructure" << std::endl;
     luigiOwd.stop();
     return 1;
@@ -230,6 +229,7 @@ int main(int argc, char *argv[]) {
 
   client_config.worker_id_base = client_vm_index * num_workers_per_vm;
   client_config.num_workers_per_vm = num_workers_per_vm;
+  client_config.config_file = config_file; // Set config file path
 
   Log_info("Luigi worker ID configuration: client_vm_index=%u, "
            "num_workers_per_vm=%u, worker_id_base=%u",

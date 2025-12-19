@@ -219,7 +219,6 @@ protected:
   void HandleWatermarkExchangeReply(char *respBuf);
 
 private:
-  transport::Configuration config_;
   Transport *rpc_transport_;
   uint64_t client_id_;
 

@@ -913,6 +913,7 @@ endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
 add_apps(luigi_bench "src/deptran/luigi/luigi_bench_main.cc;src/deptran/luigi/luigi_transport_setup.cc")  # Luigi stored-procedure benchmark
+add_apps(luigi_server src/deptran/luigi/luigi_server_main.cc)  # Luigi server
 add_apps(simpleTransaction examples/simpleTransaction.cc)
 add_apps(simpleTransactionRep examples/simpleTransactionRep.cc)
 add_apps(continuousTransactions examples/continuousTransactions.cc)
