@@ -886,4 +886,32 @@ void SchedulerLuigi::WatermarkTd() {
   }
 }
 
+//=============================================================================
+// Server Initialization Methods (moved from inline in header)
+//=============================================================================
+
+void SchedulerLuigi::SetWorkerCount(uint32_t count) {
+  worker_count_ = count;
+  std::lock_guard<std::mutex> lock(watermark_mutex_);
+  watermarks_.assign(count, 0);
+}
+
+void SchedulerLuigi::SetReplicationCallback(
+    LuigiExecutor::ReplicationCallback cb) {
+  executor_.SetReplicationCallback(std::move(cb));
+}
+
+void SchedulerLuigi::SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {
+  executor_.SetStateMachine(std::move(sm));
+}
+
+void SchedulerLuigi::EnableStateMachineMode(bool enable) {
+  executor_.EnableStateMachineMode(enable);
+}
+void SchedulerLuigi::SetPartitionId(uint32_t shard_id) {
+  shard_id_ = shard_id;
+  executor_.SetPartitionId(shard_id);
+}
+
 } // namespace janus
+

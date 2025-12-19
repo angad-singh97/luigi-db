@@ -114,25 +114,25 @@ int main(int argc, char *argv[]) {
     switch (opt) {
     case 'q': // --shard-config (Mako CI style)
     case 'c': // --config (standalone alias)
-      config.config_file = optarg;
+      config_file = optarg;
       break;
     case 'g': // --shard-index (Mako CI style)
     case 'G': // --shard (standalone alias)
-      config.shard_index = std::atoi(optarg);
+      shard_idx = std::atoi(optarg);
       break;
     case 'P': // -P cluster (Mako CI style, like dbtest)
     case 'C': // --cluster (standalone alias)
-      config.cluster = optarg;
+      cluster = optarg;
       break;
     case 'b': // --benchmark
       benchmark_type = optarg;
       break;
     case 't': // --num-threads (Mako CI style)
     case 'T': // --threads (standalone alias)
-      config.num_threads = std::atoi(optarg);
+      num_threads = std::atoi(optarg);
       break;
     case 'd': // --duration
-      config.duration_sec = std::atoi(optarg);
+      duration_sec = std::atoi(optarg);
       break;
     case 'k': // --keys
       keys_per_shard = std::atoi(optarg);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Validate required options
-  if (config.config_file.empty()) {
+  if (config_file.empty()) {
     std::cerr << "Error: --shard-config or --config is required\n";
     PrintUsage(argv[0]);
     return 1;
@@ -162,13 +162,12 @@ int main(int argc, char *argv[]) {
 
   // Parse the YAML config to extract shard count and warehouses
   try {
-    transport::Configuration yaml_config(config.config_file);
+    transport::Configuration yaml_config(config_file);
 
     // Get number of shards from config if not specified
-    if (config.num_shards == 0) {
-      config.num_shards = yaml_config.nshards;
-      std::cout << "Read num_shards=" << config.num_shards
-                << " from config file\n";
+    if (num_shards == 0) {
+      num_shards = yaml_config.nshards;
+      std::cout << "Read num_shards=" << num_shards << " from config file\n";
     }
 
     // Get warehouses from config if not specified (for TPC-C)
@@ -182,19 +181,22 @@ int main(int argc, char *argv[]) {
   }
 
   // Fall back to defaults if still not set
-  if (config.num_shards == 0)
-    config.num_shards = 1;
+  if (num_shards == 0)
+    num_shards = 1;
   if (warehouses == 0)
-    warehouses = config.num_threads; // Common Mako pattern
+    warehouses = num_threads; // Common Mako pattern
+
+  // Create benchmark client config
+  LuigiBenchmarkClient::Config client_config;
 
   // Setup generator config based on benchmark type
   if (benchmark_type == "micro" || benchmark_type == "micro_single") {
-    config.gen_config =
-        CreateDefaultMicroConfig(config.num_shards, keys_per_shard);
-    config.gen_config.read_ratio = read_ratio;
-    config.gen_config.ops_per_txn = ops_per_txn;
+    client_config.gen_config =
+        CreateDefaultMicroConfig(num_shards, keys_per_shard);
+    client_config.gen_config.read_ratio = read_ratio;
+    client_config.gen_config.ops_per_txn = ops_per_txn;
   } else if (benchmark_type == "tpcc") {
-    config.gen_config = CreateDefaultTPCCConfig(config.num_shards, warehouses);
+    client_config.gen_config = CreateDefaultTPCCConfig(num_shards, warehouses);
   } else {
     std::cerr << "Error: Unknown benchmark type '" << benchmark_type << "'\n";
     std::cerr << "Valid types: micro, micro_single, tpcc\n";
@@ -204,16 +206,15 @@ int main(int argc, char *argv[]) {
   // Initialize Luigi OWD service (for calculating expected timestamps)
   std::cout << "Initializing Luigi OWD service..." << std::endl;
   auto &luigiOwd = LuigiOWD::getInstance();
-  luigiOwd.init(config.config_file, config.cluster, config.shard_index,
-                config.num_shards);
+  luigiOwd.init(config_file, cluster, shard_idx, num_shards);
   luigiOwd.start();
 
   // Setup transport infrastructure (delegates to Mako's setup_erpc_server)
   std::cout << "Setting up transport infrastructure..." << std::endl;
-  int num_erpc_servers = config.num_threads; // One eRPC server per thread
-  if (!luigi::setup_luigi_transport(config.config_file, config.cluster,
-                                    config.shard_index, config.num_shards,
-                                    num_erpc_servers, warehouses)) {
+  int num_erpc_servers = num_threads; // One eRPC server per thread
+  if (!luigi::setup_luigi_transport(config_file, cluster, shard_idx,
+                                    num_shards, num_erpc_servers,
+                                    warehouses)) {
     std::cerr << "Failed to setup transport infrastructure" << std::endl;
     luigiOwd.stop();
     return 1;
@@ -223,16 +224,9 @@ int main(int argc, char *argv[]) {
   std::cout << "Creating benchmark client..." << std::endl;
 
   // Configure worker IDs for per-worker replication
-  // Read client_vm_index from config (defaults to 0 for single-VM)
+  // Default to 0 for single-VM setup
   uint32_t client_vm_index = 0;
-  if (config.Has("luigi.client_vm_index")) {
-    client_vm_index = config.Get<uint32_t>("luigi.client_vm_index");
-  }
-
   uint32_t num_workers_per_vm = num_threads;
-  if (config.Has("luigi.num_workers_per_vm")) {
-    num_workers_per_vm = config.Get<uint32_t>("luigi.num_workers_per_vm");
-  }
 
   client_config.worker_id_base = client_vm_index * num_workers_per_vm;
   client_config.num_workers_per_vm = num_workers_per_vm;
@@ -241,7 +235,7 @@ int main(int argc, char *argv[]) {
            "num_workers_per_vm=%u, worker_id_base=%u",
            client_vm_index, num_workers_per_vm, client_config.worker_id_base);
 
-  LuigiBenchmarkClient client(config);
+  LuigiBenchmarkClient client(client_config);
   if (!client.Initialize()) {
     std::cerr << "Failed to initialize benchmark client" << std::endl;
     luigi::stop_luigi_transport();
@@ -251,12 +245,12 @@ int main(int argc, char *argv[]) {
 
   // Print configuration
   std::cout << "\n========== Luigi Benchmark Configuration ==========\n";
-  std::cout << "Config file:    " << config.config_file << "\n";
-  std::cout << "Cluster:        " << config.cluster << "\n";
-  std::cout << "Shard index:    " << config.shard_index << "\n";
-  std::cout << "Num shards:     " << config.num_shards << "\n";
-  std::cout << "Threads:        " << config.num_threads << "\n";
-  std::cout << "Duration:       " << config.duration_sec << "s\n";
+  std::cout << "Config file:    " << config_file << "\n";
+  std::cout << "Cluster:        " << cluster << "\n";
+  std::cout << "Shard index:    " << shard_idx << "\n";
+  std::cout << "Num shards:     " << num_shards << "\n";
+  std::cout << "Threads:        " << num_threads << "\n";
+  std::cout << "Duration:       " << duration_sec << "s\n";
   std::cout << "Benchmark:      " << benchmark_type << "\n";
   if (benchmark_type == "micro" || benchmark_type == "micro_single") {
     std::cout << "Keys/shard:     " << keys_per_shard << "\n";

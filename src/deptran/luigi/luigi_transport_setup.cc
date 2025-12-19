@@ -1,9 +1,12 @@
 #include "luigi_transport_setup.h"
 
-#include "deptran/__dep__.h"
+// Include Mako headers first to avoid conflicts
 #include "mako/benchmarks/benchmark_config.h"
 #include "mako/benchmarks/rpc_setup.h"
 #include "mako/lib/configuration.h"
+
+// Include deptran headers last (they have macro conflicts with Mako)
+#include "deptran/__dep__.h"
 
 namespace janus {
 namespace luigi {

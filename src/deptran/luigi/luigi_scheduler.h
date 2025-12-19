@@ -83,7 +83,7 @@ public:
 
   // Methods called by server (RPC handlers)
   uint64_t HandleRemoteDeadlineProposal(uint64_t tid, uint32_t src_shard,
-                                        uint64_t proposed_ts, int phase);
+                                        uint64_t proposed_ts, uint32_t phase);
   bool HandleRemoteDeadlineConfirm(uint64_t tid, uint32_t src_shard,
                                    uint64_t new_ts);
   void HandleWatermarkExchange(uint32_t src_shard,
