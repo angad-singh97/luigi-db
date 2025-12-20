@@ -22,6 +22,9 @@ void LuigiServiceImpl::LuigiDispatch(
     const std::string &ops_data, rrr::i32 *status, rrr::i64 *commit_timestamp,
     std::string *results_data, rrr::DeferredReply *defer) {
 
+  Log_info("LuigiDispatch: received txn_id=%ld worker_id=%d op_size=%zu",
+           txn_id, worker_id, ops_data.size());
+
   // Parse operations from binary data
   std::vector<LuigiOp> ops;
   const char *data_ptr = ops_data.data();
@@ -115,8 +118,15 @@ void LuigiServiceImpl::DeadlinePropose(const rrr::i64 &tid,
                                        rrr::i32 *status,
                                        rrr::DeferredReply *defer) {
 
+  Log_info("DeadlinePropose: tid=%ld from shard %d ts=%ld", tid, src_shard,
+           proposed_ts);
+
   // Record the proposed timestamp from src_shard for this transaction
-  // TODO: scheduler->RecordProposedTimestamp(tid, src_shard, proposed_ts)
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    scheduler->HandleRemoteDeadlineProposal(tid, src_shard, proposed_ts, 1);
+  }
+
   *status = luigi::kOk;
   defer->reply();
 }
@@ -127,8 +137,15 @@ void LuigiServiceImpl::DeadlineConfirm(const rrr::i64 &tid,
                                        rrr::i32 *status,
                                        rrr::DeferredReply *defer) {
 
-  // Update this transaction's timestamp to the agreed max
-  // TODO: scheduler->UpdateTxnTimestamp(tid, agreed_ts)
+  Log_info("DeadlineConfirm: tid=%ld from shard %d ts=%ld", tid, src_shard,
+           agreed_ts);
+
+  // Record the confirmation (phase 2) from src_shard for this transaction
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    scheduler->HandleRemoteDeadlineConfirm(tid, src_shard, agreed_ts);
+  }
+
   *status = luigi::kOk;
   defer->reply();
 }

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <future>
 #include <getopt.h>
 #include <iostream>
 #include <map>
@@ -298,18 +299,52 @@ private:
     }
 
     uint64_t expected = GetExpectedTimestamp(shards);
-    parid_t primary = shards.empty() ? 0 : shards[0];
 
     std::string ops_data = SerializeOps(req.ops);
     std::vector<rrr::i32> involved_i32(shards.begin(), shards.end());
 
-    rrr::i32 status;
-    rrr::i64 commit_ts;
+    // In Luigi/Tiga model, we send dispatch to ALL involved shards IN PARALLEL
+    // Each shard leader receives the dispatch and participates in agreement
+    // Using std::async to avoid deadlock: shard 0 might wait for shard 1's
+    // proposal, but shard 1 hasn't received its dispatch yet if we do serial.
+
+    struct ShardResult {
+      bool ok = false;
+      rrr::i32 status = -1;
+      rrr::i64 commit_ts = 0;
+      std::string results_data;
+    };
+
+    std::vector<std::future<ShardResult>> futures;
+    for (uint32_t shard : shards) {
+      futures.push_back(std::async(
+          std::launch::async,
+          [this, shard, &req, expected, worker_id, &involved_i32, &ops_data]() {
+            ShardResult result;
+            result.ok = commo_->DispatchSync(
+                shard, req.txn_id, expected, worker_id, involved_i32, ops_data,
+                &result.status, &result.commit_ts, &result.results_data);
+            return result;
+          }));
+    }
+
+    // Wait for all dispatches to complete
+    bool ok = true;
+    rrr::i32 status = 0;
+    rrr::i64 commit_ts = 0;
     std::string results_data;
 
-    bool ok = commo_->DispatchSync(primary, req.txn_id, expected, worker_id,
-                                   involved_i32, ops_data, &status, &commit_ts,
-                                   &results_data);
+    for (size_t i = 0; i < futures.size(); i++) {
+      auto result = futures[i].get();
+      if (i == 0) { // Use first shard's response as primary
+        status = result.status;
+        commit_ts = result.commit_ts;
+        results_data = result.results_data;
+      }
+      if (!result.ok || result.status != 0) {
+        ok = false;
+      }
+    }
 
     uint64_t end = GetTimestampUs();
     bool committed = ok && status == 0;

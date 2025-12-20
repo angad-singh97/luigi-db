@@ -223,6 +223,8 @@ bool LuigiCommo::DispatchSync(parid_t shard_id, rrr::i64 txn_id,
   }
 
   // Use async without callback, then wait on the future
+  Log_debug("DispatchSync: calling async_LuigiDispatch txn_id=%ld worker=%d",
+            txn_id, worker_id);
   auto result = proxy->async_LuigiDispatch(txn_id, expected_time, worker_id,
                                            involved_shards, ops_data);
   if (result.is_err()) {
@@ -231,7 +233,10 @@ bool LuigiCommo::DispatchSync(parid_t shard_id, rrr::i64 txn_id,
   }
 
   auto fu = result.unwrap();
+  Log_debug("DispatchSync: future created, waiting...");
   fu->wait();
+  Log_debug("DispatchSync: future returned, error_code=%d",
+            fu->get_error_code());
 
   if (fu->get_error_code() == 0) {
     fu->get_reply() >> *status;

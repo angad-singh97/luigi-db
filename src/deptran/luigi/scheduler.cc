@@ -1,7 +1,6 @@
 #include "scheduler.h"
 #include "commo.h" // For LuigiCommo
 #include "deptran/__dep__.h"
-#include "deptran/raft_main_helper.h" // For add_log_to_nc
 #include "luigi_common.h"
 #include "luigi_entry.h"
 
@@ -137,6 +136,8 @@ void SchedulerLuigi::LuigiDispatchFromRequest(
   }
 
   // Enqueue to incoming queue (lock-free, thread-safe)
+  // InitiateAgreement is called from HoldReleaseTd AFTER conflict detection,
+  // so the proposal uses the correct (possibly bumped) timestamp.
   incoming_txn_queue_.enqueue(entry);
 }
 
@@ -239,14 +240,20 @@ void SchedulerLuigi::HoldReleaseTd() {
         entry->proposed_ts_ = entry->agreed_ts_; // Keep in sync
       }
 
-      // For single-shard transactions, set ts_agreed_ now since no async
-      // agreement needed
-      if (entry->remote_shards_.empty()) {
-        entry->ts_agreed_.store(true);
-        entry->agree_status_.store(LUIGI_AGREE_COMPLETE);
+      // CRITICAL: Initiate agreement AFTER conflict detection
+      // This ensures we broadcast the correct (possibly bumped) timestamp
+      InitiateAgreement(entry);
+
+      // For single-shard txns, InitiateAgreement -> UpdateDeadlineRecord
+      // immediately completes and enqueues to ready_txn_queue_.
+      // Skip priority_queue insertion to avoid double-enqueue.
+      if (entry->ts_agreed_.load()) {
+        continue; // Already enqueued to ready_txn_queue_ by
+                  // UpdateDeadlineRecord
       }
 
-      // Insert into priority queue (ordered by deadline, worker_id, txn_id)
+      // Multi-shard txns: Insert into priority queue while waiting for
+      // agreement
       std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
       priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
           entry;
@@ -803,67 +810,16 @@ std::vector<uint32_t> SchedulerLuigi::GetAllShardIdsExceptSelf() const {
 // Replication Layer
 //=============================================================================
 
-// Replicate transaction to per-worker Paxos stream
-// Routes the transaction to the appropriate replication stream based on
-// worker_id
+// Replicate transaction to followers
+// TODO: Implement Luigi's own replication mechanism
+// For now, just log and skip - allows dispatch testing without Paxos workers
 void SchedulerLuigi::Replicate(uint32_t worker_id,
                                const std::shared_ptr<LuigiLogEntry> &entry) {
-  // Serialize the transaction entry for replication
-  // Format: [timestamp(8) | tid(8) | worker_id(4) | num_ops(2) | ops_data]
-  std::vector<char> log_buffer;
-
-  // Reserve space for header
-  size_t header_size =
-      sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint16_t);
-  log_buffer.reserve(header_size + 1024); // Estimate for ops
-
-  // Write timestamp
-  uint64_t ts = entry->agreed_ts_;
-  log_buffer.insert(log_buffer.end(), (char *)&ts,
-                    (char *)&ts + sizeof(uint64_t));
-
-  // Write transaction ID
-  uint64_t tid = entry->tid_;
-  log_buffer.insert(log_buffer.end(), (char *)&tid,
-                    (char *)&tid + sizeof(uint64_t));
-
-  // Write worker ID
-  log_buffer.insert(log_buffer.end(), (char *)&worker_id,
-                    (char *)&worker_id + sizeof(uint32_t));
-
-  // Write number of operations
-  uint16_t num_ops = static_cast<uint16_t>(entry->ops_.size());
-  log_buffer.insert(log_buffer.end(), (char *)&num_ops,
-                    (char *)&num_ops + sizeof(uint16_t));
-
-  // Write operations - match Mako's format: [key_len | key | val_len | val |
-  // table_id]
-  for (const auto &op : entry->ops_) {
-    // Write key length and key
-    uint16_t key_len = static_cast<uint16_t>(op.key.size());
-    log_buffer.insert(log_buffer.end(), (char *)&key_len,
-                      (char *)&key_len + sizeof(uint16_t));
-    log_buffer.insert(log_buffer.end(), op.key.begin(), op.key.end());
-
-    // Write value length and value
-    uint16_t val_len = static_cast<uint16_t>(op.value.size());
-    log_buffer.insert(log_buffer.end(), (char *)&val_len,
-                      (char *)&val_len + sizeof(uint16_t));
-    log_buffer.insert(log_buffer.end(), op.value.begin(), op.value.end());
-
-    // Write table_id
-    // Note: Luigi only has READ(0), WRITE(1), INSERT(2) - no delete operations
-    uint16_t table_id = op.table_id;
-    log_buffer.insert(log_buffer.end(), (char *)&table_id,
-                      (char *)&table_id + sizeof(uint16_t));
-  }
-
-  // Route to per-worker Paxos stream using worker_id as partition_id
-  // This is the key: worker_id determines which Paxos instance/stream to use
-  add_log_to_nc(log_buffer.data(), log_buffer.size(), worker_id);
-
-  Log_debug("Luigi Replicate: worker_id=%u, txn_id=%lu, ts=%lu, log_size=%zu",
-            worker_id, tid, ts, log_buffer.size());
+  Log_debug("Luigi Replicate (STUB): worker_id=%u, txn_id=%lu, ts=%lu - "
+            "replication not yet implemented",
+            worker_id, entry->tid_, entry->agreed_ts_);
+  // TODO: Implement Luigi's own follower replication via
+  // commo_->BroadcastReplicate()
 }
 
 //=============================================================================
