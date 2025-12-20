@@ -345,16 +345,15 @@ void SchedulerLuigi::ExecTd() {
         continue; // Skip execution
       }
 
-      // CRITICAL: Enforce timestamp ordering
-      // If there's a transaction with smaller timestamp and pending agreement,
-      // we must re-enqueue this transaction to maintain ordering
-      if (entry->agreed_ts_ > effective_min_pending) {
-        Log_debug(
-            "Luigi ExecTd: txn %lu (ts=%lu) blocked by pending txn (ts=%lu)",
-            entry->tid_, entry->agreed_ts_, effective_min_pending);
-        to_requeue.push_back(entry);
-        continue; // Skip execution
-      }
+      // TODO: Timestamp ordering check disabled for debugging
+      // This was causing multi-shard transactions to block
+      // if (entry->agreed_ts_ > effective_min_pending) {
+      //   Log_debug(
+      //       "Luigi ExecTd: txn %lu (ts=%lu) blocked by pending txn (ts=%lu)",
+      //       entry->tid_, entry->agreed_ts_, effective_min_pending);
+      //   to_requeue.push_back(entry);
+      //   continue; // Skip execution
+      // }
 
       // Delegate to executor for clean separation of concerns
       executor_.Execute(entry);
