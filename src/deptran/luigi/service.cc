@@ -16,15 +16,11 @@ LuigiServiceImpl::LuigiServiceImpl(LuigiServer *server) : server_(server) {}
 // RRR Handler Implementations
 //=============================================================================
 
-void LuigiServiceImpl::Dispatch(const rrr::i64 &txn_id,
-                            const rrr::i64 &expected_time,
-                            const rrr::i32 &worker_id,
-                            const std::vector<rrr::i32> &involved_shards,
-                            const std::string &ops_data,
-                            rrr::i32 *status,
-                            rrr::i64 *commit_timestamp,
-                            std::string *results_data,
-                            rrr::DeferredReply *defer) {
+void LuigiServiceImpl::LuigiDispatch(
+    const rrr::i64 &txn_id, const rrr::i64 &expected_time,
+    const rrr::i32 &worker_id, const std::vector<rrr::i32> &involved_shards,
+    const std::string &ops_data, rrr::i32 *status, rrr::i64 *commit_timestamp,
+    std::string *results_data, rrr::DeferredReply *defer) {
 
   // Parse operations from binary data
   std::vector<LuigiOp> ops;
@@ -92,9 +88,9 @@ void LuigiServiceImpl::Dispatch(const rrr::i64 &txn_id,
 
   scheduler->LuigiDispatchFromRequest(
       txn_id, expected_time, ops, involved_shards_u32, worker_id,
-      [defer_ptr, status_ptr, commit_timestamp_ptr, results_data_ptr](
-          int result_status, uint64_t commit_ts,
-          const std::vector<std::string> &read_results) {
+      [defer_ptr, status_ptr, commit_timestamp_ptr,
+       results_data_ptr](int result_status, uint64_t commit_ts,
+                         const std::vector<std::string> &read_results) {
         // Set outputs and reply when execution completes
         *status_ptr = result_status;
         *commit_timestamp_ptr = commit_ts;
@@ -106,19 +102,18 @@ void LuigiServiceImpl::Dispatch(const rrr::i64 &txn_id,
       });
 }
 
-void LuigiServiceImpl::OwdPing(const rrr::i64 &send_time,
-                           rrr::i32 *status,
-                           rrr::DeferredReply *defer) {
+void LuigiServiceImpl::OwdPing(const rrr::i64 &send_time, rrr::i32 *status,
+                               rrr::DeferredReply *defer) {
 
   *status = luigi::kOk;
   defer->reply();
 }
 
 void LuigiServiceImpl::DeadlinePropose(const rrr::i64 &tid,
-                                   const rrr::i32 &src_shard,
-                                   const rrr::i64 &proposed_ts,
-                                   rrr::i32 *status,
-                                   rrr::DeferredReply *defer) {
+                                       const rrr::i32 &src_shard,
+                                       const rrr::i64 &proposed_ts,
+                                       rrr::i32 *status,
+                                       rrr::DeferredReply *defer) {
 
   // Record the proposed timestamp from src_shard for this transaction
   // TODO: scheduler->RecordProposedTimestamp(tid, src_shard, proposed_ts)
@@ -127,10 +122,10 @@ void LuigiServiceImpl::DeadlinePropose(const rrr::i64 &tid,
 }
 
 void LuigiServiceImpl::DeadlineConfirm(const rrr::i64 &tid,
-                                   const rrr::i32 &src_shard,
-                                   const rrr::i64 &agreed_ts,
-                                   rrr::i32 *status,
-                                   rrr::DeferredReply *defer) {
+                                       const rrr::i32 &src_shard,
+                                       const rrr::i64 &agreed_ts,
+                                       rrr::i32 *status,
+                                       rrr::DeferredReply *defer) {
 
   // Update this transaction's timestamp to the agreed max
   // TODO: scheduler->UpdateTxnTimestamp(tid, agreed_ts)
@@ -138,10 +133,9 @@ void LuigiServiceImpl::DeadlineConfirm(const rrr::i64 &tid,
   defer->reply();
 }
 
-void LuigiServiceImpl::WatermarkExchange(const rrr::i32 &src_shard,
-                                     const std::vector<rrr::i64> &watermarks,
-                                     rrr::i32 *status,
-                                     rrr::DeferredReply *defer) {
+void LuigiServiceImpl::WatermarkExchange(
+    const rrr::i32 &src_shard, const std::vector<rrr::i64> &watermarks,
+    rrr::i32 *status, rrr::DeferredReply *defer) {
 
   *status = luigi::kOk;
   defer->reply();
@@ -151,8 +145,9 @@ void LuigiServiceImpl::WatermarkExchange(const rrr::i32 &src_shard,
 // Result Storage
 //=============================================================================
 
-void LuigiServiceImpl::StoreResult(uint64_t txn_id, int status, uint64_t commit_ts,
-                               const std::vector<std::string> &read_results) {
+void LuigiServiceImpl::StoreResult(
+    uint64_t txn_id, int status, uint64_t commit_ts,
+    const std::vector<std::string> &read_results) {
 
   std::unique_lock<std::shared_mutex> lock(results_mutex_);
 

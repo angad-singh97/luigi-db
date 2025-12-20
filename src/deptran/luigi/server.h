@@ -3,11 +3,15 @@
 /**
  * LuigiServer: Main server class for Luigi protocol
  *
- * Similar to RaftServer - manages scheduler, state machine, and RPC service.
+ * Manages scheduler, state machine, and RPC service.
+ * Entry point is main() in server.cc.
  */
 
 #include <memory>
 #include <string>
+
+#include "../__dep__.h" // For siteid_t
+#include "commo.h"      // For LuigiRole
 
 namespace rrr {
 class Server;
@@ -19,62 +23,34 @@ class SchedulerLuigi;
 class LuigiServiceImpl;
 class LuigiCommo;
 class LuigiStateMachine;
-class LuigiExecutor;
 
 /**
  * LuigiServer: Main server managing Luigi protocol execution.
- *
- * Analogous to RaftServer - coordinates scheduler, executor, state machine.
  */
 class LuigiServer {
 public:
-  LuigiServer(const std::string &config_file, int shard_idx);
+  explicit LuigiServer(int partition_id);
   ~LuigiServer();
 
-  /**
-   * Initialize the server components.
-   */
-  void Initialize();
-
-  /**
-   * Start the RRR server and event loop.
-   */
+  void Initialize(LuigiRole role, siteid_t site_id);
   void Start(const std::string &bind_addr);
-
-  /**
-   * Stop the server.
-   */
   void Stop();
 
-  /**
-   * Set the state machine (must be called before Start).
-   */
-  void SetStateMachine(LuigiStateMachine *sm) { state_machine_ = sm; }
+  void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {
+    state_machine_ = sm;
+  }
 
-  /**
-   * Get the scheduler.
-   */
   SchedulerLuigi *GetScheduler() { return scheduler_; }
-
-  /**
-   * Get the communicator.
-   */
   LuigiCommo *GetCommo() { return commo_.get(); }
-
-  /**
-   * Get partition ID.
-   */
   uint32_t GetPartitionId() const { return partition_id_; }
 
 private:
-  std::string config_file_;
   uint32_t partition_id_;
   int shard_idx_;
 
   // Core components
   SchedulerLuigi *scheduler_ = nullptr;
-  LuigiExecutor *executor_ = nullptr;
-  LuigiStateMachine *state_machine_ = nullptr;
+  std::shared_ptr<LuigiStateMachine> state_machine_;
 
   // RPC components
   std::shared_ptr<LuigiCommo> commo_;

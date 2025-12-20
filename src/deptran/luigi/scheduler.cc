@@ -1,7 +1,7 @@
 #include "scheduler.h"
+#include "commo.h" // For LuigiCommo
 #include "deptran/__dep__.h"
-#include "deptran/raft_main_helper.h"  // For add_log_to_nc
-#include "client.h"
+#include "deptran/raft_main_helper.h" // For add_log_to_nc
 #include "luigi_common.h"
 #include "luigi_entry.h"
 
@@ -641,8 +641,8 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
 
   UpdateDeadlineRecord(tid, shard_id_, my_ts, 1, entry);
 
-  if (!luigi_client_) {
-    Log_warn("Luigi InitiateAgreement: No LuigiClient available");
+  if (!commo_) {
+    Log_warn("Luigi InitiateAgreement: No commo available");
     for (uint32_t remote_shard : entry->remote_shards_) {
       UpdateDeadlineRecord(tid, remote_shard, my_ts, 1, nullptr);
     }
@@ -650,9 +650,15 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
   }
 
   // Broadcast to all involved shard leaders
-  commo_->BroadcastDeadlinePropose(
-      tid, shard_id_, my_ts, entry->remote_shards_);
-  Log_info("Luigi InitiateAgreement: broadcasted proposal to %zu shards", entry->remote_shards_.size());
+  auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+  if (luigi_commo) {
+    luigi_commo->BroadcastDeadlinePropose(tid, shard_id_, my_ts,
+                                          entry->remote_shards_);
+    Log_info("Luigi InitiateAgreement: broadcasted proposal to %zu shards",
+             entry->remote_shards_.size());
+  } else {
+    Log_warn("Luigi InitiateAgreement: commo_ is not LuigiCommo");
+  }
 }
 
 void SchedulerLuigi::SendRepositionConfirmations(
@@ -663,14 +669,22 @@ void SchedulerLuigi::SendRepositionConfirmations(
   Log_info("Luigi SendRepositionConfirmations: tid=%lu, new_ts=%lu", tid,
            new_ts);
 
-  if (!luigi_client_) {
-    Log_warn("Luigi SendRepositionConfirmations: No LuigiClient available");
+  if (!commo_) {
+    Log_warn("Luigi SendRepositionConfirmations: No commo available");
     return;
   }
 
   // Use commo_ broadcast helper for DeadlineConfirm
-  commo_->BroadcastDeadlineConfirm(entry->tid_, shard_id_, entry->agreed_ts_, entry->remote_shards_);
-  Log_info("Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu shards", entry->remote_shards_.size());
+  auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+  if (luigi_commo) {
+    luigi_commo->BroadcastDeadlineConfirm(
+        entry->tid_, shard_id_, entry->agreed_ts_, entry->remote_shards_);
+    Log_info(
+        "Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu shards",
+        entry->remote_shards_.size());
+  } else {
+    Log_warn("Luigi SendRepositionConfirmations: commo_ is not LuigiCommo");
+  }
 
   {
     std::lock_guard<std::mutex> lock(deadline_queue_mutex_);
@@ -747,7 +761,7 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
 }
 
 void SchedulerLuigi::BroadcastWatermarks() {
-  if (!luigi_client_) {
+  if (!commo_) {
     return;
   }
 
@@ -764,8 +778,14 @@ void SchedulerLuigi::BroadcastWatermarks() {
   }
 
   // Use commo_ broadcast helper for WatermarkExchange
-  commo_->BroadcastWatermarkExchange(shard_id_, current_wms, GetAllShardIdsExceptSelf());
-  Log_debug("BroadcastWatermarks: broadcasted to all shards except self");
+  auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+  if (luigi_commo) {
+    luigi_commo->BroadcastWatermarkExchange(shard_id_, current_wms,
+                                            GetAllShardIdsExceptSelf());
+    Log_debug("BroadcastWatermarks: broadcasted to all shards except self");
+  }
+}
+
 // Helper to get all shard IDs except self for broadcasting
 std::vector<uint32_t> SchedulerLuigi::GetAllShardIdsExceptSelf() const {
   std::vector<uint32_t> all_shards;
@@ -777,7 +797,6 @@ std::vector<uint32_t> SchedulerLuigi::GetAllShardIdsExceptSelf() const {
     }
   }
   return all_shards;
-}
 }
 
 //=============================================================================
@@ -887,4 +906,3 @@ void SchedulerLuigi::SetPartitionId(uint32_t shard_id) {
 }
 
 } // namespace janus
-

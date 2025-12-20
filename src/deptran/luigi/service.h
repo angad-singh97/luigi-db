@@ -14,7 +14,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "luigi.h" // Generated RRR service
+#include "../__dep__.h"
+#include "../command.h"
+#include "../command_marshaler.h"
+#include "../constants.h"
+#include "../procedure.h"
+#include "../rcc/graph.h"
+#include "../rcc/graph_marshaler.h"
+#include "../rcc_rpc.h" // Generated RRR service (includes LuigiService)
 #include "luigi_common.h"
 
 namespace janus {
@@ -35,30 +42,27 @@ public:
   // RRR LuigiService Interface Implementation
   //===========================================================================
 
-  void Dispatch(const rrr::i64 &txn_id, const rrr::i64 &expected_time,
-                const rrr::i32 &worker_id,
-                const std::vector<rrr::i32> &involved_shards,
-                const std::string &ops_data,
-                rrr::i32 *status,
-                rrr::i64 *commit_timestamp,
-                std::string *results_data, rrr::DeferredReply *defer);
+  void LuigiDispatch(const rrr::i64 &txn_id, const rrr::i64 &expected_time,
+                     const rrr::i32 &worker_id,
+                     const std::vector<rrr::i32> &involved_shards,
+                     const std::string &ops_data, rrr::i32 *status,
+                     rrr::i64 *commit_timestamp, std::string *results_data,
+                     rrr::DeferredReply *defer);
 
-  void OwdPing(const rrr::i64 &send_time,
-               rrr::i32 *status, rrr::DeferredReply *defer);
+  void OwdPing(const rrr::i64 &send_time, rrr::i32 *status,
+               rrr::DeferredReply *defer);
 
-  void DeadlinePropose(const rrr::i64 &tid,
-                       const rrr::i32 &src_shard,
-                       const rrr::i64 &proposed_ts,
-                       rrr::i32 *status, rrr::DeferredReply *defer);
+  void DeadlinePropose(const rrr::i64 &tid, const rrr::i32 &src_shard,
+                       const rrr::i64 &proposed_ts, rrr::i32 *status,
+                       rrr::DeferredReply *defer);
 
   void DeadlineConfirm(const rrr::i64 &tid, const rrr::i32 &src_shard,
-                       const rrr::i64 &agreed_ts,
-                       rrr::i32 *status, rrr::DeferredReply *defer);
+                       const rrr::i64 &agreed_ts, rrr::i32 *status,
+                       rrr::DeferredReply *defer);
 
   void WatermarkExchange(const rrr::i32 &src_shard,
                          const std::vector<rrr::i64> &watermarks,
-                         rrr::i32 *status,
-                         rrr::DeferredReply *defer);
+                         rrr::i32 *status, rrr::DeferredReply *defer);
 
 protected:
   //===========================================================================

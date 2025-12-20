@@ -674,8 +674,8 @@ list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/bench/paxos_lib/.*")
 # Exclude MongoDB backend (requires mongocxx library)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/mongodb/.*")
 # Exclude Luigi main files (they are standalone executables)
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_bench_main\\.cc$")
-list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/luigi_server_main\\.cc$")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/coordinator\\.cc$")
+list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/luigi/server\\.cc$")
 # Exclude hello world test files (they have main functions)
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_client.cc")
 list(FILTER DEPTRAN_SRC EXCLUDE REGEX "src/deptran/hello_server.cc")
@@ -927,12 +927,12 @@ endfunction()
 
 add_apps(dbtest src/mako/benchmarks/dbtest.cc)
 
-# Luigi benchmark client - uses RRR framework (no mako/eRPC dependencies)
-add_executable(luigi_bench
-    src/deptran/luigi/luigi_bench_main.cc
+# Luigi coordinator (benchmark client) - uses RRR framework
+add_executable(luigi_coordinator
+    src/deptran/luigi/coordinator.cc
 )
 
-target_include_directories(luigi_bench PRIVATE
+target_include_directories(luigi_coordinator PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/deptran
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rrr
@@ -943,9 +943,9 @@ target_include_directories(luigi_bench PRIVATE
     ${Python3_INCLUDE_DIRS}
 )
 
-target_compile_options(luigi_bench PRIVATE ${BENCH_CXXFLAGS})
+target_compile_options(luigi_coordinator PRIVATE ${BENCH_CXXFLAGS})
 
-target_link_libraries(luigi_bench
+target_link_libraries(luigi_coordinator
     txlog
     yaml-cpp
     Boost::system
@@ -963,11 +963,11 @@ target_link_libraries(luigi_bench
 )
 
 # Add dependencies for RPC generation
-add_dependencies(luigi_bench txlog rcc_rpc_gen luigi_rpc_gen)
+add_dependencies(luigi_coordinator txlog rcc_rpc_gen luigi_rpc_gen)
 
 # Luigi RRR server - uses RRR framework for RPC
 add_executable(luigi_server
-    src/deptran/luigi/luigi_server_main.cc
+    src/deptran/luigi/server.cc
 )
 
 target_include_directories(luigi_server PRIVATE

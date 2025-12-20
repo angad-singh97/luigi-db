@@ -1,11 +1,10 @@
 # Luigi 2-Shard Local Test Configuration
-# Mako-compatible format for transport::Configuration parser
-# Based on Mako's test_2shard patterns
+# Compatible with janus::Config parser
 
 site:
-  server:  # 2 shards, 1 partition each (no replication)
-    - ["s0:31850"]
-    - ["s1:31851"]
+  server:
+    - ["s0:31850"]   # Shard 0
+    - ["s1:31851"]   # Shard 1
   client:
     - ["c0"]
 
@@ -16,15 +15,3 @@ process:
 
 host:
   localhost: 127.0.0.1
-
-# Luigi-specific configuration
-luigi:
-  client_vm_index: 0
-  num_workers_per_vm: 6
-  headroom_ms: 2
-  ping_interval_ms: 100
-  initial_owd_ms: 1
-
-# Benchmark defaults (can be overridden by CLI)
-benchmark:
-  warehouses: 6

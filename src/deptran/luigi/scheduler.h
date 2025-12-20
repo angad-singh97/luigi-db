@@ -9,8 +9,8 @@
 // but mako/lib/common.h uses SUCCESS as an enum value
 #undef SUCCESS
 
-#include "luigi_entry.h"
 #include "executor.h"
+#include "luigi_entry.h"
 #include "state_machine.h"
 
 #include <atomic>
@@ -23,8 +23,6 @@
 #include <vector>
 
 namespace janus {
-
-class LuigiClient; // Forward declaration for leader-to-leader eRPC
 
 /**
  * SchedulerLuigi: Tiga-style timestamp-ordered execution for Mako.
@@ -48,6 +46,7 @@ class LuigiClient; // Forward declaration for leader-to-leader eRPC
 class SchedulerLuigi : public SchedulerClassic {
   // Helper to get all shard IDs except self for broadcasting
   std::vector<uint32_t> GetAllShardIdsExceptSelf() const;
+
 public:
   SchedulerLuigi();
   virtual ~SchedulerLuigi();
@@ -215,11 +214,6 @@ protected:
   std::mutex deadline_queue_mutex_; // Protects deadline_queue_
 
   //==========================================================================
-  // LEADER CLIENT (for eRPC coordination)
-  //==========================================================================
-  LuigiClient *luigi_client_ = nullptr; // Client for leader-to-leader RPCs
-
-  //==========================================================================
   // WATERMARK MANAGEMENT (Tiga-style)
   //
   // Tracks execution progress per worker stream to ensure global consistency.
@@ -293,16 +287,6 @@ protected:
   // (SetStateMachine and EnableStateMachineMode moved to public section)
 
   bool IsStateMachineMode() const { return executor_.IsStateMachineMode(); }
-
-  //==========================================================================
-  // LEADER CLIENT MANAGEMENT
-  //==========================================================================
-
-  // Set the Luigi client for leader-to-leader communication
-  void SetLuigiClient(LuigiClient *client) { luigi_client_ = client; }
-
-  // Get the Luigi client
-  LuigiClient *GetLuigiClient() { return luigi_client_; }
 
   //==========================================================================
   // AGREEMENT HANDLERS (Tiga-style bidirectional broadcast)
