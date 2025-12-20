@@ -23,6 +23,16 @@ LuigiExecutor::~LuigiExecutor() {}
 //=============================================================================
 
 void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
+  // Guard against double execution - atomically transition from INIT to DIRECT
+  uint32_t expected = LUIGI_EXEC_INIT;
+  if (!entry->exec_status_.compare_exchange_strong(
+          expected, static_cast<uint32_t>(LUIGI_EXEC_DIRECT))) {
+    // Already executing or completed - skip
+    Log_debug("Luigi Execute: txn %lu already executing/completed (status=%d)",
+              entry->tid_, expected);
+    return;
+  }
+
   int status = 0; // SUCCESS
   uint64_t commit_ts = entry->proposed_ts_;
 
