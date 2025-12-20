@@ -24,21 +24,17 @@ src/deptran/luigi/
 
 ### Connection Topology
 ```
-      Coordinator
-           │ dispatch, OWD pings
-           ▼
-     ┌─────┴─────┐
-     ▼           ▼
-  Leader_0 ◄──► Leader_1   (watermark, deadline propose/confirm)
-     │           │
-     ▼           ▼
-  Follower    Follower     (replication from own leader)
+All entities connect to all other entities (simplified)
+RPC targeting happens at broadcast level based on message type
 ```
 
-**Each entity can connect to all others, but RPC usage follows protocol:**
-- Coordinator → Leaders: `LuigiDispatch`, `OwdPing`
-- Leader ↔ Leader: `DeadlinePropose`, `DeadlineConfirm`, `WatermarkExchange`
-- Leader → Followers: Replication (via existing Mako mechanism)
+**RPC Targeting (filtering at broadcast):**
+| RPC | Sender | Targets |
+|-----|--------|---------|
+| `LuigiDispatch`, `OwdPing` | Coordinator | Leaders only |
+| `DeadlinePropose/Confirm` | Leaders | Other leaders |
+| `WatermarkExchange` | Leaders | Other leaders + Coordinator |
+| Replication | Leaders | Own followers |
 
 ---
 
