@@ -104,7 +104,7 @@ void LuigiServiceImpl::LuigiDispatch(
 
 void LuigiServiceImpl::OwdPing(const rrr::i64 &send_time, rrr::i32 *status,
                                rrr::DeferredReply *defer) {
-
+  Log_info("OwdPing: received ping with send_time=%ld", send_time);
   *status = luigi::kOk;
   defer->reply();
 }

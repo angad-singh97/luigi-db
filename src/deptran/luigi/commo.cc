@@ -174,7 +174,7 @@ shared_ptr<IntEvent> LuigiCommo::SendWatermarkExchange(
 
 //=============================================================================
 // Sync Methods (blocking, for use from non-reactor threads)
-// Uses condition_variable since we're calling from std::thread, not coroutine
+// Uses fu->wait() pattern like hello_client.cc
 //=============================================================================
 
 bool LuigiCommo::OwdPingSync(parid_t shard_id, rrr::i64 send_time,
@@ -188,27 +188,23 @@ bool LuigiCommo::OwdPingSync(parid_t shard_id, rrr::i64 send_time,
     return false;
   }
 
-  std::mutex mtx;
-  std::condition_variable cv;
-  bool done = false;
+  // Use async without callback, then wait on the future
+  auto result = proxy->async_OwdPing(send_time);
+  if (result.is_err()) {
+    Log_warn("OwdPingSync: async_OwdPing failed for shard %d", shard_id);
+    return false;
+  }
 
-  FutureAttr fuattr;
-  fuattr.callback = [&mtx, &cv, &done, status](rusty::Arc<Future> fu) {
-    std::lock_guard<std::mutex> lock(mtx);
-    if (fu->get_error_code() == 0) {
-      fu->get_reply() >> *status;
-    } else {
-      *status = -1;
-    }
-    done = true;
-    cv.notify_one();
-  };
+  auto fu = result.unwrap();
+  fu->wait();
 
-  proxy->async_OwdPing(send_time, fuattr);
-
-  std::unique_lock<std::mutex> lock(mtx);
-  cv.wait(lock, [&done] { return done; });
-  return *status == 0;
+  if (fu->get_error_code() == 0) {
+    fu->get_reply() >> *status;
+    return *status == 0;
+  } else {
+    *status = -1;
+    return false;
+  }
 }
 
 bool LuigiCommo::DispatchSync(parid_t shard_id, rrr::i64 txn_id,
@@ -226,31 +222,26 @@ bool LuigiCommo::DispatchSync(parid_t shard_id, rrr::i64 txn_id,
     return false;
   }
 
-  std::mutex mtx;
-  std::condition_variable cv;
-  bool done = false;
+  // Use async without callback, then wait on the future
+  auto result = proxy->async_LuigiDispatch(txn_id, expected_time, worker_id,
+                                           involved_shards, ops_data);
+  if (result.is_err()) {
+    Log_warn("DispatchSync: async_LuigiDispatch failed for shard %d", shard_id);
+    return false;
+  }
 
-  FutureAttr fuattr;
-  fuattr.callback = [&mtx, &cv, &done, status, commit_timestamp,
-                     results_data](rusty::Arc<Future> fu) {
-    std::lock_guard<std::mutex> lock(mtx);
-    if (fu->get_error_code() == 0) {
-      fu->get_reply() >> *status;
-      fu->get_reply() >> *commit_timestamp;
-      fu->get_reply() >> *results_data;
-    } else {
-      *status = -1;
-    }
-    done = true;
-    cv.notify_one();
-  };
+  auto fu = result.unwrap();
+  fu->wait();
 
-  proxy->async_LuigiDispatch(txn_id, expected_time, worker_id, involved_shards,
-                             ops_data, fuattr);
-
-  std::unique_lock<std::mutex> lock(mtx);
-  cv.wait(lock, [&done] { return done; });
-  return *status == 0;
+  if (fu->get_error_code() == 0) {
+    fu->get_reply() >> *status;
+    fu->get_reply() >> *commit_timestamp;
+    fu->get_reply() >> *results_data;
+    return *status == 0;
+  } else {
+    *status = -1;
+    return false;
+  }
 }
 
 //=============================================================================

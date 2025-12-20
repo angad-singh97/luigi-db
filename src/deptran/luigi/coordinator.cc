@@ -448,7 +448,9 @@ int main(int argc, char **argv) {
        << ", Duration: " << duration_sec << "s, Benchmark: " << benchmark_type
        << "\n\n";
 
-  auto commo = make_shared<LuigiCommo>(rusty::None);
+  // Create a PollThread for RPC callbacks (required for async operations)
+  auto poll = rrr::PollThread::create();
+  auto commo = make_shared<LuigiCommo>(rusty::Some(poll));
 
   LuigiCoordinator::Config coord_config;
   coord_config.num_shards = num_shards;
