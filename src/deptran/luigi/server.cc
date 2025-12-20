@@ -38,17 +38,17 @@ LuigiServer::~LuigiServer() {
 }
 
 void LuigiServer::Initialize() {
-  // Scheduler will be initialized after RPC listener starts
+  // Scheduler initialized here, commo created later
   scheduler_ = new SchedulerLuigi();
   scheduler_->partition_id_ = partition_id_;
   scheduler_->SetPartitionId(partition_id_);
 }
 
-void LuigiServer::Start(const std::string &bind_addr) {
+void LuigiServer::StartListener(const std::string &bind_addr) {
   // Create RPC service
   service_ = std::make_unique<LuigiServiceImpl>(this);
 
-  // Create and start RRR server FIRST (so we can receive connections)
+  // Create and start RRR server (listener only)
   auto poll = PollThread::create();
   base::ThreadPool *thread_pool = new base::ThreadPool(1);
   rpc_server_ = std::make_unique<rrr::Server>(poll, thread_pool);
@@ -57,17 +57,17 @@ void LuigiServer::Start(const std::string &bind_addr) {
 
   Log_info("Luigi server listening on %s for shard %d", bind_addr.c_str(),
            partition_id_);
+}
 
-  // Now create communicator (which connects to other sites)
-  // Our listener is running, so others can connect to us
+void LuigiServer::ConnectAndStart() {
+  // Now create communicator (all other sites should be listening)
   commo_ = std::make_shared<LuigiCommo>(rusty::None);
   scheduler_->commo_ = commo_.get();
 
-  // Start scheduler threads
+  // Start scheduler threads (which may broadcast watermarks etc)
   scheduler_->Start();
 
-  Log_info("Luigi server ready on %s for shard %d", bind_addr.c_str(),
-           partition_id_);
+  Log_info("Luigi server ready for shard %d", partition_id_);
 }
 
 void LuigiServer::Stop() {
@@ -124,13 +124,13 @@ int main(int argc, char **argv) {
        << "Process: " << config->proc_name_ << ", Sites: " << my_sites.size()
        << "\n";
 
+  // Phase 1: Create servers and start listeners (no connections yet)
   for (auto &site : my_sites) {
     cout << "  - Site " << site.id << ": shard=" << site.partition_id_
          << " addr=" << site.GetBindAddress() << "\n";
 
     auto server = make_unique<LuigiServer>(site.partition_id_);
 
-    // Create and set state machine
     int num_shards = config->GetNumPartition();
     auto state_machine = make_shared<LuigiMicroStateMachine>(site.partition_id_,
                                                              0, num_shards, 1);
@@ -138,9 +138,17 @@ int main(int argc, char **argv) {
     server->SetStateMachine(state_machine);
 
     server->Initialize();
-    server->Start(site.GetBindAddress());
+    server->StartListener(site.GetBindAddress());
 
     g_servers.push_back(std::move(server));
+  }
+
+  // Brief pause to let all listeners start
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  // Phase 2: Create commos and start schedulers (now all sites are listening)
+  for (auto &server : g_servers) {
+    server->ConnectAndStart();
   }
 
   cout << "\n=== Luigi Server Ready ===\n";

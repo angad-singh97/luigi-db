@@ -24,7 +24,8 @@ public:
   ~LuigiServer();
 
   void Initialize();
-  void Start(const std::string &bind_addr);
+  void StartListener(const std::string &bind_addr);
+  void ConnectAndStart();
   void Stop();
 
   void SetStateMachine(std::shared_ptr<LuigiStateMachine> sm) {

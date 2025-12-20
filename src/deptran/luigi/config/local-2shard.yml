@@ -3,7 +3,7 @@
 
 # site - partition map
 # Each line is a partition (shard)
-# First item in each partition is the leader
+# First item in each partition is the leader (locale_id=0 means role=0)
 site:
   server:
     - ["s101:31850"]   # Shard 0 leader
@@ -12,14 +12,13 @@ site:
     - ["c101"]
 
 # site_name -> process_name map
-# When "-P s0" is passed, it matches sites where proc_name == "s0"
+# IMPORTANT: Use "localhost" to get role=0 (leader) in Config parsing
+# Config assigns role based on proc_name: localhost=0, learner=2, else=1
 process:
-  s101: s0   # Site s101 runs in process "s0"
-  s201: s1   # Site s201 runs in process "s1"
-  c101: c0   # Client c101 runs in process "c0"
+  s101: localhost
+  s201: localhost
+  c101: localhost
 
 # process_name -> host_addr map
 host:
-  s0: 127.0.0.1
-  s1: 127.0.0.1
-  c0: 127.0.0.1
+  localhost: 127.0.0.1
