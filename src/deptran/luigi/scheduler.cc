@@ -247,13 +247,8 @@ void SchedulerLuigi::HoldReleaseTd() {
       // For single-shard txns, InitiateAgreement -> UpdateDeadlineRecord
       // immediately completes and enqueues to ready_txn_queue_.
       // Skip priority_queue insertion to avoid double-enqueue.
-      if (entry->ts_agreed_.load()) {
-        continue; // Already enqueued to ready_txn_queue_ by
-                  // UpdateDeadlineRecord
-      }
-
       // Multi-shard txns: Insert into priority queue while waiting for
-      // agreement
+      // agreement. Single-shard txns also go here for ordering.
       std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
       priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
           entry;
@@ -262,27 +257,53 @@ void SchedulerLuigi::HoldReleaseTd() {
     //-------------------------------------------------------------------------
     // Phase 2: Release txns whose deadline has passed -> ready_txn_queue_
     //-------------------------------------------------------------------------
-    while (!priority_queue_.empty()) {
-      auto it = priority_queue_.begin();
-      // Check if deadline has passed
-      uint64_t deadline = std::get<0>(it->first); // Get timestamp from tuple
-      if (deadline > now) { // Earliest deadline not yet reached, stop releasing
-        break;              // No more ready transactions
-      }
+    {
+      std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
 
-      // Deadline reached! Release this entry
-      auto entry = it->second;
-      priority_queue_.erase(it);
+      while (!priority_queue_.empty()) {
+        auto it = priority_queue_.begin();
+        uint64_t deadline = std::get<0>(it->first); // Get timestamp from tuple
+        auto entry = it->second;
 
-      // Update lastReleasedDeadlines for all keys this txn touches (like Tiga)
-      for (auto &k : entry->local_keys_) {
-        if (last_released_deadlines_[k] < entry->agreed_ts_) {
-          last_released_deadlines_[k] = entry->agreed_ts_;
+        // 1. Check timestamp ordering
+        if (deadline > now) {
+          break; // Not ready yet
         }
-      }
 
-      // Hand off to execution thread
-      ready_txn_queue_.enqueue(entry);
+        // 2. Head-of-Line Blocking for multi-shard agreement
+        // We cannot release a multi-shard txn until its timestamp is finalized
+        if (!entry->ts_agreed_.load()) {
+          // Check for Case 3 Repositioning (FLUSHING)
+          if (entry->agree_status_.load() == LUIGI_AGREE_FLUSHING) {
+            Log_info(
+                "Luigi HoldReleaseTd: Repositioning tid=%lu from %lu to %lu",
+                entry->tid_, deadline, entry->agreed_ts_);
+            // Remove and re-insert with new timestamp
+            priority_queue_.erase(it);
+            priority_queue_[{entry->agreed_ts_, entry->worker_id_,
+                             entry->tid_}] = entry;
+            continue; // Re-evaluate top
+          }
+
+          // Otherwise, just block and wait for agreement to complete.
+          // We'll check again in the next iteration.
+          break;
+        }
+
+        // 3. Ready to release!
+        priority_queue_.erase(it);
+
+        // Update lastReleasedDeadlines for all keys this txn touches (like
+        // Tiga)
+        for (auto &k : entry->local_keys_) {
+          if (last_released_deadlines_[k] < entry->agreed_ts_) {
+            last_released_deadlines_[k] = entry->agreed_ts_;
+          }
+        }
+
+        // Hand off to execution thread
+        ready_txn_queue_.enqueue(entry);
+      }
     }
 
     //-------------------------------------------------------------------------
@@ -313,49 +334,28 @@ void SchedulerLuigi::ExecTd() {
   while (running_) {
     size_t cnt = ready_txn_queue_.try_dequeue_bulk(entries, 64);
 
-    std::vector<std::shared_ptr<LuigiLogEntry>> to_requeue;
-    uint64_t batch_min_pending = UINT64_MAX;
-
-    // Get current global minimum pending timestamp
-    uint64_t global_min_pending = min_pending_timestamp_.load();
-
-    // First pass: identify transactions with pending agreement in this batch
-    for (size_t i = 0; i < cnt; i++) {
-      auto &entry = entries[i];
-      if (!entry->ts_agreed_) {
-        if (entry->agreed_ts_ < batch_min_pending) {
-          batch_min_pending = entry->agreed_ts_;
-        }
-      }
-    }
-
-    // Use the minimum of global and batch pending timestamps
-    uint64_t effective_min_pending =
-        std::min(global_min_pending, batch_min_pending);
-
-    // Second pass: execute or re-enqueue based on timestamp ordering
     for (size_t i = 0; i < cnt; i++) {
       auto &entry = entries[i];
 
-      // CRITICAL: Check if timestamp agreement is complete
-      if (!entry->ts_agreed_) {
-        Log_debug("Luigi ExecTd: txn %lu agreement incomplete, re-enqueuing",
-                  entry->tid_);
-        to_requeue.push_back(entry);
-        continue; // Skip execution
-      }
+      // For multi-shard txns in AGREE_INIT state, we must call Execute() to
+      // trigger InitiateAgreement(). Skip entries that are:
+      // - PENDING (agreement initiated, waiting for proposals)
+      // - CONFIRMING (waiting for phase-2 confirmations)
+      LuigiAgreeStatus agree_status =
+          static_cast<LuigiAgreeStatus>(entry->agree_status_.load());
 
-      // TODO: Timestamp ordering check disabled for debugging
-      // This was causing multi-shard transactions to block
-      // if (entry->agreed_ts_ > effective_min_pending) {
-      //   Log_debug(
-      //       "Luigi ExecTd: txn %lu (ts=%lu) blocked by pending txn (ts=%lu)",
-      //       entry->tid_, entry->agreed_ts_, effective_min_pending);
-      //   to_requeue.push_back(entry);
-      //   continue; // Skip execution
-      // }
+      if (agree_status == LUIGI_AGREE_PENDING ||
+          agree_status == LUIGI_AGREE_CONFIRMING) {
+        // Agreement in progress - don't process, wait for async completion
+        // UpdateDeadlineRecord() will re-enqueue when ready
+        continue;
+      }
 
       // Delegate to executor for clean separation of concerns
+      Log_info("Luigi ExecTd: calling Execute() for tid=%lu agree_status=%d "
+               "exec_status=%d",
+               entry->tid_, entry->agree_status_.load(),
+               entry->exec_status_.load());
       executor_.Execute(entry);
 
       // Handle post-execution state based on agreement outcome
@@ -369,6 +369,12 @@ void SchedulerLuigi::ExecTd() {
         break;
 
       case LUIGI_AGREE_INIT:
+        // Should not happen - INIT should transition to PENDING after Execute()
+        Log_warn("Luigi ExecTd: txn %lu unexpected INIT after Execute()",
+                 entry->tid_);
+        break;
+
+      case LUIGI_AGREE_PENDING:
         // Multi-shard txn: InitiateAgreement() was called, RPCs sent.
         // The txn is now waiting for async agreement completion.
         // When all proposals arrive, UpdateDeadlineRecord() will:
@@ -376,7 +382,7 @@ void SchedulerLuigi::ExecTd() {
         //   - Set agree_status_ appropriately
         //   - Re-enqueue to ready_txn_queue_ if ready to execute
         // Nothing to do here - just let it wait.
-        Log_debug("Luigi ExecTd: txn %lu waiting for agreement (INIT)",
+        Log_debug("Luigi ExecTd: txn %lu waiting for agreement (PENDING)",
                   entry->tid_);
         break;
 
@@ -409,33 +415,10 @@ void SchedulerLuigi::ExecTd() {
             entry->tid_, static_cast<int>(status));
         break;
       }
-    }
 
-    // Re-enqueue transactions that need to wait
-    if (!to_requeue.empty()) {
-      std::lock_guard<std::mutex> pq_lock(priority_queue_mutex_);
-      for (auto &entry : to_requeue) {
-        priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
-            entry;
+      if (cnt == 0) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
       }
-      Log_debug(
-          "Luigi ExecTd: re-enqueued %zu transactions to maintain ordering",
-          to_requeue.size());
-    }
-
-    // Update global minimum pending timestamp
-    if (batch_min_pending < UINT64_MAX) {
-      // Found pending transactions in this batch - update global min atomically
-      uint64_t expected = global_min_pending;
-      while (batch_min_pending < expected &&
-             !min_pending_timestamp_.compare_exchange_weak(expected,
-                                                           batch_min_pending)) {
-        // CAS loop: retry if another thread updated it
-      }
-    }
-
-    if (cnt == 0) {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
   }
 }
@@ -465,6 +448,24 @@ void SchedulerLuigi::UpdateDeadlineRecord(
 
   std::lock_guard<std::mutex> lock(deadline_queue_mutex_);
 
+  // For remote proposals (entry == nullptr), we may receive them before
+  // our local entry is created. That's fine - we'll store the proposal
+  // and it will be counted when the local entry initializes.
+  // We only reject if the record exists AND is already complete (erased entry).
+  if (entry == nullptr) {
+    auto it = deadline_queue_.find(tid);
+    if (it != deadline_queue_.end() && it->second.expected_count_ > 0 &&
+        it->second.item_count_ >= it->second.expected_count_) {
+      // Record exists and is already complete - this is a late/stale proposal
+      Log_debug(
+          "Luigi UpdateDeadlineRecord: ignoring stale proposal for tid=%lu",
+          tid);
+      return;
+    }
+    // Otherwise, store the proposal - it will be processed when local entry
+    // arrives
+  }
+
   DeadlineQItem &dqi = deadline_queue_[tid];
 
   // If entry provided (our local txn), initialize expected count
@@ -484,11 +485,11 @@ void SchedulerLuigi::UpdateDeadlineRecord(
     dqi.received_[src_shard] = true;
     dqi.item_count_++;
 
-    Log_info(
-        "Luigi UpdateDeadlineRecord: tid=%lu from shard %u ts=%lu phase=%u, "
-        "now have %u/%u proposals",
-        tid, src_shard, proposed_ts, phase, dqi.item_count_,
-        dqi.expected_count_);
+    Log_info("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu from shard %u "
+             "ts=%lu phase=%u, "
+             "now have %u/%u proposals",
+             shard_id_, tid, src_shard, proposed_ts, phase, dqi.item_count_,
+             dqi.expected_count_);
   } else if (src_shard >= DeadlineQItem::MAX_SHARDS) {
     Log_warn("Luigi UpdateDeadlineRecord: shard_id %u exceeds MAX_SHARDS",
              src_shard);
@@ -520,21 +521,22 @@ void SchedulerLuigi::UpdateDeadlineRecord(
     dqi.agreed_deadline_ = agreed_ts;
     uint64_t my_ts = dqi.entry_->proposed_ts_;
 
-    Log_info("Luigi UpdateDeadlineRecord: tid=%lu COMPLETE - agreed_ts=%lu, "
+    Log_info("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu COMPLETE - "
+             "agreed_ts=%lu, "
              "my_ts=%lu, all_match=%d",
-             tid, agreed_ts, my_ts, all_match);
+             shard_id_, tid, agreed_ts, my_ts, all_match);
 
     // Determine which case we're in
     if (all_match) {
       // Case 1: All proposals match - we're done!
       dqi.entry_->agreed_ts_ = agreed_ts;
-      dqi.entry_->agree_status_.store(LUIGI_AGREE_COMPLETE);
       dqi.entry_->ts_agreed_.store(true); // Agreement complete!
+      dqi.entry_->agree_status_.store(LUIGI_AGREE_COMPLETE);
 
       Log_info("Luigi: tid=%lu Case 1 - all match at ts=%lu", tid, agreed_ts);
 
-      // Enqueue for execution completion
-      ready_txn_queue_.enqueue(dqi.entry_);
+      // DO NOT enqueue to ready_txn_queue_ here.
+      // HoldReleaseTd will pick up the completion and release it in order.
 
     } else if (my_ts == agreed_ts) {
       // Case 2: I proposed the max, but others differ
@@ -579,8 +581,7 @@ void SchedulerLuigi::UpdateDeadlineRecord(
           "Luigi: tid=%lu Case 3 - my_ts=%lu < agreed=%lu, need reposition",
           tid, my_ts, agreed_ts);
 
-      // Entry will be requeued by ExecTd after it notices AGREE_FLUSHING
-      ready_txn_queue_.enqueue(dqi.entry_);
+      // HoldReleaseTd will handle repositioning when it sees AGREE_FLUSHING
     }
 
     // Clean up if complete
@@ -685,9 +686,9 @@ void SchedulerLuigi::SendRepositionConfirmations(
   if (luigi_commo) {
     luigi_commo->BroadcastDeadlineConfirm(
         entry->tid_, shard_id_, entry->agreed_ts_, entry->remote_shards_);
-    Log_info(
-        "Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu shards",
-        entry->remote_shards_.size());
+    Log_info("Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu "
+             "shards",
+             entry->remote_shards_.size());
   } else {
     Log_warn("Luigi SendRepositionConfirmations: commo_ is not LuigiCommo");
   }
