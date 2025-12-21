@@ -64,11 +64,25 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
       //-------------------------------------------------------------------
       Log_info("Luigi Execute: txn %lu initiating agreement (async)",
                entry->tid_);
+      // Mark as pending BEFORE initiating to prevent re-entry
+      entry->agree_status_.store(LUIGI_AGREE_PENDING);
       if (scheduler_ != nullptr) {
         scheduler_->InitiateAgreement(entry);
       }
-      // Don't execute yet - wait for agreement to complete asynchronously
-      entry->exec_status_.store(LUIGI_EXEC_INIT);
+      // Keep exec_status_ as DIRECT (don't reset to INIT) to prevent
+      // another Execute() call from passing the CAS guard
+      // When UpdateDeadlineRecord sets COMPLETE, it will re-enqueue
+      // the entry which will be picked up but rejected by CAS
+      // UNLESS we're in COMPLETE state, in which case we want to allow it
+
+      // If agreement completed during InitiateAgreement (synchronous case),
+      // we should proceed to execution. Check the status again:
+      if (entry->agree_status_.load() == LUIGI_AGREE_COMPLETE) {
+        // Agreement already completed! Fall through to execution
+        commit_ts = entry->agreed_ts_;
+        break;
+      }
+      // Still waiting for agreement - return without executing
       return;
 
     case LUIGI_AGREE_FLUSHING:
@@ -101,6 +115,16 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
                entry->tid_);
       // The scheduler's HandleRemoteDeadlineConfirm will re-enqueue us
       // when all confirmations arrive
+      entry->exec_status_.store(LUIGI_EXEC_INIT);
+      return;
+
+    case LUIGI_AGREE_PENDING:
+      //-------------------------------------------------------------------
+      // Agreement initiated, waiting for all proposals to arrive
+      // This should not normally happen - ExecTd should filter these out
+      //-------------------------------------------------------------------
+      Log_debug("Luigi Execute: txn %lu still pending agreement", entry->tid_);
+      entry->exec_status_.store(LUIGI_EXEC_INIT);
       return;
 
     case LUIGI_AGREE_COMPLETE:
@@ -162,7 +186,11 @@ done:
 
   // Call reply callback
   if (entry->reply_cb_) {
+    Log_info("Luigi Execute: calling reply_cb for txn %lu status=%d ts=%lu",
+             entry->tid_, status, commit_ts);
     entry->reply_cb_(status, commit_ts, entry->read_results_);
+  } else {
+    Log_warn("Luigi Execute: no reply_cb for txn %lu!", entry->tid_);
   }
 }
 

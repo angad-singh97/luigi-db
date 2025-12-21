@@ -39,6 +39,8 @@ enum LuigiExecStatus {
 enum LuigiAgreeStatus {
   LUIGI_AGREE_INIT = 1, // Not started (Tiga: AGREE_INIT)
 
+  LUIGI_AGREE_PENDING = 8, // Agreement initiated, waiting for responses
+
   // When my proposed_ts != agreed_ts:
   LUIGI_AGREE_FLUSHING =
       2, // I used smaller ts -> reposition in queue (Tiga: AGREE_FLUSHING)
