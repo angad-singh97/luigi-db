@@ -1,0 +1,16 @@
+I [/root/cse532/mako/src/deptran/config.cc:308] 2025-12-21 01:50:21.890 | LoadYML: src/deptran/luigi/config/local-1shard.yml
+=== Luigi Coordinator ===
+Shards: 0, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-21 01:50:21.891 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:19] 2025-12-21 01:50:21.891 | LuigiCommo: initialized with base Communicator connections
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:147] 2025-12-21 01:50:21.891 | LuigiCoordinator initialized: 0 shards, 1 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:157] 2025-12-21 01:50:21.891 | OWD measurement thread started
+  *** begin stack trace ***
+0    /root/cse532/mako/build/libtxlog.so(_ZN3rrr17print_stack_traceEP8_IO_FILE+0x6c) [0x7f7938bc9a2c]
+1    /root/cse532/mako/build/libtxlog.so(_ZN5janus12CommunicatorD1Ev+0x3e9) [0x7f7938a42f29]
+2    ./build/luigi_coordinator(_ZNSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE10_M_releaseEv+0x5e) [0x563014f92dbe]
+3    ./build/luigi_coordinator(+0x7ffb) [0x563014f8fffb]
+4    /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7f7937d7cd90]
+5    /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7f7937d7ce40]
+  ***  end stack trace  ***

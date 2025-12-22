@@ -779,16 +779,6 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
 }
 
 void SchedulerLuigi::BroadcastWatermarks() {
-  // TODO: RE-ENABLE WATERMARKS AFTER FIXING MULTI-PROCESS CONFIG
-  // Currently disabled because LeaderSiteByPartitionId() aborts when
-  // trying to find shards not in the local process's config.
-  // Need to either:
-  // 1. Make LeaderSiteByPartitionId return optional instead of aborting
-  // 2. Check if site exists before calling
-  // 3. Load full config in all processes
-  Log_debug("BroadcastWatermarks: TEMPORARILY DISABLED for multi-process mode");
-  return;
-
   if (!commo_) {
     return;
   }
@@ -806,6 +796,8 @@ void SchedulerLuigi::BroadcastWatermarks() {
   }
 
   // Use commo_ broadcast helper for WatermarkExchange
+  // Note: In multi-process mode, commo uses shard_id directly (no config lookup
+  // needed)
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
     luigi_commo->BroadcastWatermarkExchange(shard_id_, current_wms,

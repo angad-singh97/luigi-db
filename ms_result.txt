@@ -1,0 +1,11 @@
+I [/root/cse532/mako/src/deptran/config.cc:308] 2025-12-21 16:26:57.270 | LoadYML: src/deptran/luigi/config/local-2shard.yml
+=== Luigi Coordinator ===
+Shards: 2, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-21 16:26:57.272 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-21 16:26:57.272 | connect to site: 127.0.0.1:31850 success!
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-21 16:26:57.272 | connect to site: 127.0.0.1:31851 success!
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:19] 2025-12-21 16:26:57.272 | LuigiCommo: initialized with base Communicator connections
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:162] 2025-12-21 16:26:57.272 | LuigiCoordinator initialized: 2 shards, 1 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:172] 2025-12-21 16:26:57.272 | OWD measurement thread started
+W [/root/cse532/mako/src/deptran/luigi/commo.cc:194] 2025-12-21 16:26:57.848 | OwdPingSync: async_OwdPing failed for shard 1

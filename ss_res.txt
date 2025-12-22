@@ -1,0 +1,20 @@
+I [/root/cse532/mako/src/deptran/config.cc:308] 2025-12-21 01:53:07.691 | LoadYML: src/deptran/luigi/config/local-1shard-new.yml
+=== Luigi Coordinator ===
+Shards: 1, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-21 01:53:07.694 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-21 01:53:07.697 | connect to site: 127.0.0.1:31850 success!
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:19] 2025-12-21 01:53:07.697 | LuigiCommo: initialized with base Communicator connections
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:147] 2025-12-21 01:53:07.697 | LuigiCoordinator initialized: 1 shards, 1 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:157] 2025-12-21 01:53:07.697 | OWD measurement thread started
+========== Benchmark Results ==========
+Duration:          10002 ms
+Total Txns:        3222
+Committed:         3222
+Aborted:           0 (0.00%)
+Throughput:        322.14 txns/sec
+Avg Latency:       3100.71 us
+P50 Latency:       2361.00 us
+P99 Latency:       10667.00 us
+P99.9 Latency:     14107.00 us
+========================================
