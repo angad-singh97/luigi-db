@@ -778,7 +778,7 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
   return result;
 }
 
-void SchedulerLuigi::BroadcastWatermarks() {
+void SchedulerLuigi::SendWatermarksToCoordinator() {
   if (!commo_) {
     return;
   }
@@ -790,19 +790,12 @@ void SchedulerLuigi::BroadcastWatermarks() {
     current_wms.assign(watermarks_.begin(), watermarks_.end());
   }
 
-  std::vector<uint64_t> watermarks_u64;
-  for (int64_t wm : current_wms) {
-    watermarks_u64.push_back(static_cast<uint64_t>(wm));
-  }
-
-  // Use commo_ broadcast helper for WatermarkExchange
-  // Note: In multi-process mode, commo uses shard_id directly (no config lookup
-  // needed)
+  // Send only to coordinator (simplified approach)
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
-    luigi_commo->BroadcastWatermarkExchange(shard_id_, current_wms,
-                                            GetAllShardIdsExceptSelf());
-    Log_debug("BroadcastWatermarks: broadcasted to all shards except self");
+    luigi_commo->SendWatermarkToCoordinator(shard_id_, current_wms);
+    Log_debug("SendWatermarksToCoordinator: shard=%d sent %zu watermarks",
+              shard_id_, current_wms.size());
   }
 }
 
@@ -827,12 +820,27 @@ std::vector<uint32_t> SchedulerLuigi::GetAllShardIdsExceptSelf() const {
 // TODO: Implement Luigi's own replication mechanism
 // For now, just log and skip - allows dispatch testing without Paxos workers
 void SchedulerLuigi::Replicate(uint32_t worker_id,
-                               const std::shared_ptr<LuigiLogEntry> &entry) {
-  Log_debug("Luigi Replicate (STUB): worker_id=%u, txn_id=%lu, ts=%lu - "
-            "replication not yet implemented",
-            worker_id, entry->tid_, entry->agreed_ts_);
-  // TODO: Implement Luigi's own follower replication via
-  // commo_->BroadcastReplicate()
+                               std::shared_ptr<LuigiLogEntry> entry) {
+  // Simplified replication: Update watermark to indicate this transaction
+  // has been "replicated" (for now, just in-memory)
+  // TODO: Add actual Paxos replication later
+
+  uint64_t commit_ts = entry->agreed_ts_;
+
+  {
+    std::lock_guard<std::mutex> lock(watermark_mutex_);
+    // Ensure vector is large enough
+    if (worker_id >= watermarks_.size()) {
+      watermarks_.resize(worker_id + 1, 0);
+    }
+    // Update watermark to max of current and new timestamp
+    watermarks_[worker_id] = std::max(watermarks_[worker_id], commit_ts);
+
+    Log_info("Replicate: shard=%d worker=%d watermark=%lu txn=%lu", shard_id_,
+             worker_id, watermarks_[worker_id], entry->tid_);
+  }
+
+  // Watermarks will be sent to coordinator by WatermarkTd thread
 }
 
 //=============================================================================
@@ -841,7 +849,7 @@ void SchedulerLuigi::Replicate(uint32_t worker_id,
 
 void SchedulerLuigi::WatermarkTd() {
   while (running_) {
-    BroadcastWatermarks();
+    SendWatermarksToCoordinator();
     // Exchange every 50ms
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }

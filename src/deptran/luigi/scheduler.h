@@ -264,9 +264,9 @@ protected:
    */
 
   /**
-   * Periodic task to broadcast local watermarks to other leaders.
+   * Periodic task to send local watermarks to coordinator for commit decisions.
    */
-  void BroadcastWatermarks();
+  void SendWatermarksToCoordinator();
 
   /**
    * Get current local watermarks (for RPC response).

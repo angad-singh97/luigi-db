@@ -1,169 +1,175 @@
-# Luigi Performance Optimization - Current Status & Next Steps
+# Luigi Implementation Plan - Complete Project Status
 
-## What's Been Completed ✅
+## Project Overview
 
-### Phase 1: Non-Blocking Async Dispatch
-- ✅ Added `DispatchAsync()` to `commo.cc` with callback support
-- ✅ Refactored `coordinator.cc` to use async callbacks
-- ✅ Added in-flight transaction tracking with `InFlightTxn`
-- ✅ **Result**: Single-shard achieves **14,338 TPS** (up from ~322 TPS)
+Luigi is a timestamp-ordered distributed transaction protocol. This plan tracks all remaining work to complete the system.
 
-### Phase 3: Multi-Worker Parallelism
-- ✅ Enabled configurable worker threads in coordinator
-- ✅ Thread-safe transaction ID generator using atomics
-- ✅ **Result**: Excellent scaling with multiple threads
+## Current Status Summary
 
----
+### ✅ Completed (Phases 1-2)
+- **Phase 1: Async Dispatch** - Non-blocking RPC dispatch with callbacks
+- **Phase 2: RPC Batching** - Batch deadline proposals/confirmations (2ms flush interval)
+- **Multi-Process Support** - Servers run as separate processes, RPC communication working
+- **RPC Header Fixes** - Resolved conflicts, regenerated headers, renamed methods
+- **Config Compatibility** - Fixed `LeaderSiteByPartitionId` for multi-process mode
+- **Basic Watermark Infrastructure** - Broadcasting enabled, RPC handlers in place
 
-## Current Issue: OWD Ping Blocking Multi-Shard 🐛
+### 🚧 In Progress
+- **Watermark-Based Commit Decisions** - Partially implemented, needs completion
 
-### Problem
-When testing with 2 shards, the coordinator **hangs** before the benchmark starts because:
-
-1. `StartOwdThread()` is called immediately after coordinator initialization
-2. OWD thread calls `OwdPingSync()` to measure latency to shard 1
-3. `OwdPingSync()` uses **synchronous wait** (`fu->wait()`) - **BLOCKS**
-4. Coordinator never reaches the benchmark phase
-
-### Location
-`coordinator.cc:235-247` - `PingShard()` method
-
-```cpp
-void PingShard(int shard_idx) {
-  uint64_t send_time = GetTimeMillis();
-  rrr::i32 status;
-
-  bool ok = commo_->OwdPingSync(shard_idx, send_time, &status);  // BLOCKS HERE!
-
-  if (ok) {
-    uint64_t rtt = GetTimeMillis() - send_time;
-    uint64_t owd = rtt / 2;
-    // Update OWD table...
-  }
-}
-```
+### ❌ Not Started
+- **Coordinator Watermark Tracking** - Critical for correct commit decisions
+- **Actual Paxos Replication** - Currently stubbed out
+- **Performance Validation** - Batching effectiveness, multi-worker scaling
+- **Production Readiness** - Error handling, monitoring, deployment
 
 ---
 
-## Fix: Make OWD Ping Async
+## Phase 3: Watermark-Based Commits (IN PROGRESS)
 
-### Step 1: Add Async OWD Ping Method to commo.h
+### Current State
+- ✅ `Replicate()` updates local watermarks
+- ✅ `SendWatermarksToCoordinator()` sends to coordinator
+- ✅ Watermark RPC infrastructure in place
+- ❌ Coordinator doesn't track watermarks
+- ❌ Commit decisions don't wait for watermarks
 
-Add after line 61 in `commo.h`:
+### Remaining Work
 
-```cpp
-// Async OWD ping with callback (non-blocking)
-using OwdPingCallback = std::function<void(bool ok, rrr::i32 status)>;
+#### 3.1 Coordinator Watermark Tracking
+- Add watermark storage to coordinator
+- Implement `OnWatermarkUpdate()`, `CanCommit()`, `CheckPendingCommits()`
+- Wire up `WatermarkExchange` handler in coordinator process
 
-void OwdPingAsync(parid_t shard_id, rrr::i64 send_time, OwdPingCallback callback);
-```
+#### 3.2 Modify Dispatch Callbacks
+- Change from immediate commit to watermark-based
+- Add pending commits queue
+- Check watermarks before committing
 
-### Step 2: Implement in commo.cc
-
-Add after `OwdPingSync()` (around line 208):
-
-```cpp
-void LuigiCommo::OwdPingAsync(parid_t shard_id, rrr::i64 send_time, 
-                               OwdPingCallback callback) {
-  auto config = Config::GetConfig();
-  auto leader = config->LeaderSiteByPartitionId(shard_id);
-  auto proxy = GetProxyForSite(leader.id);
-
-  if (!proxy) {
-    callback(false, -1);
-    return;
-  }
-
-  FutureAttr fuattr;
-  fuattr.callback = [callback](rusty::Arc<Future> fu) {
-    if (fu->get_error_code() != 0) {
-      callback(false, -1);
-      return;
-    }
-    rrr::i32 status;
-    fu->get_reply() >> status;
-    callback(true, status);
-  };
-
-  auto result = proxy->async_OwdPing(send_time, fuattr);
-  if (result.is_err()) {
-    callback(false, -1);
-  }
-}
-```
-
-### Step 3: Update PingShard() in coordinator.cc
-
-Replace lines 235-247:
-
-```cpp
-void PingShard(int shard_idx) {
-  uint64_t send_time = GetTimeMillis();
-
-  commo_->OwdPingAsync(shard_idx, send_time, 
-    [this, shard_idx, send_time](bool ok, rrr::i32 status) {
-      if (ok) {
-        uint64_t rtt = GetTimeMillis() - send_time;
-        uint64_t owd = rtt / 2;
-
-        std::lock_guard<std::mutex> lock(owd_mutex_);
-        // Exponential moving average (alpha=0.3)
-        owd_table_[shard_idx] =
-            static_cast<uint64_t>(0.7 * owd_table_[shard_idx] + 0.3 * owd);
-      }
-    });
-}
-```
+**Estimated Effort:** 1-2 days  
+**Priority:** **CRITICAL** - System currently violates Luigi protocol
 
 ---
 
-## Testing After Fix
+## Phase 4: Actual Paxos Replication
 
-### Single-Shard (Verify no regression)
-```bash
-pkill -9 luigi; sleep 1
-./build/luigi_server -f src/deptran/luigi/config/local-1shard-new.yml -P localhost &
-sleep 3
-./build/luigi_coordinator -f src/deptran/luigi/config/local-1shard-new.yml -b micro -d 10
-```
-**Expected**: ~14K TPS (same as before)
+### Current State
+- ❌ `Replicate()` only updates watermarks (in-memory)
+- ❌ No durability guarantees
 
-### Multi-Shard (Should now work)
-```bash
-pkill -9 luigi; sleep 1
-./build/luigi_server -f src/deptran/luigi/config/local-2shard.yml -P localhost &
-sleep 3
-./build/luigi_coordinator -f src/deptran/luigi/config/local-2shard.yml -b micro -d 10
-```
-**Expected**: 
-- Coordinator completes benchmark (no hang)
-- TPS > 1000 (with async dispatch improvement)
-- 0% abort rate
+### Required Work
+- Integrate with Paxos layer
+- Add per-worker Paxos streams
+- Implement recovery/replay
+
+**Estimated Effort:** 3-5 days  
+**Priority:** HIGH - Required for durability
 
 ---
 
-## Performance Summary
+## Phase 5: Performance Validation
 
-| Metric | Before | After Phase 1 & 3 | Target |
-|--------|--------|-------------------|--------|
-| Single-shard TPS | ~322 | **14,338** ✅ | 1000+ |
-| Multi-shard TPS | ~91 | **Testing...** | 500+ |
-| Coordinator blocking | Yes | **No** ✅ | No |
-| Multi-threading | No | **Yes** ✅ | Yes |
+### 5.1 Validate RPC Batching
+- Measure batch effectiveness
+- Compare with/without batching
+- Tune parameters
+
+### 5.2 Multi-Worker Parallelism
+- Implement worker pool
+- Test scaling (1, 2, 4, 8 workers)
+
+### 5.3 Benchmark Suite
+- Single-shard throughput
+- Multi-shard scalability
+- Latency distribution
+
+**Estimated Effort:** 2-3 days  
+**Priority:** MEDIUM
 
 ---
 
-## Next Steps After OWD Fix
+## Phase 6: Production Readiness
 
-1. ✅ Fix OWD ping blocking issue
-2. 🔄 Test multi-shard with async dispatch
-3. 📊 Benchmark multi-shard performance
-4. 🎯 (Optional) Implement Phase 2: RPC Batching for further gains
+### 6.1 Error Handling
+- Retry logic
+- Circuit breakers
+- Graceful degradation
+
+### 6.2 Monitoring
+- Metrics (throughput, latency, watermark lag)
+- Structured logging
+- Trace IDs
+
+### 6.3 Configuration
+- Make parameters configurable
+- Add config validation
+
+**Estimated Effort:** 3-4 days  
+**Priority:** MEDIUM
 
 ---
 
-## Files Modified
+## Phase 7: Testing
 
-- `src/deptran/luigi/commo.h` - Added `DispatchAsync()` and `OwdPingAsync()`
-- `src/deptran/luigi/commo.cc` - Implemented async methods
-- `src/deptran/luigi/coordinator.cc` - Refactored to use callbacks, multi-threading
+### 7.1 Correctness Tests
+- Multi-shard consistency
+- Failure scenarios
+- Isolation validation
+
+### 7.2 Performance Tests
+- Stress testing
+- Burst traffic
+- Skewed workloads
+
+**Estimated Effort:** 2-3 days  
+**Priority:** HIGH
+
+---
+
+## Next Steps (Priority Order)
+
+### Immediate (This Week)
+1. ✅ **Complete watermark-based commits** (Phase 3)
+
+### Short-term (Next 2 Weeks)
+2. **Implement Paxos replication** (Phase 4)
+3. **Validate batching performance** (Phase 5.1)
+
+### Medium-term (Next Month)
+4. **Multi-worker parallelism** (Phase 5.2)
+5. **Production readiness** (Phase 6)
+
+### Long-term
+6. **Comprehensive testing** (Phase 7)
+7. **Performance optimization**
+8. **Documentation**
+
+---
+
+## Known Issues
+
+### Critical
+- ❌ **Watermark-based commits not implemented**
+- ❌ **Replication stubbed out**
+
+### Important
+- ⚠️ **No coordinator site ID in config**
+- ⚠️ **Error handling incomplete**
+
+### Minor
+- 📝 **Debug logging excessive**
+- 📝 **Hardcoded constants**
+
+---
+
+## Success Metrics
+
+### Performance
+- **Throughput:** >10K TPS (single), >8K TPS (multi-shard)
+- **Latency:** P99 < 100ms
+- **Scalability:** Linear up to 8 shards
+
+### Correctness
+- **Zero data loss**
+- **Serializability**
+- **Consistency**

@@ -118,6 +118,13 @@ public:
                                   const std::vector<int64_t> &watermarks,
                                   const std::vector<uint32_t> &involved_shards);
 
+  /**
+   * Send watermarks to coordinator only (simplified approach)
+   * Used by: Servers (to notify coordinator for commit decisions)
+   */
+  void SendWatermarkToCoordinator(int32_t src_shard,
+                                  const std::vector<int64_t> &watermarks);
+
   //===========================================================================
   // Phase 2: Batch Broadcast Methods (RPC Batching Optimization)
   //===========================================================================

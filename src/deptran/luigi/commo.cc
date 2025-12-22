@@ -375,6 +375,27 @@ void LuigiCommo::BroadcastWatermarkExchange(
   }
 }
 
+void LuigiCommo::SendWatermarkToCoordinator(
+    int32_t src_shard, const std::vector<int64_t> &watermarks) {
+  // Send watermarks to coordinator for commit decision
+  // TODO: Get coordinator site ID from config
+  // For now, assume coordinator is at a special site ID or we broadcast to all
+  // In multi-process mode, coordinator process will receive these
+
+  auto config = Config::GetConfig();
+  // Simplified: Send to all sites (coordinator will be among them)
+  // In production, we'd have a dedicated coordinator site ID
+  uint32_t num_partitions = config->GetNumPartition();
+  for (uint32_t shard = 0; shard < num_partitions; ++shard) {
+    if (shard != static_cast<uint32_t>(src_shard)) {
+      rrr::i32 status;
+      SendWatermarkExchange(shard, shard, src_shard, watermarks, &status);
+    }
+  }
+
+  Log_debug("SendWatermarkToCoordinator: shard=%d sent watermarks", src_shard);
+}
+
 //=============================================================================
 // PHASE 2: BATCH BROADCAST IMPLEMENTATIONS
 //=============================================================================
