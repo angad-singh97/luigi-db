@@ -30,9 +30,13 @@ void SchedulerLuigi::Start() {
   if (!running_.compare_exchange_strong(expected, true))
     return;
 
+  // Initialize flush timer
+  last_flush_time_ = std::chrono::steady_clock::now();
+
   hold_thread_ = new std::thread(&SchedulerLuigi::HoldReleaseTd, this);
   exec_thread_ = new std::thread(&SchedulerLuigi::ExecTd, this);
   watermark_thread_ = new std::thread(&SchedulerLuigi::WatermarkTd, this);
+  batch_flush_thread_ = new std::thread(&SchedulerLuigi::BatchFlushLoop, this);
 }
 
 void SchedulerLuigi::Stop() {
@@ -54,6 +58,11 @@ void SchedulerLuigi::Stop() {
     watermark_thread_->join();
     delete watermark_thread_;
     watermark_thread_ = nullptr;
+  }
+  if (batch_flush_thread_) {
+    batch_flush_thread_->join();
+    delete batch_flush_thread_;
+    batch_flush_thread_ = nullptr;
   }
 }
 
@@ -659,10 +668,11 @@ void SchedulerLuigi::InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry) {
   // Broadcast to all involved shard leaders
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
-    luigi_commo->BroadcastDeadlinePropose(tid, shard_id_, my_ts,
-                                          entry->remote_shards_);
-    Log_info("Luigi InitiateAgreement: broadcasted proposal to %zu shards",
-             entry->remote_shards_.size());
+    // Phase 2: Queue for batching instead of immediate broadcast
+    QueueDeadlineProposal(tid, my_ts, entry->remote_shards_);
+    Log_info("Luigi InitiateAgreement: queued proposal for batching (tid=%lu, "
+             "ts=%lu, shards=%zu)",
+             tid, my_ts, entry->remote_shards_.size());
   } else {
     Log_warn("Luigi InitiateAgreement: commo_ is not LuigiCommo");
   }
@@ -684,11 +694,12 @@ void SchedulerLuigi::SendRepositionConfirmations(
   // Use commo_ broadcast helper for DeadlineConfirm
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
-    luigi_commo->BroadcastDeadlineConfirm(
-        entry->tid_, shard_id_, entry->agreed_ts_, entry->remote_shards_);
-    Log_info("Luigi SendRepositionConfirmations: broadcasted phase-2 to %zu "
-             "shards",
-             entry->remote_shards_.size());
+    // Phase 2: Queue for batching instead of immediate broadcast
+    QueueDeadlineConfirmation(entry->tid_, entry->agreed_ts_,
+                              entry->remote_shards_);
+    Log_info("Luigi SendRepositionConfirmations: queued confirmation for "
+             "batching (tid=%lu, ts=%lu, shards=%zu)",
+             entry->tid_, entry->agreed_ts_, entry->remote_shards_.size());
   } else {
     Log_warn("Luigi SendRepositionConfirmations: commo_ is not LuigiCommo");
   }
@@ -768,6 +779,16 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
 }
 
 void SchedulerLuigi::BroadcastWatermarks() {
+  // TODO: RE-ENABLE WATERMARKS AFTER FIXING MULTI-PROCESS CONFIG
+  // Currently disabled because LeaderSiteByPartitionId() aborts when
+  // trying to find shards not in the local process's config.
+  // Need to either:
+  // 1. Make LeaderSiteByPartitionId return optional instead of aborting
+  // 2. Check if site exists before calling
+  // 3. Load full config in all processes
+  Log_debug("BroadcastWatermarks: TEMPORARILY DISABLED for multi-process mode");
+  return;
+
   if (!commo_) {
     return;
   }
@@ -859,6 +880,138 @@ void SchedulerLuigi::EnableStateMachineMode(bool enable) {
 void SchedulerLuigi::SetPartitionId(uint32_t shard_id) {
   shard_id_ = shard_id;
   executor_.SetPartitionId(shard_id);
+}
+
+//=============================================================================
+// PHASE 2: RPC BATCHING IMPLEMENTATION
+//=============================================================================
+
+void SchedulerLuigi::QueueDeadlineProposal(
+    uint64_t tid, uint64_t proposed_ts,
+    const std::vector<uint32_t> &remote_shards) {
+  std::lock_guard<std::mutex> lock(batch_mutex_);
+
+  pending_proposals_.tids.push_back(tid);
+  pending_proposals_.proposed_ts.push_back(proposed_ts);
+
+  // Union remote shards (avoid duplicates)
+  for (uint32_t shard : remote_shards) {
+    if (std::find(pending_proposals_.remote_shards.begin(),
+                  pending_proposals_.remote_shards.end(),
+                  shard) == pending_proposals_.remote_shards.end()) {
+      pending_proposals_.remote_shards.push_back(shard);
+    }
+  }
+
+  // Check if immediate flush needed (batch interval exceeded)
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - last_flush_time_)
+                        .count();
+
+  if (elapsed_us >= BATCH_FLUSH_INTERVAL_US) {
+    FlushProposalBatch();
+    FlushConfirmBatch();
+    last_flush_time_ = now;
+  }
+}
+
+void SchedulerLuigi::QueueDeadlineConfirmation(
+    uint64_t tid, uint64_t agreed_ts,
+    const std::vector<uint32_t> &remote_shards) {
+  std::lock_guard<std::mutex> lock(batch_mutex_);
+
+  pending_confirms_.tids.push_back(tid);
+  pending_confirms_.agreed_ts.push_back(agreed_ts);
+
+  // Union remote shards
+  for (uint32_t shard : remote_shards) {
+    if (std::find(pending_confirms_.remote_shards.begin(),
+                  pending_confirms_.remote_shards.end(),
+                  shard) == pending_confirms_.remote_shards.end()) {
+      pending_confirms_.remote_shards.push_back(shard);
+    }
+  }
+
+  // Check if immediate flush needed
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - last_flush_time_)
+                        .count();
+
+  if (elapsed_us >= BATCH_FLUSH_INTERVAL_US) {
+    FlushProposalBatch();
+    FlushConfirmBatch();
+    last_flush_time_ = now;
+  }
+}
+
+void SchedulerLuigi::FlushProposalBatch() {
+  // Must be called with batch_mutex_ held
+  if (pending_proposals_.tids.empty())
+    return;
+
+  auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+  if (luigi_commo) {
+    // Convert to vectors of i64 for RPC
+    std::vector<rrr::i64> tids(pending_proposals_.tids.begin(),
+                               pending_proposals_.tids.end());
+    std::vector<rrr::i64> proposed_ts(pending_proposals_.proposed_ts.begin(),
+                                      pending_proposals_.proposed_ts.end());
+
+    luigi_commo->BroadcastDeadlineBatchPropose(
+        tids, shard_id_, proposed_ts, pending_proposals_.remote_shards);
+
+    Log_info("Flushed %zu proposals to %zu shards",
+             pending_proposals_.tids.size(),
+             pending_proposals_.remote_shards.size());
+  }
+
+  // Clear batch
+  pending_proposals_.tids.clear();
+  pending_proposals_.proposed_ts.clear();
+  pending_proposals_.remote_shards.clear();
+}
+
+void SchedulerLuigi::FlushConfirmBatch() {
+  // Must be called with batch_mutex_ held
+  if (pending_confirms_.tids.empty())
+    return;
+
+  auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+  if (luigi_commo) {
+    // Convert to vectors of i64 for RPC
+    std::vector<rrr::i64> tids(pending_confirms_.tids.begin(),
+                               pending_confirms_.tids.end());
+    std::vector<rrr::i64> agreed_ts(pending_confirms_.agreed_ts.begin(),
+                                    pending_confirms_.agreed_ts.end());
+
+    luigi_commo->BroadcastDeadlineBatchConfirm(tids, shard_id_, agreed_ts,
+                                               pending_confirms_.remote_shards);
+
+    Log_info("Flushed %zu confirmations to %zu shards",
+             pending_confirms_.tids.size(),
+             pending_confirms_.remote_shards.size());
+  }
+
+  // Clear batch
+  pending_confirms_.tids.clear();
+  pending_confirms_.agreed_ts.clear();
+  pending_confirms_.remote_shards.clear();
+}
+
+void SchedulerLuigi::BatchFlushLoop() {
+  while (running_.load()) {
+    std::this_thread::sleep_for(
+        std::chrono::microseconds(BATCH_FLUSH_INTERVAL_US));
+
+    {
+      std::lock_guard<std::mutex> lock(batch_mutex_);
+      FlushProposalBatch();
+      FlushConfirmBatch();
+      last_flush_time_ = std::chrono::steady_clock::now();
+    }
+  }
 }
 
 } // namespace janus

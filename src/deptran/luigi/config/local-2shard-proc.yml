@@ -1,0 +1,24 @@
+# Luigi 2-Shard Multi-Process Configuration
+# Each shard runs in its own process
+
+# site - partition map
+# Each line is a partition (shard)
+site:
+  server:
+    - ["s101:31850"]   # Shard 0 leader
+    - ["s201:31851"]   # Shard 1 leader
+  client:
+    - ["c101"]
+
+# site_name -> process_name map
+# Each shard gets its own process name
+process:
+  s101: shard0
+  s201: shard1
+  c101: coord
+
+# process_name -> host_addr map
+host:
+  shard0: 127.0.0.1
+  shard1: 127.0.0.1
+  coord: 127.0.0.1

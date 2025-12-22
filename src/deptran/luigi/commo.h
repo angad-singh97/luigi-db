@@ -2,7 +2,7 @@
 
 #include "../__dep__.h"
 #include "../communicator.h"
-#include "../rcc_rpc.h"
+#include "luigi.h" // Use luigi.h instead of rcc_rpc.h - has correct LuigiProxy with batch methods
 
 namespace janus {
 
@@ -60,11 +60,28 @@ public:
 
   bool OwdPingSync(parid_t shard_id, rrr::i64 send_time, rrr::i32 *status);
 
+  // Async OWD ping with callback (non-blocking)
+  using OwdPingCallback = std::function<void(bool ok, rrr::i32 status)>;
+  void OwdPingAsync(parid_t shard_id, rrr::i64 send_time,
+                    OwdPingCallback callback);
+
   bool DispatchSync(parid_t shard_id, rrr::i64 txn_id, rrr::i64 expected_time,
                     rrr::i32 worker_id,
                     const std::vector<rrr::i32> &involved_shards,
                     const std::string &ops_data, rrr::i32 *status,
                     rrr::i64 *commit_timestamp, std::string *results_data);
+
+  //===========================================================================
+  // Async Dispatch with Callback (non-blocking)
+  //===========================================================================
+
+  using DispatchCallback = std::function<void(
+      bool ok, rrr::i32 status, rrr::i64 commit_ts, std::string results)>;
+
+  void DispatchAsync(parid_t shard_id, rrr::i64 txn_id, rrr::i64 expected_time,
+                     rrr::i32 worker_id,
+                     const std::vector<rrr::i32> &involved_shards,
+                     const std::string &ops_data, DispatchCallback callback);
 
   //===========================================================================
   // Broadcast Helpers (filter to appropriate targets)
@@ -100,6 +117,29 @@ public:
   void BroadcastWatermarkExchange(int32_t src_shard,
                                   const std::vector<int64_t> &watermarks,
                                   const std::vector<uint32_t> &involved_shards);
+
+  //===========================================================================
+  // Phase 2: Batch Broadcast Methods (RPC Batching Optimization)
+  //===========================================================================
+
+  /**
+   * Broadcast batch deadline proposals to leaders of involved shards
+   * Used by: Leaders (Phase 2 optimization)
+   */
+  void BroadcastDeadlineBatchPropose(
+      const std::vector<rrr::i64> &tids, int32_t src_shard,
+      const std::vector<rrr::i64> &proposed_timestamps,
+      const std::vector<uint32_t> &involved_shards);
+
+  /**
+   * Broadcast batch deadline confirmations to leaders of involved shards
+   * Used by: Leaders (Phase 2 optimization)
+   */
+  void
+  BroadcastDeadlineBatchConfirm(const std::vector<rrr::i64> &tids,
+                                int32_t src_shard,
+                                const std::vector<rrr::i64> &agreed_timestamps,
+                                const std::vector<uint32_t> &involved_shards);
 
 private:
   // On-demand LuigiProxy cache (created from rpc_clients_)

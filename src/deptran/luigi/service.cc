@@ -16,7 +16,7 @@ LuigiServiceImpl::LuigiServiceImpl(LuigiServer *server) : server_(server) {}
 // RRR Handler Implementations
 //=============================================================================
 
-void LuigiServiceImpl::LuigiDispatch(
+void LuigiServiceImpl::Dispatch(
     const rrr::i64 &txn_id, const rrr::i64 &expected_time,
     const rrr::i32 &worker_id, const std::vector<rrr::i32> &involved_shards,
     const std::string &ops_data, rrr::i32 *status, rrr::i64 *commit_timestamp,
@@ -91,10 +91,13 @@ void LuigiServiceImpl::LuigiDispatch(
 
   scheduler->LuigiDispatchFromRequest(
       txn_id, expected_time, ops, involved_shards_u32, worker_id,
-      [defer_ptr, status_ptr, commit_timestamp_ptr,
-       results_data_ptr](int result_status, uint64_t commit_ts,
-                         const std::vector<std::string> &read_results) {
+      [defer_ptr, status_ptr, commit_timestamp_ptr, results_data_ptr,
+       txn_id](int result_status, uint64_t commit_ts,
+               const std::vector<std::string> &read_results) {
         // Set outputs and reply when execution completes
+        Log_info("Service callback: txn=%ld status=%d ts=%lu, calling "
+                 "defer->reply()",
+                 txn_id, result_status, commit_ts);
         *status_ptr = result_status;
         *commit_timestamp_ptr = commit_ts;
         results_data_ptr->clear();
@@ -102,6 +105,7 @@ void LuigiServiceImpl::LuigiDispatch(
           results_data_ptr->append(r);
         }
         defer_ptr->reply();
+        Log_info("Service callback: txn=%ld defer->reply() returned", txn_id);
       });
 }
 
@@ -179,6 +183,52 @@ void LuigiServiceImpl::StoreResult(
 
   Log_debug("Luigi result stored for txn %lu: status=%d, commit_ts=%lu", txn_id,
             result.status, commit_ts);
+}
+
+//=============================================================================
+// PHASE 2: BATCH RPC HANDLERS
+//=============================================================================
+
+void LuigiServiceImpl::DeadlineBatchPropose(
+    const std::vector<rrr::i64> &tids, const rrr::i32 &src_shard,
+    const std::vector<rrr::i64> &proposed_timestamps, rrr::i32 *status,
+    rrr::DeferredReply *defer) {
+
+  Log_info("DeadlineBatchPropose: %zu proposals from shard %d", tids.size(),
+           src_shard);
+
+  // Process each proposal individually
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    for (size_t i = 0; i < tids.size(); i++) {
+      scheduler->HandleRemoteDeadlineProposal(tids[i], src_shard,
+                                              proposed_timestamps[i], 1);
+    }
+  }
+
+  *status = luigi::kOk;
+  defer->reply();
+}
+
+void LuigiServiceImpl::DeadlineBatchConfirm(
+    const std::vector<rrr::i64> &tids, const rrr::i32 &src_shard,
+    const std::vector<rrr::i64> &agreed_timestamps, rrr::i32 *status,
+    rrr::DeferredReply *defer) {
+
+  Log_info("DeadlineBatchConfirm: %zu confirmations from shard %d", tids.size(),
+           src_shard);
+
+  // Process each confirmation individually
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    for (size_t i = 0; i < tids.size(); i++) {
+      scheduler->HandleRemoteDeadlineConfirm(tids[i], src_shard,
+                                             agreed_timestamps[i]);
+    }
+  }
+
+  *status = luigi::kOk;
+  defer->reply();
 }
 
 } // namespace janus

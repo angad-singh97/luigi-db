@@ -39,6 +39,24 @@ abstract service Luigi {
         i32 status
     );
     
+    // Batch deadline proposal (Phase 2 optimization)
+    defer DeadlineBatchPropose(
+        vector<i64> tids,
+        i32 src_shard,
+        vector<i64> proposed_timestamps
+        |
+        i32 status
+    );
+    
+    // Batch deadline confirmation (Phase 2 optimization)
+    defer DeadlineBatchConfirm(
+        vector<i64> tids,
+        i32 src_shard,
+        vector<i64> agreed_timestamps
+        |
+        i32 status
+    );
+    
     // Watermark exchange (leader-to-leader coordination)
     defer WatermarkExchange(
         i32 src_shard,

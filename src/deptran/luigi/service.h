@@ -21,7 +21,7 @@
 #include "../procedure.h"
 #include "../rcc/graph.h"
 #include "../rcc/graph_marshaler.h"
-#include "../rcc_rpc.h" // Generated RRR service (includes LuigiService)
+#include "luigi.h" // Generated RRR service interface (LuigiService base class)
 #include "luigi_common.h"
 
 namespace janus {
@@ -42,12 +42,12 @@ public:
   // RRR LuigiService Interface Implementation
   //===========================================================================
 
-  void LuigiDispatch(const rrr::i64 &txn_id, const rrr::i64 &expected_time,
-                     const rrr::i32 &worker_id,
-                     const std::vector<rrr::i32> &involved_shards,
-                     const std::string &ops_data, rrr::i32 *status,
-                     rrr::i64 *commit_timestamp, std::string *results_data,
-                     rrr::DeferredReply *defer);
+  void Dispatch(const rrr::i64 &txn_id, const rrr::i64 &expected_time,
+                const rrr::i32 &worker_id,
+                const std::vector<rrr::i32> &involved_shards,
+                const std::string &ops_data, rrr::i32 *status,
+                rrr::i64 *commit_timestamp, std::string *results_data,
+                rrr::DeferredReply *defer);
 
   void OwdPing(const rrr::i64 &send_time, rrr::i32 *status,
                rrr::DeferredReply *defer);
@@ -63,6 +63,17 @@ public:
   void WatermarkExchange(const rrr::i32 &src_shard,
                          const std::vector<rrr::i64> &watermarks,
                          rrr::i32 *status, rrr::DeferredReply *defer);
+
+  // Phase 2: Batch RPC handlers
+  void DeadlineBatchPropose(const std::vector<rrr::i64> &tids,
+                            const rrr::i32 &src_shard,
+                            const std::vector<rrr::i64> &proposed_timestamps,
+                            rrr::i32 *status, rrr::DeferredReply *defer);
+
+  void DeadlineBatchConfirm(const std::vector<rrr::i64> &tids,
+                            const rrr::i32 &src_shard,
+                            const std::vector<rrr::i64> &agreed_timestamps,
+                            rrr::i32 *status, rrr::DeferredReply *defer);
 
 protected:
   //===========================================================================

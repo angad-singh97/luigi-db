@@ -274,6 +274,68 @@ protected:
   std::vector<int64_t> GetLocalWatermarks();
 
   //==========================================================================
+  // PHASE 2: RPC BATCHING INFRASTRUCTURE
+  // Batch DeadlinePropose and DeadlineConfirm to reduce RPC overhead
+  //==========================================================================
+
+  /**
+   * Batch buffer for deadline proposals.
+   * Accumulates proposals for flush interval before broadcasting.
+   */
+  struct ProposalBatch {
+    std::vector<uint64_t> tids;
+    std::vector<uint64_t> proposed_ts;
+    std::vector<uint32_t> remote_shards; // Union of all remote shards
+  };
+
+  /**
+   * Batch buffer for deadline confirmations.
+   */
+  struct ConfirmBatch {
+    std::vector<uint64_t> tids;
+    std::vector<uint64_t> agreed_ts;
+    std::vector<uint32_t> remote_shards;
+  };
+
+  ProposalBatch pending_proposals_;
+  ConfirmBatch pending_confirms_;
+  std::mutex batch_mutex_;
+
+  // Flush timer
+  std::chrono::steady_clock::time_point last_flush_time_;
+  static constexpr uint64_t BATCH_FLUSH_INTERVAL_US = 2000; // 2ms
+
+  /**
+   * Queue a deadline proposal for batching.
+   * Flushes if batch interval exceeded.
+   */
+  void QueueDeadlineProposal(uint64_t tid, uint64_t proposed_ts,
+                             const std::vector<uint32_t> &remote_shards);
+
+  /**
+   * Queue a deadline confirmation for batching.
+   */
+  void QueueDeadlineConfirmation(uint64_t tid, uint64_t agreed_ts,
+                                 const std::vector<uint32_t> &remote_shards);
+
+  /**
+   * Flush pending proposal batch to network.
+   */
+  void FlushProposalBatch();
+
+  /**
+   * Flush pending confirmation batch to network.
+   */
+  void FlushConfirmBatch();
+
+  /**
+   * Periodic flush thread (runs every BATCH_FLUSH_INTERVAL_US).
+   */
+  void BatchFlushLoop();
+
+  std::thread *batch_flush_thread_ = nullptr;
+
+  //==========================================================================
   // CALLBACKS FOR DB OPERATIONS (set by Mako's ShardReceiver)
   //==========================================================================
 

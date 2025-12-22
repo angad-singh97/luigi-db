@@ -102,6 +102,16 @@ struct TxnRecord {
   int txn_type;
 };
 
+// In-flight transaction state for async dispatch
+struct InFlightTxn {
+  uint64_t txn_id;
+  uint64_t start_time_us;
+  int txn_type;
+  int tid; // Thread ID for stats recording
+  std::atomic<size_t> pending_shards{0};
+  std::atomic<bool> all_ok{true};
+};
+
 //=============================================================================
 // LuigiCoordinator - Benchmark Client with OWD Measurement
 //=============================================================================
@@ -114,6 +124,11 @@ public:
   static constexpr uint64_t OWD_HEADROOM_MS = 10;
   static constexpr uint64_t OWD_DEFAULT_MS = 50;
   static constexpr uint64_t OWD_PING_INTERVAL_MS = 100;
+
+  // Flow control: limit in-flight transactions to avoid coroutine exhaustion
+  // Lower values = lower latency but potentially lower throughput
+  // Scale with number of threads: ~200 per thread
+  static constexpr uint64_t MAX_IN_FLIGHT_PER_THREAD = 200;
 
   struct Config {
     int shard_index = 0;
@@ -181,11 +196,14 @@ public:
       }
     }
 
-    for (auto &ts : thread_stats_) {
-      ts.records.clear();
-      ts.committed = ts.aborted = 0;
+    for (size_t i = 0; i < thread_stats_.size(); i++) {
+      std::lock_guard<std::mutex> lock(*thread_stats_[i].mutex);
+      thread_stats_[i].records.clear();
+      thread_stats_[i].committed = thread_stats_[i].aborted = 0;
     }
     next_txn_id_.store(1);
+    dispatched_txns_.store(0);
+    completed_txns_.store(0);
 
     running_.store(true);
     start_time_us_ = GetTimestampUs();
@@ -201,7 +219,27 @@ public:
     for (auto &w : workers)
       w.join();
 
+    // Wait for all in-flight transactions to complete (with timeout)
+    {
+      std::unique_lock<std::mutex> lock(completion_mutex_);
+      auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      Log_info("Waiting for completion: dispatched=%lu, completed=%lu",
+               dispatched_txns_.load(), completed_txns_.load());
+      while (completed_txns_.load() < dispatched_txns_.load()) {
+        if (completion_cv_.wait_until(lock, deadline) ==
+            std::cv_status::timeout) {
+          Log_warn(
+              "Timeout waiting for in-flight transactions: %lu/%lu completed",
+              completed_txns_.load(), dispatched_txns_.load());
+          break;
+        }
+      }
+    }
+
     end_time_us_ = GetTimestampUs();
+    Log_info("Benchmark complete: dispatched=%lu, completed=%lu",
+             dispatched_txns_.load(), completed_txns_.load());
     return CalculateStats();
   }
 
@@ -228,19 +266,20 @@ private:
 
   void PingShard(int shard_idx) {
     uint64_t send_time = GetTimeMillis();
-    rrr::i32 status;
 
-    bool ok = commo_->OwdPingSync(shard_idx, send_time, &status);
+    commo_->OwdPingAsync(
+        shard_idx, send_time,
+        [this, shard_idx, send_time](bool ok, rrr::i32 status) {
+          if (ok) {
+            uint64_t rtt = GetTimeMillis() - send_time;
+            uint64_t owd = rtt / 2;
 
-    if (ok) {
-      uint64_t rtt = GetTimeMillis() - send_time;
-      uint64_t owd = rtt / 2;
-
-      std::lock_guard<std::mutex> lock(owd_mutex_);
-      // Exponential moving average (alpha=0.3)
-      owd_table_[shard_idx] =
-          static_cast<uint64_t>(0.7 * owd_table_[shard_idx] + 0.3 * owd);
-    }
+            std::lock_guard<std::mutex> lock(owd_mutex_);
+            // Exponential moving average (alpha=0.3)
+            owd_table_[shard_idx] =
+                static_cast<uint64_t>(0.7 * owd_table_[shard_idx] + 0.3 * owd);
+          }
+        });
   }
 
   uint64_t GetMaxOwd(const std::vector<uint32_t> &shards) {
@@ -263,7 +302,23 @@ private:
   //=========================================================================
 
   void WorkerThread(int tid) {
+    // Calculate max in-flight based on number of threads
+    uint64_t max_in_flight = MAX_IN_FLIGHT_PER_THREAD * config_.num_threads;
+
     while (running_.load()) {
+      // Flow control: wait if too many transactions in flight
+      uint64_t in_flight = dispatched_txns_.load() - completed_txns_.load();
+      if (in_flight >= max_in_flight) {
+        // Wait for some transactions to complete
+        std::unique_lock<std::mutex> lock(completion_mutex_);
+        completion_cv_.wait_for(
+            lock, std::chrono::milliseconds(1), [this, max_in_flight]() {
+              return (dispatched_txns_.load() - completed_txns_.load()) <
+                     max_in_flight;
+            });
+        continue;
+      }
+
       if (!DispatchOne(tid)) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
       }
@@ -303,59 +358,69 @@ private:
     std::string ops_data = SerializeOps(req.ops);
     std::vector<rrr::i32> involved_i32(shards.begin(), shards.end());
 
-    // In Luigi/Tiga model, we send dispatch to ALL involved shards IN PARALLEL
-    // Each shard leader receives the dispatch and participates in agreement
-    // Using std::async to avoid deadlock: shard 0 might wait for shard 1's
-    // proposal, but shard 1 hasn't received its dispatch yet if we do serial.
+    // Create in-flight transaction state with shared_ptr for callback lifetime
+    auto in_flight = std::make_shared<InFlightTxn>();
+    in_flight->txn_id = req.txn_id;
+    in_flight->start_time_us = start;
+    in_flight->txn_type = req.txn_type;
+    in_flight->tid = tid;
+    in_flight->pending_shards.store(shards.size());
+    in_flight->all_ok.store(true);
 
-    struct ShardResult {
-      bool ok = false;
-      rrr::i32 status = -1;
-      rrr::i64 commit_ts = 0;
-      std::string results_data;
-    };
+    dispatched_txns_.fetch_add(1);
 
-    std::vector<std::future<ShardResult>> futures;
+    // Dispatch to all shards asynchronously (non-blocking)
     for (uint32_t shard : shards) {
-      futures.push_back(std::async(
-          std::launch::async,
-          [this, shard, &req, expected, worker_id, &involved_i32, &ops_data]() {
-            ShardResult result;
-            result.ok = commo_->DispatchSync(
-                shard, req.txn_id, expected, worker_id, involved_i32, ops_data,
-                &result.status, &result.commit_ts, &result.results_data);
-            return result;
-          }));
+      commo_->DispatchAsync(
+          shard, req.txn_id, expected, worker_id, involved_i32, ops_data,
+          [this, in_flight, shard](bool ok, rrr::i32 status, rrr::i64 commit_ts,
+                                   std::string results) {
+            // RPC callback - runs on reactor thread
+            Log_info("Dispatch callback: txn=%lu shard=%u ok=%d status=%d "
+                     "pending=%zu",
+                     in_flight->txn_id, shard, ok, status,
+                     in_flight->pending_shards.load());
+
+            if (!ok || status != 0) {
+              in_flight->all_ok.store(false);
+            }
+
+            // Decrement pending count; if this is the last shard, record stats
+            if (in_flight->pending_shards.fetch_sub(1) == 1) {
+              // All shards have responded
+              uint64_t end = GetTimestampUs();
+              bool committed = in_flight->all_ok.load();
+
+              // Record stats (need mutex since callback runs on different
+              // thread)
+              {
+                std::lock_guard<std::mutex> lock(
+                    *thread_stats_[in_flight->tid].mutex);
+                TxnRecord record;
+                record.txn_id = in_flight->txn_id;
+                record.start_time_us = in_flight->start_time_us;
+                record.end_time_us = end;
+                record.committed = committed;
+                record.txn_type = in_flight->txn_type;
+                thread_stats_[in_flight->tid].records.push_back(record);
+                if (committed)
+                  thread_stats_[in_flight->tid].committed++;
+                else
+                  thread_stats_[in_flight->tid].aborted++;
+              }
+
+              // Signal completion for benchmark end waiting
+              completed_txns_.fetch_add(1);
+              Log_info(
+                  "Transaction complete: txn=%lu completed=%lu dispatched=%lu",
+                  in_flight->txn_id, completed_txns_.load(),
+                  dispatched_txns_.load());
+              completion_cv_.notify_all();
+            }
+          });
     }
 
-    // Wait for all dispatches to complete
-    bool ok = true;
-    rrr::i32 status = 0;
-    rrr::i64 commit_ts = 0;
-    std::string results_data;
-
-    for (size_t i = 0; i < futures.size(); i++) {
-      auto result = futures[i].get();
-      if (i == 0) { // Use first shard's response as primary
-        status = result.status;
-        commit_ts = result.commit_ts;
-        results_data = result.results_data;
-      }
-      if (!result.ok || result.status != 0) {
-        ok = false;
-      }
-    }
-
-    uint64_t end = GetTimestampUs();
-    bool committed = ok && status == 0;
-
-    thread_stats_[tid].records.push_back(
-        {req.txn_id, start, end, committed, req.txn_type});
-    if (committed)
-      thread_stats_[tid].committed++;
-    else
-      thread_stats_[tid].aborted++;
-
+    // Return immediately - don't wait for responses
     return true;
   }
 
@@ -363,10 +428,11 @@ private:
     BenchmarkStats stats;
     std::vector<uint64_t> latencies;
 
-    for (const auto &ts : thread_stats_) {
-      stats.committed_txns += ts.committed;
-      stats.aborted_txns += ts.aborted;
-      for (const auto &r : ts.records)
+    for (size_t i = 0; i < thread_stats_.size(); i++) {
+      std::lock_guard<std::mutex> lock(*thread_stats_[i].mutex);
+      stats.committed_txns += thread_stats_[i].committed;
+      stats.aborted_txns += thread_stats_[i].aborted;
+      for (const auto &r : thread_stats_[i].records)
         latencies.push_back(r.end_time_us - r.start_time_us);
     }
 
@@ -409,10 +475,19 @@ private:
   struct ThreadStats {
     std::vector<TxnRecord> records;
     uint64_t committed = 0, aborted = 0;
+    std::unique_ptr<std::mutex> mutex; // Protect records from callback threads
+
+    ThreadStats() : mutex(std::make_unique<std::mutex>()) {}
   };
   std::vector<ThreadStats> thread_stats_;
   uint64_t start_time_us_ = 0, end_time_us_ = 0;
   std::mutex gen_mutex_;
+
+  // Async dispatch tracking
+  std::atomic<uint64_t> dispatched_txns_{0};
+  std::atomic<uint64_t> completed_txns_{0};
+  std::condition_variable completion_cv_;
+  std::mutex completion_mutex_;
 };
 
 } // namespace luigi
@@ -517,6 +592,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  cerr << "DEBUG: About to print stats, total_txns=" << stats.total_txns
+       << " committed=" << stats.committed_txns << "\n";
   stats.Print();
   return 0;
 }
