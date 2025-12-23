@@ -752,22 +752,23 @@ void SchedulerLuigi::HandleWatermarkExchange(
     uint32_t src_shard, const std::vector<int64_t> &remote_watermarks) {
   std::lock_guard<std::mutex> lock(watermark_mutex_);
 
-  // Convert int64_t to uint64_t
-  std::vector<uint64_t> &target = global_watermarks_[src_shard];
-  if (target.size() < remote_watermarks.size()) {
-    target.resize(remote_watermarks.size());
+  // Ensure we have storage for this shard's watermarks
+  if (global_watermarks_.find(src_shard) == global_watermarks_.end()) {
+    global_watermarks_[src_shard] = std::vector<uint64_t>(worker_count_, 0);
   }
+
+  auto &target = global_watermarks_[src_shard];
 
   for (size_t i = 0; i < remote_watermarks.size(); i++) {
     uint64_t ts = (uint64_t)remote_watermarks[i];
-    if (ts > target[i]) {
+    if (i < target.size() && ts > target[i]) {
       target[i] = ts;
     }
   }
 
-  Log_info("Luigi Watermark: received update from shard %d, checking pending "
-           "commits",
-           src_shard);
+  Log_info("HandleWatermarkExchange: shard %d received from shard %d, "
+           "watermark[0]=%lu",
+           shard_id_, src_shard, target.size() > 0 ? target[0] : 0);
 
   // Check if any pending commits can now proceed
   CheckPendingCommits();
@@ -785,7 +786,15 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
 
 bool SchedulerLuigi::CanCommit(uint64_t timestamp, uint32_t worker_id,
                                const std::vector<uint32_t> &involved_shards) {
-  std::lock_guard<std::mutex> lock(watermark_mutex_);
+  // NOTE: Caller must hold watermark_mutex_!
+
+  // Log what we're checking
+  std::string shards_str;
+  for (auto s : involved_shards) {
+    shards_str += std::to_string(s) + ",";
+  }
+  Log_info("CanCommit: shard=%d checking txn ts=%lu for shards=[%s]", shard_id_,
+           timestamp, shards_str.c_str());
 
   // Check: timestamp <= watermark[shard][worker] for ALL involved shards
   for (uint32_t shard : involved_shards) {
@@ -796,22 +805,28 @@ bool SchedulerLuigi::CanCommit(uint64_t timestamp, uint32_t worker_id,
       if (shard == shard_id_) {
         if (worker_id >= watermarks_.size() ||
             timestamp > watermarks_[worker_id]) {
+          Log_info("CanCommit: FAIL - local watermark not ready");
           return false;
         }
       } else {
         // Remote shard hasn't sent watermarks yet
+        Log_info("CanCommit: FAIL - no watermarks from shard %d", shard);
         return false;
       }
     } else {
       if (worker_id >= it->second.size()) {
+        Log_info("CanCommit: FAIL - invalid worker_id");
         return false;
       }
       if (timestamp > it->second[worker_id]) {
+        Log_info("CanCommit: FAIL - shard %d watermark=%lu < ts=%lu", shard,
+                 it->second[worker_id], timestamp);
         return false;
       }
     }
   }
 
+  Log_info("CanCommit: SUCCESS - all watermarks ready");
   return true; // All shards have advanced past this timestamp
 }
 
@@ -834,7 +849,8 @@ void SchedulerLuigi::AddPendingCommit(
 }
 
 void SchedulerLuigi::CheckPendingCommits() {
-  std::lock_guard<std::mutex> lock(pending_commits_mutex_);
+  std::lock_guard<std::mutex> pending_lock(pending_commits_mutex_);
+  std::lock_guard<std::mutex> watermark_lock(watermark_mutex_);
 
   auto it = pending_commits_.begin();
   while (it != pending_commits_.end()) {
@@ -877,9 +893,8 @@ void SchedulerLuigi::SendWatermarksToCoordinator() {
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
     luigi_commo->BroadcastWatermarks(shard_id_, current_wms);
-    Log_debug(
-        "SendWatermarksToCoordinator: shard=%d sent watermarks to all shards",
-        shard_id_);
+    Log_info("BroadcastWatermarks: shard=%d sent watermarks to all shards",
+             shard_id_);
   }
 
   // Check if any pending commits can now proceed

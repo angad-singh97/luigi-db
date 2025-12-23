@@ -114,6 +114,18 @@ struct InFlightTxn {
   std::atomic<bool> all_ok{true};
 };
 
+// FNV-1a hash function (matches generator's KeyToShard)
+static uint32_t HashFNV1a(const std::string &key) {
+  constexpr uint64_t fnv_offset = 14695981039346656037ULL;
+  constexpr uint64_t fnv_prime = 1099511628211ULL;
+  uint64_t hash = fnv_offset;
+  for (char c : key) {
+    hash ^= static_cast<uint8_t>(c);
+    hash *= fnv_prime;
+  }
+  return static_cast<uint32_t>(hash);
+}
+
 //=============================================================================
 // LuigiCoordinator - Benchmark Client with OWD Measurement
 //=============================================================================
@@ -343,17 +355,26 @@ private:
 
     // Determine involved shards
     std::vector<uint32_t> shards;
+    std::string debug_info;
     for (const auto &op : req.ops) {
-      uint32_t s = config_.num_shards > 1
-                       ? std::hash<std::string>{}(op.key) % config_.num_shards
-                       : 0;
+      // Use FNV1a hash to match generator's KeyToShard()
+      uint32_t s =
+          config_.num_shards > 1 ? HashFNV1a(op.key) % config_.num_shards : 0;
+      debug_info += op.key + "->s" + std::to_string(s) + " ";
       if (std::find(shards.begin(), shards.end(), s) == shards.end())
         shards.push_back(s);
     }
 
-    if (current_type_ == BenchmarkType::BM_MICRO_SINGLE) {
-      shards = {static_cast<uint32_t>(config_.shard_index)};
+    if (req.ops.size() > 0) {
+      Log_info("DispatchOne: txn=%lu ops=%zu shards=%zu keys=[%s]", req.txn_id,
+               req.ops.size(), shards.size(), debug_info.c_str());
     }
+
+    // NOTE: Removed BM_MICRO_SINGLE override to enable multi-shard watermark
+    // testing The BM_MICRO benchmark should allow transactions to span multiple
+    // shards if (current_type_ == BenchmarkType::BM_MICRO_SINGLE) {
+    //   shards = {static_cast<uint32_t>(config_.shard_index)};
+    // }
 
     uint64_t expected = GetExpectedTimestamp(shards);
 
