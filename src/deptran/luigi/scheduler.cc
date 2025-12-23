@@ -867,15 +867,23 @@ void SchedulerLuigi::SendWatermarksToCoordinator() {
   {
     std::lock_guard<std::mutex> lock(watermark_mutex_);
     current_wms.assign(watermarks_.begin(), watermarks_.end());
+
+    // Update our own global watermarks so we can check them in CanCommit
+    // This enables each shard to verify all involved shards (including itself)
+    global_watermarks_[shard_id_] = watermarks_;
   }
 
-  // Send only to coordinator (simplified approach)
+  // Send to all shards (SendWatermarkToCoordinator already broadcasts to all)
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
-    luigi_commo->SendWatermarkToCoordinator(shard_id_, current_wms);
-    Log_debug("SendWatermarksToCoordinator: shard=%d sent %zu watermarks",
-              shard_id_, current_wms.size());
+    luigi_commo->BroadcastWatermarks(shard_id_, current_wms);
+    Log_debug(
+        "SendWatermarksToCoordinator: shard=%d sent watermarks to all shards",
+        shard_id_);
   }
+
+  // Check if any pending commits can now proceed
+  CheckPendingCommits();
 }
 
 // Helper to get all shard IDs except self for broadcasting

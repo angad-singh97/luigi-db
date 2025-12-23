@@ -375,8 +375,8 @@ void LuigiCommo::BroadcastWatermarkExchange(
   }
 }
 
-void LuigiCommo::SendWatermarkToCoordinator(
-    int32_t src_shard, const std::vector<int64_t> &watermarks) {
+void LuigiCommo::BroadcastWatermarks(int32_t src_shard,
+                                     const std::vector<int64_t> &watermarks) {
   // Send watermarks to coordinator for commit decision
   // TODO: Get coordinator site ID from config
   // For now, assume coordinator is at a special site ID or we broadcast to all
@@ -393,7 +393,8 @@ void LuigiCommo::SendWatermarkToCoordinator(
     }
   }
 
-  Log_debug("SendWatermarkToCoordinator: shard=%d sent watermarks", src_shard);
+  Log_debug("BroadcastWatermarks: shard=%d sent watermarks to all shards",
+            src_shard);
 }
 
 //=============================================================================

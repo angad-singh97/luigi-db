@@ -3,13 +3,13 @@ from simplerpc.marshal import Marshal
 from simplerpc.future import Future
 
 class LuigiService(object):
-    DISPATCH = 0x566b418a
-    OWDPING = 0x17d2ba70
-    DEADLINEPROPOSE = 0x1bfb4f4e
-    DEADLINECONFIRM = 0x35905c6b
-    DEADLINEBATCHPROPOSE = 0x438f7c65
-    DEADLINEBATCHCONFIRM = 0x3890fc87
-    WATERMARKEXCHANGE = 0x1a980d9d
+    DISPATCH = 0x10c50c0e
+    OWDPING = 0x1b63a21e
+    DEADLINEPROPOSE = 0x6984112a
+    DEADLINECONFIRM = 0x42d3a946
+    DEADLINEBATCHPROPOSE = 0x1fb53c6f
+    DEADLINEBATCHCONFIRM = 0x46759b98
+    WATERMARKEXCHANGE = 0x5fa4d95b
 
     __input_type_info__ = {
         'Dispatch': ['rrr::i64','rrr::i64','rrr::i32','std::vector<rrr::i32>','std::string'],
