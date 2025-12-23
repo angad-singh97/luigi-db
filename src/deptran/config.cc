@@ -333,12 +333,15 @@ void Config::LoadSiteYML(YAML::Node config) {
       info.locale_id = locale_id;
       info.type_ = SERVER;
       info.proc_name = site_proc_map_[info.name];
-      if (info.proc_name.compare("localhost") == 0) {
-        info.role = 0;
+      // Check for "localhost" prefix to support localhost0, localhost1, etc.
+      // This allows independent processes with different identifiers while
+      // still being treated as leaders for protocol purposes
+      if (info.proc_name.compare(0, 9, "localhost") == 0) {
+        info.role = 0; // Leader
       } else if (info.proc_name.compare("learner") == 0) {
-        info.role = 2;
+        info.role = 2; // Learner
       } else {
-        info.role = 1;
+        info.role = 1; // Follower
       }
       sites_.push_back(info);
       replica_group.replicas.push_back(&sites_.back());

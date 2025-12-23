@@ -12,13 +12,17 @@ site:
     - ["c101"]
 
 # site_name -> process_name map
-# IMPORTANT: Use "localhost" to get role=0 (leader) in Config parsing
-# Config assigns role based on proc_name: localhost=0, learner=2, else=1
+# Each shard has its own process name for independent deployment
+# In production, these would be different physical machines
 process:
-  s101: localhost
-  s201: localhost
+  s101: localhost0
+  s201: localhost1
   c101: localhost
 
 # process_name -> host_addr map
+# For local testing, both map to 127.0.0.1
+# In production, these would be different IPs
 host:
+  localhost0: 127.0.0.1
+  localhost1: 127.0.0.1
   localhost: 127.0.0.1
