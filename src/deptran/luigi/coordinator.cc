@@ -25,8 +25,10 @@
 #include "../__dep__.h"
 #include "../config.h"
 #include "commo.h"
+#include "luigi.h" // For LuigiService base class
 #include "luigi_entry.h"
 #include "micro_txn_generator.h"
+#include "rrr.hpp" // For rrr::Server
 #include "tpcc_txn_generator.h"
 #include "txn_generator.h"
 
@@ -371,10 +373,12 @@ private:
 
     // Dispatch to all shards asynchronously (non-blocking)
     for (uint32_t shard : shards) {
+      // Capture variables needed for watermark-based commit
       commo_->DispatchAsync(
           shard, req.txn_id, expected, worker_id, involved_i32, ops_data,
-          [this, in_flight, shard](bool ok, rrr::i32 status, rrr::i64 commit_ts,
-                                   std::string results) {
+          [this, in_flight, shard, expected, worker_id,
+           shards](bool ok, rrr::i32 status, rrr::i64 commit_ts,
+                   std::string results) {
             // RPC callback - runs on reactor thread
             Log_info("Dispatch callback: txn=%lu shard=%u ok=%d status=%d "
                      "pending=%zu",
@@ -385,37 +389,42 @@ private:
               in_flight->all_ok.store(false);
             }
 
-            // Decrement pending count; if this is the last shard, record stats
+            // Decrement pending count; if this is the last shard, check
+            // watermarks
             if (in_flight->pending_shards.fetch_sub(1) == 1) {
               // All shards have responded
-              uint64_t end = GetTimestampUs();
-              bool committed = in_flight->all_ok.load();
+              bool execution_ok = in_flight->all_ok.load();
 
-              // Record stats (need mutex since callback runs on different
-              // thread)
-              {
-                std::lock_guard<std::mutex> lock(
-                    *thread_stats_[in_flight->tid].mutex);
-                TxnRecord record;
-                record.txn_id = in_flight->txn_id;
-                record.start_time_us = in_flight->start_time_us;
-                record.end_time_us = end;
-                record.committed = committed;
-                record.txn_type = in_flight->txn_type;
-                thread_stats_[in_flight->tid].records.push_back(record);
-                if (committed)
-                  thread_stats_[in_flight->tid].committed++;
-                else
-                  thread_stats_[in_flight->tid].aborted++;
+              if (!execution_ok) {
+                // Transaction failed - abort immediately
+                CompleteTransaction(in_flight, false);
+                return;
               }
 
-              // Signal completion for benchmark end waiting
-              completed_txns_.fetch_add(1);
-              Log_info(
-                  "Transaction complete: txn=%lu completed=%lu dispatched=%lu",
-                  in_flight->txn_id, completed_txns_.load(),
-                  dispatched_txns_.load());
-              completion_cv_.notify_all();
+              // Check if we can commit based on watermarks
+              // Use 'expected' as the timestamp (this is when the txn was
+              // scheduled)
+              if (CanCommit(expected, worker_id, shards)) {
+                // Watermarks already advanced - commit immediately
+                Log_info(
+                    "Coordinator: txn %lu commit immediately (watermarks ok)",
+                    in_flight->txn_id);
+                CompleteTransaction(in_flight, true);
+              } else {
+                // Add to pending commits - will commit when watermarks advance
+                Log_debug("Coordinator: txn %lu waiting for watermarks "
+                          "(expected=%lu)",
+                          in_flight->txn_id, expected);
+
+                std::lock_guard<std::mutex> lock(pending_mutex_);
+                PendingCommit pending;
+                pending.txn_id = in_flight->txn_id;
+                pending.timestamp = expected;
+                pending.worker_id = worker_id;
+                pending.involved_shards = shards;
+                pending.in_flight = in_flight;
+                pending_commits_[in_flight->txn_id] = pending;
+              }
             }
           });
     }
@@ -488,6 +497,140 @@ private:
   std::atomic<uint64_t> completed_txns_{0};
   std::condition_variable completion_cv_;
   std::mutex completion_mutex_;
+
+  //=========================================================================
+  // Watermark Tracking (for commit decisions per Luigi protocol)
+  //=========================================================================
+
+  // Watermarks from each shard: watermarks_[shard_id][worker_id] = timestamp
+  std::map<uint32_t, std::vector<uint64_t>> remote_watermarks_;
+  std::mutex watermark_mutex_;
+
+  // Pending commits waiting for watermarks to advance
+  struct PendingCommit {
+    uint64_t txn_id;
+    uint64_t timestamp; // Transaction agreed timestamp
+    uint32_t worker_id;
+    std::vector<uint32_t> involved_shards;
+    std::shared_ptr<InFlightTxn> in_flight; // For stats recording
+  };
+  std::map<uint64_t, PendingCommit> pending_commits_;
+  std::mutex pending_mutex_;
+
+public:
+  //=========================================================================
+  // Watermark Management (called from RPC handler)
+  //=========================================================================
+
+  void OnWatermarkUpdate(uint32_t shard_id,
+                         const std::vector<int64_t> &watermarks) {
+    {
+      std::lock_guard<std::mutex> lock(watermark_mutex_);
+      remote_watermarks_[shard_id].clear();
+      for (int64_t wm : watermarks) {
+        remote_watermarks_[shard_id].push_back(static_cast<uint64_t>(wm));
+      }
+      Log_debug("Coordinator: updated watermarks from shard %u (size=%zu)",
+                shard_id, watermarks.size());
+    }
+
+    // Check if any pending commits can now proceed
+    CheckPendingCommits();
+  }
+
+  bool CanCommit(uint64_t timestamp, uint32_t worker_id,
+                 const std::vector<uint32_t> &involved_shards) {
+    std::lock_guard<std::mutex> lock(watermark_mutex_);
+
+    // Development mode: if no watermarks received yet from any shard,
+    // allow immediate commit (matches previous behavior)
+    // In production, this should be disabled after watermark wiring is complete
+    bool any_watermarks_received = false;
+    for (uint32_t shard : involved_shards) {
+      if (remote_watermarks_.find(shard) != remote_watermarks_.end() &&
+          !remote_watermarks_[shard].empty()) {
+        any_watermarks_received = true;
+        break;
+      }
+    }
+
+    if (!any_watermarks_received) {
+      // No watermarks received yet - allow immediate commit (dev mode)
+      Log_debug("Coordinator: CanCommit dev mode - no watermarks received, "
+                "allowing commit");
+      return true;
+    }
+
+    // Check: timestamp <= watermark[shard][worker] for ALL involved shards
+    for (uint32_t shard : involved_shards) {
+      auto it = remote_watermarks_.find(shard);
+      if (it == remote_watermarks_.end()) {
+        // No watermarks received from this shard yet
+        return false;
+      }
+
+      if (worker_id >= it->second.size()) {
+        // Worker watermark not available
+        return false;
+      }
+
+      if (timestamp > it->second[worker_id]) {
+        // Watermark hasn't advanced past this timestamp
+        return false;
+      }
+    }
+
+    return true; // All shards have advanced past this timestamp
+  }
+
+  void CheckPendingCommits() {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+
+    auto it = pending_commits_.begin();
+    while (it != pending_commits_.end()) {
+      auto &[txn_id, info] = *it;
+
+      if (CanCommit(info.timestamp, info.worker_id, info.involved_shards)) {
+        Log_info("Coordinator: txn %lu can now commit (watermarks advanced)",
+                 txn_id);
+
+        // Record stats and complete
+        CompleteTransaction(info.in_flight, true);
+        it = pending_commits_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+private:
+  void CompleteTransaction(std::shared_ptr<InFlightTxn> in_flight,
+                           bool committed) {
+    uint64_t end = GetTimestampUs();
+
+    // Record stats
+    {
+      std::lock_guard<std::mutex> lock(*thread_stats_[in_flight->tid].mutex);
+      TxnRecord record;
+      record.txn_id = in_flight->txn_id;
+      record.start_time_us = in_flight->start_time_us;
+      record.end_time_us = end;
+      record.committed = committed;
+      record.txn_type = in_flight->txn_type;
+      thread_stats_[in_flight->tid].records.push_back(record);
+      if (committed)
+        thread_stats_[in_flight->tid].committed++;
+      else
+        thread_stats_[in_flight->tid].aborted++;
+    }
+
+    // Signal completion for benchmark end waiting
+    completed_txns_.fetch_add(1);
+    Log_info("Transaction complete: txn=%lu completed=%lu dispatched=%lu",
+             in_flight->txn_id, completed_txns_.load(),
+             dispatched_txns_.load());
+    completion_cv_.notify_all();
+  }
 };
 
 } // namespace luigi

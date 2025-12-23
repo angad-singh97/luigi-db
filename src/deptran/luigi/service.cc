@@ -88,24 +88,47 @@ void LuigiServiceImpl::Dispatch(
   auto status_ptr = status;
   auto commit_timestamp_ptr = commit_timestamp;
   auto results_data_ptr = results_data;
+  auto scheduler_ptr = scheduler; // Capture scheduler for watermark check
 
   scheduler->LuigiDispatchFromRequest(
       txn_id, expected_time, ops, involved_shards_u32, worker_id,
-      [defer_ptr, status_ptr, commit_timestamp_ptr, results_data_ptr,
-       txn_id](int result_status, uint64_t commit_ts,
-               const std::vector<std::string> &read_results) {
-        // Set outputs and reply when execution completes
-        Log_info("Service callback: txn=%ld status=%d ts=%lu, calling "
-                 "defer->reply()",
-                 txn_id, result_status, commit_ts);
+      [defer_ptr, status_ptr, commit_timestamp_ptr, results_data_ptr, txn_id,
+       scheduler_ptr, worker_id,
+       involved_shards_u32](int result_status, uint64_t commit_ts,
+                            const std::vector<std::string> &read_results) {
+        // Set output values
         *status_ptr = result_status;
         *commit_timestamp_ptr = commit_ts;
         results_data_ptr->clear();
         for (const auto &r : read_results) {
           results_data_ptr->append(r);
         }
-        defer_ptr->reply();
-        Log_info("Service callback: txn=%ld defer->reply() returned", txn_id);
+
+        // If transaction failed, reply immediately
+        if (result_status != luigi::kOk) {
+          Log_info("Service callback: txn=%ld ABORTED, replying immediately",
+                   txn_id);
+          defer_ptr->reply();
+          return;
+        }
+
+        // Check if we can commit based on watermarks
+        if (scheduler_ptr->CanCommit(commit_ts, worker_id,
+                                     involved_shards_u32)) {
+          Log_info("Service callback: txn=%ld COMMIT immediate (watermarks ok)",
+                   txn_id);
+          defer_ptr->reply();
+        } else {
+          Log_info("Service callback: txn=%ld waiting for watermarks", txn_id);
+          // Add to pending commits - will reply when watermarks advance
+          scheduler_ptr->AddPendingCommit(
+              txn_id, commit_ts, worker_id, involved_shards_u32,
+              [defer_ptr, txn_id]() {
+                Log_info("PendingCommit callback: txn=%ld now replying",
+                         txn_id);
+                defer_ptr->reply();
+              });
+        }
       });
 }
 
@@ -157,6 +180,14 @@ void LuigiServiceImpl::DeadlineConfirm(const rrr::i64 &tid,
 void LuigiServiceImpl::WatermarkExchange(
     const rrr::i32 &src_shard, const std::vector<rrr::i64> &watermarks,
     rrr::i32 *status, rrr::DeferredReply *defer) {
+
+  // Forward to scheduler to store remote watermarks
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    scheduler->HandleWatermarkExchange(src_shard, watermarks);
+    Log_debug("WatermarkExchange: received %zu watermarks from shard %d",
+              watermarks.size(), src_shard);
+  }
 
   *status = luigi::kOk;
   defer->reply();

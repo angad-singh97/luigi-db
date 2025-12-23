@@ -765,7 +765,12 @@ void SchedulerLuigi::HandleWatermarkExchange(
     }
   }
 
-  // Log_debug("Luigi Watermark: received update from shard %d", src_shard);
+  Log_info("Luigi Watermark: received update from shard %d, checking pending "
+           "commits",
+           src_shard);
+
+  // Check if any pending commits can now proceed
+  CheckPendingCommits();
 }
 
 std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
@@ -776,6 +781,80 @@ std::vector<int64_t> SchedulerLuigi::GetLocalWatermarks() {
     result.push_back((int64_t)wm);
   }
   return result;
+}
+
+bool SchedulerLuigi::CanCommit(uint64_t timestamp, uint32_t worker_id,
+                               const std::vector<uint32_t> &involved_shards) {
+  std::lock_guard<std::mutex> lock(watermark_mutex_);
+
+  // Check: timestamp <= watermark[shard][worker] for ALL involved shards
+  for (uint32_t shard : involved_shards) {
+    auto it = global_watermarks_.find(shard);
+    if (it == global_watermarks_.end()) {
+      // No watermarks received from this shard yet
+      // For local shard, check local watermarks
+      if (shard == shard_id_) {
+        if (worker_id >= watermarks_.size() ||
+            timestamp > watermarks_[worker_id]) {
+          return false;
+        }
+      } else {
+        // Remote shard hasn't sent watermarks yet
+        return false;
+      }
+    } else {
+      if (worker_id >= it->second.size()) {
+        return false;
+      }
+      if (timestamp > it->second[worker_id]) {
+        return false;
+      }
+    }
+  }
+
+  return true; // All shards have advanced past this timestamp
+}
+
+void SchedulerLuigi::AddPendingCommit(
+    uint64_t txn_id, uint64_t timestamp, uint32_t worker_id,
+    const std::vector<uint32_t> &involved_shards,
+    std::function<void()> reply_callback) {
+  std::lock_guard<std::mutex> lock(pending_commits_mutex_);
+
+  PendingCommit pending;
+  pending.txn_id = txn_id;
+  pending.timestamp = timestamp;
+  pending.worker_id = worker_id;
+  pending.involved_shards = involved_shards;
+  pending.reply_callback = reply_callback;
+
+  pending_commits_[txn_id] = std::move(pending);
+  Log_debug("AddPendingCommit: txn=%lu ts=%lu waiting for watermarks", txn_id,
+            timestamp);
+}
+
+void SchedulerLuigi::CheckPendingCommits() {
+  std::lock_guard<std::mutex> lock(pending_commits_mutex_);
+
+  auto it = pending_commits_.begin();
+  while (it != pending_commits_.end()) {
+    auto &[txn_id, info] = *it;
+
+    if (CanCommit(info.timestamp, info.worker_id, info.involved_shards)) {
+      Log_info(
+          "CheckPendingCommits: txn %lu can now commit (watermarks advanced)",
+          txn_id);
+
+      // Call the reply callback
+      if (info.reply_callback) {
+        info.reply_callback();
+      }
+
+      it = pending_commits_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void SchedulerLuigi::SendWatermarksToCoordinator() {

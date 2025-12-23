@@ -77,8 +77,7 @@ public:
           reply_cb);
 
   // Methods called by executor
-  void Replicate(uint32_t worker_id,
-                 const std::shared_ptr<LuigiLogEntry> &entry);
+  void Replicate(uint32_t worker_id, std::shared_ptr<LuigiLogEntry> entry);
   void InitiateAgreement(std::shared_ptr<LuigiLogEntry> entry);
   void SendRepositionConfirmations(std::shared_ptr<LuigiLogEntry> entry);
 
@@ -232,6 +231,21 @@ protected:
   // Last time we broadcasted watermarks
   uint64_t last_watermark_broadcast_ = 0;
 
+  //==========================================================================
+  // PENDING COMMITS (waiting for watermarks to advance)
+  // Transactions that have finished execution but are waiting for
+  // watermarks to advance before being considered durable/committed.
+  //==========================================================================
+  struct PendingCommit {
+    uint64_t txn_id;
+    uint64_t timestamp; // Transaction's agreed timestamp
+    uint32_t worker_id;
+    std::vector<uint32_t> involved_shards;
+    std::function<void()> reply_callback; // Called when watermarks advance
+  };
+  std::mutex pending_commits_mutex_;
+  std::map<uint64_t, PendingCommit> pending_commits_;
+
   // Pending transactions tracking (for async status check)
   mutable std::mutex pending_txns_mutex_;
   std::unordered_set<uint64_t> pending_txns_;
@@ -272,6 +286,32 @@ protected:
    * Get current local watermarks (for RPC response).
    */
   std::vector<int64_t> GetLocalWatermarks();
+
+public:
+  //==========================================================================
+  // WATERMARK-BASED COMMIT DECISION METHODS
+  //==========================================================================
+
+  /**
+   * Check if transaction can commit based on watermarks.
+   * Returns true if timestamp <= watermark[shard][worker] for all involved
+   * shards.
+   */
+  bool CanCommit(uint64_t timestamp, uint32_t worker_id,
+                 const std::vector<uint32_t> &involved_shards);
+
+  /**
+   * Add a pending commit that will be completed when watermarks advance.
+   */
+  void AddPendingCommit(uint64_t txn_id, uint64_t timestamp, uint32_t worker_id,
+                        const std::vector<uint32_t> &involved_shards,
+                        std::function<void()> reply_callback);
+
+  /**
+   * Check all pending commits and complete any that can now commit.
+   * Called when watermarks are updated.
+   */
+  void CheckPendingCommits();
 
   //==========================================================================
   // PHASE 2: RPC BATCHING INFRASTRUCTURE
