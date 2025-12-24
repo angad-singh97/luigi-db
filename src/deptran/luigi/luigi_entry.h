@@ -13,6 +13,12 @@
 #include <unordered_map>
 #include <vector>
 
+// Forward declare Marshal and Marshallable
+namespace rrr {
+class Marshal;
+class Marshallable;
+}
+
 namespace janus {
 
 //=============================================================================
@@ -62,6 +68,25 @@ enum LuigiAgreeStatus {
 //=============================================================================
 constexpr uint8_t LUIGI_OP_READ = 0;
 constexpr uint8_t LUIGI_OP_WRITE = 1;
+
+//=============================================================================
+// PHASE 4: Watermark Entry for Paxos Replication
+// Simple Marshallable wrapper for watermark values
+//=============================================================================
+/**
+ * WatermarkEntry: Minimal serializable struct for Paxos replication.
+ * Contains just the watermark timestamp for durability.
+ * This is much simpler than making the entire LuigiLogEntry Marshallable.
+ */
+struct WatermarkEntry {
+  uint64_t timestamp_;     // Watermark timestamp
+  uint32_t worker_id_;     // Which worker stream this belongs to
+  txnid_t txn_id_;         // Transaction ID (for debugging)
+
+  WatermarkEntry() : timestamp_(0), worker_id_(0), txn_id_(0) {}
+  WatermarkEntry(uint64_t ts, uint32_t wid, txnid_t tid)
+      : timestamp_(ts), worker_id_(wid), txn_id_(tid) {}
+};
 
 //=============================================================================
 // LuigiOp: A single read or write operation within a transaction

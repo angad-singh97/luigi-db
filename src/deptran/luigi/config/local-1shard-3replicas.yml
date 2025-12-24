@@ -4,18 +4,21 @@
 
 site:
   server:  # 1 shard with 3 replicas (Paxos)
-    - ["s0:31850", "s1:31851", "s2:31852"]
+    - ["s101:31850", "s102:31851", "s103:31852"]
   client:
-    - ["c0"]
+    - ["c01"]
 
 process:
-  s0: localhost
-  s1: localhost
-  s2: localhost
-  c0: localhost
+  s101: s101  # leader replica
+  s102: s102  # follower replica
+  s103: s103  # follower replica
+  c01: c01
 
 host:
-  localhost: 127.0.0.1
+  s101: 127.0.0.1
+  s102: 127.0.0.1
+  s103: 127.0.0.1
+  c01: 127.0.0.1
 
 # Luigi-specific configuration
 luigi:

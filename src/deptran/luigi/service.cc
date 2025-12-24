@@ -240,8 +240,8 @@ void LuigiServiceImpl::DeadlineBatchConfirm(
     const std::vector<rrr::i64> &agreed_timestamps, rrr::i32 *status,
     rrr::DeferredReply *defer) {
 
-  Log_debug("DeadlineBatchConfirm: %zu confirmations from shard %d", tids.size(),
-            src_shard);
+  Log_debug("DeadlineBatchConfirm: %zu confirmations from shard %d",
+            tids.size(), src_shard);
 
   // Process each confirmation individually
   auto *scheduler = server_->GetScheduler();
@@ -253,6 +253,58 @@ void LuigiServiceImpl::DeadlineBatchConfirm(
   }
 
   *status = luigi::kOk;
+  defer->reply();
+}
+
+//=============================================================================
+// PHASE 4: REPLICATE RPC HANDLER (follower-side)
+//=============================================================================
+
+void LuigiServiceImpl::Replicate(const rrr::i32 &worker_id,
+                                 const rrr::i64 &slot_id,
+                                 const rrr::i64 &txn_id,
+                                 const rrr::i64 &timestamp,
+                                 const std::string &log_data, rrr::i32 *status,
+                                 rrr::DeferredReply *defer) {
+  Log_debug("Replicate: worker=%d slot=%ld txn=%ld ts=%ld", worker_id, slot_id,
+            txn_id, timestamp);
+
+  // Append to follower's per-worker log
+  auto *scheduler = server_->GetScheduler();
+  if (scheduler != nullptr) {
+    scheduler->AppendToLog(worker_id, slot_id, txn_id, timestamp, log_data);
+  }
+
+  // Ack immediately (Raft happy path)
+  *status = luigi::kOk;
+  defer->reply();
+}
+
+void LuigiServiceImpl::BatchReplicate(
+    const rrr::i32 &worker_id, const rrr::i64 &prev_committed_slot,
+    const std::vector<rrr::i64> &slot_ids, const std::vector<rrr::i64> &txn_ids,
+    const std::vector<rrr::i64> &timestamps,
+    const std::vector<std::string> &log_entries, rrr::i32 *status,
+    rrr::i64 *last_appended_slot, rrr::DeferredReply *defer) {
+
+  Log_debug("BatchReplicate: worker=%d entries=%zu prev_committed=%ld",
+            worker_id, slot_ids.size(), prev_committed_slot);
+
+  // Convert to uint64_t vectors
+  std::vector<uint64_t> u_slot_ids(slot_ids.begin(), slot_ids.end());
+  std::vector<uint64_t> u_txn_ids(txn_ids.begin(), txn_ids.end());
+  std::vector<uint64_t> u_timestamps(timestamps.begin(), timestamps.end());
+
+  // Batch append to follower's per-worker log
+  auto *scheduler = server_->GetScheduler();
+  uint64_t last_slot = 0;
+  if (scheduler != nullptr && !slot_ids.empty()) {
+    last_slot = scheduler->BatchAppendToLog(worker_id, u_slot_ids, u_txn_ids,
+                                            u_timestamps, log_entries);
+  }
+
+  *status = luigi::kOk;
+  *last_appended_slot = static_cast<rrr::i64>(last_slot);
   defer->reply();
 }
 

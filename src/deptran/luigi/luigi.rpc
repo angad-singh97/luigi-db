@@ -66,4 +66,29 @@ abstract service Luigi {
         |
         i32 status
     );
+    
+    // Replicate log entry (leader -> follower, per-worker stream)
+    defer Replicate(
+        i32 worker_id,
+        i64 slot_id,
+        i64 txn_id,
+        i64 timestamp,
+        string log_data
+        |
+        i32 status
+    );
+    
+    // Batch replicate log entries (leader -> follower, Raft-style AppendEntries)
+    // Sends all entries after prev_committed_slot for a given worker stream
+    defer BatchReplicate(
+        i32 worker_id,
+        i64 prev_committed_slot,
+        vector<i64> slot_ids,
+        vector<i64> txn_ids,
+        vector<i64> timestamps,
+        vector<string> log_entries
+        |
+        i32 status,
+        i64 last_appended_slot
+    );
 }

@@ -76,6 +76,22 @@ public:
                             const std::vector<rrr::i64> &agreed_timestamps,
                             rrr::i32 *status, rrr::DeferredReply *defer);
 
+  // Phase 4: Replicate RPC handler (follower-side log append)
+  void Replicate(const rrr::i32 &worker_id, const rrr::i64 &slot_id,
+                 const rrr::i64 &txn_id, const rrr::i64 &timestamp,
+                 const std::string &log_data, rrr::i32 *status,
+                 rrr::DeferredReply *defer);
+
+  // Phase 4: BatchReplicate RPC handler (batch log append, Raft-style)
+  void BatchReplicate(const rrr::i32 &worker_id,
+                      const rrr::i64 &prev_committed_slot,
+                      const std::vector<rrr::i64> &slot_ids,
+                      const std::vector<rrr::i64> &txn_ids,
+                      const std::vector<rrr::i64> &timestamps,
+                      const std::vector<std::string> &log_entries,
+                      rrr::i32 *status, rrr::i64 *last_appended_slot,
+                      rrr::DeferredReply *defer);
+
 protected:
   //===========================================================================
   // Result Storage (for async polling)

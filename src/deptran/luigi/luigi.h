@@ -10,13 +10,15 @@ namespace janus {
 class LuigiService: public rrr::Service {
 public:
     enum {
-        DISPATCH = 0x2b750829,
-        OWDPING = 0x3937cd1b,
-        DEADLINEPROPOSE = 0x6bd6466f,
-        DEADLINECONFIRM = 0x289dba58,
-        DEADLINEBATCHPROPOSE = 0x674f51fc,
-        DEADLINEBATCHCONFIRM = 0x2fb32978,
-        WATERMARKEXCHANGE = 0x146c8a0e,
+        DISPATCH = 0x3c553d61,
+        OWDPING = 0x653c61fb,
+        DEADLINEPROPOSE = 0x21572c42,
+        DEADLINECONFIRM = 0x54b7903e,
+        DEADLINEBATCHPROPOSE = 0x2b9521b3,
+        DEADLINEBATCHCONFIRM = 0x237786ab,
+        WATERMARKEXCHANGE = 0x6c756791,
+        REPLICATE = 0x6ecfce39,
+        BATCHREPLICATE = 0x4d15c783,
     };
     int __reg_to__(rrr::Server* svr) {
         int ret = 0;
@@ -41,6 +43,12 @@ public:
         if ((ret = svr->reg(WATERMARKEXCHANGE, this, &LuigiService::__WatermarkExchange__wrapper__)) != 0) {
             goto err;
         }
+        if ((ret = svr->reg(REPLICATE, this, &LuigiService::__Replicate__wrapper__)) != 0) {
+            goto err;
+        }
+        if ((ret = svr->reg(BATCHREPLICATE, this, &LuigiService::__BatchReplicate__wrapper__)) != 0) {
+            goto err;
+        }
         return 0;
     err:
         svr->unreg(DISPATCH);
@@ -50,6 +58,8 @@ public:
         svr->unreg(DEADLINEBATCHPROPOSE);
         svr->unreg(DEADLINEBATCHCONFIRM);
         svr->unreg(WATERMARKEXCHANGE);
+        svr->unreg(REPLICATE);
+        svr->unreg(BATCHREPLICATE);
         return ret;
     }
     // these RPC handler functions need to be implemented by user
@@ -61,6 +71,8 @@ public:
     virtual void DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, const std::vector<rrr::i64>& watermarks, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void DeadlineBatchConfirm(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& agreed_timestamps, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void WatermarkExchange(const rrr::i32& src_shard, const std::vector<rrr::i64>& watermarks, rrr::i32* status, rrr::DeferredReply* defer) = 0;
+    virtual void Replicate(const rrr::i32& worker_id, const rrr::i64& slot_id, const rrr::i64& txn_id, const rrr::i64& timestamp, const std::string& log_data, rrr::i32* status, rrr::DeferredReply* defer) = 0;
+    virtual void BatchReplicate(const rrr::i32& worker_id, const rrr::i64& prev_committed_slot, const std::vector<rrr::i64>& slot_ids, const std::vector<rrr::i64>& txn_ids, const std::vector<rrr::i64>& timestamps, const std::vector<std::string>& log_entries, rrr::i32* status, rrr::i64* last_appended_slot, rrr::DeferredReply* defer) = 0;
 private:
     void __Dispatch__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         rrr::i64* in_0 = new rrr::i64;
@@ -235,6 +247,72 @@ private:
         };
         rrr::DeferredReply* __defer__ = new rrr::DeferredReply(std::move(req), weak_sconn, __marshal_reply__, __cleanup__);
         this->WatermarkExchange(*in_0, *in_1, out_0, __defer__);
+    }
+    void __Replicate__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
+        rrr::i32* in_0 = new rrr::i32;
+        req->m >> *in_0;
+        rrr::i64* in_1 = new rrr::i64;
+        req->m >> *in_1;
+        rrr::i64* in_2 = new rrr::i64;
+        req->m >> *in_2;
+        rrr::i64* in_3 = new rrr::i64;
+        req->m >> *in_3;
+        std::string* in_4 = new std::string;
+        req->m >> *in_4;
+        rrr::i32* out_0 = new rrr::i32;
+        auto __marshal_reply__ = [=] {
+            auto sconn_opt = weak_sconn.upgrade();
+            if (sconn_opt.is_some()) {
+                auto sconn = sconn_opt.unwrap();
+                const_cast<rrr::ServerConnection&>(*sconn) << *out_0;
+            }
+        };
+        auto __cleanup__ = [=] {
+            delete in_0;
+            delete in_1;
+            delete in_2;
+            delete in_3;
+            delete in_4;
+            delete out_0;
+        };
+        rrr::DeferredReply* __defer__ = new rrr::DeferredReply(std::move(req), weak_sconn, __marshal_reply__, __cleanup__);
+        this->Replicate(*in_0, *in_1, *in_2, *in_3, *in_4, out_0, __defer__);
+    }
+    void __BatchReplicate__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
+        rrr::i32* in_0 = new rrr::i32;
+        req->m >> *in_0;
+        rrr::i64* in_1 = new rrr::i64;
+        req->m >> *in_1;
+        std::vector<rrr::i64>* in_2 = new std::vector<rrr::i64>;
+        req->m >> *in_2;
+        std::vector<rrr::i64>* in_3 = new std::vector<rrr::i64>;
+        req->m >> *in_3;
+        std::vector<rrr::i64>* in_4 = new std::vector<rrr::i64>;
+        req->m >> *in_4;
+        std::vector<std::string>* in_5 = new std::vector<std::string>;
+        req->m >> *in_5;
+        rrr::i32* out_0 = new rrr::i32;
+        rrr::i64* out_1 = new rrr::i64;
+        auto __marshal_reply__ = [=] {
+            auto sconn_opt = weak_sconn.upgrade();
+            if (sconn_opt.is_some()) {
+                auto sconn = sconn_opt.unwrap();
+                const_cast<rrr::ServerConnection&>(*sconn) << *out_0;
+                const_cast<rrr::ServerConnection&>(*sconn) << *out_1;
+            }
+        };
+        auto __cleanup__ = [=] {
+            delete in_0;
+            delete in_1;
+            delete in_2;
+            delete in_3;
+            delete in_4;
+            delete in_5;
+            delete out_0;
+            delete out_1;
+        };
+        rrr::DeferredReply* __defer__ = new rrr::DeferredReply(std::move(req), weak_sconn, __marshal_reply__, __cleanup__);
+        this->BatchReplicate(*in_0, *in_1, *in_2, *in_3, *in_4, *in_5, out_0, out_1, __defer__);
     }
 };
 
@@ -416,6 +494,62 @@ public:
         rrr::i32 __ret__ = __fu__->get_error_code();
         if (__ret__ == 0) {
             __fu__->get_reply() >> *status;
+        }
+        // Arc auto-released
+        return __ret__;
+    }
+    rrr::FutureResult async_Replicate(const rrr::i32& worker_id, const rrr::i64& slot_id, const rrr::i64& txn_id, const rrr::i64& timestamp, const std::string& log_data, const rrr::FutureAttr& __fu_attr__ = rrr::FutureAttr()) {
+        auto __fu_result__ = __cl__->begin_request(LuigiService::REPLICATE, __fu_attr__);
+        if (__fu_result__.is_err()) {
+            return __fu_result__;  // Propagate error
+        }
+        auto __fu__ = __fu_result__.unwrap();
+        *__cl__ << worker_id;
+        *__cl__ << slot_id;
+        *__cl__ << txn_id;
+        *__cl__ << timestamp;
+        *__cl__ << log_data;
+        __cl__->end_request();
+        return rrr::FutureResult::Ok(__fu__);
+    }
+    rrr::i32 Replicate(const rrr::i32& worker_id, const rrr::i64& slot_id, const rrr::i64& txn_id, const rrr::i64& timestamp, const std::string& log_data, rrr::i32* status) {
+        auto __fu_result__ = this->async_Replicate(worker_id, slot_id, txn_id, timestamp, log_data);
+        if (__fu_result__.is_err()) {
+            return __fu_result__.unwrap_err();  // Return error code
+        }
+        auto __fu__ = __fu_result__.unwrap();
+        rrr::i32 __ret__ = __fu__->get_error_code();
+        if (__ret__ == 0) {
+            __fu__->get_reply() >> *status;
+        }
+        // Arc auto-released
+        return __ret__;
+    }
+    rrr::FutureResult async_BatchReplicate(const rrr::i32& worker_id, const rrr::i64& prev_committed_slot, const std::vector<rrr::i64>& slot_ids, const std::vector<rrr::i64>& txn_ids, const std::vector<rrr::i64>& timestamps, const std::vector<std::string>& log_entries, const rrr::FutureAttr& __fu_attr__ = rrr::FutureAttr()) {
+        auto __fu_result__ = __cl__->begin_request(LuigiService::BATCHREPLICATE, __fu_attr__);
+        if (__fu_result__.is_err()) {
+            return __fu_result__;  // Propagate error
+        }
+        auto __fu__ = __fu_result__.unwrap();
+        *__cl__ << worker_id;
+        *__cl__ << prev_committed_slot;
+        *__cl__ << slot_ids;
+        *__cl__ << txn_ids;
+        *__cl__ << timestamps;
+        *__cl__ << log_entries;
+        __cl__->end_request();
+        return rrr::FutureResult::Ok(__fu__);
+    }
+    rrr::i32 BatchReplicate(const rrr::i32& worker_id, const rrr::i64& prev_committed_slot, const std::vector<rrr::i64>& slot_ids, const std::vector<rrr::i64>& txn_ids, const std::vector<rrr::i64>& timestamps, const std::vector<std::string>& log_entries, rrr::i32* status, rrr::i64* last_appended_slot) {
+        auto __fu_result__ = this->async_BatchReplicate(worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries);
+        if (__fu_result__.is_err()) {
+            return __fu_result__.unwrap_err();  // Return error code
+        }
+        auto __fu__ = __fu_result__.unwrap();
+        rrr::i32 __ret__ = __fu__->get_error_code();
+        if (__ret__ == 0) {
+            __fu__->get_reply() >> *status;
+            __fu__->get_reply() >> *last_appended_slot;
         }
         // Arc auto-released
         return __ret__;

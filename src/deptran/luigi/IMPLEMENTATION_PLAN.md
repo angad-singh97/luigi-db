@@ -23,12 +23,14 @@ Luigi is a timestamp-ordered distributed transaction protocol. This plan tracks 
 - Multi-shard transaction generation
 - Pending commit queue with automatic release
 
-### 🚧 Next Up
+### 🚧 Current Work
 
-**Phase 4: Paxos Replication** (HIGH PRIORITY)
-- Replace in-memory watermarks with durable Paxos replication
-- Add per-worker Paxos streams
-- Implement recovery/replay
+**Phase 4: Paxos Replication** ✅ **Phase 4.1 COMPLETE** (2025-12-24)
+- ✅ Integrated PaxosServer for durable watermark replication
+- ✅ Per-worker Paxos streams (one PaxosServer per worker)
+- ✅ Recovery/replay from Paxos log on startup
+- ✅ Checkpoint and log truncation
+- 🔄 Phase 4.2 TODO: Multi-replica coordination, async replication
 
 ---
 
@@ -155,37 +157,92 @@ Transaction complete: txn=197 completed=41 dispatched=240
 
 ---
 
-## Phase 4: Paxos Replication (NEXT)
+## Phase 4: Paxos Replication ✅ **IN PROGRESS** (2025-12-24)
 
-### Current State
-- ❌ `Replicate()` only updates watermarks (in-memory)
-- ❌ No durability guarantees
-- ❌ Watermarks lost on crash
+### Current State (Phase 4.1 - Single-Node Paxos)
+- ✅ `Replicate()` now uses Paxos log for durability
+- ✅ Per-worker Paxos streams implemented
+- ✅ `InitializePaxosStreams()` creates PaxosServer per worker
+- ✅ `ReplayPaxosLog()` restores watermarks on startup
+- ✅ `CheckpointWatermarks()` truncates old log entries
+- ⚠️ Single-node Paxos only (no multi-replica coordination yet)
+- ⚠️ WatermarkEntry not yet Marshallable (using slot ID as placeholder)
 
-### Required Work
+### Completed Work (Phase 4.1)
 
-1. **Integrate Paxos Layer**
-   - Replace in-memory watermark updates with Paxos log appends
-   - Each worker gets dedicated Paxos stream
-   - Watermark = highest committed Paxos index
+1. **✅ Integrated Paxos Layer**
+   - Added `paxos_streams_` vector to `SchedulerLuigi` (one per worker)
+   - Modified `Replicate()` to append to Paxos log before updating watermarks
+   - Each transaction gets assigned a Paxos slot for durability
+   - Watermarks only updated after Paxos commit
 
-2. **Per-Worker Paxos Streams**
-   - Worker 0 → Paxos stream 0
-   - Worker 1 → Paxos stream 1
+2. **✅ Per-Worker Paxos Streams**
+   - Worker 0 → `paxos_streams_[0]`
+   - Worker 1 → `paxos_streams_[1]`
    - Independent replication for parallelism
+   - Each stream maintains its own slot counter
 
-3. **Recovery/Replay**
-   - On startup, replay Paxos log to rebuild state
-   - Restore watermarks from committed entries
-   - Resume from last checkpoint
+3. **✅ Recovery/Replay**
+   - `ReplayPaxosLog(worker_id)` iterates committed slots
+   - Restores watermarks from max committed slot
+   - Called automatically by `InitializePaxosStreams()`
+   - Logs replay progress for debugging
 
-4. **Watermark Persistence**
-   - Periodically checkpoint watermarks
-   - Truncate Paxos log after checkpoint
-   - Fast recovery from checkpoint + delta
+4. **✅ Watermark Persistence**
+   - `CheckpointWatermarks()` calls `FreeSlots()` on each Paxos server
+   - Keeps last 100 slots by default (configurable in PaxosServer)
+   - Prevents unbounded log growth
+   - TODO: Add periodic checkpointing thread
 
-**Estimated Effort:** 3-5 days  
-**Priority:** HIGH - Required for durability
+### Implementation Details
+
+**Files Modified:**
+- [`scheduler.h`](/root/cse532/mako/src/deptran/luigi/scheduler.h#L7) - Added PaxosServer include
+- [`scheduler.h`](/root/cse532/mako/src/deptran/luigi/scheduler.h#L235-L245) - Added paxos_streams_ and paxos_mutex_
+- [`scheduler.h`](/root/cse532/mako/src/deptran/luigi/scheduler.h#L103-L123) - Added Phase 4 public methods
+- [`scheduler.cc`](/root/cse532/mako/src/deptran/luigi/scheduler.cc#L928-L990) - Updated Replicate() to use Paxos
+- [`scheduler.cc`](/root/cse532/mako/src/deptran/luigi/scheduler.cc#L1008-L1015) - Call InitializePaxosStreams() in SetWorkerCount()
+- [`scheduler.cc`](/root/cse532/mako/src/deptran/luigi/scheduler.cc#L1139-L1237) - Implemented Phase 4 methods
+- [`luigi_entry.h`](/root/cse532/mako/src/deptran/luigi/luigi_entry.h#L72-L89) - Added WatermarkEntry struct
+
+**Key Code Snippets:**
+
+```cpp
+// Paxos stream per worker
+std::vector<std::shared_ptr<PaxosServer>> paxos_streams_;
+
+// Replicate with Paxos
+slotid_t slot = paxos_srv->get_open_slot();
+paxos_srv->OnCommit(slot, ballot, cmd);
+watermarks_[worker_id] = std::max(watermarks_[worker_id], commit_ts);
+```
+
+### Remaining Work (Phase 4.2 - Multi-Replica Paxos)
+
+1. **Make WatermarkEntry Marshallable**
+   - Implement `ToMarshal()` and `FromMarshal()` methods
+   - Register with `MarshallDeputy` factory
+   - Replace nullptr placeholder in `Replicate()`
+
+2. **Multi-Replica Paxos Coordination**
+   - Add Paxos RPC handlers (Prepare, Accept, Commit)
+   - Implement quorum logic (n/2 + 1)
+   - Add failure detection and leader election
+   - Test with 3-5 replicas
+
+3. **Async Replication**
+   - Make `Replicate()` non-blocking
+   - Use callbacks for Paxos commit notification
+   - Update watermarks asynchronously
+   - Maintain in-flight replication queue
+
+4. **Periodic Checkpointing**
+   - Add checkpoint thread (every 60s)
+   - Call `CheckpointWatermarks()` periodically
+   - Measure checkpoint overhead
+
+**Estimated Effort:** 2-3 days for Phase 4.2
+**Priority:** HIGH - Required for fault tolerance
 
 ---
 

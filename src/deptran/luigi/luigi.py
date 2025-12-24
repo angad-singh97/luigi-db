@@ -3,13 +3,15 @@ from simplerpc.marshal import Marshal
 from simplerpc.future import Future
 
 class LuigiService(object):
-    DISPATCH = 0x2b750829
-    OWDPING = 0x3937cd1b
-    DEADLINEPROPOSE = 0x6bd6466f
-    DEADLINECONFIRM = 0x289dba58
-    DEADLINEBATCHPROPOSE = 0x674f51fc
-    DEADLINEBATCHCONFIRM = 0x2fb32978
-    WATERMARKEXCHANGE = 0x146c8a0e
+    DISPATCH = 0x3c553d61
+    OWDPING = 0x653c61fb
+    DEADLINEPROPOSE = 0x21572c42
+    DEADLINECONFIRM = 0x54b7903e
+    DEADLINEBATCHPROPOSE = 0x2b9521b3
+    DEADLINEBATCHCONFIRM = 0x237786ab
+    WATERMARKEXCHANGE = 0x6c756791
+    REPLICATE = 0x6ecfce39
+    BATCHREPLICATE = 0x4d15c783
 
     __input_type_info__ = {
         'Dispatch': ['rrr::i64','rrr::i64','rrr::i32','std::vector<rrr::i32>','std::string'],
@@ -19,6 +21,8 @@ class LuigiService(object):
         'DeadlineBatchPropose': ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>','std::vector<rrr::i64>'],
         'DeadlineBatchConfirm': ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'],
         'WatermarkExchange': ['rrr::i32','std::vector<rrr::i64>'],
+        'Replicate': ['rrr::i32','rrr::i64','rrr::i64','rrr::i64','std::string'],
+        'BatchReplicate': ['rrr::i32','rrr::i64','std::vector<rrr::i64>','std::vector<rrr::i64>','std::vector<rrr::i64>','std::vector<std::string>'],
     }
 
     __output_type_info__ = {
@@ -29,6 +33,8 @@ class LuigiService(object):
         'DeadlineBatchPropose': ['rrr::i32'],
         'DeadlineBatchConfirm': ['rrr::i32'],
         'WatermarkExchange': ['rrr::i32'],
+        'Replicate': ['rrr::i32'],
+        'BatchReplicate': ['rrr::i32','rrr::i64'],
     }
 
     def __bind_helper__(self, func):
@@ -44,6 +50,8 @@ class LuigiService(object):
         server.__reg_func__(LuigiService.DEADLINEBATCHPROPOSE, self.__bind_helper__(self.DeadlineBatchPropose), ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>','std::vector<rrr::i64>'], ['rrr::i32'])
         server.__reg_func__(LuigiService.DEADLINEBATCHCONFIRM, self.__bind_helper__(self.DeadlineBatchConfirm), ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'], ['rrr::i32'])
         server.__reg_func__(LuigiService.WATERMARKEXCHANGE, self.__bind_helper__(self.WatermarkExchange), ['rrr::i32','std::vector<rrr::i64>'], ['rrr::i32'])
+        server.__reg_func__(LuigiService.REPLICATE, self.__bind_helper__(self.Replicate), ['rrr::i32','rrr::i64','rrr::i64','rrr::i64','std::string'], ['rrr::i32'])
+        server.__reg_func__(LuigiService.BATCHREPLICATE, self.__bind_helper__(self.BatchReplicate), ['rrr::i32','rrr::i64','std::vector<rrr::i64>','std::vector<rrr::i64>','std::vector<rrr::i64>','std::vector<std::string>'], ['rrr::i32','rrr::i64'])
 
     def Dispatch(__self__, txn_id, expected_time, worker_id, involved_shards, ops_data):
         raise NotImplementedError('subclass LuigiService and implement your own Dispatch function')
@@ -65,6 +73,12 @@ class LuigiService(object):
 
     def WatermarkExchange(__self__, src_shard, watermarks):
         raise NotImplementedError('subclass LuigiService and implement your own WatermarkExchange function')
+
+    def Replicate(__self__, worker_id, slot_id, txn_id, timestamp, log_data):
+        raise NotImplementedError('subclass LuigiService and implement your own Replicate function')
+
+    def BatchReplicate(__self__, worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries):
+        raise NotImplementedError('subclass LuigiService and implement your own BatchReplicate function')
 
 class LuigiProxy(object):
     def __init__(self, clnt):
@@ -90,6 +104,12 @@ class LuigiProxy(object):
 
     def async_WatermarkExchange(__self__, src_shard, watermarks):
         return __self__.__clnt__.async_call(LuigiService.WATERMARKEXCHANGE, [src_shard, watermarks], LuigiService.__input_type_info__['WatermarkExchange'], LuigiService.__output_type_info__['WatermarkExchange'])
+
+    def async_Replicate(__self__, worker_id, slot_id, txn_id, timestamp, log_data):
+        return __self__.__clnt__.async_call(LuigiService.REPLICATE, [worker_id, slot_id, txn_id, timestamp, log_data], LuigiService.__input_type_info__['Replicate'], LuigiService.__output_type_info__['Replicate'])
+
+    def async_BatchReplicate(__self__, worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries):
+        return __self__.__clnt__.async_call(LuigiService.BATCHREPLICATE, [worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries], LuigiService.__input_type_info__['BatchReplicate'], LuigiService.__output_type_info__['BatchReplicate'])
 
     def sync_Dispatch(__self__, txn_id, expected_time, worker_id, involved_shards, ops_data):
         __result__ = __self__.__clnt__.sync_call(LuigiService.DISPATCH, [txn_id, expected_time, worker_id, involved_shards, ops_data], LuigiService.__input_type_info__['Dispatch'], LuigiService.__output_type_info__['Dispatch'])
@@ -147,6 +167,24 @@ class LuigiProxy(object):
 
     def sync_WatermarkExchange(__self__, src_shard, watermarks):
         __result__ = __self__.__clnt__.sync_call(LuigiService.WATERMARKEXCHANGE, [src_shard, watermarks], LuigiService.__input_type_info__['WatermarkExchange'], LuigiService.__output_type_info__['WatermarkExchange'])
+        if __result__[0] != 0:
+            raise Exception("RPC returned non-zero error code %d: %s" % (__result__[0], os.strerror(__result__[0])))
+        if len(__result__[1]) == 1:
+            return __result__[1][0]
+        elif len(__result__[1]) > 1:
+            return __result__[1]
+
+    def sync_Replicate(__self__, worker_id, slot_id, txn_id, timestamp, log_data):
+        __result__ = __self__.__clnt__.sync_call(LuigiService.REPLICATE, [worker_id, slot_id, txn_id, timestamp, log_data], LuigiService.__input_type_info__['Replicate'], LuigiService.__output_type_info__['Replicate'])
+        if __result__[0] != 0:
+            raise Exception("RPC returned non-zero error code %d: %s" % (__result__[0], os.strerror(__result__[0])))
+        if len(__result__[1]) == 1:
+            return __result__[1][0]
+        elif len(__result__[1]) > 1:
+            return __result__[1]
+
+    def sync_BatchReplicate(__self__, worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries):
+        __result__ = __self__.__clnt__.sync_call(LuigiService.BATCHREPLICATE, [worker_id, prev_committed_slot, slot_ids, txn_ids, timestamps, log_entries], LuigiService.__input_type_info__['BatchReplicate'], LuigiService.__output_type_info__['BatchReplicate'])
         if __result__[0] != 0:
             raise Exception("RPC returned non-zero error code %d: %s" % (__result__[0], os.strerror(__result__[0])))
         if len(__result__[1]) == 1:

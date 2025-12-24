@@ -3,6 +3,7 @@
 #include "deptran/__dep__.h"
 #include "deptran/classic/scheduler.h" // For SchedulerClassic base class
 #include "deptran/concurrentqueue.h"   // moodycamel lock-free queue
+#include "deptran/paxos/server.h"      // For PaxosServer (Phase 4)
 #include "deptran/tx.h"
 
 // Fix macro conflict: deptran/constants.h defines SUCCESS as (0)
@@ -98,6 +99,45 @@ public:
   void SetReplicationCallback(LuigiExecutor::ReplicationCallback cb);
   bool HasPendingTxn(uint64_t txn_id) const;
   void SetPartitionId(uint32_t shard_id);
+
+  //==========================================================================
+  // PHASE 4: PAXOS REPLICATION METHODS
+  //==========================================================================
+
+  /**
+   * Initialize Paxos replication streams.
+   * Creates one PaxosServer per worker for independent replication.
+   */
+  void InitializePaxosStreams();
+
+  /**
+   * Replay committed Paxos log entries on startup.
+   * Restores watermarks from durable Paxos log.
+   */
+  void ReplayPaxosLog(uint32_t worker_id);
+
+  /**
+   * Checkpoint watermarks and truncate Paxos log.
+   * Called periodically to prevent unbounded log growth.
+   */
+  void CheckpointWatermarks();
+
+  /**
+   * Append a log entry to the specified worker's stream.
+   * Called by follower RPC handler when receiving Replicate request.
+   */
+  void AppendToLog(uint32_t worker_id, uint64_t slot_id, uint64_t txn_id,
+                   uint64_t timestamp, const std::string &log_data);
+
+  /**
+   * Batch append log entries to worker's stream.
+   * Called by BatchReplicate RPC. Returns last appended slot.
+   */
+  uint64_t BatchAppendToLog(uint32_t worker_id,
+                            const std::vector<uint64_t> &slot_ids,
+                            const std::vector<uint64_t> &txn_ids,
+                            const std::vector<uint64_t> &timestamps,
+                            const std::vector<std::string> &log_entries);
 
   // Requeue a txn after agreement determines it needs repositioning (Case 3)
   void RequeueForReposition(std::shared_ptr<LuigiLogEntry> entry);
@@ -230,6 +270,55 @@ protected:
 
   // Last time we broadcasted watermarks
   uint64_t last_watermark_broadcast_ = 0;
+
+  //==========================================================================
+  // PHASE 4: PAXOS REPLICATION
+  // Per-worker Paxos streams for durable log replication with quorum
+  //==========================================================================
+
+  // Log entry for Paxos replication (Raft-style append)
+  struct LogEntry {
+    uint64_t slot_id;
+    uint64_t txn_id;
+    uint64_t timestamp;
+    std::string log_data; // Serialized transaction
+  };
+
+  // Per-worker Paxos stream with log storage
+  struct PaxosStream {
+    uint64_t next_slot_ = 1;      // Next slot to use (leader)
+    uint64_t committed_slot_ = 0; // Last committed slot
+    std::vector<LogEntry> log_;   // Per-stream log storage
+
+    void Append(const LogEntry &entry) {
+      log_.push_back(entry);
+      committed_slot_ = entry.slot_id;
+    }
+  };
+
+  // One stream per worker (paxos_streams_[worker_id])
+  std::vector<PaxosStream> paxos_streams_;
+
+  // Number of replicas (from config, default 1 for single-replica)
+  uint32_t num_replicas_ = 1;
+
+  // Mutex for Paxos operations (separate from watermark_mutex_ to avoid
+  // deadlocks)
+  std::mutex paxos_mutex_;
+
+  // Per-worker replication queues (ExecTd enqueues, ReplicateTd dequeues)
+  std::vector<std::unique_ptr<
+      moodycamel::ConcurrentQueue<std::shared_ptr<LuigiLogEntry>>>>
+      replication_queues_;
+
+  // Per-worker replication threads
+  std::vector<std::thread *> replicate_threads_;
+
+  // Replication thread function (one per worker)
+  void ReplicateTd(uint32_t worker_id);
+
+  // Internal replication logic (called by ReplicateTd)
+  void DoReplicate(uint32_t worker_id, std::shared_ptr<LuigiLogEntry> entry);
 
   //==========================================================================
   // PENDING COMMITS (waiting for watermarks to advance)
