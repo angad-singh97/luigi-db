@@ -168,8 +168,8 @@ void SchedulerLuigi::RequeueForReposition(
     std::shared_ptr<LuigiLogEntry> entry) {
   // Re-insert into priority queue with the new agreed timestamp
   // The agreed_ts has been updated by the agreement protocol
-  Log_info("Luigi RequeueForReposition: tid=%lu, agreed_ts=%lu", entry->tid_,
-           entry->agreed_ts_);
+  Log_debug("Luigi RequeueForReposition: tid=%lu, agreed_ts=%lu", entry->tid_,
+            entry->agreed_ts_);
 
   // Put back in incoming queue - HoldReleaseTd will handle the repositioning
   incoming_txn_queue_.enqueue(entry);
@@ -217,9 +217,9 @@ void SchedulerLuigi::HoldReleaseTd() {
         // The txn already has the updated proposed_ts_ = agreed_ts_
         // (set by the executor before returning to us)
 
-        Log_info("Luigi HoldReleaseTd: Repositioning txn %lu at new timestamp "
-                 "%lu (requeue #%u)",
-                 entry->tid_, entry->agreed_ts_, entry->requeue_count_);
+        Log_debug("Luigi HoldReleaseTd: Repositioning txn %lu at new timestamp "
+                  "%lu (requeue #%u)",
+                  entry->tid_, entry->agreed_ts_, entry->requeue_count_);
 
         // Insert at new position using agreed_ts (like Tiga's localDdlRank_)
         priority_queue_[{entry->agreed_ts_, entry->worker_id_, entry->tid_}] =
@@ -284,7 +284,7 @@ void SchedulerLuigi::HoldReleaseTd() {
         if (!entry->ts_agreed_.load()) {
           // Check for Case 3 Repositioning (FLUSHING)
           if (entry->agree_status_.load() == LUIGI_AGREE_FLUSHING) {
-            Log_info(
+            Log_debug(
                 "Luigi HoldReleaseTd: Repositioning tid=%lu from %lu to %lu",
                 entry->tid_, deadline, entry->agreed_ts_);
             // Remove and re-insert with new timestamp
@@ -361,10 +361,10 @@ void SchedulerLuigi::ExecTd() {
       }
 
       // Delegate to executor for clean separation of concerns
-      Log_info("Luigi ExecTd: calling Execute() for tid=%lu agree_status=%d "
-               "exec_status=%d",
-               entry->tid_, entry->agree_status_.load(),
-               entry->exec_status_.load());
+      Log_debug("Luigi ExecTd: calling Execute() for tid=%lu agree_status=%d "
+                "exec_status=%d",
+                entry->tid_, entry->agree_status_.load(),
+                entry->exec_status_.load());
       executor_.Execute(entry);
 
       // Handle post-execution state based on agreement outcome
@@ -399,9 +399,9 @@ void SchedulerLuigi::ExecTd() {
         // Case 3: Need to reposition in priority queue
         // Execute() updated proposed_ts_ to agreed_ts_
         // Requeue for re-processing at new timestamp
-        Log_info("Luigi ExecTd: txn %lu needs reposition, requeuing to "
-                 "incoming queue",
-                 entry->tid_);
+        Log_debug("Luigi ExecTd: txn %lu needs reposition, requeuing to "
+                  "incoming queue",
+                  entry->tid_);
         RequeueForReposition(entry);
         break;
 
@@ -412,7 +412,7 @@ void SchedulerLuigi::ExecTd() {
         //   - Set agree_status_ to AGREE_COMPLETE
         //   - Re-enqueue to ready_txn_queue_
         // Nothing to do here - just let it wait.
-        Log_info(
+        Log_debug(
             "Luigi ExecTd: txn %lu waiting for phase-2 confirmations (Case 2)",
             entry->tid_);
         break;
@@ -482,9 +482,9 @@ void SchedulerLuigi::UpdateDeadlineRecord(
     dqi.entry_ = entry;
     dqi.expected_count_ =
         entry->remote_shards_.size() + 1; // remotes + ourselves
-    Log_info("Luigi UpdateDeadlineRecord: tid=%lu initialized, expecting %u "
-             "proposals",
-             tid, dqi.expected_count_);
+    Log_debug("Luigi UpdateDeadlineRecord: tid=%lu initialized, expecting %u "
+              "proposals",
+              tid, dqi.expected_count_);
   }
 
   // Record this proposal (if not already received from this shard)
@@ -494,11 +494,11 @@ void SchedulerLuigi::UpdateDeadlineRecord(
     dqi.received_[src_shard] = true;
     dqi.item_count_++;
 
-    Log_info("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu from shard %u "
-             "ts=%lu phase=%u, "
-             "now have %u/%u proposals",
-             shard_id_, tid, src_shard, proposed_ts, phase, dqi.item_count_,
-             dqi.expected_count_);
+    Log_debug("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu from shard %u "
+              "ts=%lu phase=%u, "
+              "now have %u/%u proposals",
+              shard_id_, tid, src_shard, proposed_ts, phase, dqi.item_count_,
+              dqi.expected_count_);
   } else if (src_shard >= DeadlineQItem::MAX_SHARDS) {
     Log_warn("Luigi UpdateDeadlineRecord: shard_id %u exceeds MAX_SHARDS",
              src_shard);
@@ -530,10 +530,10 @@ void SchedulerLuigi::UpdateDeadlineRecord(
     dqi.agreed_deadline_ = agreed_ts;
     uint64_t my_ts = dqi.entry_->proposed_ts_;
 
-    Log_info("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu COMPLETE - "
-             "agreed_ts=%lu, "
-             "my_ts=%lu, all_match=%d",
-             shard_id_, tid, agreed_ts, my_ts, all_match);
+    Log_debug("[shard %u] Luigi UpdateDeadlineRecord: tid=%lu COMPLETE - "
+              "agreed_ts=%lu, "
+              "my_ts=%lu, all_match=%d",
+              shard_id_, tid, agreed_ts, my_ts, all_match);
 
     // Determine which case we're in
     if (all_match) {
@@ -542,7 +542,7 @@ void SchedulerLuigi::UpdateDeadlineRecord(
       dqi.entry_->ts_agreed_.store(true); // Agreement complete!
       dqi.entry_->agree_status_.store(LUIGI_AGREE_COMPLETE);
 
-      Log_info("Luigi: tid=%lu Case 1 - all match at ts=%lu", tid, agreed_ts);
+      Log_debug("Luigi: tid=%lu Case 1 - all match at ts=%lu", tid, agreed_ts);
 
       // DO NOT enqueue to ready_txn_queue_ here.
       // HoldReleaseTd will pick up the completion and release it in order.

@@ -22,8 +22,8 @@ void LuigiServiceImpl::Dispatch(
     const std::string &ops_data, rrr::i32 *status, rrr::i64 *commit_timestamp,
     std::string *results_data, rrr::DeferredReply *defer) {
 
-  Log_info("LuigiDispatch: received txn_id=%ld worker_id=%d op_size=%zu",
-           txn_id, worker_id, ops_data.size());
+  Log_debug("LuigiDispatch: received txn_id=%ld worker_id=%d op_size=%zu",
+            txn_id, worker_id, ops_data.size());
 
   // Parse operations from binary data
   std::vector<LuigiOp> ops;
@@ -106,8 +106,8 @@ void LuigiServiceImpl::Dispatch(
 
         // If transaction failed, reply immediately
         if (result_status != luigi::kOk) {
-          Log_info("Service callback: txn=%ld ABORTED, replying immediately",
-                   txn_id);
+          Log_debug("Service callback: txn=%ld ABORTED, replying immediately",
+                    txn_id);
           defer_ptr->reply();
           return;
         }
@@ -122,7 +122,7 @@ void LuigiServiceImpl::Dispatch(
 
 void LuigiServiceImpl::OwdPing(const rrr::i64 &send_time, rrr::i32 *status,
                                rrr::DeferredReply *defer) {
-  Log_info("OwdPing: received ping with send_time=%ld", send_time);
+  Log_debug("OwdPing: received ping with send_time=%ld", send_time);
   *status = luigi::kOk;
   defer->reply();
 }
@@ -133,8 +133,8 @@ void LuigiServiceImpl::DeadlinePropose(const rrr::i64 &tid,
                                        rrr::i32 *status,
                                        rrr::DeferredReply *defer) {
 
-  Log_info("DeadlinePropose: tid=%ld from shard %d ts=%ld", tid, src_shard,
-           proposed_ts);
+  Log_debug("DeadlinePropose: tid=%ld from shard %d ts=%ld", tid, src_shard,
+            proposed_ts);
 
   // Record the proposed timestamp from src_shard for this transaction
   auto *scheduler = server_->GetScheduler();
@@ -152,8 +152,8 @@ void LuigiServiceImpl::DeadlineConfirm(const rrr::i64 &tid,
                                        rrr::i32 *status,
                                        rrr::DeferredReply *defer) {
 
-  Log_info("DeadlineConfirm: tid=%ld from shard %d ts=%ld", tid, src_shard,
-           agreed_ts);
+  Log_debug("DeadlineConfirm: tid=%ld from shard %d ts=%ld", tid, src_shard,
+            agreed_ts);
 
   // Record the confirmation (phase 2) from src_shard for this transaction
   auto *scheduler = server_->GetScheduler();
@@ -240,8 +240,8 @@ void LuigiServiceImpl::DeadlineBatchConfirm(
     const std::vector<rrr::i64> &agreed_timestamps, rrr::i32 *status,
     rrr::DeferredReply *defer) {
 
-  Log_info("DeadlineBatchConfirm: %zu confirmations from shard %d", tids.size(),
-           src_shard);
+  Log_debug("DeadlineBatchConfirm: %zu confirmations from shard %d", tids.size(),
+            src_shard);
 
   // Process each confirmation individually
   auto *scheduler = server_->GetScheduler();

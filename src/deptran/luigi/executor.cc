@@ -62,8 +62,8 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
       // When all proposals are received, UpdateDeadlineRecord() will
       // determine the case and re-enqueue the txn to ready_queue_.
       //-------------------------------------------------------------------
-      Log_info("Luigi Execute: txn %lu initiating agreement (async)",
-               entry->tid_);
+      Log_debug("Luigi Execute: txn %lu initiating agreement (async)",
+                entry->tid_);
       // Mark as pending BEFORE initiating to prevent re-entry
       entry->agree_status_.store(LUIGI_AGREE_PENDING);
       if (scheduler_ != nullptr) {
@@ -90,7 +90,7 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
       // Case 3: We had smaller timestamp, need to reposition
       // Update our proposed_ts and send confirmations
       //-------------------------------------------------------------------
-      Log_info(
+      Log_debug(
           "Luigi Execute: txn %lu repositioning (proposed=%lu -> agreed=%lu)",
           entry->tid_, entry->proposed_ts_, entry->agreed_ts_);
 
@@ -111,8 +111,8 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
       // Case 2: We're max, waiting for others to confirm repositioning
       // If we get here, confirmations haven't arrived yet - return and wait
       //-------------------------------------------------------------------
-      Log_info("Luigi Execute: txn %lu still waiting for confirmations",
-               entry->tid_);
+      Log_debug("Luigi Execute: txn %lu still waiting for confirmations",
+                entry->tid_);
       // The scheduler's HandleRemoteDeadlineConfirm will re-enqueue us
       // when all confirmations arrive
       entry->exec_status_.store(LUIGI_EXEC_INIT);
@@ -132,8 +132,8 @@ void LuigiExecutor::Execute(std::shared_ptr<LuigiLogEntry> entry) {
       // Agreement complete! Proceed to execution
       // Note: ts_agreed_ is already set by UpdateDeadlineRecord()
       //-------------------------------------------------------------------
-      Log_info("Luigi Execute: txn %lu agreement complete at ts=%lu",
-               entry->tid_, entry->agreed_ts_);
+      Log_debug("Luigi Execute: txn %lu agreement complete at ts=%lu",
+                entry->tid_, entry->agreed_ts_);
       commit_ts = entry->agreed_ts_;
       entry->exec_status_.store(LUIGI_EXEC_DIRECT);
       break;
@@ -186,8 +186,8 @@ done:
 
   // Call reply callback
   if (entry->reply_cb_) {
-    Log_info("Luigi Execute: calling reply_cb for txn %lu status=%d ts=%lu",
-             entry->tid_, status, commit_ts);
+    Log_debug("Luigi Execute: calling reply_cb for txn %lu status=%d ts=%lu",
+              entry->tid_, status, commit_ts);
     entry->reply_cb_(status, commit_ts, entry->read_results_);
   } else {
     Log_warn("Luigi Execute: no reply_cb for txn %lu!", entry->tid_);

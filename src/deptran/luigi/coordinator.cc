@@ -366,8 +366,8 @@ private:
     }
 
     if (req.ops.size() > 0) {
-      Log_info("DispatchOne: txn=%lu ops=%zu shards=%zu keys=[%s]", req.txn_id,
-               req.ops.size(), shards.size(), debug_info.c_str());
+      Log_debug("DispatchOne: txn=%lu ops=%zu shards=%zu keys=[%s]", req.txn_id,
+                req.ops.size(), shards.size(), debug_info.c_str());
     }
 
     // NOTE: Removed BM_MICRO_SINGLE override to enable multi-shard watermark
@@ -401,10 +401,10 @@ private:
            shards](bool ok, rrr::i32 status, rrr::i64 commit_ts,
                    std::string results) {
             // RPC callback - runs on reactor thread
-            Log_info("Dispatch callback: txn=%lu shard=%u ok=%d status=%d "
-                     "pending=%zu",
-                     in_flight->txn_id, shard, ok, status,
-                     in_flight->pending_shards.load());
+            Log_debug("Dispatch callback: txn=%lu shard=%u ok=%d status=%d "
+                      "pending=%zu",
+                      in_flight->txn_id, shard, ok, status,
+                      in_flight->pending_shards.load());
 
             if (!ok || status != 0) {
               in_flight->all_ok.store(false);
@@ -427,7 +427,7 @@ private:
               // scheduled)
               if (CanCommit(expected, worker_id, shards)) {
                 // Watermarks already advanced - commit immediately
-                Log_info(
+                Log_debug(
                     "Coordinator: txn %lu commit immediately (watermarks ok)",
                     in_flight->txn_id);
                 CompleteTransaction(in_flight, true);
@@ -612,8 +612,8 @@ public:
       auto &[txn_id, info] = *it;
 
       if (CanCommit(info.timestamp, info.worker_id, info.involved_shards)) {
-        Log_info("Coordinator: txn %lu can now commit (watermarks advanced)",
-                 txn_id);
+        Log_debug("Coordinator: txn %lu can now commit (watermarks advanced)",
+                  txn_id);
 
         // Record stats and complete
         CompleteTransaction(info.in_flight, true);
@@ -647,9 +647,9 @@ private:
 
     // Signal completion for benchmark end waiting
     completed_txns_.fetch_add(1);
-    Log_info("Transaction complete: txn=%lu completed=%lu dispatched=%lu",
-             in_flight->txn_id, completed_txns_.load(),
-             dispatched_txns_.load());
+    Log_debug("Transaction complete: txn=%lu completed=%lu dispatched=%lu",
+              in_flight->txn_id, completed_txns_.load(),
+              dispatched_txns_.load());
     completion_cv_.notify_all();
   }
 };
