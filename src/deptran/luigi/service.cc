@@ -112,23 +112,11 @@ void LuigiServiceImpl::Dispatch(
           return;
         }
 
-        // Check if we can commit based on watermarks
-        if (scheduler_ptr->CanCommit(commit_ts, worker_id,
-                                     involved_shards_u32)) {
-          Log_info("Service callback: txn=%ld COMMIT immediate (watermarks ok)",
-                   txn_id);
-          defer_ptr->reply();
-        } else {
-          Log_info("Service callback: txn=%ld waiting for watermarks", txn_id);
-          // Add to pending commits - will reply when watermarks advance
-          scheduler_ptr->AddPendingCommit(
-              txn_id, commit_ts, worker_id, involved_shards_u32,
-              [defer_ptr, txn_id]() {
-                Log_info("PendingCommit callback: txn=%ld now replying",
-                         txn_id);
-                defer_ptr->reply();
-              });
-        }
+        // Reply immediately after execution - don't wait for watermarks
+        // (Watermark infrastructure kept for future use but not blocking
+        // commits)
+        Log_debug("Service callback: txn=%ld COMMIT immediate", txn_id);
+        defer_ptr->reply();
       });
 }
 
