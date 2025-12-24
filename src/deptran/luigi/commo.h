@@ -131,11 +131,13 @@ public:
 
   /**
    * Broadcast batch deadline proposals to leaders of involved shards
+   * Includes watermarks to piggyback watermark exchange (replaces separate RPC)
    * Used by: Leaders (Phase 2 optimization)
    */
   void BroadcastDeadlineBatchPropose(
       const std::vector<rrr::i64> &tids, int32_t src_shard,
       const std::vector<rrr::i64> &proposed_timestamps,
+      const std::vector<rrr::i64> &watermarks,
       const std::vector<uint32_t> &involved_shards);
 
   /**

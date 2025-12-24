@@ -404,6 +404,7 @@ void LuigiCommo::BroadcastWatermarks(int32_t src_shard,
 void LuigiCommo::BroadcastDeadlineBatchPropose(
     const std::vector<rrr::i64> &tids, int32_t src_shard,
     const std::vector<rrr::i64> &proposed_timestamps,
+    const std::vector<rrr::i64> &watermarks,
     const std::vector<uint32_t> &involved_shards) {
   auto config = Config::GetConfig();
   for (uint32_t shard : involved_shards) {
@@ -421,7 +422,7 @@ void LuigiCommo::BroadcastDeadlineBatchPropose(
       continue;
     }
 
-    // Fire-and-forget async RPC
+    // Fire-and-forget async RPC (includes watermarks)
     rrr::FutureAttr fuattr;
     fuattr.callback = [](rusty::Arc<rrr::Future> fu) {
       // No-op callback for fire-and-forget
@@ -431,7 +432,7 @@ void LuigiCommo::BroadcastDeadlineBatchPropose(
     };
 
     auto future = proxy->async_DeadlineBatchPropose(
-        tids, src_shard, proposed_timestamps, fuattr);
+        tids, src_shard, proposed_timestamps, watermarks, fuattr);
     rrr::Future::safe_release(future);
   }
 }

@@ -222,15 +222,21 @@ void LuigiServiceImpl::StoreResult(
 
 void LuigiServiceImpl::DeadlineBatchPropose(
     const std::vector<rrr::i64> &tids, const rrr::i32 &src_shard,
-    const std::vector<rrr::i64> &proposed_timestamps, rrr::i32 *status,
+    const std::vector<rrr::i64> &proposed_timestamps,
+    const std::vector<rrr::i64> &watermarks, rrr::i32 *status,
     rrr::DeferredReply *defer) {
 
-  Log_info("DeadlineBatchPropose: %zu proposals from shard %d", tids.size(),
-           src_shard);
+  Log_debug("DeadlineBatchPropose: %zu proposals, %zu watermarks from shard %d",
+            tids.size(), watermarks.size(), src_shard);
 
-  // Process each proposal individually
   auto *scheduler = server_->GetScheduler();
   if (scheduler != nullptr) {
+    // Process watermarks (piggybacked, replaces separate WatermarkExchange RPC)
+    if (!watermarks.empty()) {
+      scheduler->HandleWatermarkExchange(src_shard, watermarks);
+    }
+
+    // Process each proposal individually
     for (size_t i = 0; i < tids.size(); i++) {
       scheduler->HandleRemoteDeadlineProposal(tids[i], src_shard,
                                               proposed_timestamps[i], 1);

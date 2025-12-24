@@ -3,20 +3,20 @@ from simplerpc.marshal import Marshal
 from simplerpc.future import Future
 
 class LuigiService(object):
-    DISPATCH = 0x10c50c0e
-    OWDPING = 0x1b63a21e
-    DEADLINEPROPOSE = 0x6984112a
-    DEADLINECONFIRM = 0x42d3a946
-    DEADLINEBATCHPROPOSE = 0x1fb53c6f
-    DEADLINEBATCHCONFIRM = 0x46759b98
-    WATERMARKEXCHANGE = 0x5fa4d95b
+    DISPATCH = 0x2b750829
+    OWDPING = 0x3937cd1b
+    DEADLINEPROPOSE = 0x6bd6466f
+    DEADLINECONFIRM = 0x289dba58
+    DEADLINEBATCHPROPOSE = 0x674f51fc
+    DEADLINEBATCHCONFIRM = 0x2fb32978
+    WATERMARKEXCHANGE = 0x146c8a0e
 
     __input_type_info__ = {
         'Dispatch': ['rrr::i64','rrr::i64','rrr::i32','std::vector<rrr::i32>','std::string'],
         'OwdPing': ['rrr::i64'],
         'DeadlinePropose': ['rrr::i64','rrr::i32','rrr::i64'],
         'DeadlineConfirm': ['rrr::i64','rrr::i32','rrr::i64'],
-        'DeadlineBatchPropose': ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'],
+        'DeadlineBatchPropose': ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>','std::vector<rrr::i64>'],
         'DeadlineBatchConfirm': ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'],
         'WatermarkExchange': ['rrr::i32','std::vector<rrr::i64>'],
     }
@@ -41,7 +41,7 @@ class LuigiService(object):
         server.__reg_func__(LuigiService.OWDPING, self.__bind_helper__(self.OwdPing), ['rrr::i64'], ['rrr::i32'])
         server.__reg_func__(LuigiService.DEADLINEPROPOSE, self.__bind_helper__(self.DeadlinePropose), ['rrr::i64','rrr::i32','rrr::i64'], ['rrr::i32'])
         server.__reg_func__(LuigiService.DEADLINECONFIRM, self.__bind_helper__(self.DeadlineConfirm), ['rrr::i64','rrr::i32','rrr::i64'], ['rrr::i32'])
-        server.__reg_func__(LuigiService.DEADLINEBATCHPROPOSE, self.__bind_helper__(self.DeadlineBatchPropose), ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'], ['rrr::i32'])
+        server.__reg_func__(LuigiService.DEADLINEBATCHPROPOSE, self.__bind_helper__(self.DeadlineBatchPropose), ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>','std::vector<rrr::i64>'], ['rrr::i32'])
         server.__reg_func__(LuigiService.DEADLINEBATCHCONFIRM, self.__bind_helper__(self.DeadlineBatchConfirm), ['std::vector<rrr::i64>','rrr::i32','std::vector<rrr::i64>'], ['rrr::i32'])
         server.__reg_func__(LuigiService.WATERMARKEXCHANGE, self.__bind_helper__(self.WatermarkExchange), ['rrr::i32','std::vector<rrr::i64>'], ['rrr::i32'])
 
@@ -57,7 +57,7 @@ class LuigiService(object):
     def DeadlineConfirm(__self__, tid, src_shard, agreed_ts):
         raise NotImplementedError('subclass LuigiService and implement your own DeadlineConfirm function')
 
-    def DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps):
+    def DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps, watermarks):
         raise NotImplementedError('subclass LuigiService and implement your own DeadlineBatchPropose function')
 
     def DeadlineBatchConfirm(__self__, tids, src_shard, agreed_timestamps):
@@ -82,8 +82,8 @@ class LuigiProxy(object):
     def async_DeadlineConfirm(__self__, tid, src_shard, agreed_ts):
         return __self__.__clnt__.async_call(LuigiService.DEADLINECONFIRM, [tid, src_shard, agreed_ts], LuigiService.__input_type_info__['DeadlineConfirm'], LuigiService.__output_type_info__['DeadlineConfirm'])
 
-    def async_DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps):
-        return __self__.__clnt__.async_call(LuigiService.DEADLINEBATCHPROPOSE, [tids, src_shard, proposed_timestamps], LuigiService.__input_type_info__['DeadlineBatchPropose'], LuigiService.__output_type_info__['DeadlineBatchPropose'])
+    def async_DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps, watermarks):
+        return __self__.__clnt__.async_call(LuigiService.DEADLINEBATCHPROPOSE, [tids, src_shard, proposed_timestamps, watermarks], LuigiService.__input_type_info__['DeadlineBatchPropose'], LuigiService.__output_type_info__['DeadlineBatchPropose'])
 
     def async_DeadlineBatchConfirm(__self__, tids, src_shard, agreed_timestamps):
         return __self__.__clnt__.async_call(LuigiService.DEADLINEBATCHCONFIRM, [tids, src_shard, agreed_timestamps], LuigiService.__input_type_info__['DeadlineBatchConfirm'], LuigiService.__output_type_info__['DeadlineBatchConfirm'])
@@ -127,8 +127,8 @@ class LuigiProxy(object):
         elif len(__result__[1]) > 1:
             return __result__[1]
 
-    def sync_DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps):
-        __result__ = __self__.__clnt__.sync_call(LuigiService.DEADLINEBATCHPROPOSE, [tids, src_shard, proposed_timestamps], LuigiService.__input_type_info__['DeadlineBatchPropose'], LuigiService.__output_type_info__['DeadlineBatchPropose'])
+    def sync_DeadlineBatchPropose(__self__, tids, src_shard, proposed_timestamps, watermarks):
+        __result__ = __self__.__clnt__.sync_call(LuigiService.DEADLINEBATCHPROPOSE, [tids, src_shard, proposed_timestamps, watermarks], LuigiService.__input_type_info__['DeadlineBatchPropose'], LuigiService.__output_type_info__['DeadlineBatchPropose'])
         if __result__[0] != 0:
             raise Exception("RPC returned non-zero error code %d: %s" % (__result__[0], os.strerror(__result__[0])))
         if len(__result__[1]) == 1:

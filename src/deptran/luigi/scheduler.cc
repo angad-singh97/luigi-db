@@ -797,8 +797,8 @@ bool SchedulerLuigi::CanCommit(uint64_t timestamp, uint32_t worker_id,
   for (auto s : involved_shards) {
     shards_str += std::to_string(s) + ",";
   }
-  Log_info("CanCommit: shard=%d checking txn ts=%lu for shards=[%s]", shard_id_,
-           timestamp, shards_str.c_str());
+  Log_debug("CanCommit: shard=%d checking txn ts=%lu for shards=[%s]",
+            shard_id_, timestamp, shards_str.c_str());
 
   // Check: timestamp <= watermark[shard][worker] for ALL involved shards
   for (uint32_t shard : involved_shards) {
@@ -809,28 +809,28 @@ bool SchedulerLuigi::CanCommit(uint64_t timestamp, uint32_t worker_id,
       if (shard == shard_id_) {
         if (worker_id >= watermarks_.size() ||
             timestamp > watermarks_[worker_id]) {
-          Log_info("CanCommit: FAIL - local watermark not ready");
+          Log_debug("CanCommit: FAIL - local watermark not ready");
           return false;
         }
       } else {
         // Remote shard hasn't sent watermarks yet
-        Log_info("CanCommit: FAIL - no watermarks from shard %d", shard);
+        Log_debug("CanCommit: FAIL - no watermarks from shard %d", shard);
         return false;
       }
     } else {
       if (worker_id >= it->second.size()) {
-        Log_info("CanCommit: FAIL - invalid worker_id");
+        Log_debug("CanCommit: FAIL - invalid worker_id");
         return false;
       }
       if (timestamp > it->second[worker_id]) {
-        Log_info("CanCommit: FAIL - shard %d watermark=%lu < ts=%lu", shard,
-                 it->second[worker_id], timestamp);
+        Log_debug("CanCommit: FAIL - shard %d watermark=%lu < ts=%lu", shard,
+                  it->second[worker_id], timestamp);
         return false;
       }
     }
   }
 
-  Log_info("CanCommit: SUCCESS - all watermarks ready");
+  Log_debug("CanCommit: SUCCESS - all watermarks ready");
   return true; // All shards have advanced past this timestamp
 }
 
@@ -897,8 +897,8 @@ void SchedulerLuigi::SendWatermarksToCoordinator() {
   auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
   if (luigi_commo) {
     luigi_commo->BroadcastWatermarks(shard_id_, current_wms);
-    Log_info("BroadcastWatermarks: shard=%d sent watermarks to all shards",
-             shard_id_);
+    Log_debug("BroadcastWatermarks: shard=%d sent watermarks to all shards",
+              shard_id_);
   }
 
   // Check if any pending commits can now proceed
@@ -956,8 +956,8 @@ void SchedulerLuigi::Replicate(uint32_t worker_id,
 void SchedulerLuigi::WatermarkTd() {
   while (running_) {
     SendWatermarksToCoordinator();
-    // Exchange every 50ms
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Exchange every 100ms (increased from 50ms for reduced RPC overhead)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 
@@ -1009,13 +1009,17 @@ void SchedulerLuigi::QueueDeadlineProposal(
     }
   }
 
-  // Check if immediate flush needed (batch interval exceeded)
+  // Check if immediate flush needed (batch interval exceeded OR batch size
+  // exceeded)
   auto now = std::chrono::steady_clock::now();
   auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
                         now - last_flush_time_)
                         .count();
 
-  if (elapsed_us >= BATCH_FLUSH_INTERVAL_US) {
+  bool should_flush = (elapsed_us >= BATCH_FLUSH_INTERVAL_US) ||
+                      (pending_proposals_.tids.size() >= BATCH_SIZE_THRESHOLD);
+
+  if (should_flush) {
     FlushProposalBatch();
     FlushConfirmBatch();
     last_flush_time_ = now;
@@ -1039,13 +1043,17 @@ void SchedulerLuigi::QueueDeadlineConfirmation(
     }
   }
 
-  // Check if immediate flush needed
+  // Check if immediate flush needed (batch interval exceeded OR batch size
+  // exceeded)
   auto now = std::chrono::steady_clock::now();
   auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
                         now - last_flush_time_)
                         .count();
 
-  if (elapsed_us >= BATCH_FLUSH_INTERVAL_US) {
+  bool should_flush = (elapsed_us >= BATCH_FLUSH_INTERVAL_US) ||
+                      (pending_confirms_.tids.size() >= BATCH_SIZE_THRESHOLD);
+
+  if (should_flush) {
     FlushProposalBatch();
     FlushConfirmBatch();
     last_flush_time_ = now;
@@ -1065,12 +1073,16 @@ void SchedulerLuigi::FlushProposalBatch() {
     std::vector<rrr::i64> proposed_ts(pending_proposals_.proposed_ts.begin(),
                                       pending_proposals_.proposed_ts.end());
 
-    luigi_commo->BroadcastDeadlineBatchPropose(
-        tids, shard_id_, proposed_ts, pending_proposals_.remote_shards);
+    // Get current watermarks to piggyback (replaces separate WatermarkExchange)
+    std::vector<rrr::i64> watermarks = GetLocalWatermarks();
 
-    Log_info("Flushed %zu proposals to %zu shards",
-             pending_proposals_.tids.size(),
-             pending_proposals_.remote_shards.size());
+    luigi_commo->BroadcastDeadlineBatchPropose(
+        tids, shard_id_, proposed_ts, watermarks,
+        pending_proposals_.remote_shards);
+
+    Log_debug("Flushed %zu proposals + watermarks to %zu shards",
+              pending_proposals_.tids.size(),
+              pending_proposals_.remote_shards.size());
   }
 
   // Clear batch

@@ -40,10 +40,12 @@ abstract service Luigi {
     );
     
     // Batch deadline proposal (Phase 2 optimization)
+    // Includes watermarks to piggyback watermark exchange
     defer DeadlineBatchPropose(
         vector<i64> tids,
         i32 src_shard,
-        vector<i64> proposed_timestamps
+        vector<i64> proposed_timestamps,
+        vector<i64> watermarks
         |
         i32 status
     );

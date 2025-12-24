@@ -343,7 +343,10 @@ public:
 
   // Flush timer
   std::chrono::steady_clock::time_point last_flush_time_;
-  static constexpr uint64_t BATCH_FLUSH_INTERVAL_US = 2000; // 2ms
+  static constexpr uint64_t BATCH_FLUSH_INTERVAL_US =
+      5000; // 5ms (increased for better batching)
+  static constexpr size_t BATCH_SIZE_THRESHOLD =
+      50; // Flush early if batch gets large
 
   /**
    * Queue a deadline proposal for batching.

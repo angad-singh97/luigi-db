@@ -64,10 +64,11 @@ public:
                          const std::vector<rrr::i64> &watermarks,
                          rrr::i32 *status, rrr::DeferredReply *defer);
 
-  // Phase 2: Batch RPC handlers
+  // Phase 2: Batch RPC handlers (includes piggybacked watermarks)
   void DeadlineBatchPropose(const std::vector<rrr::i64> &tids,
                             const rrr::i32 &src_shard,
                             const std::vector<rrr::i64> &proposed_timestamps,
+                            const std::vector<rrr::i64> &watermarks,
                             rrr::i32 *status, rrr::DeferredReply *defer);
 
   void DeadlineBatchConfirm(const std::vector<rrr::i64> &tids,

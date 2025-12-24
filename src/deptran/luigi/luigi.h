@@ -10,13 +10,13 @@ namespace janus {
 class LuigiService: public rrr::Service {
 public:
     enum {
-        DISPATCH = 0x10c50c0e,
-        OWDPING = 0x1b63a21e,
-        DEADLINEPROPOSE = 0x6984112a,
-        DEADLINECONFIRM = 0x42d3a946,
-        DEADLINEBATCHPROPOSE = 0x1fb53c6f,
-        DEADLINEBATCHCONFIRM = 0x46759b98,
-        WATERMARKEXCHANGE = 0x5fa4d95b,
+        DISPATCH = 0x2b750829,
+        OWDPING = 0x3937cd1b,
+        DEADLINEPROPOSE = 0x6bd6466f,
+        DEADLINECONFIRM = 0x289dba58,
+        DEADLINEBATCHPROPOSE = 0x674f51fc,
+        DEADLINEBATCHCONFIRM = 0x2fb32978,
+        WATERMARKEXCHANGE = 0x146c8a0e,
     };
     int __reg_to__(rrr::Server* svr) {
         int ret = 0;
@@ -58,7 +58,7 @@ public:
     virtual void OwdPing(const rrr::i64& send_time, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void DeadlinePropose(const rrr::i64& tid, const rrr::i32& src_shard, const rrr::i64& proposed_ts, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void DeadlineConfirm(const rrr::i64& tid, const rrr::i32& src_shard, const rrr::i64& agreed_ts, rrr::i32* status, rrr::DeferredReply* defer) = 0;
-    virtual void DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, rrr::i32* status, rrr::DeferredReply* defer) = 0;
+    virtual void DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, const std::vector<rrr::i64>& watermarks, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void DeadlineBatchConfirm(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& agreed_timestamps, rrr::i32* status, rrr::DeferredReply* defer) = 0;
     virtual void WatermarkExchange(const rrr::i32& src_shard, const std::vector<rrr::i64>& watermarks, rrr::i32* status, rrr::DeferredReply* defer) = 0;
 private:
@@ -171,6 +171,8 @@ private:
         req->m >> *in_1;
         std::vector<rrr::i64>* in_2 = new std::vector<rrr::i64>;
         req->m >> *in_2;
+        std::vector<rrr::i64>* in_3 = new std::vector<rrr::i64>;
+        req->m >> *in_3;
         rrr::i32* out_0 = new rrr::i32;
         auto __marshal_reply__ = [=] {
             auto sconn_opt = weak_sconn.upgrade();
@@ -183,10 +185,11 @@ private:
             delete in_0;
             delete in_1;
             delete in_2;
+            delete in_3;
             delete out_0;
         };
         rrr::DeferredReply* __defer__ = new rrr::DeferredReply(std::move(req), weak_sconn, __marshal_reply__, __cleanup__);
-        this->DeadlineBatchPropose(*in_0, *in_1, *in_2, out_0, __defer__);
+        this->DeadlineBatchPropose(*in_0, *in_1, *in_2, *in_3, out_0, __defer__);
     }
     void __DeadlineBatchConfirm__wrapper__(rusty::Box<rrr::Request> req, rrr::WeakServerConnection weak_sconn) {
         std::vector<rrr::i64>* in_0 = new std::vector<rrr::i64>;
@@ -342,7 +345,7 @@ public:
         // Arc auto-released
         return __ret__;
     }
-    rrr::FutureResult async_DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, const rrr::FutureAttr& __fu_attr__ = rrr::FutureAttr()) {
+    rrr::FutureResult async_DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, const std::vector<rrr::i64>& watermarks, const rrr::FutureAttr& __fu_attr__ = rrr::FutureAttr()) {
         auto __fu_result__ = __cl__->begin_request(LuigiService::DEADLINEBATCHPROPOSE, __fu_attr__);
         if (__fu_result__.is_err()) {
             return __fu_result__;  // Propagate error
@@ -351,11 +354,12 @@ public:
         *__cl__ << tids;
         *__cl__ << src_shard;
         *__cl__ << proposed_timestamps;
+        *__cl__ << watermarks;
         __cl__->end_request();
         return rrr::FutureResult::Ok(__fu__);
     }
-    rrr::i32 DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, rrr::i32* status) {
-        auto __fu_result__ = this->async_DeadlineBatchPropose(tids, src_shard, proposed_timestamps);
+    rrr::i32 DeadlineBatchPropose(const std::vector<rrr::i64>& tids, const rrr::i32& src_shard, const std::vector<rrr::i64>& proposed_timestamps, const std::vector<rrr::i64>& watermarks, rrr::i32* status) {
+        auto __fu_result__ = this->async_DeadlineBatchPropose(tids, src_shard, proposed_timestamps, watermarks);
         if (__fu_result__.is_err()) {
             return __fu_result__.unwrap_err();  // Return error code
         }
