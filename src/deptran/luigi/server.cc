@@ -68,10 +68,32 @@ void LuigiServer::ConnectAndStart() {
   // configurable) This ensures watermarks_ vector is properly sized
   scheduler_->SetWorkerCount(1);
 
+  // Detect follower sites for multi-replica mode
+  // Look for other sites serving the same shard (partition_id)
+  auto config = Config::GetConfig();
+  std::vector<uint32_t> follower_sites;
+  auto all_sites = config->SitesByPartitionId(partition_id_);
+
+  for (auto &site : all_sites) {
+    // Skip self (first site is assumed to be leader)
+    if (site.id != static_cast<uint32_t>(partition_id_)) {
+      follower_sites.push_back(site.id);
+      Log_info("Luigi server shard %d: detected follower site %d",
+               partition_id_, site.id);
+    }
+  }
+
+  if (!follower_sites.empty()) {
+    scheduler_->SetFollowerSites(follower_sites);
+    Log_info("Luigi server shard %d: multi-replica mode with %zu followers",
+             partition_id_, follower_sites.size());
+  }
+
   // Start scheduler threads (which may broadcast watermarks etc)
   scheduler_->Start();
 
-  Log_info("Luigi server ready for shard %d", partition_id_);
+  Log_info("Luigi server ready for shard %d with %zu replicas", partition_id_,
+           follower_sites.size() + 1);
 }
 
 void LuigiServer::Stop() {

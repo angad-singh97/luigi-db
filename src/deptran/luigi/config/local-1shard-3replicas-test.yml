@@ -1,0 +1,30 @@
+# Luigi 1-Shard 3-Replica Local Test
+# All replicas on same host with different ports
+
+site:
+  server:
+    - ["s0:31850", "s1:31851", "s2:31852"]
+  client:
+    - ["c01"]
+
+process:
+  s0: s0
+  s1: s1
+  s2: s2
+  c01: c01
+
+host:
+  s0: 127.0.0.1
+  s1: 127.0.0.1
+  s2: 127.0.0.1
+  c01: 127.0.0.1
+
+luigi:
+  client_vm_index: 0
+  num_workers_per_vm: 4
+  headroom_ms: 2
+  ping_interval_ms: 100
+  initial_owd_ms: 1
+
+benchmark:
+  warehouses: 4

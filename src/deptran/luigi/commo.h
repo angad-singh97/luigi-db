@@ -150,6 +150,42 @@ public:
                                 const std::vector<rrr::i64> &agreed_timestamps,
                                 const std::vector<uint32_t> &involved_shards);
 
+  //===========================================================================
+  // Phase 4: Replication to Followers
+  //===========================================================================
+
+  /**
+   * Send Replicate RPC to a specific follower (async with callback)
+   * Used by: Leaders in DoReplicate() for quorum-based replication
+   */
+  using ReplicateCallback = std::function<void(bool ok, rrr::i32 status)>;
+  void ReplicateAsync(siteid_t follower_site_id, rrr::i32 worker_id,
+                      rrr::i64 slot_id, rrr::i64 txn_id, rrr::i64 timestamp,
+                      const std::string &log_data, ReplicateCallback callback);
+
+  /**
+   * Send Replicate RPC synchronously (blocks until reply)
+   */
+  shared_ptr<IntEvent> SendReplicate(siteid_t site_id, rrr::i32 worker_id,
+                                     rrr::i64 slot_id, rrr::i64 txn_id,
+                                     rrr::i64 timestamp,
+                                     const std::string &log_data,
+                                     rrr::i32 *status);
+
+  /**
+   * Send BatchReplicate RPC to a specific follower (async with callback)
+   * Used by: Leaders for batched replication
+   */
+  using BatchReplicateCallback = std::function<void(
+      bool ok, rrr::i32 status, rrr::i64 last_appended_slot)>;
+  void BatchReplicateAsync(siteid_t follower_site_id, rrr::i32 worker_id,
+                           rrr::i64 prev_committed_slot,
+                           const std::vector<rrr::i64> &slot_ids,
+                           const std::vector<rrr::i64> &txn_ids,
+                           const std::vector<rrr::i64> &timestamps,
+                           const std::vector<std::string> &log_entries,
+                           BatchReplicateCallback callback);
+
 private:
   // On-demand LuigiProxy cache (created from rpc_clients_)
   std::map<siteid_t, LuigiProxy *> luigi_proxies_;

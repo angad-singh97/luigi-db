@@ -472,4 +472,125 @@ void LuigiCommo::BroadcastDeadlineBatchConfirm(
   }
 }
 
+//=============================================================================
+// PHASE 4: REPLICATION TO FOLLOWERS
+//=============================================================================
+
+shared_ptr<IntEvent>
+LuigiCommo::SendReplicate(siteid_t site_id, rrr::i32 worker_id,
+                          rrr::i64 slot_id, rrr::i64 txn_id, rrr::i64 timestamp,
+                          const std::string &log_data, rrr::i32 *status) {
+  auto ret = Reactor::CreateSpEvent<IntEvent>();
+  auto proxy = GetProxyForSite(site_id);
+
+  if (!proxy) {
+    Log_warn("LuigiCommo::SendReplicate: no proxy for site %d", site_id);
+    return ret;
+  }
+
+  FutureAttr fuattr;
+  fuattr.callback = [ret, status](rusty::Arc<Future> fu) {
+    if (fu->get_error_code() != 0) {
+      Log_debug("Replicate RPC error: %d", fu->get_error_code());
+      return;
+    }
+    fu->get_reply() >> *status;
+    ret->Set(1);
+  };
+
+  auto result = proxy->async_Replicate(worker_id, slot_id, txn_id, timestamp,
+                                       log_data, fuattr);
+  if (result.is_err()) {
+    Log_warn("SendReplicate: async_Replicate failed for site %d", site_id);
+  }
+
+  return ret;
+}
+
+void LuigiCommo::ReplicateAsync(siteid_t follower_site_id, rrr::i32 worker_id,
+                                rrr::i64 slot_id, rrr::i64 txn_id,
+                                rrr::i64 timestamp, const std::string &log_data,
+                                ReplicateCallback callback) {
+  auto proxy = GetProxyForSite(follower_site_id);
+
+  if (!proxy) {
+    Log_warn("LuigiCommo::ReplicateAsync: no proxy for follower site %d",
+             follower_site_id);
+    callback(false, -1);
+    return;
+  }
+
+  FutureAttr fuattr;
+  fuattr.callback = [callback, follower_site_id](rusty::Arc<Future> fu) {
+    int error_code = fu->get_error_code();
+    if (error_code != 0) {
+      Log_debug("ReplicateAsync callback: follower=%d RPC error=%d",
+                follower_site_id, error_code);
+      callback(false, -1);
+      return;
+    }
+    rrr::i32 status;
+    fu->get_reply() >> status;
+    Log_debug("ReplicateAsync callback: follower=%d success status=%d",
+              follower_site_id, status);
+    callback(true, status);
+  };
+
+  Log_debug("ReplicateAsync: sending to follower=%d worker=%d slot=%ld txn=%ld",
+            follower_site_id, worker_id, slot_id, txn_id);
+  auto result = proxy->async_Replicate(worker_id, slot_id, txn_id, timestamp,
+                                       log_data, fuattr);
+  if (result.is_err()) {
+    Log_warn("ReplicateAsync: async_Replicate failed for follower %d",
+             follower_site_id);
+    callback(false, -1);
+  }
+}
+
+void LuigiCommo::BatchReplicateAsync(
+    siteid_t follower_site_id, rrr::i32 worker_id, rrr::i64 prev_committed_slot,
+    const std::vector<rrr::i64> &slot_ids, const std::vector<rrr::i64> &txn_ids,
+    const std::vector<rrr::i64> &timestamps,
+    const std::vector<std::string> &log_entries,
+    BatchReplicateCallback callback) {
+  auto proxy = GetProxyForSite(follower_site_id);
+
+  if (!proxy) {
+    Log_warn("LuigiCommo::BatchReplicateAsync: no proxy for follower site %d",
+             follower_site_id);
+    callback(false, -1, 0);
+    return;
+  }
+
+  FutureAttr fuattr;
+  fuattr.callback = [callback, follower_site_id](rusty::Arc<Future> fu) {
+    int error_code = fu->get_error_code();
+    if (error_code != 0) {
+      Log_debug("BatchReplicateAsync callback: follower=%d RPC error=%d",
+                follower_site_id, error_code);
+      callback(false, -1, 0);
+      return;
+    }
+    rrr::i32 status;
+    rrr::i64 last_appended_slot;
+    fu->get_reply() >> status;
+    fu->get_reply() >> last_appended_slot;
+    Log_debug(
+        "BatchReplicateAsync callback: follower=%d status=%d last_slot=%ld",
+        follower_site_id, status, last_appended_slot);
+    callback(true, status, last_appended_slot);
+  };
+
+  Log_debug("BatchReplicateAsync: sending %zu entries to follower=%d worker=%d",
+            slot_ids.size(), follower_site_id, worker_id);
+  auto result =
+      proxy->async_BatchReplicate(worker_id, prev_committed_slot, slot_ids,
+                                  txn_ids, timestamps, log_entries, fuattr);
+  if (result.is_err()) {
+    Log_warn("BatchReplicateAsync: async_BatchReplicate failed for follower %d",
+             follower_site_id);
+    callback(false, -1, 0);
+  }
+}
+
 } // namespace janus

@@ -5,6 +5,7 @@
 #include "deptran/concurrentqueue.h"   // moodycamel lock-free queue
 #include "deptran/paxos/server.h"      // For PaxosServer (Phase 4)
 #include "deptran/tx.h"
+#include "rrr/reactor/quorum_event.h" // For QuorumEvent (Phase 4)
 
 // Fix macro conflict: deptran/constants.h defines SUCCESS as (0)
 // but mako/lib/common.h uses SUCCESS as an enum value
@@ -319,6 +320,22 @@ protected:
 
   // Internal replication logic (called by ReplicateTd)
   void DoReplicate(uint32_t worker_id, std::shared_ptr<LuigiLogEntry> entry);
+
+  // Batched replication with async quorum handling
+  void
+  DoBatchReplicate(uint32_t worker_id,
+                   const std::vector<std::shared_ptr<LuigiLogEntry>> &batch);
+
+  // Follower site IDs for leader-to-follower replication
+  // Set at startup for multi-replica mode (e.g., from config)
+  std::vector<uint32_t> follower_sites_;
+
+public:
+  // Set follower sites for multi-replica mode
+  void SetFollowerSites(const std::vector<uint32_t> &sites) {
+    follower_sites_ = sites;
+    num_replicas_ = 1 + sites.size(); // leader + followers
+  }
 
   //==========================================================================
   // PENDING COMMITS (waiting for watermarks to advance)

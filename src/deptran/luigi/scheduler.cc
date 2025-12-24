@@ -960,16 +960,38 @@ void SchedulerLuigi::Replicate(uint32_t worker_id,
   }
 }
 
-// Per-worker replication thread - processes entries from replication queue
+// Per-worker replication thread - batches entries and replicates with async
+// quorum
 void SchedulerLuigi::ReplicateTd(uint32_t worker_id) {
-  Log_info("ReplicateTd started for worker %u", worker_id);
+  Log_info("ReplicateTd started for worker %u (batched mode)", worker_id);
+
+  constexpr size_t BATCH_SIZE = 100;
+  constexpr auto BATCH_TIMEOUT = std::chrono::microseconds(500);
+
+  std::vector<std::shared_ptr<LuigiLogEntry>> batch;
+  batch.reserve(BATCH_SIZE);
+
+  auto last_flush = std::chrono::steady_clock::now();
 
   while (running_.load()) {
     std::shared_ptr<LuigiLogEntry> entry;
-    if (replication_queues_[worker_id]->try_dequeue(entry)) {
-      DoReplicate(worker_id, entry);
-    } else {
-      // No entries - brief sleep to avoid busy-waiting
+
+    // Collect entries into batch
+    while (batch.size() < BATCH_SIZE &&
+           replication_queues_[worker_id]->try_dequeue(entry)) {
+      batch.push_back(entry);
+    }
+
+    // Flush batch if size threshold or timeout
+    auto now = std::chrono::steady_clock::now();
+    bool should_flush = !batch.empty() && (batch.size() >= BATCH_SIZE ||
+                                           (now - last_flush) > BATCH_TIMEOUT);
+
+    if (should_flush) {
+      DoBatchReplicate(worker_id, batch);
+      batch.clear();
+      last_flush = now;
+    } else if (batch.empty()) {
       std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
   }
@@ -977,59 +999,140 @@ void SchedulerLuigi::ReplicateTd(uint32_t worker_id) {
   // Drain remaining entries on shutdown
   std::shared_ptr<LuigiLogEntry> entry;
   while (replication_queues_[worker_id]->try_dequeue(entry)) {
-    DoReplicate(worker_id, entry);
+    batch.push_back(entry);
+  }
+  if (!batch.empty()) {
+    DoBatchReplicate(worker_id, batch);
   }
 
   Log_info("ReplicateTd stopped for worker %u", worker_id);
 }
 
-// Actual replication logic (called by ReplicateTd)
-void SchedulerLuigi::DoReplicate(uint32_t worker_id,
-                                 std::shared_ptr<LuigiLogEntry> entry) {
-  uint64_t commit_ts = entry->agreed_ts_;
+// Batch replication with async quorum handling
+void SchedulerLuigi::DoBatchReplicate(
+    uint32_t worker_id,
+    const std::vector<std::shared_ptr<LuigiLogEntry>> &batch) {
+  if (batch.empty())
+    return;
 
-  // Serialize transaction log entry
-  std::string log_data = "LUIGI_TXN:" + std::to_string(entry->tid_) + ":" +
-                         std::to_string(commit_ts) + ":" +
-                         std::to_string(entry->txn_type_) + ":" +
-                         std::to_string(entry->ops_.size());
-  for (const auto &op : entry->ops_) {
-    log_data += ":" + std::to_string(op.op_type) + ":" + op.key;
-    if (op.op_type == LUIGI_OP_WRITE) {
-      log_data += ":" + op.value;
-    }
-  }
+  // Prepare batch data
+  std::vector<int64_t> slot_ids;
+  std::vector<int64_t> txn_ids;
+  std::vector<int64_t> timestamps;
+  std::vector<std::string> log_entries;
+  uint64_t max_ts = 0;
 
-  // 1. Append to local log
-  uint64_t slot_id;
+  slot_ids.reserve(batch.size());
+  txn_ids.reserve(batch.size());
+  timestamps.reserve(batch.size());
+  log_entries.reserve(batch.size());
+
   {
     std::lock_guard<std::mutex> lock(paxos_mutex_);
     if (worker_id >= paxos_streams_.size()) {
       paxos_streams_.resize(worker_id + 1);
     }
-    slot_id = paxos_streams_[worker_id].next_slot_++;
-    LogEntry le{slot_id, entry->tid_, commit_ts, log_data};
-    paxos_streams_[worker_id].Append(le);
+
+    for (const auto &entry : batch) {
+      uint64_t commit_ts = entry->agreed_ts_;
+      max_ts = std::max(max_ts, commit_ts);
+
+      // Serialize entry
+      std::string log_data = "LUIGI_TXN:" + std::to_string(entry->tid_) + ":" +
+                             std::to_string(commit_ts) + ":" +
+                             std::to_string(entry->txn_type_) + ":" +
+                             std::to_string(entry->ops_.size());
+      for (const auto &op : entry->ops_) {
+        log_data += ":" + std::to_string(op.op_type) + ":" + op.key;
+        if (op.op_type == LUIGI_OP_WRITE) {
+          log_data += ":" + op.value;
+        }
+      }
+
+      // Assign slot and append to local log
+      uint64_t slot_id = paxos_streams_[worker_id].next_slot_++;
+      LogEntry le{slot_id, entry->tid_, commit_ts, log_data};
+      paxos_streams_[worker_id].Append(le);
+
+      slot_ids.push_back(slot_id);
+      txn_ids.push_back(entry->tid_);
+      timestamps.push_back(commit_ts);
+      log_entries.push_back(log_data);
+    }
   }
 
-  // 2. For multi-replica: broadcast to followers and wait for quorum
-  if (num_replicas_ > 1) {
-    // TODO: QuorumEvent-based broadcast
-    Log_debug("DoReplicate: multi-replica broadcast not yet implemented");
-  }
+  // For multi-replica: send batch to followers with async quorum
+  if (num_replicas_ > 1 && !follower_sites_.empty() && commo_ != nullptr) {
+    auto luigi_commo = dynamic_cast<LuigiCommo *>(commo_);
+    if (luigi_commo != nullptr) {
+      uint32_t n_followers = follower_sites_.size();
+      uint32_t quorum_needed = (num_replicas_ / 2);
+      if (quorum_needed == 0)
+        quorum_needed = 1;
 
-  // 3. Update watermark after replication
-  {
+      // Atomic counter for quorum tracking
+      auto ack_count = std::make_shared<std::atomic<uint32_t>>(0);
+      auto quorum_reached = std::make_shared<std::atomic<bool>>(false);
+      auto batch_max_ts = max_ts;
+      auto captured_worker_id = worker_id;
+      auto self = this;
+
+      // Get prev_committed_slot
+      int64_t prev_committed = 0;
+      {
+        std::lock_guard<std::mutex> lock(paxos_mutex_);
+        if (worker_id < paxos_streams_.size() && !slot_ids.empty()) {
+          prev_committed = slot_ids.front() - 1;
+        }
+      }
+
+      // Send to all followers
+      for (uint32_t follower_site : follower_sites_) {
+        luigi_commo->BatchReplicateAsync(
+            follower_site, worker_id, prev_committed, slot_ids, txn_ids,
+            timestamps, log_entries,
+            [ack_count, quorum_needed, quorum_reached, batch_max_ts,
+             captured_worker_id,
+             self](bool ok, rrr::i32 status, rrr::i64 last_slot) {
+              if (ok && status == 0) {
+                uint32_t count = ack_count->fetch_add(1) + 1;
+                // Check if quorum just reached (only update watermark once)
+                if (count >= quorum_needed && !quorum_reached->exchange(true)) {
+                  // Quorum reached! Update watermark async
+                  std::lock_guard<std::mutex> lock(self->watermark_mutex_);
+                  if (captured_worker_id >= self->watermarks_.size()) {
+                    self->watermarks_.resize(captured_worker_id + 1, 0);
+                  }
+                  self->watermarks_[captured_worker_id] = std::max(
+                      self->watermarks_[captured_worker_id], batch_max_ts);
+                  Log_debug("DoBatchReplicate: quorum reached, watermark=%lu",
+                            batch_max_ts);
+                }
+              }
+            });
+      }
+
+      // For single-replica or if quorum callback handles it, we're done
+      // The watermark update happens async in the callback
+      Log_debug("DoBatchReplicate: sent batch of %zu entries to %zu followers",
+                batch.size(), follower_sites_.size());
+    }
+  } else {
+    // Single-replica mode: update watermark immediately
     std::lock_guard<std::mutex> lock(watermark_mutex_);
     if (worker_id >= watermarks_.size()) {
       watermarks_.resize(worker_id + 1, 0);
     }
-    watermarks_[worker_id] = std::max(watermarks_[worker_id], commit_ts);
-
-    Log_debug("DoReplicate: shard=%d worker=%d slot=%lu txn=%lu watermark=%lu",
-              shard_id_, worker_id, slot_id, entry->tid_,
-              watermarks_[worker_id]);
+    watermarks_[worker_id] = std::max(watermarks_[worker_id], max_ts);
+    Log_debug("DoBatchReplicate: single-replica, watermark=%lu", max_ts);
   }
+}
+
+// Legacy single-entry replication (kept for fallback)
+void SchedulerLuigi::DoReplicate(uint32_t worker_id,
+                                 std::shared_ptr<LuigiLogEntry> entry) {
+  std::vector<std::shared_ptr<LuigiLogEntry>> batch{entry};
+  DoBatchReplicate(worker_id, batch);
 }
 
 // Append a log entry to follower's stream (called by Replicate RPC handler)
