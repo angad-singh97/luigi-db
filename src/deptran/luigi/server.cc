@@ -64,6 +64,10 @@ void LuigiServer::ConnectAndStart() {
   commo_ = std::make_shared<LuigiCommo>(rusty::None);
   scheduler_->commo_ = commo_.get();
 
+  // Initialize worker count (default: 1 worker per shard, could be
+  // configurable) This ensures watermarks_ vector is properly sized
+  scheduler_->SetWorkerCount(1);
+
   // Start scheduler threads (which may broadcast watermarks etc)
   scheduler_->Start();
 

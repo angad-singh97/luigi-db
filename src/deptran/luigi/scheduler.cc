@@ -750,27 +750,31 @@ uint64_t SchedulerLuigi::GetGlobalWatermark(uint32_t shard_id,
 
 void SchedulerLuigi::HandleWatermarkExchange(
     uint32_t src_shard, const std::vector<int64_t> &remote_watermarks) {
-  std::lock_guard<std::mutex> lock(watermark_mutex_);
+  // Scope the lock to release before CheckPendingCommits to avoid deadlock
+  // (CheckPendingCommits also acquires watermark_mutex_)
+  {
+    std::lock_guard<std::mutex> lock(watermark_mutex_);
 
-  // Ensure we have storage for this shard's watermarks
-  if (global_watermarks_.find(src_shard) == global_watermarks_.end()) {
-    global_watermarks_[src_shard] = std::vector<uint64_t>(worker_count_, 0);
-  }
-
-  auto &target = global_watermarks_[src_shard];
-
-  for (size_t i = 0; i < remote_watermarks.size(); i++) {
-    uint64_t ts = (uint64_t)remote_watermarks[i];
-    if (i < target.size() && ts > target[i]) {
-      target[i] = ts;
+    // Ensure we have storage for this shard's watermarks
+    if (global_watermarks_.find(src_shard) == global_watermarks_.end()) {
+      global_watermarks_[src_shard] = std::vector<uint64_t>(worker_count_, 0);
     }
+
+    auto &target = global_watermarks_[src_shard];
+
+    for (size_t i = 0; i < remote_watermarks.size(); i++) {
+      uint64_t ts = (uint64_t)remote_watermarks[i];
+      if (i < target.size() && ts > target[i]) {
+        target[i] = ts;
+      }
+    }
+
+    Log_info("HandleWatermarkExchange: shard %d received from shard %d, "
+             "watermark[0]=%lu",
+             shard_id_, src_shard, target.size() > 0 ? target[0] : 0);
   }
 
-  Log_info("HandleWatermarkExchange: shard %d received from shard %d, "
-           "watermark[0]=%lu",
-           shard_id_, src_shard, target.size() > 0 ? target[0] : 0);
-
-  // Check if any pending commits can now proceed
+  // Check if any pending commits can now proceed (lock is released now)
   CheckPendingCommits();
 }
 
