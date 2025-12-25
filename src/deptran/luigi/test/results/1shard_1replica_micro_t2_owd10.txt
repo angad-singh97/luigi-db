@@ -1,0 +1,108 @@
+I [/root/cse532/mako/src/deptran/config.cc:272] 2025-12-24 17:36:14.303 | LoadYML: src/deptran/luigi/test/configs/1shard-1replica.yml
+=== Luigi Coordinator ===
+Shards: 1, Threads: 2, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-24 17:36:14.303 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-24 17:36:14.304 | connect to site: 127.0.0.1:31850 success!
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:18] 2025-12-24 17:36:14.304 | LuigiCommo: initialized with base Communicator connections
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:176] 2025-12-24 17:36:14.304 | LuigiCoordinator initialized: 1 shards, 2 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:186] 2025-12-24 17:36:14.304 | OWD measurement thread started
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:14.469 | created 1024, busy 1023, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:14.602 | created 2048, busy 2047, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:14.716 | created 3072, busy 3071, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:14.838 | created 4096, busy 4095, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:14.967 | created 5120, busy 5119, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.110 | created 6144, busy 6143, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.217 | created 7168, busy 7167, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.304 | created 8192, busy 8191, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.405 | created 9216, busy 9215, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.514 | created 10240, busy 10239, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.588 | created 11264, busy 11263, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.660 | created 12288, busy 12287, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.739 | created 13312, busy 13311, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.818 | created 14336, busy 14335, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.885 | created 15360, busy 15359, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:15.962 | created 16384, busy 16383, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.045 | created 17408, busy 17407, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.138 | created 18432, busy 18431, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.232 | created 19456, busy 19455, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.356 | created 20480, busy 20479, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.490 | created 21504, busy 21503, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.585 | created 22528, busy 22527, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.701 | created 23552, busy 23551, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.831 | created 24576, busy 24575, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:16.940 | created 25600, busy 25599, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.126 | created 26624, busy 26623, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.294 | created 27648, busy 27647, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.384 | created 28672, busy 28671, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.497 | created 29696, busy 29695, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.650 | created 30720, busy 30719, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.741 | created 31744, busy 31743, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.843 | created 32768, busy 32767, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:17.966 | created 33792, busy 33791, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.086 | created 34816, busy 34815, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.199 | created 35840, busy 35839, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.378 | created 36864, busy 36863, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.567 | created 37888, busy 37887, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.717 | created 38912, busy 38911, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:18.877 | created 39936, busy 39935, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.056 | created 40960, busy 40959, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.228 | created 41984, busy 41983, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.389 | created 43008, busy 43007, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.550 | created 44032, busy 44031, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.675 | created 45056, busy 45055, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.882 | created 46080, busy 46079, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:19.967 | created 47104, busy 47103, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.032 | created 48128, busy 48127, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.107 | created 49152, busy 49151, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.223 | created 50176, busy 50175, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.373 | created 51200, busy 51199, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.477 | created 52224, busy 52223, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.577 | created 53248, busy 53247, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.678 | created 54272, busy 54271, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.776 | created 55296, busy 55295, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.880 | created 56320, busy 56319, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:20.970 | created 57344, busy 57343, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.103 | created 58368, busy 58367, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.251 | created 59392, busy 59391, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.409 | created 60416, busy 60415, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.496 | created 61440, busy 61439, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.645 | created 62464, busy 62463, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.740 | created 63488, busy 63487, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.814 | created 64512, busy 64511, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.902 | created 65536, busy 65535, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:21.001 | created 66560, busy 66559, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.114 | created 67584, busy 67583, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.195 | created 68608, busy 68607, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.313 | created 69632, busy 69631, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.469 | created 70656, busy 70655, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.602 | created 71680, busy 71679, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.748 | created 72704, busy 72703, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.841 | created 73728, busy 73727, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:22.963 | created 74752, busy 74751, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.046 | created 75776, busy 75775, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.157 | created 76800, busy 76799, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.243 | created 77824, busy 77823, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.361 | created 78848, busy 78847, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.472 | created 79872, busy 79871, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.601 | created 80896, busy 80895, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.730 | created 81920, busy 81919, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.803 | created 82944, busy 82943, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.907 | created 83968, busy 83967, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:23.001 | created 84992, busy 84991, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:24.150 | created 86016, busy 86015, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 17:36:24.276 | created 87040, busy 87039, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:241] 2025-12-24 17:36:24.305 | Waiting for completion: dispatched=87531, completed=87131
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:255] 2025-12-24 17:36:24.329 | Benchmark complete: dispatched=87531, completed=87531
+DEBUG: About to print stats, total_txns=87531 committed=87531
+========== Benchmark Results ==========
+Duration:          10024 ms
+Total Txns:        87531
+Committed:         87531
+Aborted:           0 (0.00%)
+Throughput:        8732.14 txns/sec
+Avg Latency:       45641.63 us
+P50 Latency:       43650.00 us
+P99 Latency:       87114.00 us
+P99.9 Latency:     93171.00 us
+========================================

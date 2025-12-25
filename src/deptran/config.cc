@@ -77,8 +77,11 @@ int Config::CreateConfig(int argc, char **argv) {
   optind = 1;
   string filename;
   while ((c = getopt(argc, argv,
-                     "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:A:F:O:m:a:N:")) != -1) {
+                     "bc:d:f:h:i:k:p:P:r:s:S:t:H:T:n:A:F:O:m:a:N:w:x:")) != -1) {
     switch (c) {
+    case 'w': // Luigi OWD default - ignore, handled by coordinator
+    case 'x': // Luigi OWD headroom - ignore, handled by coordinator
+      break;
     case 'b': // heartbeat to controller
       heart_beat = true;
       break;

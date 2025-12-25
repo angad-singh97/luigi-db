@@ -1,0 +1,15 @@
+I [/root/cse532/mako/src/deptran/config.cc:269] 2025-12-24 16:14:05.861 | LoadYML: /root/cse532/mako/src/deptran/luigi/test/configs/2shard-rep.yml
+=== Luigi Coordinator ===
+Shards: 2, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-24 16:14:05.862 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:329] 2025-12-24 16:16:06.652 | timeout connecting to 127.0.0.1:31850
+  *** begin stack trace ***
+0    /root/cse532/mako/build/libtxlog.so(_ZN3rrr17print_stack_traceEP8_IO_FILE+0x6c) [0x7fa99274e9ec]
+1    /root/cse532/mako/build/libtxlog.so(_ZN5janus12CommunicatorC2EN5rusty6OptionINS1_3ArcIN3rrr10PollThreadEEEEE+0x82e) [0x7fa9925c74fe]
+2    /root/cse532/mako/build/libtxlog.so(_ZN5janus10LuigiCommoC2EN5rusty6OptionINS1_3ArcIN3rrr10PollThreadEEEEE+0x38) [0x7fa992639ec8]
+3    /root/cse532/mako/build/luigi_coordinator(+0xd6ca) [0x555a73f9e6ca]
+4    /root/cse532/mako/build/luigi_coordinator(+0x6c20) [0x555a73f97c20]
+5    /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa9918efd90]
+6    /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa9918efe40]
+  ***  end stack trace  ***

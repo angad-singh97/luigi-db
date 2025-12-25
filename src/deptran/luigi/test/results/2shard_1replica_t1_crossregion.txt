@@ -1,0 +1,47 @@
+=== 2-Shard 1-Replica Microbenchmark ===
+Config: src/deptran/luigi/test/configs/2shard-1replica.yml
+Duration: 10s
+Threads: 1
+OWD: 180ms
+Headroom: 30ms
+Network: 150ms ± 20ms
+
+Starting Shard 0 replica (s101:31850)...
+Starting Shard 1 replica (s201:31853)...
+Applying network latency: 150ms ± 20ms (pareto)...
+qdisc netem 8017: root refcnt 2 limit 1000 delay 150ms  20ms
+
+Running microbenchmark...
+I [/root/cse532/mako/src/deptran/config.cc:272] 2025-12-24 22:25:53.504 | LoadYML: src/deptran/luigi/test/configs/2shard-1replica.yml
+=== Luigi Coordinator ===
+Shards: 2, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-24 22:25:53.508 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-24 22:25:53.877 | connect to site: 127.0.0.1:31850 success!
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-24 22:25:54.167 | connect to site: 127.0.0.1:31853 success!
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:18] 2025-12-24 22:25:54.167 | LuigiCommo: initialized with base Communicator connections
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:176] 2025-12-24 22:25:54.167 | LuigiCoordinator initialized: 2 shards, 1 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:186] 2025-12-24 22:25:54.168 | OWD measurement thread started
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:25:55.975 | created 1024, busy 1023, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:25:57.400 | created 2048, busy 2047, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:25:58.860 | created 3072, busy 3071, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:26:00.426 | created 4096, busy 4095, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:26:01.984 | created 5120, busy 5119, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/rrr/reactor/reactor.cc:116] 2025-12-24 22:26:03.466 | created 6144, busy 6143, idle 0 coroutines on server 0, recent /root/cse532/mako/src/rrr/rpc/client.cpp:97
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:243] 2025-12-24 22:26:04.169 | Waiting for completion: dispatched=4630, completed=4430
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:257] 2025-12-24 22:26:04.623 | Benchmark complete: dispatched=4630, completed=4630
+DEBUG: About to print stats, total_txns=4630 committed=4630
+========== Benchmark Results ==========
+Duration:          10455 ms
+Total Txns:        4630
+Committed:         4630
+Aborted:           0 (0.00%)
+Throughput:        442.85 txns/sec
+Avg Latency:       442707.75 us
+P50 Latency:       461999.00 us
+P99 Latency:       619405.00 us
+P99.9 Latency:     621663.00 us
+========================================
+
+Cleaning up...
+Done!

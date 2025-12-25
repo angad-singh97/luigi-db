@@ -135,8 +135,6 @@ public:
   enum class BenchmarkType { BM_MICRO, BM_MICRO_SINGLE, BM_TPCC };
 
   // OWD constants
-  static constexpr uint64_t OWD_HEADROOM_MS = 10;
-  static constexpr uint64_t OWD_DEFAULT_MS = 50;
   static constexpr uint64_t OWD_PING_INTERVAL_MS = 100;
 
   // Flow control: limit in-flight transactions to avoid coroutine exhaustion
@@ -151,6 +149,8 @@ public:
     int duration_sec = 30;
     TxnGeneratorConfig gen_config;
     uint32_t worker_id_base = 0;
+    uint64_t owd_default_ms = 50;
+    uint64_t owd_headroom_ms = 10;
   };
 
   LuigiCoordinator(const Config &config) : config_(config) {}
@@ -169,7 +169,7 @@ public:
 
     // Initialize OWD table
     for (int i = 0; i < config_.num_shards; i++) {
-      owd_table_[i] = (i == 0) ? 0 : OWD_DEFAULT_MS;
+      owd_table_[i] = (i == 0) ? 0 : config_.owd_default_ms;
     }
 
     thread_stats_.resize(config_.num_threads);
@@ -210,10 +210,12 @@ public:
       }
     }
 
-    for (size_t i = 0; i < thread_stats_.size(); i++) {
-      std::lock_guard<std::mutex> lock(*thread_stats_[i].mutex);
-      thread_stats_[i].records.clear();
-      thread_stats_[i].committed = thread_stats_[i].aborted = 0;
+    {
+      std::lock_guard<std::mutex> lock(stats_mutex_);
+      for (size_t i = 0; i < thread_stats_.size(); i++) {
+        thread_stats_[i].records.clear();
+        thread_stats_[i].committed = thread_stats_[i].aborted = 0;
+      }
     }
     next_txn_id_.store(1);
     dispatched_txns_.store(0);
@@ -301,14 +303,14 @@ private:
     uint64_t max_owd = 0;
     for (uint32_t s : shards) {
       auto it = owd_table_.find(s);
-      uint64_t owd = (it != owd_table_.end()) ? it->second : OWD_DEFAULT_MS;
+      uint64_t owd = (it != owd_table_.end()) ? it->second : config_.owd_default_ms;
       max_owd = std::max(max_owd, owd);
     }
     return max_owd;
   }
 
   uint64_t GetExpectedTimestamp(const std::vector<uint32_t> &shards) {
-    return GetTimeMillis() + GetMaxOwd(shards) + OWD_HEADROOM_MS;
+    return GetTimeMillis() + GetMaxOwd(shards) + config_.owd_headroom_ms;
   }
 
   //=========================================================================
@@ -458,12 +460,14 @@ private:
     BenchmarkStats stats;
     std::vector<uint64_t> latencies;
 
-    for (size_t i = 0; i < thread_stats_.size(); i++) {
-      std::lock_guard<std::mutex> lock(*thread_stats_[i].mutex);
-      stats.committed_txns += thread_stats_[i].committed;
-      stats.aborted_txns += thread_stats_[i].aborted;
-      for (const auto &r : thread_stats_[i].records)
-        latencies.push_back(r.end_time_us - r.start_time_us);
+    {
+      std::lock_guard<std::mutex> lock(stats_mutex_);
+      for (size_t i = 0; i < thread_stats_.size(); i++) {
+        stats.committed_txns += thread_stats_[i].committed;
+        stats.aborted_txns += thread_stats_[i].aborted;
+        for (const auto &r : thread_stats_[i].records)
+          latencies.push_back(r.end_time_us - r.start_time_us);
+      }
     }
 
     stats.total_txns = stats.committed_txns + stats.aborted_txns;
@@ -505,13 +509,12 @@ private:
   struct ThreadStats {
     std::vector<TxnRecord> records;
     uint64_t committed = 0, aborted = 0;
-    std::unique_ptr<std::mutex> mutex; // Protect records from callback threads
-
-    ThreadStats() : mutex(std::make_unique<std::mutex>()) {}
+    // Removed per-thread mutex - now using shared stats_mutex_
   };
   std::vector<ThreadStats> thread_stats_;
   uint64_t start_time_us_ = 0, end_time_us_ = 0;
   std::mutex gen_mutex_;
+  std::mutex stats_mutex_; // Shared mutex for all thread stats (fixes double-lock bug)
 
   // Async dispatch tracking
   std::atomic<uint64_t> dispatched_txns_{0};
@@ -629,9 +632,9 @@ private:
                            bool committed) {
     uint64_t end = GetTimestampUs();
 
-    // Record stats
+    // Record stats (using shared mutex to prevent double-lock bug)
     {
-      std::lock_guard<std::mutex> lock(*thread_stats_[in_flight->tid].mutex);
+      std::lock_guard<std::mutex> lock(stats_mutex_);
       TxnRecord record;
       record.txn_id = in_flight->txn_id;
       record.start_time_us = in_flight->start_time_us;
@@ -673,7 +676,9 @@ static void print_usage(const char *prog) {
        << "  -f FILE   Config file (required)\n"
        << "  -b TYPE   Benchmark: micro, micro_single, tpcc (default: micro)\n"
        << "  -t N      Worker threads (default: 1)\n"
-       << "  -d SEC    Duration (default: 30)\n";
+       << "  -d SEC    Duration (default: 30)\n"
+       << "  -w MS     OWD default in milliseconds (default: 50)\n"
+       << "  -x MS     OWD headroom in milliseconds (default: 10)\n";
 }
 
 int main(int argc, char **argv) {
@@ -683,9 +688,11 @@ int main(int argc, char **argv) {
   string benchmark_type = "micro";
   int num_threads = 1;
   int duration_sec = 30;
+  uint64_t owd_default_ms = 50;
+  uint64_t owd_headroom_ms = 10;
 
   int opt;
-  while ((opt = getopt(argc, argv, "f:P:b:t:d:h")) != -1) {
+  while ((opt = getopt(argc, argv, "f:P:b:t:d:w:x:h")) != -1) {
     switch (opt) {
     case 'f':
     case 'P':
@@ -698,6 +705,12 @@ int main(int argc, char **argv) {
       break;
     case 'd':
       duration_sec = atoi(optarg);
+      break;
+    case 'w':
+      owd_default_ms = atoi(optarg);
+      break;
+    case 'x':
+      owd_headroom_ms = atoi(optarg);
       break;
     case 'h':
       print_usage(argv[0]);
@@ -730,6 +743,8 @@ int main(int argc, char **argv) {
   coord_config.num_shards = num_shards;
   coord_config.num_threads = num_threads;
   coord_config.duration_sec = duration_sec;
+  coord_config.owd_default_ms = owd_default_ms;
+  coord_config.owd_headroom_ms = owd_headroom_ms;
   coord_config.gen_config.shard_num = num_shards;
   coord_config.gen_config.key_num = 100000;
   coord_config.gen_config.read_ratio = 0.5;
