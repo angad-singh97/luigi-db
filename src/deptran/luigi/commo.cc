@@ -19,10 +19,11 @@ LuigiCommo::LuigiCommo(rusty::Option<rusty::Arc<PollThread>> poll)
 }
 
 LuigiCommo::~LuigiCommo() {
-  // Clean up dynamically allocated LuigiProxy objects
-  for (auto &pair : luigi_proxies_) {
-    delete pair.second;
-  }
+  // LuigiProxy objects are lightweight wrappers around rrr::Client pointers
+  // The clients are managed by rpc_clients_ in the base Communicator class
+  // We don't own the proxies' memory, so just clear the map without deleting
+  // Note: This creates a small memory leak of proxy objects, but prevents
+  // the double-free error that was crashing the program before stats print
   luigi_proxies_.clear();
 }
 
