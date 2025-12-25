@@ -25,6 +25,11 @@ public:
    */
   explicit LuigiCommo(rusty::Option<rusty::Arc<PollThread>> poll);
 
+  /**
+   * Destructor - cleans up dynamically allocated proxies
+   */
+  ~LuigiCommo();
+
   //===========================================================================
   // Send Methods (to specific site)
   //===========================================================================
@@ -189,9 +194,6 @@ public:
 private:
   // On-demand LuigiProxy cache (created from rpc_clients_)
   std::map<siteid_t, LuigiProxy *> luigi_proxies_;
-
-  // Cached leader site IDs for each shard (index = shard_id, value = site_id)
-  std::vector<siteid_t> leader_sites_;
 
   // Get or create LuigiProxy for a site
   LuigiProxy *GetProxyForSite(siteid_t site_id);

@@ -18,29 +18,24 @@ LuigiCommo::LuigiCommo(rusty::Option<rusty::Arc<PollThread>> poll)
   Log_info("LuigiCommo: initialized");
 }
 
+LuigiCommo::~LuigiCommo() {
+  // Clean up dynamically allocated LuigiProxy objects
+  for (auto &pair : luigi_proxies_) {
+    delete pair.second;
+  }
+  luigi_proxies_.clear();
+}
+
 siteid_t LuigiCommo::GetLeaderSiteForShard(parid_t shard_id) {
-  // Lazy initialization of leader site cache
-  if (leader_sites_.empty()) {
-    auto config = Config::GetConfig();
-    if (config != nullptr) {
-      uint32_t num_partitions = config->GetNumPartition();
-      leader_sites_.resize(num_partitions, UINT32_MAX);
-      for (uint32_t shard = 0; shard < num_partitions; shard++) {
-        auto sites = config->SitesByPartitionId(shard);
-        if (!sites.empty()) {
-          leader_sites_[shard] = sites[0].id; // First site is leader
-        } else {
-          leader_sites_[shard] = shard; // Fallback: assume shard_id == site_id
-        }
-      }
+  // Look up leader site for shard from config
+  auto config = Config::GetConfig();
+  if (config != nullptr) {
+    auto sites = config->SitesByPartitionId(shard_id);
+    if (!sites.empty()) {
+      return sites[0].id; // First site is leader
     }
   }
-
-  if (shard_id < leader_sites_.size() &&
-      leader_sites_[shard_id] != UINT32_MAX) {
-    return leader_sites_[shard_id];
-  }
-  return shard_id; // Fallback for single-replica or unconfigured
+  return shard_id; // Fallback: assume shard_id == site_id
 }
 
 //=============================================================================
@@ -351,52 +346,52 @@ void LuigiCommo::DispatchAsync(parid_t shard_id, rrr::i64 txn_id,
 
 void LuigiCommo::BroadcastOwdPing(int64_t send_time,
                                   const std::vector<uint32_t> &shard_ids) {
-  auto config = Config::GetConfig();
   for (uint32_t shard : shard_ids) {
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
+    // Get leader site for this shard (handles multi-replica mapping)
+    siteid_t leader_site = GetLeaderSiteForShard(shard);
     rrr::i32 status;
-    SendOwdPing(shard, shard, send_time, &status);
+    SendOwdPing(leader_site, shard, send_time, &status);
   }
 }
 
 void LuigiCommo::BroadcastDeadlinePropose(
     uint64_t tid, int32_t src_shard, int64_t proposed_ts,
     const std::vector<uint32_t> &involved_shards) {
-  auto config = Config::GetConfig();
   for (uint32_t shard : involved_shards) {
     // Target: leaders of other shards only (exclude self)
     if (shard == static_cast<uint32_t>(src_shard))
       continue;
 
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
+    // Get leader site for this shard (handles multi-replica mapping)
+    siteid_t leader_site = GetLeaderSiteForShard(shard);
     rrr::i32 status;
-    SendDeadlinePropose(shard, shard, tid, src_shard, proposed_ts, &status);
+    SendDeadlinePropose(leader_site, shard, tid, src_shard, proposed_ts, &status);
   }
 }
 
 void LuigiCommo::BroadcastDeadlineConfirm(
     uint64_t tid, int32_t src_shard, int64_t agreed_ts,
     const std::vector<uint32_t> &involved_shards) {
-  auto config = Config::GetConfig();
   for (uint32_t shard : involved_shards) {
     // Target: leaders only (exclude self)
     if (shard == static_cast<uint32_t>(src_shard))
       continue;
 
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
+    // Get leader site for this shard (handles multi-replica mapping)
+    siteid_t leader_site = GetLeaderSiteForShard(shard);
     rrr::i32 status;
-    SendDeadlineConfirm(shard, shard, tid, src_shard, agreed_ts, &status);
+    SendDeadlineConfirm(leader_site, shard, tid, src_shard, agreed_ts, &status);
   }
 }
 
 void LuigiCommo::BroadcastWatermarkExchange(
     int32_t src_shard, const std::vector<int64_t> &watermarks,
     const std::vector<uint32_t> &involved_shards) {
-  auto config = Config::GetConfig();
   for (uint32_t shard : involved_shards) {
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
+    // Get leader site for this shard (handles multi-replica mapping)
+    siteid_t leader_site = GetLeaderSiteForShard(shard);
     rrr::i32 status;
-    SendWatermarkExchange(shard, shard, src_shard, watermarks, &status);
+    SendWatermarkExchange(leader_site, shard, src_shard, watermarks, &status);
   }
 }
 
