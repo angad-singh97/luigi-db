@@ -1,6 +1,6 @@
 #!/bin/bash
-# Wrapper script for 1shard-3replica microbenchmark with network latency and OWD/headroom
-# Usage: ./run_micro_1shard_3replicas_latency.sh <duration> <threads> <owd_ms> <headroom_ms> <netem_delay_ms> <netem_jitter_ms>
+# Wrapper script for 1shard-1replica microbenchmark with network latency and OWD/headroom
+# Usage: ./run_micro_1shard_1replica_latency.sh <duration> <threads> <owd_ms> <headroom_ms> <netem_delay_ms> <netem_jitter_ms>
 
 set -e
 
@@ -13,7 +13,7 @@ pkill -9 luigi_coordinator 2>/dev/null || true
 sudo tc qdisc del dev lo root 2>/dev/null || true
 sleep 1
 
-CONFIG="src/deptran/luigi/test/configs/1shard-3replicas.yml"
+CONFIG="src/deptran/luigi/test/configs/1shard-1replica.yml"
 DURATION="${1:-30}"
 THREADS="${2:-1}"
 OWD="${3:-5}"
@@ -21,7 +21,7 @@ HEADROOM="${4:-2}"
 NETEM_DELAY="${5:-0}"
 NETEM_JITTER="${6:-0}"
 
-echo "=== 1-Shard 3-Replica Microbenchmark ==="
+echo "=== 1-Shard 1-Replica Microbenchmark ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
@@ -30,25 +30,13 @@ echo "Headroom: ${HEADROOM}ms"
 echo "Network: ${NETEM_DELAY}ms ± ${NETEM_JITTER}ms"
 echo ""
 
-# Start all replicas quickly to ensure all are listening before any try to connect
-echo "Starting replica 0 (s101:31850) - leader..."
+# Start single replica (s101)
+echo "Starting replica (s101:31850)..."
 ./build/luigi_server -f "$CONFIG" -P s101 > s101_micro.log 2>&1 &
 S0_PID=$!
+sleep 3
 
-echo "Starting replica 1 (s102:31851) - follower..."
-./build/luigi_server -f "$CONFIG" -P s102 > s102_micro.log 2>&1 &
-S1_PID=$!
-
-echo "Starting replica 2 (s103:31852) - follower..."
-./build/luigi_server -f "$CONFIG" -P s103 > s103_micro.log 2>&1 &
-S2_PID=$!
-
-# Wait for all servers to start listening before they try to connect to each other
-# Each server waits 500ms before connecting, so we need to wait longer
-echo "Waiting for all servers to start listening..."
-sleep 5
-
-# Apply network latency AFTER servers are up (if specified)
+# Apply network latency AFTER server is up (if specified)
 if [ "$NETEM_DELAY" -gt 0 ]; then
   echo "Applying network latency: ${NETEM_DELAY}ms ± ${NETEM_JITTER}ms (pareto)..."
   sudo tc qdisc add dev lo root netem delay ${NETEM_DELAY}ms ${NETEM_JITTER}ms distribution pareto
@@ -64,7 +52,7 @@ echo "Running microbenchmark..."
 echo ""
 echo "Cleaning up..."
 sudo tc qdisc del dev lo root 2>/dev/null || true
-kill $S0_PID $S1_PID $S2_PID 2>/dev/null || true
+kill $S0_PID 2>/dev/null || true
 pkill -9 luigi_server 2>/dev/null || true
 
 echo "Done!"

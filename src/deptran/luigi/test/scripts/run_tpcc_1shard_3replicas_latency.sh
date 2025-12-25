@@ -1,6 +1,6 @@
 #!/bin/bash
-# Wrapper script for 1shard-3replica microbenchmark with network latency and OWD/headroom
-# Usage: ./run_micro_1shard_3replicas_latency.sh <duration> <threads> <owd_ms> <headroom_ms> <netem_delay_ms> <netem_jitter_ms>
+# Wrapper script for 1shard-3replica TPCC benchmark with network latency and OWD/headroom
+# Usage: ./run_tpcc_1shard_3replicas_latency.sh <duration> <threads> <owd_ms> <headroom_ms> <netem_delay_ms> <netem_jitter_ms>
 
 set -e
 
@@ -21,7 +21,7 @@ HEADROOM="${4:-2}"
 NETEM_DELAY="${5:-0}"
 NETEM_JITTER="${6:-0}"
 
-echo "=== 1-Shard 3-Replica Microbenchmark ==="
+echo "=== 1-Shard 3-Replica TPC-C Benchmark ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
@@ -30,23 +30,26 @@ echo "Headroom: ${HEADROOM}ms"
 echo "Network: ${NETEM_DELAY}ms ± ${NETEM_JITTER}ms"
 echo ""
 
-# Start all replicas quickly to ensure all are listening before any try to connect
+# Start replica 0 (s101) - leader
 echo "Starting replica 0 (s101:31850) - leader..."
-./build/luigi_server -f "$CONFIG" -P s101 > s101_micro.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
 S0_PID=$!
+sleep 2
 
+# Start replica 1 (s102) - follower
 echo "Starting replica 1 (s102:31851) - follower..."
-./build/luigi_server -f "$CONFIG" -P s102 > s102_micro.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s102 > s102_tpcc.log 2>&1 &
 S1_PID=$!
+sleep 2
 
+# Start replica 2 (s103) - follower
 echo "Starting replica 2 (s103:31852) - follower..."
-./build/luigi_server -f "$CONFIG" -P s103 > s103_micro.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s103 > s103_tpcc.log 2>&1 &
 S2_PID=$!
 
-# Wait for all servers to start listening before they try to connect to each other
-# Each server waits 500ms before connecting, so we need to wait longer
+# Wait for all servers to start listening
 echo "Waiting for all servers to start listening..."
-sleep 5
+sleep 3
 
 # Apply network latency AFTER servers are up (if specified)
 if [ "$NETEM_DELAY" -gt 0 ]; then
@@ -55,10 +58,10 @@ if [ "$NETEM_DELAY" -gt 0 ]; then
   tc qdisc show dev lo
 fi
 
-# Run coordinator with micro benchmark and OWD/headroom params
+# Run coordinator with TPCC benchmark and OWD/headroom params
 echo ""
-echo "Running microbenchmark..."
-./build/luigi_coordinator -f "$CONFIG" -b micro -d "$DURATION" -t "$THREADS" -w "$OWD" -x "$HEADROOM" 2>&1 | tee coord_micro.log
+echo "Running TPCC benchmark..."
+./build/luigi_coordinator -f "$CONFIG" -b tpcc -d "$DURATION" -t "$THREADS" -w "$OWD" -x "$HEADROOM" 2>&1 | tee coord_tpcc.log
 
 # Cleanup
 echo ""

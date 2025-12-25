@@ -21,23 +21,23 @@ echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
 echo ""
 
-# Start replica 0 (s101) - leader
+# Start all replicas quickly to ensure all are listening before any try to connect
 echo "Starting replica 0 (s101:31850) - leader..."
 ./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
 S0_PID=$!
-sleep 2
 
-# Start replica 1 (s102) - follower
 echo "Starting replica 1 (s102:31851) - follower..."
 ./build/luigi_server -f "$CONFIG" -P s102 > s102_tpcc.log 2>&1 &
 S1_PID=$!
-sleep 2
 
-# Start replica 2 (s103) - follower
 echo "Starting replica 2 (s103:31852) - follower..."
 ./build/luigi_server -f "$CONFIG" -P s103 > s103_tpcc.log 2>&1 &
 S2_PID=$!
-sleep 3
+
+# Wait for all servers to start listening before they try to connect to each other
+# Each server waits 500ms before connecting, so we need to wait longer
+echo "Waiting for all servers to start listening..."
+sleep 5
 
 # Run coordinator with TPCC benchmark
 echo "Running TPCC benchmark..."
