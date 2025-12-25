@@ -190,8 +190,14 @@ private:
   // On-demand LuigiProxy cache (created from rpc_clients_)
   std::map<siteid_t, LuigiProxy *> luigi_proxies_;
 
+  // Cached leader site IDs for each shard (index = shard_id, value = site_id)
+  std::vector<siteid_t> leader_sites_;
+
   // Get or create LuigiProxy for a site
   LuigiProxy *GetProxyForSite(siteid_t site_id);
+
+  // Get leader site ID for a shard (handles multi-replica mapping)
+  siteid_t GetLeaderSiteForShard(parid_t shard_id);
 };
 
 } // namespace janus

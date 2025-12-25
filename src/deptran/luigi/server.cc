@@ -74,26 +74,32 @@ void LuigiServer::ConnectAndStart() {
   std::vector<uint32_t> follower_sites;
   auto all_sites = config->SitesByPartitionId(partition_id_);
 
+  // Get our own site info to exclude it from followers
+  auto my_sites = config->GetMyServers();
+  uint32_t my_site_id = my_sites.empty() ? UINT32_MAX : my_sites[0].id;
+
   for (auto &site : all_sites) {
-    // Skip self (first site is assumed to be leader)
-    if (site.id != static_cast<uint32_t>(partition_id_)) {
+    // Skip self - compare with our actual site ID, not partition_id
+    if (site.id != my_site_id) {
       follower_sites.push_back(site.id);
-      Log_info("Luigi server shard %d: detected follower site %d",
-               partition_id_, site.id);
+      Log_info("Luigi server shard %d: detected follower site %u (my_site=%u)",
+               partition_id_, site.id, my_site_id);
     }
   }
 
   if (!follower_sites.empty()) {
     scheduler_->SetFollowerSites(follower_sites);
-    Log_info("Luigi server shard %d: multi-replica mode with %zu followers",
-             partition_id_, follower_sites.size());
+    Log_info("Luigi server shard %d: multi-replica mode with %zu followers "
+             "(%zu total replicas)",
+             partition_id_, follower_sites.size(), follower_sites.size() + 1);
+  } else {
+    Log_info("Luigi server shard %d: single-replica mode", partition_id_);
   }
 
   // Start scheduler threads (which may broadcast watermarks etc)
   scheduler_->Start();
 
-  Log_info("Luigi server ready for shard %d with %zu replicas", partition_id_,
-           follower_sites.size() + 1);
+  Log_info("Luigi server ready for shard %d", partition_id_);
 }
 
 void LuigiServer::Stop() {

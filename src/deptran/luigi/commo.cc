@@ -15,7 +15,32 @@ namespace janus {
 LuigiCommo::LuigiCommo(rusty::Option<rusty::Arc<PollThread>> poll)
     : Communicator(poll) {
   // Base Communicator constructor handles connecting to all sites
-  Log_info("LuigiCommo: initialized with base Communicator connections");
+  Log_info("LuigiCommo: initialized");
+}
+
+siteid_t LuigiCommo::GetLeaderSiteForShard(parid_t shard_id) {
+  // Lazy initialization of leader site cache
+  if (leader_sites_.empty()) {
+    auto config = Config::GetConfig();
+    if (config != nullptr) {
+      uint32_t num_partitions = config->GetNumPartition();
+      leader_sites_.resize(num_partitions, UINT32_MAX);
+      for (uint32_t shard = 0; shard < num_partitions; shard++) {
+        auto sites = config->SitesByPartitionId(shard);
+        if (!sites.empty()) {
+          leader_sites_[shard] = sites[0].id; // First site is leader
+        } else {
+          leader_sites_[shard] = shard; // Fallback: assume shard_id == site_id
+        }
+      }
+    }
+  }
+
+  if (shard_id < leader_sites_.size() &&
+      leader_sites_[shard_id] != UINT32_MAX) {
+    return leader_sites_[shard_id];
+  }
+  return shard_id; // Fallback for single-replica or unconfigured
 }
 
 //=============================================================================
@@ -178,8 +203,8 @@ shared_ptr<IntEvent> LuigiCommo::SendWatermarkExchange(
 
 bool LuigiCommo::OwdPingSync(parid_t shard_id, rrr::i64 send_time,
                              rrr::i32 *status) {
-  // In Luigi, shard_id maps directly to site_id (one leader per shard)
-  auto proxy = GetProxyForSite(shard_id);
+  // Get leader site for this shard (handles multi-replica mapping)
+  auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard_id));
 
   if (!proxy) {
     Log_warn("OwdPingSync: no proxy for leader of shard %d", shard_id);
@@ -207,8 +232,8 @@ bool LuigiCommo::OwdPingSync(parid_t shard_id, rrr::i64 send_time,
 
 void LuigiCommo::OwdPingAsync(parid_t shard_id, rrr::i64 send_time,
                               OwdPingCallback callback) {
-  // In Luigi, shard_id maps directly to site_id (one leader per shard)
-  auto proxy = GetProxyForSite(shard_id);
+  // Get leader site for this shard (handles multi-replica mapping)
+  auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard_id));
 
   if (!proxy) {
     Log_warn("OwdPingAsync: no proxy for leader of shard %d", shard_id);
@@ -240,8 +265,8 @@ bool LuigiCommo::DispatchSync(parid_t shard_id, rrr::i64 txn_id,
                               const std::string &ops_data, rrr::i32 *status,
                               rrr::i64 *commit_timestamp,
                               std::string *results_data) {
-  // In Luigi, shard_id maps directly to site_id (one leader per shard)
-  auto proxy = GetProxyForSite(shard_id);
+  // Get leader site for this shard (handles multi-replica mapping)
+  auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard_id));
 
   if (!proxy) {
     Log_warn("DispatchSync: no proxy for leader of shard %d", shard_id);
@@ -284,8 +309,8 @@ void LuigiCommo::DispatchAsync(parid_t shard_id, rrr::i64 txn_id,
                                const std::vector<rrr::i32> &involved_shards,
                                const std::string &ops_data,
                                DispatchCallback callback) {
-  // In Luigi, shard_id maps directly to site_id (one leader per shard)
-  auto proxy = GetProxyForSite(shard_id);
+  // Get leader site for this shard (handles multi-replica mapping)
+  auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard_id));
 
   if (!proxy) {
     Log_warn("DispatchAsync: no proxy for leader of shard %d", shard_id);
@@ -377,19 +402,15 @@ void LuigiCommo::BroadcastWatermarkExchange(
 
 void LuigiCommo::BroadcastWatermarks(int32_t src_shard,
                                      const std::vector<int64_t> &watermarks) {
-  // Send watermarks to coordinator for commit decision
-  // TODO: Get coordinator site ID from config
-  // For now, assume coordinator is at a special site ID or we broadcast to all
-  // In multi-process mode, coordinator process will receive these
-
+  // Send watermarks to leaders of all other shards
   auto config = Config::GetConfig();
-  // Simplified: Send to all sites (coordinator will be among them)
-  // In production, we'd have a dedicated coordinator site ID
   uint32_t num_partitions = config->GetNumPartition();
   for (uint32_t shard = 0; shard < num_partitions; ++shard) {
     if (shard != static_cast<uint32_t>(src_shard)) {
       rrr::i32 status;
-      SendWatermarkExchange(shard, shard, src_shard, watermarks, &status);
+      // Use GetLeaderSiteForShard to get correct leader site_id
+      siteid_t leader_site = GetLeaderSiteForShard(shard);
+      SendWatermarkExchange(leader_site, shard, src_shard, watermarks, &status);
     }
   }
 
@@ -411,13 +432,12 @@ void LuigiCommo::BroadcastDeadlineBatchPropose(
     // Target: leaders of other shards only (exclude self)
     if (shard == static_cast<uint32_t>(src_shard))
       continue;
-
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
-    auto proxy = GetProxyForSite(shard);
+    // Get leader site for this shard (handles multi-replica mapping)
+    auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard));
 
     if (!proxy) {
       Log_warn(
-          "LuigiCommo::BroadcastDeadlineBatchPropose: no proxy for site %d",
+          "LuigiCommo::BroadcastDeadlineBatchPropose: no proxy for shard %d",
           shard);
       continue;
     }
@@ -447,12 +467,12 @@ void LuigiCommo::BroadcastDeadlineBatchConfirm(
     if (shard == static_cast<uint32_t>(src_shard))
       continue;
 
-    // In Luigi, shard_id maps directly to site_id (one leader per shard)
-    auto proxy = GetProxyForSite(shard);
+    // Get leader site for this shard (handles multi-replica mapping)
+    auto proxy = GetProxyForSite(GetLeaderSiteForShard(shard));
 
     if (!proxy) {
       Log_warn(
-          "LuigiCommo::BroadcastDeadlineBatchConfirm: no proxy for site %d",
+          "LuigiCommo::BroadcastDeadlineBatchConfirm: no proxy for shard %d",
           shard);
       continue;
     }
