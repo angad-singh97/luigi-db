@@ -1,0 +1,29 @@
+=== 1-Shard 3-Replica Microbenchmark ===
+Config: src/deptran/luigi/test/configs/1shard-3replicas.yml
+Duration: 10s
+Threads: 1
+OWD: 5ms
+Headroom: 2ms
+Network: 2ms ± 0.5ms
+
+Starting replica 0 (s101:31850) - leader...
+Starting replica 1 (s102:31851) - follower...
+Starting replica 2 (s103:31852) - follower...
+Applying network latency: 2ms ± 0.5ms (pareto)...
+qdisc netem 803e: root refcnt 2 limit 1000 delay 2ms  499us
+
+Running microbenchmark...
+I [/root/cse532/mako/src/deptran/config.cc:272] 2025-12-25 20:54:10.527 | LoadYML: src/deptran/luigi/test/configs/1shard-3replicas.yml
+=== Luigi Coordinator ===
+Shards: 1, Threads: 1, Duration: 10s, Benchmark: micro
+
+I [/root/cse532/mako/src/deptran/communicator.cc:62] 2025-12-25 20:54:10.527 | setup paxos communicator
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-25 20:54:10.533 | connect to site: 127.0.0.1:31850 success!
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-25 20:54:10.541 | connect to site: 127.0.0.1:31851 success!
+I [/root/cse532/mako/src/deptran/communicator.cc:320] 2025-12-25 20:54:10.548 | connect to site: 127.0.0.1:31852 success!
+I [/root/cse532/mako/src/deptran/luigi/commo.cc:18] 2025-12-25 20:54:10.548 | LuigiCommo: initialized
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:176] 2025-12-25 20:54:10.548 | LuigiCoordinator initialized: 1 shards, 1 threads
+I [/root/cse532/mako/src/deptran/luigi/coordinator.cc:186] 2025-12-25 20:54:10.548 | OWD measurement thread started
+
+Cleaning up...
+Done!
