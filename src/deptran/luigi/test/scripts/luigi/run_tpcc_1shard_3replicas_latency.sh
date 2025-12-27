@@ -20,11 +20,14 @@ OWD="${3:-5}"
 HEADROOM="${4:-2}"
 NETEM_DELAY="${5:-0}"
 NETEM_JITTER="${6:-0}"
+NUM_SHARDS=1
+NUM_WAREHOUSES=$((THREADS * NUM_SHARDS))  # Scale warehouses with threads (like Mako)
 
 echo "=== 1-Shard 3-Replica TPC-C Benchmark ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
+echo "Warehouses: ${NUM_WAREHOUSES}"
 echo "OWD: ${OWD}ms"
 echo "Headroom: ${HEADROOM}ms"
 echo "Network: ${NETEM_DELAY}ms ± ${NETEM_JITTER}ms"
@@ -32,19 +35,19 @@ echo ""
 
 # Start replica 0 (s101) - leader
 echo "Starting replica 0 (s101:31850) - leader..."
-./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s101 -b tpcc -w "$NUM_WAREHOUSES" > s101_tpcc.log 2>&1 &
 S0_PID=$!
 sleep 2
 
 # Start replica 1 (s102) - follower
 echo "Starting replica 1 (s102:31851) - follower..."
-./build/luigi_server -f "$CONFIG" -P s102 > s102_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s102 -b tpcc -w "$NUM_WAREHOUSES" > s102_tpcc.log 2>&1 &
 S1_PID=$!
 sleep 2
 
 # Start replica 2 (s103) - follower
 echo "Starting replica 2 (s103:31852) - follower..."
-./build/luigi_server -f "$CONFIG" -P s103 > s103_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s103 -b tpcc -w "$NUM_WAREHOUSES" > s103_tpcc.log 2>&1 &
 S2_PID=$!
 
 # Wait for all servers to start listening

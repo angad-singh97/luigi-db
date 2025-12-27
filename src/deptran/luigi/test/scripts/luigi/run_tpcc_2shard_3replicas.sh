@@ -14,44 +14,47 @@ sleep 1
 CONFIG="src/deptran/luigi/test/configs/2shard-3replicas.yml"
 DURATION="${1:-10}"
 THREADS="${2:-1}"
+NUM_SHARDS=2
+NUM_WAREHOUSES=$((THREADS * NUM_SHARDS))  # Scale warehouses with threads (like Mako)
 
 echo "=== Starting 2-Shard TPCC with 3 Replicas per Shard ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
+echo "Warehouses: ${NUM_WAREHOUSES} (${THREADS} per shard)"
 echo ""
 
 # Start Shard 0 replicas
 echo "Starting Shard 0 replicas..."
 echo "  Starting replica 0 (s101:31850) - leader..."
-./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s101 -b tpcc -w "$NUM_WAREHOUSES" > s101_tpcc.log 2>&1 &
 S101_PID=$!
 sleep 2
 
 echo "  Starting replica 1 (s102:31851) - follower..."
-./build/luigi_server -f "$CONFIG" -P s102 > s102_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s102 -b tpcc -w "$NUM_WAREHOUSES" > s102_tpcc.log 2>&1 &
 S102_PID=$!
 sleep 2
 
 echo "  Starting replica 2 (s103:31852) - follower..."
-./build/luigi_server -f "$CONFIG" -P s103 > s103_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s103 -b tpcc -w "$NUM_WAREHOUSES" > s103_tpcc.log 2>&1 &
 S103_PID=$!
 sleep 2
 
 # Start Shard 1 replicas
 echo "Starting Shard 1 replicas..."
 echo "  Starting replica 0 (s201:31853) - leader..."
-./build/luigi_server -f "$CONFIG" -P s201 > s201_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s201 -b tpcc -w "$NUM_WAREHOUSES" > s201_tpcc.log 2>&1 &
 S201_PID=$!
 sleep 2
 
 echo "  Starting replica 1 (s202:31854) - follower..."
-./build/luigi_server -f "$CONFIG" -P s202 > s202_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s202 -b tpcc -w "$NUM_WAREHOUSES" > s202_tpcc.log 2>&1 &
 S202_PID=$!
 sleep 2
 
 echo "  Starting replica 2 (s203:31855) - follower..."
-./build/luigi_server -f "$CONFIG" -P s203 > s203_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s203 -b tpcc -w "$NUM_WAREHOUSES" > s203_tpcc.log 2>&1 &
 S203_PID=$!
 sleep 3
 

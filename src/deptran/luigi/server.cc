@@ -17,6 +17,7 @@
 #include "../config.h"
 #include "rrr.hpp"
 
+#include <getopt.h>
 #include <iostream>
 #include <memory>
 #include <signal.h>
@@ -129,13 +130,42 @@ static void signal_handler(int sig) {
 }
 
 static void print_usage(const char *prog) {
-  cerr << "Usage: " << prog << " -f config.yml -P process_name\n";
+  cerr << "Usage: " << prog << " -f config.yml -P process_name [options]\n"
+       << "  -f FILE   Config file (required)\n"
+       << "  -P NAME   Process name (required)\n"
+       << "  -b TYPE   Benchmark type: micro, tpcc (default: micro)\n"
+       << "  -w N      Number of warehouses for TPC-C (default: num_shards)\n";
 }
 
 int main(int argc, char **argv) {
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 
+  // Parse command-line options
+  string benchmark_type = "micro";
+  int num_warehouses = 0; // 0 means auto-detect from num_shards
+
+  int opt;
+  while ((opt = getopt(argc, argv, "f:P:b:w:h")) != -1) {
+    switch (opt) {
+    case 'f':
+    case 'P':
+      break; // Handled by Config::CreateConfig
+    case 'b':
+      benchmark_type = optarg;
+      break;
+    case 'w':
+      num_warehouses = atoi(optarg);
+      break;
+    case 'h':
+      print_usage(argv[0]);
+      return 0;
+    default:
+      break;
+    }
+  }
+
+  optind = 1; // Reset for Config::CreateConfig
   int ret = Config::CreateConfig(argc, argv);
   if (ret != 0) {
     cerr << "Error: Failed to parse config\n";
@@ -152,9 +182,17 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  int num_shards = config->GetNumPartition();
+
+  // Default warehouses to num_shards if not specified
+  if (num_warehouses <= 0) {
+    num_warehouses = num_shards;
+  }
+
   cout << "=== Luigi Server ===\n"
        << "Process: " << config->proc_name_ << ", Sites: " << my_sites.size()
-       << "\n";
+       << ", Benchmark: " << benchmark_type
+       << ", Warehouses: " << num_warehouses << "\n";
 
   // Phase 1: Create servers and start listeners (no connections yet)
   for (auto &site : my_sites) {
@@ -163,9 +201,16 @@ int main(int argc, char **argv) {
 
     auto server = make_unique<LuigiServer>(site.partition_id_);
 
-    int num_shards = config->GetNumPartition();
-    auto state_machine = make_shared<LuigiMicroStateMachine>(site.partition_id_,
-                                                             0, num_shards, 1);
+    shared_ptr<LuigiStateMachine> state_machine;
+    if (benchmark_type == "tpcc") {
+      auto tpcc_sm = make_shared<LuigiTPCCStateMachine>(
+          site.partition_id_, 0, num_shards, 1);
+      tpcc_sm->SetConfig(num_warehouses, 10, 3000, 100000); // warehouses, districts, customers, items
+      state_machine = tpcc_sm;
+    } else {
+      state_machine = make_shared<LuigiMicroStateMachine>(
+          site.partition_id_, 0, num_shards, 1);
+    }
     state_machine->InitializeTables();
     server->SetStateMachine(state_machine);
 

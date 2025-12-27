@@ -14,16 +14,19 @@ sleep 1
 CONFIG="src/deptran/luigi/test/configs/1shard-1replica.yml"
 DURATION="${1:-10}"
 THREADS="${2:-1}"
+NUM_SHARDS=1
+NUM_WAREHOUSES=$((THREADS * NUM_SHARDS))  # Scale warehouses with threads (like Mako)
 
 echo "=== Starting Single-Shard TPCC with 1 Replica (No Replication) ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
+echo "Warehouses: ${NUM_WAREHOUSES}"
 echo ""
 
 # Start single replica (s101)
 echo "Starting replica (s101:31850)..."
-./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s101 -b tpcc -w "$NUM_WAREHOUSES" > s101_tpcc.log 2>&1 &
 S0_PID=$!
 sleep 3
 

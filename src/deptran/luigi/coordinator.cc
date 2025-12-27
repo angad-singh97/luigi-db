@@ -819,7 +819,7 @@ int main(int argc, char **argv) {
   coord_config.gen_config.read_ratio = 0.5;
   coord_config.gen_config.ops_per_txn = 10;
   coord_config.gen_config.num_warehouses =
-      num_shards; // Enable cross-shard logic
+      num_threads * num_shards; // Scale warehouses with threads (like Mako)
   coord_config.gen_config.remote_item_pct = remote_item_pct;
 
   LuigiCoordinator coordinator(coord_config);

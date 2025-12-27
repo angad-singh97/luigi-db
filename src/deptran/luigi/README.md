@@ -82,15 +82,13 @@ Luigi's microbenchmark generates transactions with 10 operations each (50% read 
 
 2.  **Sharding Overhead**: 2-shard configurations show lower throughput than 1-shard due to cross-shard coordination (timestamp agreement between shard leaders). With 100% cross-shard transactions, every transaction requires inter-shard communication.
 
-3.  **Thread Scaling**: Throughput scales well with thread count (1→8 threads) across all network conditions. Even in geo-distributed settings (150ms latency), we observe 6-7x throughput improvement from 1 to 8 threads, demonstrating that Luigi effectively utilizes parallelism to hide network latency.
+3.  **Thread Scaling**: Throughput scales well with thread count (1→8 threads) across all network conditions. Even in geo-distributed settings (150ms latency), we observe **6-7x** throughput improvement from 1 to 8 threads, demonstrating that Luigi effectively utilizes parallelism to hide network latency.
 
-4. **Network Sensitivity**: Geo-distributed latency (150ms) reduces throughput by **~70-80%** compared to same-region (2ms), highlighting the critical importance of network latency in distributed databases.
-
-5. **2-WRTT Latency Bound**: Luigi's design guarantees commit latency of at most 2 Wide-Area Round Trip Times (2-WRTT) for the full sharded and replicated setup. Experimental results validate this: the 2-shard, 3-replica configuration with geo-distributed network (150ms one-way delay + 20ms jitter) shows average latencies of 452-552ms across different thread counts. This is **better than** the theoretical worst-case bound of 2 × (2 × 170ms) = 680ms, demonstrating Luigi's efficient coordination. This predictable latency bound is a key advantage over OCC systems with unbounded retry costs.
+4. **2-WRTT Latency Bound**: Luigi's design guarantees commit latency of at most 2 Wide-Area Round Trip Times (2-WRTT) for the full sharded and replicated setup. Experimental results validate this: the 2-shard, 3-replica configuration with geo-distributed network (150ms one-way delay + 20ms jitter) shows average latencies of 452-552ms across different thread counts. This is **better than** the theoretical worst-case bound of 2 × (2 × 170ms) = 680ms, demonstrating Luigi's efficient coordination. This predictable latency bound is a key advantage over OCC systems with unbounded retry costs.
 
 ### 4.2 ⚔️ Luigi vs Mako: TPC-C Performance Comparison
 
-TPC-C is a standard OLTP benchmark simulating a wholesale supplier workload. We configured it with 2 warehouses (1 per shard in 2-shard setups) and default transaction mix (45% NewOrder, 43% Payment, 12% others).
+TPC-C is a standard OLTP benchmark simulating a wholesale supplier workload. Both Luigi and Mako are configured with `num_threads × num_shards` warehouses (e.g., 8 threads × 2 shards = 16 warehouses), matching Mako's warehouse-per-thread scaling approach. Default transaction mix: 45% NewOrder, 43% Payment, 12% others.
 
 > **Note:** All values show **throughput** (transactions per second) and **average latency** (milliseconds, in italics)
 

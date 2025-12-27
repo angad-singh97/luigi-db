@@ -20,11 +20,14 @@ OWD="${3:-5}"
 HEADROOM="${4:-2}"
 NETEM_DELAY="${5:-0}"
 NETEM_JITTER="${6:-0}"
+NUM_SHARDS=2
+NUM_WAREHOUSES=$((THREADS * NUM_SHARDS))  # Scale warehouses with threads (like Mako)
 
 echo "=== 2-Shard 1-Replica TPC-C Benchmark ==="
 echo "Config: $CONFIG"
 echo "Duration: ${DURATION}s"
 echo "Threads: ${THREADS}"
+echo "Warehouses: ${NUM_WAREHOUSES} (${THREADS} per shard)"
 echo "OWD: ${OWD}ms"
 echo "Headroom: ${HEADROOM}ms"
 echo "Network: ${NETEM_DELAY}ms ± ${NETEM_JITTER}ms"
@@ -32,13 +35,13 @@ echo ""
 
 # Start Shard 0 replica (s101)
 echo "Starting Shard 0 replica (s101:31850)..."
-./build/luigi_server -f "$CONFIG" -P s101 > s101_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s101 -b tpcc -w "$NUM_WAREHOUSES" > s101_tpcc.log 2>&1 &
 S0_PID=$!
 sleep 2
 
 # Start Shard 1 replica (s201)
 echo "Starting Shard 1 replica (s201:31853)..."
-./build/luigi_server -f "$CONFIG" -P s201 > s201_tpcc.log 2>&1 &
+./build/luigi_server -f "$CONFIG" -P s201 -b tpcc -w "$NUM_WAREHOUSES" > s201_tpcc.log 2>&1 &
 S1_PID=$!
 sleep 3
 
