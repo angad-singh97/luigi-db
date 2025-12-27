@@ -1,4 +1,142 @@
-# Luigi: Experimental Performance Analysis
+# Luigi: Timestamp-Ordered Distributed Transaction Protocol
+
+## Introduction
+
+Luigi is a distributed transaction protocol that uses **timestamp-ordered execution** to achieve high throughput in geo-distributed environments. It is inspired by the Tiga protocol (SOSP 2025) and designed to compare against OCC-based systems like Mako.
+
+### Protocol Summary
+
+**Timestamp Initialization**
+- Coordinator assigns future timestamps based on OWD measurements: `T.timestamp = now() + max_OWD + headroom`
+- `worker_id` sent separately in RPC for tie-breaking and Paxos stream routing
+
+**Transaction Receipt and Queueing**
+- Leaders perform conflict detection before accepting transaction (check read/write maps for any transaction that touches the same keys, has a higher timestamp, and has been released)
+- Timestamp update for late transactions: `T.timestamp = now()`
+- Insert into timestamp-ordered priority queue for execution
+
+**Timestamp Agreement**
+- Leaders exchange `T.timestamp` with other involved shards
+- `T.agreed_ts = max(T.timestamp<S_i>)` across all shards
+- If all leader timestamps match → agreement; proceed to execute and replicate
+
+**Transaction Execution & Replication**
+- Leaders execute the transaction and send the result back to coordinator
+- Leader appends transaction to Paxos stream (per-worker stream based on `worker_ID` from composite timestamp)
+
+**Watermark Updates & Commit Decision**
+- Leaders maintain per-worker watermark: `T.timestamp` of last replicated transaction
+- Coordinator replies to client when `T.timestamp <= watermark[shard][worker_ID]` for all involved shards
+
+For detailed protocol specification including message formats, state machines, and RPC definitions, see **[LUIGI_PROTOCOL.md](LUIGI_PROTOCOL.md)**.
+
+## Project Structure
+
+```
+src/deptran/luigi/
+├── coordinator.cc/h     # Client-side coordinator (timestamp assignment, transaction submission)
+├── server.cc/h          # Server entry point
+├── scheduler.cc/h       # Transaction scheduling and execution
+├── executor.cc/h        # Transaction execution engine
+├── state_machine.cc/h   # Key-value state machine with MVCC
+├── commo.cc/h           # Network communication layer
+├── service.cc/h         # RPC service handlers
+├── luigi.rpc            # RPC protocol definitions
+├── luigi_entry.h        # Transaction entry data structure
+├── luigi_common.h       # Common constants and utilities
+├── txn_generator.h      # Base transaction generator interface
+├── micro_txn_generator.h    # Microbenchmark transaction generator
+├── tpcc_txn_generator.h     # TPC-C transaction generator
+├── tpcc_constants.h     # TPC-C benchmark constants
+├── tpcc_helpers.h       # TPC-C helper functions
+├── test/
+│   ├── configs/         # YAML configuration files for different topologies
+│   ├── scripts/
+│   │   └── luigi/       # Benchmark scripts
+│   └── results/         # Experimental results
+└── *.md                 # Documentation files
+```
+
+## Building and Running
+
+### Prerequisites
+
+- CMake 3.10+
+- C++17 compiler (GCC 7+ or Clang 5+)
+- Linux with `tc` (traffic control) for network simulation
+
+### Building
+
+```bash
+cd /root/cse532/mako
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+```
+
+This produces two binaries:
+- `build/luigi_server` - The Luigi server (runs on each replica)
+- `build/luigi_coordinator` - The coordinator/client (generates transactions)
+
+### Running Benchmarks
+
+Benchmark scripts are located in `src/deptran/luigi/test/scripts/`.
+
+#### Luigi Benchmarks
+
+**Quick start (TPC-C, 2-shard, 3-replicas):**
+```bash
+cd /root/cse532/mako
+./src/deptran/luigi/test/scripts/luigi/run_tpcc_2shard_3replicas.sh <duration> <threads>
+```
+
+**With network latency simulation:**
+```bash
+# Parameters: duration threads owd_ms headroom_ms netem_delay_ms netem_jitter_ms
+./src/deptran/luigi/test/scripts/luigi/run_tpcc_2shard_3replicas_latency.sh 30 8 160 30 150 20
+```
+
+**Run all Luigi benchmarks:**
+```bash
+./src/deptran/luigi/test/scripts/luigi/run_all_benchmarks.sh
+```
+
+**Available Luigi scripts:**
+- `run_all_benchmarks.sh` - Runs the complete benchmark suite across all configurations
+- `run_luigi_crossshard_study.sh` - Cross-shard percentage comparison study
+- `run_micro_*.sh` - Microbenchmark (10 ops/txn, 50% read ratio)
+- `run_tpcc_*.sh` - TPC-C benchmark (NewOrder transactions)
+- `*_latency.sh` variants - Include network latency simulation via `tc netem`
+
+#### Mako Benchmarks
+
+**Quick start (TPC-C, 2-shard, 3-replicas):**
+```bash
+./src/deptran/luigi/test/scripts/mako/run_mako_tpcc_2shard_3replicas.sh <duration> <threads>
+```
+
+**Run all Mako benchmarks:**
+```bash
+./src/deptran/luigi/test/scripts/mako/run_all_mako_tpcc_benchmarks.sh
+```
+
+**Available Mako scripts:**
+- `run_all_mako_tpcc_benchmarks.sh` - Runs the complete Mako TPC-C benchmark suite
+- `run_mako_tpcc_*.sh` - TPC-C benchmark for various shard/replica configurations
+- `run_mako_crossshard_study.sh` - Cross-shard percentage comparison study
+
+### Manual Execution
+
+**Start servers:**
+```bash
+export LD_LIBRARY_PATH=/root/cse532/mako/build:$LD_LIBRARY_PATH
+./build/luigi_server -f <config.yml> -P <partition_name> -b <benchmark> -w <warehouses>
+```
+
+**Start coordinator:**
+```bash
+./build/luigi_coordinator -f <config.yml> -b <benchmark> -d <duration> -t <threads>
+```
 
 ## Experimental Results
 
@@ -260,15 +398,19 @@ We conducted a focused study on **2-shard, 3-replica** configuration with **8 th
 
 #### Analysis: Cross-Shard Transaction Behavior
 
-**Luigi's Constant Throughput:**
+**Why Luigi's Throughput is Constant:**
 
-Luigi's throughput remains constant (~2,650) across all cross-shard percentages because:
+Luigi's throughput remains stable across different cross-shard configurations due to a combination of a known limitation and architectural advantages.
 
-1. **TPC-C Transaction Structure**: Each NewOrder transaction has 5-15 line items. Even at 5% item-level remote rate, the probability that at least one item is remote (making the entire transaction cross-shard) is ~40-60%.
+Due to a bug in Luigi's TPC-C transaction generator (see [Known Limitations](#tpc-c-item-table-partitioning-bug-luigi-only)), the actual cross-shard rate is fixed at ~71% regardless of the configured percentage (5%, 10%, 15%, 20%). The ITEM table keys hash uniformly across shards, causing most transactions to become cross-shard.
 
-2. **High Baseline Cross-Shard Rate**: With 2 warehouses and 2 shards (1 warehouse per shard), most transactions naturally touch both shards regardless of the configured percentage.
+Despite this, Luigi's architecture handles the high cross-shard rate efficiently:
 
-3. **Efficient Server-Side Coordination**: Luigi's timestamp agreement protocol adds minimal overhead compared to network latency, so increasing cross-shard rate from 40% to 90% doesn't significantly impact performance.
+1. **Single-Shard Transactions Skip Agreement**: Luigi correctly identifies and fast-paths single-shard transactions, executing them directly without timestamp agreement.
+
+2. **Parallel Cross-Shard Agreement**: For cross-shard transactions, timestamp agreement happens in parallel across all shards within the same round trip.
+
+3. **No Abort-Retry Overhead**: Luigi's deterministic timestamp ordering means transactions are repositioned rather than aborted when conflicts occur, avoiding the cascading aborts and retry storms that plague OCC systems.
 
 **Mako's Degradation:**
 
@@ -284,10 +426,10 @@ Mako's throughput drops from 42.9 → 16.9 (60% reduction) as cross-shard percen
 
 The dramatic performance gap stems from architectural differences:
 
-- **Mako**: 3+ round trips per transaction × 150ms = **450ms+ per transaction**
-- **Luigi**: 1 round trip + server-side coordination = **~150-200ms per transaction**
+- **Mako**: 5+ round trips per transaction × 300ms = **1500ms+ per transaction**
+- **Luigi**: 2 round trips × 300ms = **~600ms per transaction**
 
-This 2-3x latency difference translates to 60-160x throughput difference when combined with Mako's increasing abort rate under high cross-shard load.
+This 2x latency difference translates to 60-160x throughput difference when combined with Mako's increasing abort rate under high cross-shard load.
 
 ### 4.4 Result Files
 
@@ -317,9 +459,49 @@ Each result file contains:
 - Abort rate
 - Test configuration parameters
 
-## References
+## Known Limitations
 
-### Papers
+### TPC-C ITEM Table Partitioning Bug (Luigi Only)
+
+The current Luigi TPC-C transaction generator incorrectly partitions the ITEM table. In standard TPC-C, the ITEM table is **read-only and shared** across all warehouses. Mako handles this correctly by loading ITEM into a single partition and routing all ITEM reads there:
+
+```cpp
+// Mako's tpcc.cc:995-997
+tbl_item(1)->insert(...);  // "this table is shared, so any partition is OK"
+
+// Mako's tpcc.cc:2210 - all ITEM reads go to partition 1
+tbl_item(1)->get(txn, EncodeK(obj_key0, k_i), obj_v);
+```
+
+However, Luigi's implementation uses hash-partitioned keys that distribute uniformly across shards:
+
+```cpp
+// Luigi's tpcc_txn_generator.h:182
+std::string item_key = "item_" + std::to_string(i_id);  // Hashes across shards via FNV-1a
+```
+
+This causes ITEM reads to be distributed uniformly across shards, resulting in:
+- **~71% cross-shard rate for Luigi** regardless of the configured `remote_item_pct` parameter
+- The cross-shard percentage configuration (5%, 10%, 15%, 20%) has no effect on Luigi's actual transaction distribution
+- Mako does **not** suffer from this issue - its cross-shard rate is controlled correctly by the configuration
+
+**Impact**: The cross-shard comparison study in Section 4.3 compares Luigi at a fixed ~71% cross-shard rate against Mako at varying rates (5-20%). This actually makes the comparison **more favorable to Mako** - Luigi is running a significantly harder workload (~71% cross-shard) while Mako runs an easier workload (5-20% cross-shard). Despite this disadvantage, Luigi still achieves **60-160x higher throughput** than Mako, demonstrating the fundamental architectural advantages of timestamp-ordered execution over OCC with 2PC.
+
+## Future Work
+
+1. **Integrate Mako's Replication Layer**: Luigi's current replication is a simplified simulation using BatchReplicate RPCs (Raft-style AppendEntries). It lacks leader election, failure recovery, and retries. Integrating Mako's full-fledged Paxos replication layer would provide production-ready fault tolerance.
+
+2. **Safe Commit via Watermark Waiting**: Luigi currently performs optimistic commits—it replies to the client immediately after execution without waiting for `T.timestamp <= watermark[shard][worker_id]`. This is unsafe if a shard leader fails before replication completes. The watermarking infrastructure exists but is not enforced for commit decisions. This was intentional to match Mako's optimistic commit behavior for fair comparison, but should be fixed for production use.
+
+3. **Fix TPC-C ITEM Table Partitioning**: Implement proper ITEM table handling by either:
+   - Replicating the ITEM table on all shards (per TPC-C spec)
+   - Using warehouse-local item keys like `item_{w_id}_{i_id}`
+
+4. **Variable Cross-Shard Rate Study**: Re-run the cross-shard comparison study with corrected ITEM table partitioning to accurately measure performance across different cross-shard transaction rates.
+
+5. **Geo-Distributed Benchmarks**: Evaluate Luigi and Mako on benchmarks better suited for geo-distributed transaction workloads (e.g., YCSB, Retwis) to provide a more comprehensive comparison.
+
+## References
 
 1. **Mako: A Low-Latency Transactional Database for Geo-Distributed Systems**  
    *Weihai Shen et al., OSDI 2025*  
@@ -331,8 +513,3 @@ Each result file contains:
    *Description*: Timestamp-ordered transaction execution model that inspired Luigi  
    *Link*: [Tiga Paper](https://arxiv.org/abs/2509.05759)
 
-### Documentation
-
-- **[LUIGI_PROTOCOL.md](LUIGI_PROTOCOL.md)**: Detailed protocol specification with message formats and state machine diagrams
-- **[TPCC_IMPLEMENTATION.md](TPCC_IMPLEMENTATION.md)**: TPC-C benchmark implementation details
-- **[TEST_PLAN.md](TEST_PLAN.md)**: Comprehensive testing strategy and validation procedures

@@ -1,677 +1,632 @@
-# Luigi Protocol - Timestamp-Ordered Transaction Execution
+# Luigi Protocol Specification
 
-## Quick Reference for LLMs
+This document provides a detailed specification of the Luigi protocol, including message formats, state machines, and RPC definitions.
 
-**Summary**
+## Table of Contents
 
-**Timestamp Initialization**
-* Coordinator assign future timestamps based on OWD measurements. T.timestamp = now() + max_OWD + headroom
-* Composite timestamp = T.timestamp_workerID
-
-**Transaction Receipt and Queueing**
-* Leaders perform conflict detection (check read map and write map for any transaction that touches the same keys, but has a higher timestamp and has been released) before accepting transaction
-* Timestamp update for late transactions; T.timestamp = now()
-* Insert into timestamp-ordered priority queue for execution
-
-**Timestamp Agreement**
-* Leaders exchange T.timestamp
-* T.agreed_ts = max(T.timestamp<S_i>) across all shards
-* If all leader timestamps match → agreement; execute and replicate
-
-**Transaction Execution (agreement success)**
-* Leaders execute the transaction and send the result back to coordinator
-* Transaction Replication (agreement success)
-* Leader appends transaction to Paxos stream
-* Per-worker Paxos stream; worker_ID from composite timestamp which stream replicates
-
-**Watermark Updates**
-* Leaders maintain per-worker watermark: T.timestamp of last replicated transaction
-* Update per-worker watermark upon successful replication
-* Periodically exchange watermarks with other shard leaders
-* Transaction Commit Decision
-* Coordinator replies back to client with result when T.timestamp <= watermark[shard][worker_ID] for all involved shards
-
-
-
-================================================================
-Anything below this is obsolete (but can be used for reference)
-================================================================
-
-**Key Files:**
-- Coordinator: `src/mako/benchmarks/sto/Transaction.cc` → `try_commit_luigi()`
-- Client RPC: `src/mako/lib/shardClient.cc` → `remoteLuigiDispatch()`
-- Server Handler: `src/mako/lib/server.cc` → `HandleLuigiDispatch()`
-- Scheduler: `src/deptran/luigi/luigi_scheduler.cc` → `LuigiDispatchFromRequest()`
-- Executor: `src/deptran/luigi/luigi_executor.cc` → `Execute()`
-- OWD Service: `src/deptran/luigi/luigi_owd.cc` → `getExpectedTimestamp()`
-- RPC Types: `src/mako/lib/common.h` → `luigi_dispatch_request_t`
-
-**Enable with:** `./dbtest --use-luigi ...`
+1. [Protocol Summary](#1-protocol-summary)
+2. [System Architecture](#2-system-architecture)
+3. [RPC Definitions](#3-rpc-definitions)
+4. [Timestamp Management](#4-timestamp-management)
+5. [Transaction Lifecycle](#5-transaction-lifecycle)
+6. [Cross-Shard Agreement](#6-cross-shard-agreement)
+7. [Paxos Replication](#7-paxos-replication)
+8. [State Machines](#8-state-machines)
+9. [Data Structures](#9-data-structures)
+10. [Failure Handling](#10-failure-handling)
 
 ---
 
-## 1. Core Concept: Deadline-Based Execution
+## 1. Protocol Summary
 
-Luigi replaces Mako's OCC (Lock → Validate → Install) with deadline-based execution:
+### Timestamp Initialization
+- Coordinator assigns future timestamps based on OWD measurements: `T.timestamp = now() + max_OWD + headroom`
+- `worker_id` sent separately in RPC for tie-breaking and Paxos stream routing
 
-```
-Traditional OCC:          Luigi:
-┌─────────────┐           ┌─────────────┐
-│ Execute Txn │           │ Execute Txn │  (reads happen, writes computed)
-├─────────────┤           ├─────────────┤
-│ Get Locks   │           │ Get Timestamp│  (expected_time = now + OWD + headroom)
-├─────────────┤           ├─────────────┤
-│ Validate    │           │ Dispatch    │  (send to shard leaders)
-├─────────────┤           ├─────────────┤
-│ Install     │           │ Wait Reply  │  (shards queue, wait, execute at deadline)
-├─────────────┤           ├─────────────┤
-│ Unlock      │           │ Check Match │  (verify execute_timestamps agree)
-└─────────────┘           └─────────────┘
-```
+### Transaction Receipt and Queueing
+- Leaders perform conflict detection before accepting transaction (check read/write maps for any transaction that touches the same keys, has a higher timestamp, and has been released)
+- Timestamp update for late transactions: `T.timestamp = now()`
+- Insert into timestamp-ordered priority queue for execution
 
-**Key Insight:** The coordinator pre-computes ALL write values. Shards receive complete write operations and simply apply them at the agreed deadline.
+### Timestamp Agreement
+- Leaders exchange `T.timestamp` with other involved shards
+- `T.agreed_ts = max(T.timestamp<S_i>)` across all shards
+- If all leader timestamps match → agreement; proceed to execute and replicate
+
+### Transaction Execution (on agreement success)
+- Leaders execute the transaction and send the result back to coordinator
+
+### Transaction Replication (on agreement success)
+- Leader appends transaction to Paxos stream
+- Per-worker Paxos stream; `worker_ID` from composite timestamp determines which stream replicates
+
+### Watermark Updates
+- Leaders maintain per-worker watermark: `T.timestamp` of last replicated transaction
+- Update per-worker watermark upon successful replication
+- Periodically exchange watermarks with other shard leaders
+
+### Transaction Commit Decision
+- Coordinator replies back to client with result when `T.timestamp <= watermark[shard][worker_ID]` for all involved shards
 
 ---
 
-## 2. Timestamp Calculation
-
-### 2.1 One-Way Delay (OWD) Measurement
-
-The `LuigiOWD` service runs a background thread that:
-1. Pings all remote shards every `PING_INTERVAL_MS` (100ms)
-2. Measures RTT using `checkRemoteShardReady()` warmup RPC
-3. Estimates OWD = RTT / 2
-4. Maintains exponential moving average: `new_owd = 0.8 * old_owd + 0.2 * measured_owd`
-
-```cpp
-// In luigi_owd.cc
-void LuigiOWD::pingLoop() {
-    while (running_) {
-        for (int dst_shard : getRemoteShards()) {
-            auto start = std::chrono::steady_clock::now();
-            shard_client_->checkRemoteShardReady(dst_shard);
-            auto end = std::chrono::steady_clock::now();
-            uint64_t rtt_ms = duration_cast<milliseconds>(end - start).count();
-            updateOWD(dst_shard, rtt_ms);  // stores rtt/2
-        }
-        std::this_thread::sleep_for(milliseconds(PING_INTERVAL_MS));
-    }
-}
-```
-
-### 2.2 Expected Timestamp Formula
+### Protocol Phases
 
 ```
-expected_time = current_system_time_ms + max_owd(involved_shards) + HEADROOM_MS
+Phase 1: Timestamp Assignment & Dispatch
+┌────────────┐          ┌────────────┐          ┌────────────┐
+│ Coordinator│──────────│   Shard 0  │          │   Shard 1  │
+│            │  Dispatch│   Leader   │          │   Leader   │
+│            │─────────►│            │          │            │
+│            │  Dispatch│            │          │            │
+│            │──────────┼────────────┼─────────►│            │
+└────────────┘          └────────────┘          └────────────┘
+
+Phase 2: Agreement & Execution (server-side)
+┌────────────┐          ┌────────────┐          ┌────────────┐
+│ Coordinator│          │   Shard 0  │◄────────►│   Shard 1  │
+│            │          │   Leader   │ Propose/ │   Leader   │
+│            │          │            │ Confirm  │            │
+│            │◄─────────│            │          │            │
+│            │  Reply   │            │          │            │
+│            │◄─────────┼────────────┼──────────│            │
+└────────────┘          └────────────┘          └────────────┘
+```
+
+---
+
+## 2. System Architecture
+
+### Components
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Coordinator                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │ Transaction │  │  Timestamp  │  │     Communication       │  │
+│  │  Generator  │  │  Assigner   │  │        Layer            │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Shard Leader                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Service   │  │  Scheduler  │  │       Executor          │  │
+│  │  (RPC Rx)   │─►│  (Queuing)  │─►│   (State Machine)       │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+│                          │                      │                │
+│                          ▼                      ▼                │
+│                   ┌─────────────┐        ┌─────────────┐        │
+│                   │  Agreement  │        │   Paxos     │        │
+│                   │   Module    │        │ Replication │        │
+│                   └─────────────┘        └─────────────┘        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Files
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Coordinator | `coordinator.cc/h` | Timestamp assignment, transaction dispatch |
+| Server | `server.cc/h` | Server entry point, configuration |
+| Service | `service.cc/h` | RPC handlers |
+| Scheduler | `scheduler.cc/h` | Transaction queuing, agreement coordination |
+| Executor | `executor.cc/h` | Transaction execution |
+| State Machine | `state_machine.cc/h` | Key-value store with MVCC |
+| Communication | `commo.cc/h` | Network layer (eRPC-based) |
+| RPC Definitions | `luigi.rpc` | Protocol buffer-style RPC definitions |
+
+---
+
+## 3. RPC Definitions
+
+The Luigi RPC interface is defined in `luigi.rpc`. Only the RPCs actually used in the implementation are documented here.
+
+### 3.1 Dispatch
+
+Sent from coordinator to shard leaders to submit a transaction. Synchronous RPC that waits for execution.
+
+```protobuf
+Dispatch(
+    i64 txn_id,                   // Globally unique transaction ID
+    i64 expected_time,            // Assigned execution timestamp
+    i32 worker_id,                // Worker ID for tie-breaking and stream routing
+    vector<i32> involved_shards,  // All shards involved in this transaction
+    string ops_data               // Serialized read/write operations
+) → (
+    i32 status,                   // Success/failure code
+    i64 commit_timestamp,         // Final agreed timestamp
+    string results_data           // Serialized read results
+)
+```
+
+### 3.2 OwdPing
+
+Sent from coordinator to shard leaders to measure one-way delay.
+
+```protobuf
+OwdPing(
+    i64 send_time                 // Coordinator's local time when sent
+) → (
+    i32 status                    // Acknowledgment
+)
+```
+
+### 3.3 DeadlineBatchPropose
+
+Batched timestamp proposals between shard leaders. Includes piggybacked watermarks.
+
+```protobuf
+DeadlineBatchPropose(
+    vector<i64> tids,                 // Transaction IDs
+    i32 src_shard,                    // Sending shard ID
+    vector<i64> proposed_timestamps,  // Proposed timestamps for each txn
+    vector<i64> watermarks            // Per-worker watermarks (piggybacked)
+) → (
+    i32 status                        // Acknowledgment
+)
+```
+
+### 3.4 DeadlineBatchConfirm
+
+Batched timestamp confirmations from the shard with highest timestamp.
+
+```protobuf
+DeadlineBatchConfirm(
+    vector<i64> tids,                 // Transaction IDs
+    i32 src_shard,                    // Sending shard ID
+    vector<i64> agreed_timestamps     // Agreed timestamps for each txn
+) → (
+    i32 status                        // Acknowledgment
+)
+```
+
+### 3.5 BatchReplicate
+
+Raft-style AppendEntries for batched replication (leader → followers).
+
+```protobuf
+BatchReplicate(
+    i32 worker_id,                    // Worker stream ID
+    i64 prev_committed_slot,          // Last committed slot (consistency check)
+    vector<i64> slot_ids,             // Slot IDs for each entry
+    vector<i64> txn_ids,              // Transaction IDs
+    vector<i64> timestamps,           // Execution timestamps
+    vector<string> log_entries        // Serialized log entries
+) → (
+    i32 status,                       // Accept/reject
+    i64 last_appended_slot            // Last successfully appended slot
+)
+```
+
+> **Note:** Non-batched versions (DeadlinePropose, DeadlineConfirm, Replicate) are defined in `luigi.rpc` but not used in the current implementation.
+
+---
+
+## 4. Timestamp Management
+
+### 4.1 Timestamp and Worker ID
+
+Luigi uses two separate fields for transaction ordering:
+
+- **`timestamp`** (i64): Execution deadline in milliseconds since epoch
+- **`worker_id`** (i32): Unique coordinator thread ID, sent separately in the Dispatch RPC
+
+This separation provides:
+- **Temporal ordering**: Higher timestamp = later in logical time
+- **Tie-breaking**: When timestamps match, `worker_id` determines order
+- **Paxos stream routing**: Each `worker_id` has its own replication stream
+
+### 4.2 Timestamp Assignment
+
+The coordinator assigns timestamps using the formula:
+
+```
+T.timestamp = now() + max_OWD(involved_shards) + headroom
+```
 
 Where:
-- current_system_time_ms: Wallclock time when transaction dispatches
-- max_owd: Maximum one-way delay among all involved shards
-- HEADROOM_MS: Safety margin (default 10ms)
-```
+- `now()`: Current wall-clock time in milliseconds
+- `max_OWD`: Maximum one-way delay to any involved shard
+- `headroom`: Safety margin (configurable, typically 10-30ms)
 
-**Why this works:** By the time the RPC arrives at the shard leader, the deadline will be in the near future, giving all shards time to:
-1. Receive the transaction
-2. Queue it by deadline
-3. Execute when deadline arrives (all shards execute at ~same wall-clock time)
+### 4.3 OWD Measurement
 
----
-
-## 3. Transaction ID Generation
-
-Each transaction needs a globally unique ID for:
-1. Tie-breaking when deadlines match
-2. Tracking in the agreement protocol
-3. Deduplication
+The coordinator periodically pings shards to measure one-way delay:
 
 ```cpp
-// In Transaction.cc try_commit_luigi()
-uint64_t txn_id = (uint64_t(threadid_) << 48) | TThread::increment_id;
+// Ping loop (runs every 100ms)
+for each shard:
+    start = now()
+    send OwdPing(start) to shard
+    wait for OwdPingReply
+    rtt = now() - start
+    owd = rtt / 2
 
-// Structure:
-// Bits 63-48: Thread ID (16 bits) - unique per worker thread
-// Bits 47-0:  Increment ID (48 bits) - monotonically increasing per thread
+    // Exponential moving average
+    owd_estimate[shard] = 0.8 * owd_estimate[shard] + 0.2 * owd
 ```
-
-This guarantees uniqueness without coordination.
 
 ---
 
-## 4. Read/Write Set Handling
+## 5. Transaction Lifecycle
 
-### 4.1 What the Coordinator Sends
+### 5.1 Complete Flow
 
-The coordinator collects operations from TransItems and sends:
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  COORDINATOR                                                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│  1. Generate transaction (read set, write set)                           │
+│  2. Identify involved shards from key hashing                            │
+│  3. Compute timestamp: T = now() + max_OWD + headroom                    │
+│  4. Send Dispatch(txn_id, T, ops) to all involved shard leaders          │
+│  5. Wait for all DispatchReply messages                                  │
+│  6. Verify all agreed_ts values match                                    │
+│  7. Return result to client                                              │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│  SHARD LEADER                                                             │
+├──────────────────────────────────────────────────────────────────────────┤
+│  1. Receive Dispatch request                                             │
+│  2. Check for timestamp conflicts with pending transactions              │
+│  3. If conflict: bump timestamp to max(conflicting_ts) + 1               │
+│  4. Insert into timestamp-ordered priority queue                         │
+│  5. If multi-shard: run agreement protocol (see Section 6)               │
+│  6. Wait until timestamp deadline arrives                                │
+│  7. Execute transaction (apply reads/writes to state machine)            │
+│  8. Replicate via Paxos (see Section 7)                                  │
+│  9. Send DispatchReply with agreed_ts and read results                   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
-| Field | Read Operations | Write Operations |
-|-------|-----------------|------------------|
-| `table_id` | Table containing the key | Table containing the key |
-| `op_type` | `LUIGI_OP_READ` (0) | `LUIGI_OP_WRITE` (1) |
-| `key` | The key being read | The key being written |
-| `value` | Empty | **Pre-computed write value** |
+### 5.2 Single-Shard Fast Path
+
+Single-shard transactions skip agreement:
+
+```
+Coordinator                    Shard Leader
+     │                              │
+     │──── Dispatch(T=100) ────────►│
+     │                              │ Queue at T=100
+     │                              │ Wait until now() >= 100
+     │                              │ Execute
+     │                              │ Replicate
+     │◄──── Reply(agreed_ts=100) ───│
+     │                              │
+```
+
+### 5.3 Multi-Shard Transaction
+
+Multi-shard transactions require agreement:
+
+```
+Coordinator              Shard 0 Leader         Shard 1 Leader
+     │                        │                       │
+     │── Dispatch(T=100) ────►│                       │
+     │── Dispatch(T=100) ─────┼──────────────────────►│
+     │                        │                       │
+     │                        │◄─ DeadlinePropose ────│ (T=105)
+     │                        │── DeadlinePropose ───►│ (T=100)
+     │                        │                       │
+     │                        │   agreed_ts = max(100, 105) = 105
+     │                        │                       │
+     │                        │◄─ DeadlineConfirm ────│ (T=105)
+     │                        │                       │
+     │                        │   Execute at T=105    │   Execute at T=105
+     │                        │   Replicate           │   Replicate
+     │◄─ Reply(agreed=105) ───│                       │
+     │◄─ Reply(agreed=105) ───┼───────────────────────│
+     │                        │                       │
+```
+
+---
+
+## 6. Cross-Shard Agreement
+
+### 6.1 Agreement Protocol
+
+When a transaction spans multiple shards, leaders must agree on a common execution timestamp:
+
+```
+Step 1: Exchange Proposals
+    Each shard leader sends its proposed_ts to all other involved shards
+
+Step 2: Compute Agreement
+    agreed_ts = max(proposed_ts from all shards)
+
+Step 3: Determine Role
+    If my_proposed_ts == agreed_ts:
+        I am the "winner" - send DeadlineConfirm to others
+    Else:
+        Wait for DeadlineConfirm from winner
+
+Step 4: Execute
+    All shards execute at agreed_ts
+```
+
+### 6.2 Conflict Detection and Resolution
+
+Before queuing a transaction, the scheduler checks for conflicts:
 
 ```cpp
-// In Transaction.cc try_commit_luigi()
-for (each TransItem) {
-    if (item.has_write()) {
-        // Extract pre-computed value from TransItem
-        table_ids.push_back(table_id);
-        op_types.push_back(LUIGI_OP_WRITE);
-        keys.push_back(key);
-        values.push_back(write_value);  // Already computed!
-    } else if (item.has_read()) {
-        table_ids.push_back(table_id);
-        op_types.push_back(LUIGI_OP_READ);
-        keys.push_back(key);
-        values.push_back("");  // No value for reads
-    }
-}
+for each key in transaction.write_set:
+    if last_released_ts[key] >= proposed_ts:
+        // Conflict! Transaction would execute before a committed write
+        proposed_ts = last_released_ts[key] + 1
+
+for each key in transaction.read_set:
+    if last_released_ts[key] >= proposed_ts:
+        // Conflict! Transaction would read stale data
+        proposed_ts = last_released_ts[key] + 1
 ```
 
-### 4.2 Why Reads Are Sent
+This ensures serializable execution by repositioning late transactions.
 
-Even though writes are pre-computed, reads are sent for:
-1. **Durability:** The shard logs what values were read for replay
-2. **Validation (optional):** Could verify versions haven't changed
-3. **Returning values:** Some protocols need read results for verification
+### 6.3 Agreement State Machine
 
-### 4.3 Server-Side Filtering
+```
+                    ┌─────────────┐
+                    │    INIT     │
+                    └──────┬──────┘
+                           │ Receive Dispatch
+                           ▼
+                    ┌─────────────┐
+                    │   QUEUED    │
+                    └──────┬──────┘
+                           │ Multi-shard?
+              ┌────────────┴────────────┐
+              │ No                      │ Yes
+              ▼                         ▼
+       ┌─────────────┐           ┌─────────────┐
+       │    READY    │           │  PROPOSING  │
+       └──────┬──────┘           └──────┬──────┘
+              │                         │ All proposals received
+              │                         ▼
+              │                  ┌─────────────┐
+              │                  │  AGREEING   │
+              │                  └──────┬──────┘
+              │                         │ Confirm sent/received
+              │                         ▼
+              │                  ┌─────────────┐
+              └─────────────────►│  EXECUTING  │
+                                 └──────┬──────┘
+                                        │ Execution complete
+                                        ▼
+                                 ┌─────────────┐
+                                 │ REPLICATING │
+                                 └──────┬──────┘
+                                        │ Paxos complete
+                                        ▼
+                                 ┌─────────────┐
+                                 │  COMPLETE   │
+                                 └─────────────┘
+```
 
-Each shard only executes operations for keys it owns:
+---
+
+## 7. Paxos Replication
+
+### 7.1 Replication Model
+
+Each shard uses Paxos for fault-tolerant replication:
+- **Leader**: Handles client requests, proposes log entries
+- **Followers**: Accept/reject proposals, apply committed entries
+
+```
+Leader                    Follower 1               Follower 2
+   │                           │                        │
+   │── Replicate(slot, txn) ──►│                        │
+   │── Replicate(slot, txn) ───┼───────────────────────►│
+   │                           │                        │
+   │◄─ ReplicateReply(ok) ─────│                        │
+   │◄─ ReplicateReply(ok) ─────┼────────────────────────│
+   │                           │                        │
+   │   (Majority achieved - committed)                  │
+   │                           │                        │
+```
+
+### 7.2 Log Structure
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Paxos Log (per shard)                                         │
+├──────┬──────────────────────────────────────────────────────────┤
+│ Slot │  Entry                                                   │
+├──────┼──────────────────────────────────────────────────────────┤
+│  1   │  {txn_id=0x1, ts=100, ops=[W(k1,v1), W(k2,v2)]}         │
+│  2   │  {txn_id=0x2, ts=105, ops=[R(k1), W(k3,v3)]}            │
+│  3   │  {txn_id=0x3, ts=110, ops=[W(k1,v4)]}                   │
+│ ...  │  ...                                                     │
+└──────┴──────────────────────────────────────────────────────────┘
+```
+
+### 7.3 Commit Condition
+
+A transaction is committed when:
+1. Executed on the leader
+2. Replicated to a majority of replicas in each involved shard
+
+---
+
+## 8. State Machines
+
+### 8.1 Scheduler State Machine
 
 ```cpp
-// In luigi_scheduler.cc or luigi_executor.cc
-void LuigiScheduler::LuigiDispatchFromRequest(...) {
-    for (const auto& op : ops) {
-        int key_shard = getShardForKey(op.key);
-        if (key_shard == this->partition_id_) {
-            entry->local_keys_.push_back(op_index);  // Mark as local
-        }
-    }
-}
-```
+class Scheduler {
+    // Incoming transactions from RPC layer
+    ConcurrentQueue<Entry> incoming_queue_;
 
----
+    // Timestamp-ordered pending transactions
+    PriorityQueue<Entry, by_timestamp> pending_queue_;
 
-## 5. Protocol Flow (Step-by-Step)
+    // Ready for execution (deadline passed, agreement complete)
+    ConcurrentQueue<Entry> ready_queue_;
 
-### Phase 1: Coordinator Prepares Transaction
+    // Per-key last committed timestamp
+    HashMap<Key, Timestamp> last_released_ts_;
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Transaction.cc::try_commit_luigi()                              │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. Collect all TransItems (reads and writes already executed)  │
-│ 2. Generate txn_id = (thread_id << 48) | increment_id          │
-│ 3. Identify involved_shards from table_ids                     │
-│ 4. Call LuigiOWD::getExpectedTimestamp(involved_shards)        │
-│    → returns expected_time = now + max_owd + headroom           │
-│ 5. Build ops[] with {table_id, op_type, key, value}            │
-│ 6. Call shardClient->remoteLuigiDispatch(...)                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 2: RPC Dispatch to Shard Leaders
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ shardClient.cc::remoteLuigiDispatch()                           │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. Group operations by destination shard                       │
-│ 2. For each shard, create LuigiDispatchRequestBuilder           │
-│ 3. Serialize: {req_nr, txn_id, expected_time, num_ops, ops[]}  │
-│ 4. Call client->InvokeLuigiDispatch() - BLOCKING                │
-│ 5. Collect responses into execute_timestamps map                │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 3: Server Receives and Queues
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ server.cc::HandleLuigiDispatch()                                │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. Parse luigi_dispatch_request_t                              │
-│ 2. Build std::vector<LuigiOp> from serialized data             │
-│ 3. Call luigi_scheduler_->LuigiDispatchFromRequest(             │
-│        txn_id, expected_time, ops, reply_callback)              │
-│ 4. Wait on condition_variable for reply_callback                │
-│ 5. Return luigi_dispatch_response_t with execute_timestamp     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 4: Scheduler Processes Transaction
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ luigi_scheduler.cc::LuigiDispatchFromRequest()                  │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. Create LuigiLogEntry with:                                   │
-│    - proposed_ts_ = expected_time                               │
-│    - tid_ = txn_id                                              │
-│    - ops_ = operations vector                                   │
-│    - reply_cb_ = callback to send response                     │
-│ 2. Identify local_keys_ (keys this shard owns)                 │
-│ 3. Push to incoming_txn_queue_                                  │
-│                                                                 │
-│ HoldReleaseTd thread picks up:                                  │
-│ 4. CONFLICT CHECK: For each local key:                         │
-│    if (proposed_ts_ <= last_released_deadline_[key]) {          │
-│        proposed_ts_ = max(last_released_deadline_[key]) + 1;    │
-│    }                                                            │
-│ 5. Insert into priority_queue_[{proposed_ts_, txn_id}]          │
-│ 6. WAIT: Sleep until now >= proposed_ts_                        │
-│ 7. Move to ready_txn_queue_ for execution                       │
-│ 8. Update last_released_deadline_[key] for each key             │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 5: Executor Runs Transaction
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ luigi_executor.cc::Execute()                                    │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. For multi-shard: Run agreement protocol (see Section 6)    │
-│ 2. ExecuteAllOps():                                             │
-│    a. For each op in local_keys_:                               │
-│       - If READ: call read_cb_(table_id, key, &value)           │
-│       - If WRITE: call write_cb_(table_id, key, value)          │
-│ 3. TriggerReplication():                                        │
-│    - Call replication_cb_(entry) for Paxos durability          │
-│ 4. Invoke reply_cb_(status, execute_timestamp, read_results)   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 6: Coordinator Checks Consensus
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Transaction.cc::try_commit_luigi() (continued)                  │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. Receive execute_timestamps from all shards                  │
-│ 2. CHECK: All execute_timestamps must match                    │
-│    if (any differ) → ABORT                                      │
-│    if (all same)   → COMMIT                                     │
-│ 3. Call stop(committed, ...)                                    │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 6. Multi-Shard Agreement (Tiga-Style)
-
-When a transaction spans multiple shards, they must agree on the final execute_timestamp.
-
-### 6.1 Why Agreement is Needed
-
-Different shards may bump the timestamp due to local conflicts:
-- Shard 0: No conflicts, proposed_ts = 100
-- Shard 1: Conflict with key K, bumps to proposed_ts = 105
-
-They must agree on the MAX (105) so both execute at the same logical time.
-
-### 6.2 Three Cases
-
-```
-After exchanging proposals, each shard determines its case:
-
-Case 1: My proposal == agreed_ts (everyone agrees)
-        → Execute immediately
-
-Case 2: My proposal > others (I have the highest)
-        → I am the "leader" for this agreement
-        → Re-queue at agreed_ts
-        → Send CONFIRM messages to others
-
-Case 3: My proposal < agreed_ts (someone else higher)
-        → Wait for CONFIRM from the leader
-        → Then execute
-```
-
-### 6.3 Agreement Protocol Sequence
-
-```
-Transaction T touches Shard 0 and Shard 1
-
-Step 1: Initial Proposals
-   S0: proposed_ts=100  ──────────────────►  S1: proposed_ts=105
-   S0: receives 105     ◄──────────────────  S1: receives 100
-
-Step 2: Compute agreed_ts = max(100, 105) = 105
-
-Step 3: Determine Case
-   S0: 100 < 105 → Case 3 (wait for confirm)
-   S1: 105 == 105 → Case 2 (I'm leader, send confirm)
-
-Step 4: Confirmation
-   S1: sends CONFIRM(txn_id, agreed_ts=105) to S0
-   S0: receives CONFIRM, moves to ready_queue
-
-Step 5: Execution
-   Both execute at agreed_ts=105
-```
-
----
-
-## 7. Data Structures
-
-### 7.1 RPC Request (common.h)
-
-```cpp
-struct luigi_dispatch_request_t {
-    uint64_t req_nr;          // Sequence number for response matching
-    uint64_t txn_id;          // Globally unique transaction ID
-    uint64_t expected_time;   // Deadline (ms since epoch)
-    uint16_t num_ops;         // Count of operations
-    char ops_data[];          // Serialized operations (variable length)
+    // Background threads
+    void HoldReleaseTd();  // Moves entries from pending to ready
+    void ExecTd();         // Executes ready transactions
 };
-
-// Each operation in ops_data:
-// [table_id: 2B][op_type: 1B][klen: 2B][vlen: 2B][key: klen B][value: vlen B]
 ```
 
-### 7.2 Log Entry (luigi_entry.h)
+### 8.2 State Machine (Key-Value Store)
+
+```cpp
+class StateMachine {
+    // Multi-version storage
+    HashMap<Key, vector<{Timestamp, Value}>> data_;
+
+    // Read at timestamp T
+    Value Read(Key k, Timestamp T) {
+        auto& versions = data_[k];
+        // Find largest timestamp <= T
+        return versions.upper_bound(T)->value;
+    }
+
+    // Write at timestamp T
+    void Write(Key k, Value v, Timestamp T) {
+        data_[k].emplace_back({T, v});
+    }
+};
+```
+
+---
+
+## 9. Data Structures
+
+### 9.1 Transaction Entry
 
 ```cpp
 struct LuigiLogEntry {
-    uint64_t proposed_ts_;      // Initially expected_time, may be bumped
-    uint64_t agreed_ts_;        // Final agreed timestamp (multi-shard)
-    txnid_t tid_;               // Transaction ID
-    
-    std::vector<LuigiOp> ops_;  // All operations
-    std::vector<int32_t> local_keys_;  // Indices of ops this shard owns
-    
-    std::atomic<uint32_t> agree_status_;  // INIT → FLUSHING → CONFIRMING → COMPLETE
-    std::atomic<uint32_t> exec_status_;   // INIT → EXECUTING → DONE
-    
-    std::function<void(status, commit_ts, read_results)> reply_cb_;
+    txnid_t txn_id_;              // Unique transaction ID
+    uint64_t proposed_ts_;        // Initially assigned timestamp
+    uint64_t agreed_ts_;          // Final agreed timestamp
+
+    vector<Operation> ops_;       // Read/write operations
+    vector<uint32_t> shards_;     // Involved shards
+
+    // Agreement tracking
+    map<uint32_t, uint64_t> proposals_;  // Shard -> proposed_ts
+    atomic<AgreementState> agree_state_;
+
+    // Execution tracking
+    atomic<ExecState> exec_state_;
+    map<string, string> read_results_;
+
+    // Callback to send reply
+    function<void(DispatchReply)> reply_cb_;
 };
 ```
 
-### 7.3 Scheduler Queues (luigi_scheduler.h)
+### 9.2 Operation
 
 ```cpp
-class SchedulerLuigi {
-    // Incoming transactions from RPC handler
-    ConcurrentQueue<std::shared_ptr<LuigiLogEntry>> incoming_txn_queue_;
-    
-    // Priority queue ordered by (deadline, txn_id)
-    // Transactions wait here until their deadline
-    std::map<std::pair<uint64_t, txnid_t>, std::shared_ptr<LuigiLogEntry>> priority_queue_;
-    
-    // Ready to execute (deadline passed, agreement complete)
-    ConcurrentQueue<std::shared_ptr<LuigiLogEntry>> ready_txn_queue_;
-    
-    // Per-key last released deadline (for conflict detection)
-    std::unordered_map<int32_t, uint64_t> last_released_deadlines_;
+struct Operation {
+    OpType type;     // READ or WRITE
+    string key;      // Key being accessed
+    string value;    // Value (for writes) or empty (for reads)
+    uint32_t shard;  // Shard owning this key
 };
 ```
 
 ---
 
-## 8. Key Invariants
+## 10. Failure Handling
 
-1. **Timestamp Ordering:** Transactions execute in timestamp order per key
-2. **Agreement:** Multi-shard transactions agree on execute_timestamp before executing
-3. **Pre-computed Writes:** Coordinator computes all write values; shards just apply them
-4. **Unique txn_id:** No two transactions share the same (thread_id, increment_id)
-5. **Deadline Safety:** expected_time is always in the future (OWD + headroom)
+### 10.1 Coordinator Failure
+
+- Transactions in flight are lost (no persistent coordinator state)
+- Client retries with new transaction ID
+- Shards may have partial state; timeout and cleanup
+
+### 10.2 Shard Leader Failure
+
+- Paxos leader election triggers
+- New leader recovers committed log from followers
+- In-flight transactions may timeout; coordinator retries
+
+### 10.3 Network Partition
+
+- Paxos requires majority; minority partition cannot commit
+- Transactions spanning partitioned shards will timeout
+- System remains available for single-shard transactions in majority partition
+
+### 10.4 Late Transaction Arrival
+
+If a transaction arrives after its deadline:
+
+```cpp
+if (now() > proposed_ts_) {
+    // Transaction is late - bump to current time
+    proposed_ts_ = now();
+}
+```
+
+This ensures the transaction can still execute (just later than intended).
 
 ---
 
-## 9. Enabling Luigi
+## Appendix A: Configuration
 
+### YAML Configuration Format
+
+```yaml
+# Example: 2-shard, 3-replicas per shard
+site:
+  server:
+    s101: "127.0.0.1:31850"  # Shard 0, Replica 0 (Leader)
+    s102: "127.0.0.1:31851"  # Shard 0, Replica 1
+    s103: "127.0.0.1:31852"  # Shard 0, Replica 2
+    s201: "127.0.0.1:31853"  # Shard 1, Replica 0 (Leader)
+    s202: "127.0.0.1:31854"  # Shard 1, Replica 1
+    s203: "127.0.0.1:31855"  # Shard 1, Replica 2
+
+partition:
+  - name: "shard0"
+    leader: "s101"
+    members: ["s101", "s102", "s103"]
+  - name: "shard1"
+    leader: "s201"
+    members: ["s201", "s202", "s203"]
+```
+
+### Command Line Options
+
+**Server:**
 ```bash
-# Build
-make
+./luigi_server -f <config.yml> -P <partition_name> -b <benchmark> -w <warehouses>
+```
 
-# Run with Luigi enabled
-./dbtest --use-luigi --shard-config config.yaml --num-threads 4 ...
+**Coordinator:**
+```bash
+./luigi_coordinator -f <config.yml> -b <benchmark> -d <duration> -t <threads> -w <owd_ms> -x <headroom_ms>
 ```
 
 ---
 
-## 10. Current Limitations
+## Appendix B: Performance Characteristics
 
-### 10.1 Worker Thread Blocks on Server Response
+### Latency Bounds
 
-**Current Behavior:**
-```
-Worker Thread                     Shard Leader
-     │                                 │
-     │──── LuigiDispatch RPC ─────────►│
-     │                                 │
-     │         BLOCKED                 │ (queued, waiting for deadline)
-     │         WAITING                 │
-     │         HERE                    │ (deadline arrives, execute)
-     │                                 │
-     │◄──── Response ──────────────────│
-     │                                 │
-     │ (can now process next txn)      │
-```
+| Configuration | Latency Bound | Formula |
+|--------------|---------------|---------|
+| Single-shard | 2 × OWD + headroom | Dispatch + Reply |
+| Cross-shard | 2 × OWD + headroom + agreement_time | + server-side coordination |
 
-The worker thread calls `remoteLuigiDispatch()` which is a **blocking RPC**:
-- `shardClient.cc` uses `client->InvokeLuigiDispatch()` which blocks
-- The worker cannot start the next transaction until ALL shards respond
-- With high network latency or many shards, this limits throughput
+### Throughput Factors
 
-**Why it blocks:**
-```cpp
-// In shardClient.cc::remoteLuigiDispatch()
-client->InvokeLuigiDispatch(txn_nr, requests_per_shard, 
-    continuation, error_continuation, timeout);
-// ^^^ This call blocks until all responses arrive
-```
-
-### 10.2 Server Handler Also Blocks
-
-In `server.cc::HandleLuigiDispatch()`:
-```cpp
-// Wait for completion (with timeout)
-std::unique_lock<std::mutex> lock(completion_mutex);
-completion_cv.wait_for(lock, std::chrono::seconds(10), [&]{ return completed; });
-```
-
-The eRPC server thread blocks waiting for the Luigi scheduler to:
-1. Queue the transaction
-2. Wait for deadline
-3. Execute
-4. Trigger replication
-
-This ties up server resources during the waiting period.
-
-### 10.3 Sequential Transaction Processing
-
-Because of blocking, each worker processes transactions sequentially:
-```
-Time:  |---Txn1---|---Txn2---|---Txn3---|
-       dispatch   dispatch   dispatch
-       wait       wait       wait
-       commit     commit     commit
-```
-
-Instead of pipelining:
-```
-Time:  |---Txn1---|
-          |---Txn2---|
-             |---Txn3---|
-       dispatch all, overlap waiting
-```
+1. **Thread count**: Linear scaling up to CPU saturation
+2. **Network latency**: Lower latency → higher throughput
+3. **Cross-shard rate**: More cross-shard → more agreement overhead
+4. **Replication factor**: More replicas → more replication overhead
 
 ---
 
-## 11. Future Improvements
-
-### 11.1 Async/Pipelined Dispatch (High Priority)
-
-**Goal:** Worker dispatches transaction and immediately starts next one.
-
-```cpp
-// Proposed: Non-blocking dispatch
-void remoteLuigiDispatchAsync(
-    txn_id, expected_time, ops,
-    std::function<void(status, execute_ts)> completion_callback);
-
-// Worker pipeline:
-for (auto& txn : transactions) {
-    txn.execute();  // Do reads, compute writes
-    pending_txns.push_back(txn);
-    shardClient->remoteLuigiDispatchAsync(txn, [&](status, ts) {
-        // Handle completion asynchronously
-        txn.finalize(status, ts);
-        pending_txns.remove(txn);
-    });
-}
-// Periodically: poll for completions
-```
-
-**Implementation Steps:**
-1. Add `PendingLuigiTxn` tracking structure
-2. Modify `InvokeLuigiDispatch` to be non-blocking
-3. Add completion callback mechanism
-4. Restructure `try_commit_luigi()` for async flow
-
-### 11.2 Server-Side Async Response
-
-**Goal:** Don't block eRPC threads waiting for deadline.
-
-```cpp
-// Current (blocking):
-HandleLuigiDispatch() {
-    scheduler->LuigiDispatch(..., callback);
-    wait(callback);  // BLOCKS
-    return response;
-}
-
-// Proposed (async):
-HandleLuigiDispatch() {
-    scheduler->LuigiDispatch(..., [=](result) {
-        // Send response when ready (deferred)
-        sendAsyncResponse(result);
-    });
-    return;  // Don't block, return immediately
-}
-```
-
-Requires eRPC deferred response support or separate response path.
-
-### 11.3 Batching Transactions
-
-**Goal:** Amortize RPC overhead by batching multiple transactions.
-
-```
-Current:   Txn1 ──RPC──►  Txn2 ──RPC──►  Txn3 ──RPC──►
-
-Batched:   [Txn1, Txn2, Txn3] ──single RPC──►
-```
-
-Benefits:
-- Fewer network round trips
-- Better deadline alignment
-- Reduced per-transaction overhead
-
-### 11.4 Speculative Execution
-
-**Goal:** Start executing before deadline if no conflicts detected.
-
-```
-Current:
-    receive ─── wait ─── deadline ─── execute
-
-Speculative:
-    receive ─── no conflicts? ─── execute early (tentatively)
-                                        │
-                     confirm at deadline ▼
-```
-
-Risk: Must handle late-arriving conflicting transactions.
-
-### 11.5 Adaptive Headroom
-
-**Goal:** Dynamically adjust headroom based on observed delays.
-
-```cpp
-// Instead of fixed HEADROOM_MS = 10:
-uint64_t adaptive_headroom = 
-    base_headroom + 
-    percentile_99(recent_delays) - median(recent_delays);
-```
-
-Reduces latency when network is stable, increases safety when unstable.
-
-### 11.6 Read-Only Transaction Fast Path
-
-**Goal:** Skip agreement for read-only transactions.
-
-```cpp
-if (transaction.isReadOnly()) {
-    // No writes → no conflicts → no agreement needed
-    // Just read at current time, return immediately
-    return executeReadsLocally();
-}
-```
-
----
-
-## 12. Current Implementation Status
-
-| Component | Status | Location |
-|-----------|--------|----------|
-| OWD Service | ✅ Complete | `luigi_owd.cc` |
-| Coordinator Logic | ✅ Complete | `Transaction.cc` |
-| Client RPC | ✅ Complete (blocking) | `shardClient.cc`, `client.cc` |
-| Server Handler | ✅ Complete (blocking) | `server.cc` |
-| Scheduler Core | ✅ Complete | `luigi_scheduler.cc` |
-| Executor | ✅ Complete | `luigi_executor.cc` |
-| Multi-shard Agreement | 🚧 Partial | `luigi_scheduler.cc` |
-| Paxos Integration | ⏳ TODO | `replication_cb_` stub |
-| Async Dispatch | ⏳ TODO | See 11.1 |
-| Transaction Batching | ⏳ TODO | See 11.3 |
-| Performance Tuning | ⏳ TODO | - |
-
----
-
-## 13. Tracing a Transaction (Example)
-
-```
-Worker Thread 5, Transaction #42, accessing keys on Shard 0 and Shard 1:
-
-1. try_commit_luigi() called
-   - txn_id = (5 << 48) | 42 = 0x0005000000000002A
-   - involved_shards = [0, 1]
-
-2. LuigiOWD::getExpectedTimestamp([0, 1])
-   - current_time = 1000000 ms
-   - owd[0] = 0 ms (local)
-   - owd[1] = 25 ms
-   - max_owd = 25 ms
-   - expected_time = 1000000 + 25 + 10 = 1000035 ms
-
-3. remoteLuigiDispatch() sends to Shard 0 and Shard 1
-   - Request: {txn_id=0x5..2A, expected_time=1000035, ops=[...]}
-
-4. Shard 0 receives at t=1000005 ms
-   - proposed_ts = 1000035
-   - No conflicts → stays 1000035
-   - Queued in priority_queue_
-
-5. Shard 1 receives at t=1000030 ms
-   - proposed_ts = 1000035
-   - Conflict with key K (last_released=1000040)
-   - BUMPED: proposed_ts = 1000041
-
-6. Agreement Protocol
-   - S0 proposes 1000035, S1 proposes 1000041
-   - agreed_ts = max = 1000041
-   - S0: Case 3, waits for confirm
-   - S1: Case 2, sends confirm to S0
-
-7. Execution at t=1000041
-   - Both shards execute their local ops
-   - Both reply with execute_timestamp=1000041
-
-8. Coordinator receives both responses
-   - execute_timestamps = {0: 1000041, 1: 1000041}
-   - Match! Transaction COMMITTED
-```
+*For implementation details and benchmark results, see [README.md](README.md).*
