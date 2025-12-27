@@ -134,10 +134,12 @@ private:
 
     // Create ops for warehouse, district, customer
     std::string wh_key = "wh_" + std::to_string(home_w_id);
-    std::string dist_key = "dist_" + std::to_string(home_w_id) + "_" + std::to_string(d_id);
-    std::string cust_key = "cust_" + std::to_string(home_w_id) + "_" + std::to_string(d_id) + "_" + std::to_string(c_id);
+    std::string dist_key =
+        "dist_" + std::to_string(home_w_id) + "_" + std::to_string(d_id);
+    std::string cust_key = "cust_" + std::to_string(home_w_id) + "_" +
+                           std::to_string(d_id) + "_" + std::to_string(c_id);
 
-    req->ops.push_back(MakeOp(TPCC_TABLE_WAREHOUSE, 0, wh_key, ""));  // Read
+    req->ops.push_back(MakeOp(TPCC_TABLE_WAREHOUSE, 0, wh_key, ""));   // Read
     req->ops.push_back(MakeOp(TPCC_TABLE_DISTRICT, 1, dist_key, "1")); // Write
     req->ops.push_back(MakeOp(TPCC_TABLE_CUSTOMER, 0, cust_key, ""));  // Read
 
@@ -153,9 +155,10 @@ private:
       } while (used_items.find(i_id) != used_items.end());
       used_items.insert(i_id);
 
-      // Determine supply warehouse (1% remote)
+      // Determine supply warehouse (configurable remote %)
       int32_t supply_w_id;
-      if (config_.num_warehouses > 1 && RandomInt(0, 100) == 0) {
+      if (config_.num_warehouses > 1 &&
+          RandomInt(0, 100) < static_cast<int32_t>(config_.remote_item_pct)) {
         // Remote supply
         supply_w_id = RandomInt(0, config_.num_warehouses - 2);
         if (supply_w_id >= home_w_id)
@@ -177,9 +180,11 @@ private:
 
       // Create ops for item and stock
       std::string item_key = "item_" + std::to_string(i_id);
-      std::string stock_key = "stock_" + std::to_string(supply_w_id) + "_" + std::to_string(i_id);
-      req->ops.push_back(MakeOp(TPCC_TABLE_ITEM, 0, item_key, ""));    // Read
-      req->ops.push_back(MakeOp(TPCC_TABLE_STOCK, 1, stock_key, std::to_string(quantity))); // Write
+      std::string stock_key =
+          "stock_" + std::to_string(supply_w_id) + "_" + std::to_string(i_id);
+      req->ops.push_back(MakeOp(TPCC_TABLE_ITEM, 0, item_key, "")); // Read
+      req->ops.push_back(MakeOp(TPCC_TABLE_STOCK, 1, stock_key,
+                                std::to_string(quantity))); // Write
     }
 
     req->working_set[TPCC_VAR_O_ALL_LOCAL] = all_local ? "1" : "0";
@@ -197,9 +202,10 @@ private:
     int32_t d_id = (req->client_id / config_.num_warehouses) %
                    config_.num_districts_per_wh;
 
-    // Customer warehouse and district (15% remote)
+    // Customer warehouse and district (configurable remote %)
     int32_t c_w_id, c_d_id;
-    if (config_.num_warehouses > 1 && RandomInt(0, 100) < 15) {
+    if (config_.num_warehouses > 1 &&
+        RandomInt(0, 100) < static_cast<int32_t>(config_.remote_payment_pct)) {
       c_w_id = RandomInt(0, config_.num_warehouses - 2);
       if (c_w_id >= home_w_id)
         c_w_id++;
@@ -236,14 +242,20 @@ private:
 
     // Create ops for payment transaction
     std::string wh_key = "wh_" + std::to_string(home_w_id);
-    std::string dist_key = "dist_" + std::to_string(home_w_id) + "_" + std::to_string(d_id);
-    std::string cust_key = "cust_" + std::to_string(c_w_id) + "_" + std::to_string(c_d_id) + "_" + std::to_string(c_id);
+    std::string dist_key =
+        "dist_" + std::to_string(home_w_id) + "_" + std::to_string(d_id);
+    std::string cust_key = "cust_" + std::to_string(c_w_id) + "_" +
+                           std::to_string(c_d_id) + "_" + std::to_string(c_id);
     std::string hist_key = "hist_" + std::to_string(RandomInt(0, INT32_MAX));
 
-    req->ops.push_back(MakeOp(TPCC_TABLE_WAREHOUSE, 1, wh_key, std::to_string(h_amount))); // Write
-    req->ops.push_back(MakeOp(TPCC_TABLE_DISTRICT, 1, dist_key, std::to_string(h_amount))); // Write
-    req->ops.push_back(MakeOp(TPCC_TABLE_CUSTOMER, 1, cust_key, std::to_string(h_amount))); // Write
-    req->ops.push_back(MakeOp(TPCC_TABLE_HISTORY, 1, hist_key, std::to_string(h_amount)));  // Insert
+    req->ops.push_back(MakeOp(TPCC_TABLE_WAREHOUSE, 1, wh_key,
+                              std::to_string(h_amount))); // Write
+    req->ops.push_back(MakeOp(TPCC_TABLE_DISTRICT, 1, dist_key,
+                              std::to_string(h_amount))); // Write
+    req->ops.push_back(MakeOp(TPCC_TABLE_CUSTOMER, 1, cust_key,
+                              std::to_string(h_amount))); // Write
+    req->ops.push_back(MakeOp(TPCC_TABLE_HISTORY, 1, hist_key,
+                              std::to_string(h_amount))); // Insert
   }
 
   /**
@@ -269,10 +281,12 @@ private:
     req->target_shards.insert(WarehouseToShard(w_id));
 
     // Create read ops for customer and order
-    std::string cust_key = "cust_" + std::to_string(w_id) + "_" + std::to_string(d_id) + "_" + std::to_string(c_id);
-    std::string order_key = "order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
-    req->ops.push_back(MakeOp(TPCC_TABLE_CUSTOMER, 0, cust_key, ""));  // Read
-    req->ops.push_back(MakeOp(TPCC_TABLE_ORDER, 0, order_key, ""));    // Read
+    std::string cust_key = "cust_" + std::to_string(w_id) + "_" +
+                           std::to_string(d_id) + "_" + std::to_string(c_id);
+    std::string order_key =
+        "order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
+    req->ops.push_back(MakeOp(TPCC_TABLE_CUSTOMER, 0, cust_key, "")); // Read
+    req->ops.push_back(MakeOp(TPCC_TABLE_ORDER, 0, order_key, ""));   // Read
   }
 
   /**
@@ -296,10 +310,14 @@ private:
       req->working_set[TPCC_VAR_D_ID] = std::to_string(d_id);
 
       // Create ops for new_order and order updates
-      std::string new_order_key = "new_order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
-      std::string order_key = "order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
-      req->ops.push_back(MakeOp(TPCC_TABLE_NEW_ORDER, 1, new_order_key, ""));  // Delete/Update
-      req->ops.push_back(MakeOp(TPCC_TABLE_ORDER, 1, order_key, std::to_string(carrier_id))); // Update
+      std::string new_order_key =
+          "new_order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
+      std::string order_key =
+          "order_" + std::to_string(w_id) + "_" + std::to_string(d_id);
+      req->ops.push_back(
+          MakeOp(TPCC_TABLE_NEW_ORDER, 1, new_order_key, "")); // Delete/Update
+      req->ops.push_back(MakeOp(TPCC_TABLE_ORDER, 1, order_key,
+                                std::to_string(carrier_id))); // Update
     }
   }
 
@@ -320,14 +338,17 @@ private:
 
     req->target_shards.insert(WarehouseToShard(w_id));
 
-    // Create read ops for district and stock levels (simplified - real TPC-C would scan order_line)
-    std::string dist_key = "dist_" + std::to_string(w_id) + "_" + std::to_string(d_id);
-    req->ops.push_back(MakeOp(TPCC_TABLE_DISTRICT, 0, dist_key, ""));  // Read
+    // Create read ops for district and stock levels (simplified - real TPC-C
+    // would scan order_line)
+    std::string dist_key =
+        "dist_" + std::to_string(w_id) + "_" + std::to_string(d_id);
+    req->ops.push_back(MakeOp(TPCC_TABLE_DISTRICT, 0, dist_key, "")); // Read
 
     // Read some stock records (simplified)
     for (int i = 0; i < 20; i++) {
-      std::string stock_key = "stock_" + std::to_string(w_id) + "_" + std::to_string(RandomInt(0, 1000));
-      req->ops.push_back(MakeOp(TPCC_TABLE_STOCK, 0, stock_key, ""));  // Read
+      std::string stock_key = "stock_" + std::to_string(w_id) + "_" +
+                              std::to_string(RandomInt(0, 1000));
+      req->ops.push_back(MakeOp(TPCC_TABLE_STOCK, 0, stock_key, "")); // Read
     }
   }
 

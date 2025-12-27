@@ -256,6 +256,23 @@ public:
     end_time_us_ = GetTimestampUs();
     Log_info("Benchmark complete: dispatched=%lu, completed=%lu",
              dispatched_txns_.load(), completed_txns_.load());
+
+    // Log cross-shard transaction statistics for TPC-C
+    if (current_type_ == BenchmarkType::BM_TPCC) {
+      uint64_t single_shard = single_shard_txns_.load();
+      uint64_t cross_shard = cross_shard_txns_.load();
+      uint64_t total = single_shard + cross_shard;
+      if (total > 0) {
+        double cross_pct = (100.0 * cross_shard) / total;
+        std::cerr << "\n=== TPC-C Cross-Shard Statistics ===" << std::endl;
+        std::cerr << "Single-shard txns: " << single_shard << std::endl;
+        std::cerr << "Cross-shard txns:  " << cross_shard << std::endl;
+        std::cerr << "Cross-shard %:     " << std::fixed << std::setprecision(1)
+                  << cross_pct << "%" << std::endl;
+        std::cerr << "===================================\n" << std::endl;
+      }
+    }
+
     return CalculateStats();
   }
 
@@ -303,7 +320,8 @@ private:
     uint64_t max_owd = 0;
     for (uint32_t s : shards) {
       auto it = owd_table_.find(s);
-      uint64_t owd = (it != owd_table_.end()) ? it->second : config_.owd_default_ms;
+      uint64_t owd =
+          (it != owd_table_.end()) ? it->second : config_.owd_default_ms;
       max_owd = std::max(max_owd, owd);
     }
     return max_owd;
@@ -355,13 +373,44 @@ private:
     uint32_t worker_id = config_.worker_id_base + tid;
     uint64_t start = GetTimestampUs();
 
+    // Helper to extract warehouse ID from TPC-C keys
+    // TPC-C keys format: wh_W, dist_W_D, cust_W_D_C, stock_W_I, etc.
+    auto ExtractWarehouseId = [](const std::string &key) -> int {
+      size_t pos = key.find('_');
+      if (pos == std::string::npos)
+        return -1;
+
+      size_t start = pos + 1;
+      size_t end = key.find('_', start);
+      if (end == std::string::npos)
+        end = key.length();
+
+      try {
+        return std::stoi(key.substr(start, end - start));
+      } catch (...) {
+        return -1;
+      }
+    };
+
     // Determine involved shards
     std::vector<uint32_t> shards;
     std::string debug_info;
     for (const auto &op : req.ops) {
-      // Use FNV1a hash to match generator's KeyToShard()
-      uint32_t s =
-          config_.num_shards > 1 ? HashFNV1a(op.key) % config_.num_shards : 0;
+      uint32_t s;
+
+      // Use warehouse-based sharding for TPC-C to preserve locality
+      if (current_type_ == BenchmarkType::BM_TPCC) {
+        int w_id = ExtractWarehouseId(op.key);
+        if (w_id >= 0 && config_.num_shards > 1) {
+          s = w_id % config_.num_shards;
+        } else {
+          s = 0; // Fallback for non-TPC-C keys or single shard
+        }
+      } else {
+        // Use FNV1a hash for micro benchmarks
+        s = config_.num_shards > 1 ? HashFNV1a(op.key) % config_.num_shards : 0;
+      }
+
       debug_info += op.key + "->s" + std::to_string(s) + " ";
       if (std::find(shards.begin(), shards.end(), s) == shards.end())
         shards.push_back(s);
@@ -393,6 +442,15 @@ private:
     in_flight->all_ok.store(true);
 
     dispatched_txns_.fetch_add(1);
+
+    // Track cross-shard statistics for TPC-C
+    if (current_type_ == BenchmarkType::BM_TPCC) {
+      if (shards.size() == 1) {
+        single_shard_txns_.fetch_add(1);
+      } else {
+        cross_shard_txns_.fetch_add(1);
+      }
+    }
 
     // Dispatch to all shards asynchronously (non-blocking)
     for (uint32_t shard : shards) {
@@ -514,11 +572,16 @@ private:
   std::vector<ThreadStats> thread_stats_;
   uint64_t start_time_us_ = 0, end_time_us_ = 0;
   std::mutex gen_mutex_;
-  std::mutex stats_mutex_; // Shared mutex for all thread stats (fixes double-lock bug)
+  std::mutex
+      stats_mutex_; // Shared mutex for all thread stats (fixes double-lock bug)
 
   // Async dispatch tracking
   std::atomic<uint64_t> dispatched_txns_{0};
   std::atomic<uint64_t> completed_txns_{0};
+  std::atomic<uint64_t> single_shard_txns_{
+      0}; // Track single-shard txns for TPC-C
+  std::atomic<uint64_t> cross_shard_txns_{
+      0}; // Track cross-shard txns for TPC-C
   std::condition_variable completion_cv_;
   std::mutex completion_mutex_;
 
@@ -678,7 +741,9 @@ static void print_usage(const char *prog) {
        << "  -t N      Worker threads (default: 1)\n"
        << "  -d SEC    Duration (default: 30)\n"
        << "  -w MS     OWD default in milliseconds (default: 50)\n"
-       << "  -x MS     OWD headroom in milliseconds (default: 10)\n";
+       << "  -x MS     OWD headroom in milliseconds (default: 10)\n"
+       << "  -r PCT    Remote item percentage for cross-shard transactions "
+          "(default: 1)\n";
 }
 
 int main(int argc, char **argv) {
@@ -690,9 +755,10 @@ int main(int argc, char **argv) {
   int duration_sec = 30;
   uint64_t owd_default_ms = 50;
   uint64_t owd_headroom_ms = 10;
+  uint32_t remote_item_pct = 1; // Cross-shard transaction percentage
 
   int opt;
-  while ((opt = getopt(argc, argv, "f:P:b:t:d:w:x:h")) != -1) {
+  while ((opt = getopt(argc, argv, "f:P:b:t:d:w:x:r:h")) != -1) {
     switch (opt) {
     case 'f':
     case 'P':
@@ -711,6 +777,9 @@ int main(int argc, char **argv) {
       break;
     case 'x':
       owd_headroom_ms = atoi(optarg);
+      break;
+    case 'r':
+      remote_item_pct = atoi(optarg);
       break;
     case 'h':
       print_usage(argv[0]);
@@ -749,6 +818,9 @@ int main(int argc, char **argv) {
   coord_config.gen_config.key_num = 100000;
   coord_config.gen_config.read_ratio = 0.5;
   coord_config.gen_config.ops_per_txn = 10;
+  coord_config.gen_config.num_warehouses =
+      num_shards; // Enable cross-shard logic
+  coord_config.gen_config.remote_item_pct = remote_item_pct;
 
   LuigiCoordinator coordinator(coord_config);
   if (!coordinator.Initialize(commo)) {

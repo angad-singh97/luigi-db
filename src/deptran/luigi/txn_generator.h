@@ -88,6 +88,11 @@ struct TxnGeneratorConfig {
   double order_status_weight = 0.04;
   double delivery_weight = 0.04;
   double stock_level_weight = 0.04;
+
+  // Cross-shard transaction percentages (TPC-C spec: 1% remote items, 15%
+  // remote payment)
+  uint32_t remote_item_pct = 1; // % of items from remote warehouse in NewOrder
+  uint32_t remote_payment_pct = 15; // % of payments to remote customer
 };
 
 /**

@@ -1,0 +1,71 @@
+nohup: ignoring input
+=== Luigi Cross-Shard Transaction Study ===
+Configuration: 2-shard 3-replica, geo-distributed (150ms)
+Config file: src/deptran/luigi/test/configs/2shard-3replicas.yml
+Thread count: 8
+Duration: 30s
+
+=========================================
+Running Luigi with 5% cross-shard transactions
+=========================================
+  Starting Shard 0 replicas...
+  Starting Shard 1 replicas...
+  Starting Coordinator...
+Result: Throughput:        2687.49 txns/sec
+Latency: P99.9 Latency:     1757148.00 us
+
+./run_luigi_crossshard_study.sh: line 25: 48701 Killed                  ./build/luigi_server -f "$CONFIG" -P s102 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 48776 Killed                  ./build/luigi_server -f "$CONFIG" -P s203 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 48693 Killed                  ./build/luigi_server -f "$CONFIG" -P s101 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 48706 Killed                  ./build/luigi_server -f "$CONFIG" -P s103 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 48728 Killed                  ./build/luigi_server -f "$CONFIG" -P s201 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 48750 Killed                  ./build/luigi_server -f "$CONFIG" -P s202 > /dev/null 2>&1
+=========================================
+Running Luigi with 10% cross-shard transactions
+=========================================
+  Starting Shard 0 replicas...
+  Starting Shard 1 replicas...
+  Starting Coordinator...
+Result: Throughput:        2707.69 txns/sec
+Latency: P99.9 Latency:     2064051.00 us
+
+./run_luigi_crossshard_study.sh: line 25: 49067 Killed                  ./build/luigi_server -f "$CONFIG" -P s103 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49062 Killed                  ./build/luigi_server -f "$CONFIG" -P s102 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49103 Killed                  ./build/luigi_server -f "$CONFIG" -P s202 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49108 Killed                  ./build/luigi_server -f "$CONFIG" -P s203 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49054 Killed                  ./build/luigi_server -f "$CONFIG" -P s101 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49093 Killed                  ./build/luigi_server -f "$CONFIG" -P s201 > /dev/null 2>&1
+=========================================
+Running Luigi with 15% cross-shard transactions
+=========================================
+  Starting Shard 0 replicas...
+  Starting Shard 1 replicas...
+  Starting Coordinator...
+Result: Throughput:        2690.07 txns/sec
+Latency: P99.9 Latency:     2053299.00 us
+
+./run_luigi_crossshard_study.sh: line 25: 49424 Killed                  ./build/luigi_server -f "$CONFIG" -P s103 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49404 Killed                  ./build/luigi_server -f "$CONFIG" -P s102 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49458 Killed                  ./build/luigi_server -f "$CONFIG" -P s202 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49463 Killed                  ./build/luigi_server -f "$CONFIG" -P s203 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49385 Killed                  ./build/luigi_server -f "$CONFIG" -P s101 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49450 Killed                  ./build/luigi_server -f "$CONFIG" -P s201 > /dev/null 2>&1
+=========================================
+Running Luigi with 20% cross-shard transactions
+=========================================
+  Starting Shard 0 replicas...
+  Starting Shard 1 replicas...
+  Starting Coordinator...
+Result: Throughput:        2700.93 txns/sec
+Latency: P99.9 Latency:     1954595.00 us
+
+./run_luigi_crossshard_study.sh: line 25: 49712 Killed                  ./build/luigi_server -f "$CONFIG" -P s102 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49722 Killed                  ./build/luigi_server -f "$CONFIG" -P s103 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49756 Killed                  ./build/luigi_server -f "$CONFIG" -P s202 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49761 Killed                  ./build/luigi_server -f "$CONFIG" -P s203 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49707 Killed                  ./build/luigi_server -f "$CONFIG" -P s101 > /dev/null 2>&1
+./run_luigi_crossshard_study.sh: line 25: 49748 Killed                  ./build/luigi_server -f "$CONFIG" -P s201 > /dev/null 2>&1
+=========================================
+Luigi cross-shard study completed!
+Results saved to: src/deptran/luigi/test/results/cross_shard/{5,10,15,20,25}/luigi/results.txt
+=========================================
