@@ -13,7 +13,6 @@ This document provides a detailed specification of the Luigi protocol, including
 7. [Paxos Replication](#7-paxos-replication)
 8. [State Machines](#8-state-machines)
 9. [Data Structures](#9-data-structures)
-10. [Failure Handling](#10-failure-handling)
 
 ---
 
@@ -536,42 +535,6 @@ struct Operation {
 };
 ```
 
----
-
-## 10. Failure Handling
-
-### 10.1 Coordinator Failure
-
-- Transactions in flight are lost (no persistent coordinator state)
-- Client retries with new transaction ID
-- Shards may have partial state; timeout and cleanup
-
-### 10.2 Shard Leader Failure
-
-- Paxos leader election triggers
-- New leader recovers committed log from followers
-- In-flight transactions may timeout; coordinator retries
-
-### 10.3 Network Partition
-
-- Paxos requires majority; minority partition cannot commit
-- Transactions spanning partitioned shards will timeout
-- System remains available for single-shard transactions in majority partition
-
-### 10.4 Late Transaction Arrival
-
-If a transaction arrives after its deadline:
-
-```cpp
-if (now() > proposed_ts_) {
-    // Transaction is late - bump to current time
-    proposed_ts_ = now();
-}
-```
-
-This ensures the transaction can still execute (just later than intended).
-
----
 
 ## Appendix A: Configuration
 
@@ -612,13 +575,6 @@ partition:
 ---
 
 ## Appendix B: Performance Characteristics
-
-### Latency Bounds
-
-| Configuration | Latency Bound | Formula |
-|--------------|---------------|---------|
-| Single-shard | 2 × OWD + headroom | Dispatch + Reply |
-| Cross-shard | 2 × OWD + headroom + agreement_time | + server-side coordination |
 
 ### Throughput Factors
 
