@@ -26,7 +26,7 @@ declare -a THREADS=(1 2 4 8)
 
 DURATION=30
 RESULTS_DIR="src/deptran/luigi/test/results/mako_tpcc"
-SCRIPTS_DIR="src/deptran/luigi/test/scripts"
+SCRIPTS_DIR="src/deptran/luigi/test/scripts/mako"
 TOTAL_TESTS=64
 CURRENT_TEST=1
 

@@ -49,7 +49,7 @@ run_test() {
   local latency=$7
   local jitter=$8
   
-  local script="src/deptran/luigi/test/scripts/run_${benchmark}_${config}_latency.sh"
+  local script="src/deptran/luigi/test/scripts/luigi/run_${benchmark}_${config}_latency.sh"
   local output_dir="${RESULTS_DIR}/${benchmark}/${config}/t${threads}"
   local output_file="${output_dir}/${network_name}.txt"
   
