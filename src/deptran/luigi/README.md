@@ -1,5 +1,24 @@
 # Luigi: Timestamp-Ordered Distributed Transaction Protocol
 
+> ⚠️ **Academic Use & Attribution Notice**
+>
+> This repository contains work developed as part of a graded course project for  
+> **CSE532 – Database Systems**.
+>
+> **Primary contributors**:  
+> - Avjot Singh
+> - Kunal Chadha
+> - Gautam Sardana
+> - Angad Singh
+>
+> The code is open-source under the MIT License inherited from the upstream project.
+> However, reuse of this repository (or substantial portions of it) for **coursework,
+> graded assignments, or academic submissions** without proper attribution may constitute
+> academic misconduct under institutional policies.
+>
+> Please see **[ACADEMIC_HONESTY.md](ACADEMIC_HONESTY.md)** for attribution and academic integrity guidelines.
+
+
 ## Introduction
 
 Luigi is a distributed transaction protocol that uses **timestamp-ordered execution** to achieve high throughput in geo-distributed environments. It is inspired by the Tiga protocol (SOSP 2025) and designed to compare against OCC-based systems like Mako.
