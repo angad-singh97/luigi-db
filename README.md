@@ -2,7 +2,6 @@
 
 <div align="center">
 
-![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OSDI'25](https://img.shields.io/badge/OSDI'25-Mako-orange.svg)](#mako-base-system)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
