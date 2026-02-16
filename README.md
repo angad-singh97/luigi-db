@@ -1,23 +1,125 @@
-# Mako
+# Mako + Luigi
 
 <div align="center">
 
 ![CI](https://github.com/makodb/mako/actions/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![OSDI'25](https://img.shields.io/badge/OSDI'25-Mako-orange.svg)](#what-is-mako)
+[![OSDI'25](https://img.shields.io/badge/OSDI'25-Mako-orange.svg)](#mako-base-system)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
-**High-Performance Distributed Transactional Key-Value Store with Geo-Replication Support**
+**Distributed Transactional Systems: Mako (OSDI'25) + Luigi (Timestamp-Ordered Protocol)**
 
-[What is Mako?](#what-is-mako) • [Quick Start](#quick-start) • [Replication Layers](#replication-layers) • [Benchmarks](#benchmarks)
+[Luigi — What We Built](#luigi--what-we-built) • [Quick Start](#quick-start) • [Luigi vs Mako](#luigi-vs-mako-benchmarks) • [Mako Base System](#mako-base-system)
 
 </div>
 
 ---
 
-## What is Mako?
+## Luigi — What We Built
 
-**Mako** is a high-performance distributed transactional key-value store system with geo-replication support, built on cutting-edge systems research.
-Mako's core design-level innovation is **decoupling transaction execution from replication** using a novel speculative 2PC protocol. Unlike traditional systems where transactions must wait for replication and persistence before committing, Mako allows distributed transactions to execute speculatively without blocking on cross-datacenter consensus. Transactions run at full speed locally while replication happens asynchronously in the background, achieving fault-tolerance without sacrificing performance. The system employs novel mechanisms to prevent unbounded cascading aborts when shards fail during replication, ensuring both high throughput (processing **3.66M TPC-C transactions per second** with 10 shards replicated across the continent) and strong consistency guarantees. More details can be found in our [OSDI'25 paper](https://www.usenix.org/conference/osdi25/presentation/shen-weihai).
+**Luigi** is a distributed transaction protocol that uses **timestamp-ordered execution** to achieve high throughput in geo-distributed environments. It is inspired by the Tiga protocol (SOSP 2025) and designed to compare against OCC-based systems like Mako.
+
+Luigi lives in `src/deptran/luigi/` — coordinator, server, scheduler, executor, state machine, and RPC layer. The base Mako system (Shuai Mu et al., OSDI'25) provides the infrastructure; we implemented the Luigi protocol on top.
+
+### Luigi Protocol Summary
+
+| Phase | Description |
+|-------|-------------|
+| **Timestamp Init** | Coordinator assigns future timestamps: `T.timestamp = now() + max_OWD + headroom` |
+| **Receipt & Queue** | Leaders do conflict detection, insert into timestamp-ordered priority queue |
+| **Timestamp Agreement** | Leaders exchange timestamps; `T.agreed_ts = max(T.timestamp)` across shards |
+| **Execution & Replication** | Execute transaction, append to Paxos stream |
+| **Watermark & Commit** | Coordinator replies when `T.timestamp <= watermark[shard][worker_ID]` for all shards |
+
+For full protocol spec, message formats, and RPC definitions, see **[src/deptran/luigi/LUIGI_PROTOCOL.md](src/deptran/luigi/LUIGI_PROTOCOL.md)**.
+
+### Luigi Highlights
+
+| Metric | Value |
+|--------|-------|
+| **2-WRTT latency bound** | Commit latency ≤ 2 Wide-Area Round Trip Times |
+| **Multi-shard vs Mako** | **30–60× higher throughput** in 2-shard, geo-distributed setups |
+| **Cross-shard study** | 60–160× advantage as cross-shard % increases (TPC-C) |
+
+**When Luigi wins:** Multi-shard workloads, high-latency networks. **When Mako wins:** Single-shard, low-latency networks (3–10× higher throughput).
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- CMake 3.10+, C++17, Linux with `tc` (traffic control) for network simulation  
+- Tested on **Debian 12** and **Ubuntu 22.04**
+
+### Build
+
+```bash
+# Clone and enter project
+git clone --recursive https://github.com/angad-singh97/luigi-db.git
+cd mako
+
+# Install dependencies
+bash apt_packages.sh
+source install_rustc.sh
+bash src/mako/update_config.sh
+
+# Build (produces luigi_server, luigi_coordinator, dbtest)
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+```
+
+### Run Luigi Benchmarks
+
+**TPC-C, 2-shard, 3-replicas:**
+```bash
+./src/deptran/luigi/test/scripts/luigi/run_tpcc_2shard_3replicas.sh <duration> <threads>
+```
+
+**With network latency simulation:**
+```bash
+# Parameters: duration threads owd_ms headroom_ms netem_delay_ms netem_jitter_ms
+./src/deptran/luigi/test/scripts/luigi/run_tpcc_2shard_3replicas_latency.sh 30 8 160 30 150 20
+```
+
+**Run all Luigi benchmarks:**
+```bash
+./src/deptran/luigi/test/scripts/luigi/run_all_benchmarks.sh
+```
+
+**Run Mako benchmarks (for comparison):**
+```bash
+./src/deptran/luigi/test/scripts/mako/run_mako_tpcc_2shard_3replicas.sh <duration> <threads>
+./src/deptran/luigi/test/scripts/mako/run_all_mako_tpcc_benchmarks.sh
+```
+
+Full Luigi docs: **[src/deptran/luigi/README.md](src/deptran/luigi/README.md)**
+
+---
+
+## Luigi vs Mako Benchmarks
+
+TPC-C benchmark on cloud infrastructure (8 cores, 16 GB RAM, Ubuntu 22.04). Network simulated with `tc netem`.
+
+| Configuration | Winner | Advantage |
+|---------------|--------|-----------|
+| 1-shard, 1-replica | Mako | 3–10× higher throughput |
+| 1-shard, 3-replicas | Mako | 3–50× higher throughput |
+| **2-shard, 1-replica** | **Luigi** | **30–60× higher throughput** |
+| **2-shard, 3-replicas** | **Luigi** | **30–60× higher throughput** |
+
+**Cross-shard study (2-shard, 3-replica, geo-distributed):** Luigi maintains 2,500+ TPS; Mako drops to 17–43 TPS as cross-shard % increases → **60–160× Luigi advantage**.
+
+Luigi’s 2-WRTT design (~600 ms) vs Mako’s 5+ round trips (1,440–1,680 ms for cross-shard) explains the gap. See [src/deptran/luigi/README.md](src/deptran/luigi/README.md) for full results.
+
+---
+
+## Mako Base System
+
+*The base distributed transactional key-value store (Shuai Mu et al., [OSDI'25](https://www.usenix.org/conference/osdi25/presentation/shen-weihai)) provides the infrastructure. Luigi is our protocol built on top.*
+
+**Mako** decouples transaction execution from replication using a speculative 2PC protocol. Transactions run at full speed locally while replication happens asynchronously, achieving fault-tolerance without blocking on cross-datacenter consensus. Processing **3.66M TPC-C transactions per second** with 10 shards replicated across the continent; **8.6× higher throughput** than state-of-the-art geo-replicated systems.
 
 ---
 
@@ -74,30 +176,6 @@ Additionally, **Raft can run standalone** (without Mako) via `deptran_server`:
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-Tested on **Debian 12** and **Ubuntu 22.04**.
-
-### Installation
-
-```bash
-# 1. Clone the repository with submodules
-git clone --recursive https://github.com/makodb/mako.git
-cd mako
-
-# 2. Install dependencies
-bash apt_packages.sh
-source install_rustc.sh
-bash src/mako/update_config.sh
-
-# 3. Build (use fewer cores on PC, e.g., -j4)
-make -j32
-```
-
----
-
 ## Build System
 
 ### Build Targets
@@ -114,6 +192,8 @@ make -j32
 
 | Binary | Build | Description |
 |--------|-------|-------------|
+| `build/luigi_server` | cmake | Luigi server (runs on each replica) |
+| `build/luigi_coordinator` | cmake | Luigi coordinator/client (generates transactions) |
 | `build/dbtest` | all | Main Mako binary (works with both Paxos and Raft replication) |
 | `build/deptran_server` | mako-raft | Standalone Raft server (for Raft-only testing) |
 | `build/simpleRaft` | mako-raft | Simple Raft replication test |
@@ -369,6 +449,11 @@ Key configuration directories:
 mako/
 ├── src/
 │   ├── deptran/           # Transaction protocols
+│   │   ├── luigi/         # Luigi protocol (timestamp-ordered, our contribution)
+│   │   │   ├── coordinator.cc/h, server.cc/h, scheduler.cc/h, executor.cc/h
+│   │   │   ├── state_machine.cc/h, commo.cc/h, service.cc/h
+│   │   │   ├── test/scripts/luigi/   # Luigi benchmark scripts
+│   │   │   └── test/scripts/mako/    # Mako benchmark scripts (for comparison)
 │   │   ├── paxos/         # Paxos replication
 │   │   ├── raft/          # Raft replication
 │   │   └── ...
@@ -436,6 +521,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- **Research Team**: Mako research and development team
-- **Contributors**: All researchers and students who have contributed
+- **Mako**: Shuai Mu et al., [OSDI'25](https://www.usenix.org/conference/osdi25/presentation/shen-weihai)
+- **Luigi**: Timestamp-ordered protocol in `src/deptran/luigi/` (our contribution)
 - **Dependencies**: Built on Janus, Masstree, RocksDB, eRPC, and other open-source projects
